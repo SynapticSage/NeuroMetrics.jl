@@ -16,5 +16,13 @@ To (locally) reproduce this project, do the following:
    julia> Pkg.instantiate()
    ```
 
-This will install all necessary packages for you to be able to run the scripts and
-everything should work out of the box, including correctly finding local paths.
+This will install all of the correct Julia libraries (used in plotting/munging)
+
+2. Follow instructions for [[https://github.com/JuliaInterop/MATLAB.jl][MATLAB.jl]]
+
+    you may need to set your Julia environment variable
+    ```
+    env["MATLAB_ROOT"] = "/usr/local/MATLAB/R2021b/";
+    ```
+    or wherever you store Matlab
+
