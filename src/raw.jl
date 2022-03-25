@@ -11,6 +11,7 @@ module raw
     include(srcdir("utils", "SearchSortedNearest.jl", "src",
                        "SearchSortedNearest.jl"))
     animal_dayfactor = Dict("RY16"=>33, "RY22"=>0)
+    export animal_dayfactor
 
     """
         load(animal, day)
@@ -142,7 +143,7 @@ module raw
                  missingstring=["NaN", "NaNNaNi", "NaNNaNi,", ""])
     end
 
-    function load_lfp(animal, day)
+    function load_lfp(animal, day; vars=nothing)
         netcdf = DrWatson.datadir("exp_raw",
                                          "visualize_raw_neural",
                                          "$(animal)_$(day)_rhythm.nc")
@@ -151,10 +152,14 @@ module raw
             v.vars["time"] = v.vars["Var1"]
             pop!(v.vars, "Var1")
         end
+        keyset = keys(v.vars)
+        if vars != nothing
+            throw(InvalidStateException("Not impllemented yet"))
+        end
         lfp = Dict(var => Array(v.vars[var]) 
-                   for var in keys(v.vars))
+                   for var in keyset)
         lfp = DataFrame(Dict(var => vec(lfp[var]) 
-                             for var in keys(lfp)))
+                             for var in keyset))
         return lfp
     end
 
@@ -234,6 +239,16 @@ module raw
         end
     end
     export task
+
+    module lfp
+        function annotate_cycles(lfp; phase_col="phase")
+            phase = lfp[!, phase_col]
+            Δₚ = [0; diff(phase)]
+            change_points = Δₚ .< 0
+            cycle_labels = accumulate(+, change_points)
+        end
+    end
+    export lfp
 
 
     # ----------
@@ -324,7 +339,7 @@ module raw
     module video
         using Glob, Printf
         using VideoIO
-        import ..raw: animal_dayfactor
+        using ..raw 
         function frameattime(vid, time; cropx=[], cropy=[])
             if time == 0
                 vid = seekstart(vid)
@@ -371,11 +386,11 @@ module raw
     module dlc
         using Glob, Printf
         using CSV, DataFrames
-        using ..raw: animal_dayfactor
+        using ..raw 
         function get_path(animal, day, epoch; dayfactor=0, 
                 guessdayfactor=true, filtered=false, source="deeplabcut")
             if guessdayfactor
-                dayfactor = animal_dayfactor[animal]
+                dayfactor = raw.animal_dayfactor[animal]
             end
             day += dayfactor
             if source == "deeplabcut"
