@@ -231,7 +231,6 @@ module field
         end
         return D
     end
-
     """
         field_to_dataframe(field::AbstractArray; other_labels=Dict())
 
