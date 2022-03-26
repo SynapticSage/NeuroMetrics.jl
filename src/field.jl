@@ -4,13 +4,15 @@ module field
     export get_fields
     export _occNormField
     export skipnan
-    export field_to_dataframe, fields_to_dataframe
+    export to_dataframe
 
     # Julia Packages
     using DataFrames
     using ImageFiltering
     using LazyGrids: ndgrid
     import DataStructures: OrderedDict
+    using DataStructures
+    using Statistics
 
     # Goal Vector Libraries
     using DrWatson
@@ -199,50 +201,62 @@ module field
         return (hist=fields, kde=kdfields, grid=gridk, gridf=gridf)
     end
 
-    function _get_edge(grid)
-        egrid
+    function center_to_edge(grid)
+        grid = collect(grid)
+        Δ = median(diff(grid))
+        δ = Δ/2
+        grid = minimum(grid)-δ:Δ:maximum(grid)+δ
+    end
+    function edge_to_center(grid)
+        grid = collect(grid)
+        grid = dropdims(mean([vec(grid[1:end-1]) vec(grid[2:end])], dims=2), dims=2)
     end
 
 
     """
     +purpose: converts a field dictionary (multiple units) into a field dataframe
     """
-    function fields_to_dataframe(fields; other_labels=Dict(),
-            key_name::String="unit")
-
+    function to_dataframe(fields::Dict; other_labels=Dict(), 
+            key_name::Union{Nothing,String}=nothing, kws...)
         D = DataFrame()
         for (key, field) in fields
-            other_labels[key_name] = key
-            append!(D, fields_to_dataframe(fields[key]; 
-                                           other_labels=other_labels))
+            if key_name != nothing && (key isa NamedTuple || key isa Dict)
+                other_labels[key_name] = key
+            elseif key isa NamedTuple
+                other_labels = Dict(string(k)=>v for (k, v) in pairs(key))
+            end
+            append!(D, to_dataframe(fields[key];
+                                           other_labels=other_labels, 
+                                           kws...))
         end
         return D
     end
-
 
     """
         field_to_dataframe(field::AbstractArray; other_labels=Dict())
 
     +purpose: converts a single field matrix into a field dataframe
     """
-    function field_to_dataframe(field::AbstractArray; other_labels=Dict())
-        D = ndgrid((1:size(field,i) for i in 1:ndims(field))...)
-        D = Dict{String,Any}("dim_$d"=>vec(D[d])
-                              for d in 1:ndims(field))
+    function to_dataframe(F::AbstractArray;
+            props::Vector{String}=Vector{String}([]), grid::Tuple=(),
+            gridtype="center", other_labels=Dict(), name::String="")
+        D = ndgrid((1:size(F,i) for i in 1:ndims(F))...)
+        D = OrderedDict{String,Any}("dim_$d"=>vec(D[d])
+                              for d in 1:ndims(F))
+        if ~isempty(props)
+            if gridtype == "edge"
+                grid = edge_to_center.(grid)
+            end
+            grid = ndgrid(grid...)
+        end
         for (label, value) in other_labels
-            print(label, value)
             D[label] = value
         end
-        D["field"] = vec(field);
+        for (prop, G) in zip(props, grid)
+            D[prop] = vec(G)
+        end
+        D[name] = vec(F);
         D = DataFrame(D)
-    end
-
-    """
-        fields_to_dataframe(field::AbstractArray; other_labels=Dict())
-
-    +purpose: converts a nested dict of fields into a dataframe
-    """
-    function fields_to_dataframe(fields::Dict; other_labels=Dict())
     end
 
     module hist
@@ -667,7 +681,5 @@ module field
         end
         return X
     end
-
-
 end
 
