@@ -17,10 +17,10 @@ module field
     # Goal Vector Libraries
     using DrWatson
     @assert isfile(srcdir("raw.jl"))
-    skipnan(x) = Iterators.filter(!isnan, x)
     include(srcdir("raw.jl"))
     include(srcdir("utils", "SearchSortedNearest.jl", "src",
                        "SearchSortedNearest.jl"))
+    include(srcdir("utils.jl"))
     # Submodules
     include(srcdir("model.jl"))
     export model
@@ -38,7 +38,8 @@ module field
         Grouping = Dict{typeof(keyset[1]), Any}()
         for key in keyset
             if requireAll
-                notin = [!(key in keys(field)) for (name,field) in zip(names,fields)]
+                notin = [!(key in keys(field)) for (name,field) in
+                         zip(names,fields)]
                 if any(notin)
                     continue
                 end
@@ -71,7 +72,7 @@ module field
         grid = OrderedDict{String,Any}()
         thing = dropmissing(thing);
         for prop in props
-            grid[prop] = extrema(skipnan(thing[!, prop]));
+            grid[prop] = extrema(utils.skipnan(thing[!, prop]));
         end
         range_func_hist(start, stop, i) = collect(start : (stop-start)/resolution[i] : stop);
         range_func_kde(x,y,i) = x:((y-x)/resolution[i]):y
@@ -397,8 +398,8 @@ module field
                 throw(ArgumentError("type of hist should match type of kde"))
             end
             if kde isa AbstractArray
-                area_hist = sum(skipnan(hist))
-                area_kde  = sum(skipnan(kde))
+                area_hist = sum(utils.skipnan(hist))
+                area_kde  = sum(utils.skipnan(kde))
                 kde = (area_hist/area_kde) .* kde;
             elseif kde isa Dict
                 for key in keys(kde)
@@ -591,7 +592,7 @@ module field
                 all(isnan.(F))
                 return Plots.plot()
             end
-            clims = quantile(skipnan(vec(F)), quant)
+            clims = quantile(utils.skipnan(vec(F)), quant)
             if xy == []
                 kwargs = (xticks=[], yticks=[])
             else

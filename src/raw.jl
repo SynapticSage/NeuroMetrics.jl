@@ -100,6 +100,7 @@ module raw
                 replace!(beh[!,col], missing=>NaN)
             end
         end
+        @assert ("x" ∈ names(beh)) "Fuck"
         return beh
     end
 
