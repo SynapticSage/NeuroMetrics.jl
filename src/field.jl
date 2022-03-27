@@ -179,12 +179,12 @@ module field
 
         if dohist
             println("props=$props")
-            fields, gridf = hist.fields(data, beh; props=props,
+            fields, gridh = hist.fields(data, beh; props=props,
                                         resolution=resolution, 
                                         splitby=splitby,
                                         gaussian=gaussian);
         else
-            fields, gridf = nothing, nothing
+            fields, gridh = nothing, nothing
         end
         atmost2d = (length(props) <= 2)
         if dokde && atmost2d
@@ -198,8 +198,12 @@ module field
         else
             kdfields, gridk = nothing, nothing
         end
+
+        gride = gridh
+        gridc = edge_to_center.(gride)
         
-        return (hist=fields, kde=kdfields, grid=gridk, gridf=gridf)
+        return (hist=fields, kde=kdfields, cgrid=gridc, egrid=gride,
+                gridh=gridh, gridk=gridk)
     end
 
     function center_to_edge(grid)
@@ -224,11 +228,13 @@ module field
             if key_name != nothing && (key isa NamedTuple || key isa Dict)
                 other_labels[key_name] = key
             elseif key isa NamedTuple
-                other_labels = Dict(string(k)=>v for (k, v) in pairs(key))
+                key_dict = Dict(string(k)=>v for (k, v) in pairs(key))
+                other_labels = merge(other_labels, key_dict)
             end
-            append!(D, to_dataframe(fields[key];
-                                           other_labels=other_labels, 
-                                           kws...))
+            if fields[key] != nothing
+                append!(D, to_dataframe(fields[key]; other_labels=other_labels,
+                                        kws...))
+            end
         end
         return D
     end
@@ -250,6 +256,9 @@ module field
             grid = ndgrid(grid...)
         end
         for (label, value) in other_labels
+            if label isa Symbol
+                label = String(label)
+            end
             D[label] = value
         end
         for (prop, G) in zip(props, grid)
@@ -263,6 +272,8 @@ module field
         using ..field
         using DataFrames
         using StatsBase
+        using DrWatson
+        include(srcdir("utils.jl"))
 
         function h2d(thing::DataFrame, props::Vector{String}; grid=(),
                 hist2dkws=Dict())
@@ -340,6 +351,8 @@ module field
         using DataFrames
         using StatsBase, KernelDensity
         using KernelDensitySJ
+        using DrWatson
+        include(srcdir("utils.jl"))
         function KDE(data, props; bandwidth=:silverman)
             data = dropmissing(data[:,props])
             #for col in props

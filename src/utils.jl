@@ -5,6 +5,9 @@ using CSV, DataFrames
 using Gadfly
 using Colors, ColorSchemes
 
+export skipnan
+export itsizeof, piso
+
 skipnan(x) = Iterators.filter(!isnan, x)
 
 function itsizeof(X)
@@ -45,4 +48,5 @@ function goalVectorTheme()
                   background_color=colorant"black")
     Gadfly.push_theme(theme)
 end
+
 end

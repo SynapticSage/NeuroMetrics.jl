@@ -67,7 +67,7 @@ module model
     Σ probabilityₜ(dataₜ)
     """
     function probability(data::DataFrame, fieldmodels::Dict)
-        out =  Dict(name=>probability(data, vec(model), name) 
+        out = Dict(name=>probability(data, vec(model), name) 
                     for (name,model) in fieldmodels)
         return out
     end
@@ -131,7 +131,6 @@ module model
     K (give number of spikes), lambda is a Scalar
     lookup, lookup a behavior value of a spike, lambda is an Array
     lookup * K, K is a scalar and lambda is an Array
-
     """
     function poisson(k::Vector, λ::Vector, data::Tuple=nothing,
             grid::Tuple=nothing; lookup_K=true)
@@ -163,6 +162,30 @@ module model
         lookup(data) = fit(Histogram, data, grid).weights
     end
 
+    module plot
+        using DataFrames
+        using Gadfly
+        using Statistics
+
+        function individual_poisson_mean_unitarea(likelihood; field=:prob)
+            meanlike = combine(groupby(dropmissing(likelihood), [:unit, :area]), 
+                               field=>mean)
+            field = String(field)
+            meanarealike = combine(groupby(meanlike, :area),
+                                   Symbol(field*"_mean")=>mean)
+            Gadfly.set_default_plot_size(20cm, 10cm)
+            p = [Gadfly.plot(meanlike, color=:unit, x=:unit,
+                             y=Symbol(field*"_mean"), Geom.bar),
+                 Gadfly.plot(meanarealike, color=:area, x=:area,
+                             y=Symbol(field*"_mean_mean"),
+                             Geom.bar(position=:stack)),
+                 Gadfly.plot(meanlike, color=:area, x=:area,
+                             y=Symbol(field*"_mean"),
+                             Geom.bar(position=:dodge))]
+            hstack(p...)
+        end
+    end
+    export plot
     
 end
 export model

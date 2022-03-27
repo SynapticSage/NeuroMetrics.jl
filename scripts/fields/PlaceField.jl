@@ -3,19 +3,21 @@
 # |---'|    ,---.,---.,---.    |__. .,---.|    ,---|
 # |    |    ,---||    |---'    |    ||---'|    |   |
 # `    `---'`---^`---'`---'    `    ``---'`---'`---'
-newkws = (; kws..., resolution=2*40, gaussian=2.3*0.5,
-          filters=merge(filt.speed_lib, filt.cellcount))
+props = ["x", "y"]
+newkws = (; kws..., resolution=resolution, gaussian=2.3*0.5, props=props,
+          filters=merge(kws.filters))
 place = field.get_fields(beh, spikes; newkws...);
+F["place"] = place
 
 # Generate all of the fields >  5cm/s
 # --------------------------
-a=field.plot.show_fields(place.hist)
-b=field.plot.show_fields(place.kde)
-grouping = field.group([place.hist,place.kde],["hist","kd"])
-overall = field.plot.show_fieldgroups(grouping)
-grouping = field.group([place.hist,place.kde],["hist","kd"])
-
 if ploton
+    grouping = field.group([place.hist,place.kde],["hist","kd"])
+
+    a=field.plot.show_fields(place.hist)
+    b=field.plot.show_fields(place.kde)
+    overall = field.plot.show_fieldgroups(grouping)
+
     name=plotsdir("fields", "individual_pf_vel=gt4")
     if !(isdir(name))
         mkdir(name)
@@ -25,6 +27,19 @@ if ploton
     field.plot.save_dict_fieldplots(individualgroups, name)
 end
 
-if dopoisson
+if dopoissonmodel
+    # Ready the data
+    data = field.model.data(spikes, beh; grid=place.cgrid, props=props)
+    # Acquire the probabilities fields | data
+    likelihood = field.model.probability(data, place.hist)
+    # Convert to dataframe
+    likelihood = field.to_dataframe(likelihood, other_labels=Dict(:type=>"xy"),
+                                    name="prob")
+    likelihood[!,"logprob"] = log10.(likelihood.prob)
+    table.naninf_to_missing!(likelihood, [:prob, :logprob])
+    P["place"] = likelihood
 
+    if ploton
+        model.plot.individual_poisson_mean_unitarea(likelihood)
+    end
 end

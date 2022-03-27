@@ -380,6 +380,37 @@ function _occupancy_normalize(data::DataFrame, beh::DataFrame,
     return data
 end
 
+function combine(data::Dict{Any, Any})
+    return vcat((x[2] for x in data)...)
+end
+
+function nan_to_missing(df::DataFrame, cols::Union{Vector{String}, Vector{Symbol}})
+    for col in cols
+        df[:, col] = replace(df[!, col], NaN=>missing)
+    end
+    return df
+end
+function naninf_to_missing(df::DataFrame, cols::Union{Vector{String}, Vector{Symbol}})
+    for col in cols
+        df[:, col] = replace(df[!, col], NaN=>missing, Inf=>missing,
+                             -Inf=>missing)
+    end
+    return df
+end
+
+function nan_to_missing!(df::DataFrame, cols::Union{Vector{String}, Vector{Symbol}})
+    for col in cols
+        df[!, col] = replace(df[!, col], NaN=>missing)
+    end
+end
+function naninf_to_missing!(df::DataFrame, cols::Union{Vector{String}, Vector{Symbol}})
+    for col in cols
+        df[!, col] = replace(df[!, col], NaN=>missing, Inf=>missing,
+                             -Inf=>missing)
+    end
+end
+
+
 function display_table(data; others...)
     w=Window()
     body!(w, TableView.showtable(data, dark=true, height=950, others...))
@@ -390,7 +421,6 @@ module group
     pairs(groups) = (collect(zip(sort(collect(groups.keymap))))[i][1] 
                      for i in 1:length(G.keymap))
     function named_coords(groups)
-        
     end
 end
 export group
