@@ -8,6 +8,7 @@ module raw
     using CSV
     using Statistics
     using Dates
+    using Printf
     include(srcdir("utils", "SearchSortedNearest.jl", "src",
                        "SearchSortedNearest.jl"))
     animal_dayfactor = Dict("RY16"=>33, "RY22"=>0)
@@ -174,6 +175,17 @@ module raw
                  missingstring=["NaN", "NaNNaNi", "NaNNaNi,", ""])
         transform!(task, :x => pxtocm => :x, :y => pxtocm => :y)
         return task
+    end
+
+    function decodedir(method="sortedspike", transition="empirical", binstate="notbinned", n_split=4, downsamp=1, speedup=1.0)
+        base = "/Volumes/FastData/decode/"
+        paramfolder = "$method.$transition.$binstate.n_split=$n_split.downsamp=$downsamp.speedup=$(@sprintf("%1.1f", speedup))"
+        return joinpath(base, paramfolder)
+    end
+    function decodepath(animal="RY16", day=36, epoch=7; type="test", split=1, kws...)
+        dir = decodedir(kws...)
+        file = "$(animal)decode$(@sprintf("%02d",day))-$(@sprintf("%02d", epoch))split=$split.$type.nc"
+        joinpath(dir, file)
     end
 
     function load_decode(filename)

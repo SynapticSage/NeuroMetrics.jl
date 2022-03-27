@@ -1,11 +1,13 @@
 let SessionLoad = 1
 let s:so_save = &g:so | let s:siso_save = &g:siso | setg so=0 siso=0 | setl so=-1 siso=-1
 let v:this_session=expand("<sfile>:p")
+let Tlist_Exit_OnlyWindow =  0 
 let Tlist_Show_One_File =  0 
 let WebDevIconsNerdTreeGitPluginForceVAlign =  1 
 let UltiSnipsRemoveSelectModeMappings =  1 
 let WebDevIconsUnicodeDecorateFolderNodesDefaultSymbol = ""
-let UltiSnipsExpandTrigger = "<C-j>"
+let Tlist_Display_Prototype =  0 
+let UltiSnipsEnableSnipMate =  1 
 let Tlist_GainFocus_On_ToggleOpen =  0 
 let Tlist_Auto_Update =  1 
 let Lf_StlColorscheme = "one"
@@ -36,7 +38,7 @@ let UltiSnipsDebugPort =  8080
 let Tlist_Show_Menu =  0 
 let Tlist_Use_SingleClick =  0 
 let UltiSnipsUsePythonVersion =  3 
-let UltiSnipsEnableSnipMate =  1 
+let UltiSnipsExpandTrigger = "<C-j>"
 let DevIconsEnableFoldersOpenClose =  0 
 let DevIconsEnableFolderPatternMatching =  1 
 let VM_Insert_hl = "Cursor"
@@ -50,7 +52,6 @@ let DevIconsAppendArtifactFix =  0
 let WebDevIconsUnicodeDecorateFolderNodes =  1 
 let UltiSnipsDebugServerEnable =  0 
 let WebDevIconsUnicodeGlyphDoubleWidth =  1 
-let Tlist_Exit_OnlyWindow =  0 
 let Tlist_Max_Tag_Length =  10 
 let UltiSnipsListSnippets = "<c-tab>"
 let Tlist_Auto_Open =  0 
@@ -66,7 +67,6 @@ let Tlist_WinHeight =  10
 let Tlist_Inc_Winwidth =  1 
 let WebDevIconsNerdTreeBeforeGlyphPadding = " "
 let WebDevIconsUnicodeDecorateFolderNodesSymlinkSymbol = ""
-let Tlist_Display_Prototype =  0 
 let Tlist_Use_Right_Window =  0 
 silent only
 silent tabonly
@@ -77,17 +77,18 @@ endif
 set shortmess=aoO
 argglobal
 %argdel
-edit ~/Code/projects/goal-code/_research/decode/ThetaSeqPlots.jl
+edit raw.jl
 argglobal
 balt ~/Code/projects/goal-code/_research/decode/ThetaSeqPlots.jl
-let s:l = 2 - ((1 * winheight(0) + 15) / 30)
+let s:l = 1 - ((0 * winheight(0) + 14) / 29)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 2
+keepjumps 1
 normal! 0
 tabnext 1
-badd +0 ~/Code/projects/goal-code/_research/decode/ThetaSeqPlots.jl
+badd +37 ~/Code/projects/goal-code/_research/decode/ThetaSeqPlots.jl
+badd +0 raw.jl
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
 endif
@@ -99,7 +100,6 @@ if filereadable(s:sx)
 endif
 let &g:so = s:so_save | let &g:siso = s:siso_save
 set hlsearch
-nohlsearch
 let g:this_session = v:this_session
 let g:this_obsession = v:this_session
 doautoall SessionLoadPost
