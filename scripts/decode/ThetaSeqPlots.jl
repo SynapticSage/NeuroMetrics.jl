@@ -20,55 +20,62 @@ set_theme!(theme_dark())
 __revise_mode__ = :eval
 #includet(srcdir("table.jl"))
 includet(srcdir("raw.jl"))
+includet(srcdir("utils.jl"))
 includet(srcdir("table.jl"))
 includet(srcdir("raster.jl"))
 includet(srcdir("decode.jl"))
 includet("/home/ryoung/Code/projects/goal-code/src/utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
-beh     = raw.load_behavior("RY16", 36)
-spikes  = raw.load_spikes("RY16",   36)
-theta = raw.load_lfp("RY16",  36)
-task    = raw.load_task("RY16",  36)
+
+# -----------
+# DATASETS
+# -----------
+animal, day, epoch = "RY16", 36, 7
+beh    = raw.load_behavior(animal, day)
+spikes = raw.load_spikes(animal,   day)
+lfp  = raw.load_lfp(animal,      day)
+task   = raw.load_task(animal,     day)
 
 # -----------
 # SETTINGS
 # -----------
 usevideo=false
-mkdir(plotsdir("ripples","mpp_decode"))
-mkdir(plotsdir("ripples","mpp_decode","withBehVideo=$usevideo"))
 transition_type ="empirical"
 decoder_type ="sortedspike"
 variable = "causal_posterior"
-epoch = 7
-video="/Volumes/Colliculus/RY16_experiment/actualVideos/RY16_69_0$(epoch)_CMt.1.mp4"
-(split, split_type) = collect(Iterators.product([0,1,2], ["testing","training"]))[1]
+video="/Volumes/Colliculus/RY16_experiment/actualVideos/$(animal)_69_0$(epoch)_CMt.1.mp4"
+(split, split_type) = collect(Iterators.product([0,1,2], ["test","train"]))[1]
 thresh_var = Dict("likelihood"=>0.1,
-              "acausal_posterior"=>0.985,
-              "causal_posterior"=>0.985)
+                  "acausal_posterior"=>0.985,
+                  "causal_posterior"=>0.985)
 outputVideo = "animation.$(decoder_type)_$(transition_type)_$(split_type)_$(split)_$(variable)_$(basename(video))"
-mkdir(plotsdir("ripples","mpp_decode", "withBehVideo=$usevideo", outputVideo))
+utils.mkifne(plotsdir("ripples","mpp_decode", "withBehVideo=$usevideo", outputVideo))
+utils.mkifne(plotsdir("ripples","mpp_decode"))
+utils.mkifne(plotsdir("ripples","mpp_decode","withBehVideo=$usevideo"))
 wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
+
+
+utils.pushover("Finished preprocess sequenece")
 
 # -----------
 # GET DECODER
 # -----------
-decode_file = "/mnt/FastData/RY16deepinsight36-07.testing.sortedspike.empirical.notbinned.downsamp=1.speedup=20.0.iter=0.nc"
+decode_file = raw.decodepath(animal, day, epoch, transition="empirical",
+                             method="sortedspike", split=split,
+                             type=split_type, speedup=20.0)
+@assert isfile(decode_file) "File=$decode_file doesn't exist"
 D = raw.load_decode(decode_file)
 x = D["x_position"]
 y = D["y_position"]
 T = D["time"]
 if usevideo
-    stream = VideoIO.open(video)
-    vid = VideoIO.openvideo(stream)
+    stream = VideoIO.open(video); vid = VideoIO.openvideo(stream);
 end
-
-mint = minimum(beh[beh.epoch.==epoch,:].time)
 dat = permutedims(D[variable], [2,1,3])
+#mint = minimum(beh[beh.epoch.==epoch,:].time)
 
-validripples = ripples[ripples.epoch.==epoch,:]
-#(rip,ripple) = collect(enumerate(eachrow(validripples)))[4]
-(rip,ripple) = collect(enumerate(eachrow(validripples)))[11]
+# Ready theta waves
 
-@showprogress for (rip,ripple) in enumerate(eachrow(validripples))
+@showprogress for (cyc, cycle) in enumerate(eachrow(validcycles))
     print(rip)
 
     start, stop = ripple.start, ripple.stop
@@ -94,11 +101,6 @@ validripples = ripples[ripples.epoch.==epoch,:]
             scatter!(ax, unit.time, i*ones(size(unit.time))*4, color=cmap, strokewidth=1, markersize=3)
         catch
         end
-        #if i == 1
-        #    Plots.scatter(unit.time, i*ones(size(unit.time))*4)
-        #else
-        #    Plots.scatter!(unit.time, i*ones(size(unit.time))*4)
-        #end
     end
 
     # -----------------
@@ -133,12 +135,14 @@ validripples = ripples[ripples.epoch.==epoch,:]
     timestamps = range(1, size(dat_sub,3), step=1)
     cmaps = decode.heatmap.static_colormap_per_sample(:hawaii, timestamps)
     thresh = thresh_var[variable]
+
     for t in timestamps
         ds = decode.quantile_threshold(copy(dat_sub), thresh=thresh)
         DS = ds[:,:,t]
         hm_=heatmap!(ax, x, y, DS, overdraw=false, transparency=true, depth_shift=0+(t*0.00001),
                      colormap=cgrad(cmaps[t], alpha=0.1))
     end
+
     sc_ = scatter!(ax, P(1), color=color, depth_shift=1, overdraw=false,
                    transparency=true,
                    markersize=20, glowwidth=sc_glow_width,
@@ -147,11 +151,7 @@ validripples = ripples[ripples.epoch.==epoch,:]
                    strokecolor=:black, strokewidth=1.1, depth_shift=0.3,
                    overdraw=false, marker = :star5, markersize=15,
                    label="wells")
-    #if usevideo
-    #    Legend(fig.figure[1, 1], [sc_], ["Actual\nposition"])
-    #else
-    #    Legend(fig[1, 1], [sc_], ["Actual\nposition"])
-    #end
+
     Colorbar(fig[1, 1], limits = (0, stop-start), colormap=:hawaii,
              label = "Time", flipaxis = false, vertical=false)
 
@@ -166,4 +166,14 @@ validripples = ripples[ripples.epoch.==epoch,:]
     end
 
 end
+
+
+# LFP scratchpad
+lfpd = lfp[1:15:end, :] # lets screw around with downsampled set
+@time lfpd = combine(groupby(lfpd, :tetrode), raw.lfp.annotate_cycles)
+cycle_max = combine(groupby(lfpd, [:tetrode, :area]), :cycle=>maximum)
+@df cycle_max Plots.scatter(:area, :cycle_maximum)
+@df cycle_max Plots.histogram(:cycle_maximum)
+@df lfpd Plots.plot(:time, :cycle, group=:tetrode)
+
 

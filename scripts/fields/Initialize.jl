@@ -1,5 +1,5 @@
 """
-Boilerplate for fields
+Boilerplate for field
 
 plus runs all field analyses
 """
@@ -32,6 +32,7 @@ runanalyses, ploton, dopoissonmodel = true, false, true
 if runanalyses
     include(scriptsdir("fields", "PlaceField.jl")) # 1
     include(scriptsdir("fields", "GoalField.jl")) # 2
-    include(scriptsdir("fields", "GoalPlace.jl")) # 3
-    include(scriptsdir("fields", "SplitGoalPlace.jl")) # 4
+    include(scriptsdir("fields", "Poisson_CompareGoalPlace.jl")) # 3
+    include(scriptsdir("fields", "PlotGoalPlace.jl")) # 4
+    include(scriptsdir("fields", "SplitGoalPlace.jl")) # 5
 end

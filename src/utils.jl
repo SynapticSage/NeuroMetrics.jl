@@ -4,11 +4,21 @@ import Random
 using CSV, DataFrames
 using Gadfly
 using Colors, ColorSchemes
+using Pushover
 
 export skipnan
 export itsizeof, piso
 
 skipnan(x) = Iterators.filter(!isnan, x)
+
+"""
+mkdifne
+
+like mkdir, except makes if not exist
+"""
+function mkifne(path)
+    if !(isdir(path)); mkdir(path); end
+end
 
 function itsizeof(X)
     [size(x) for x in X]
@@ -48,5 +58,20 @@ function goalVectorTheme()
                   background_color=colorant"black")
     Gadfly.push_theme(theme)
 end
+
+function getPushoverClient()
+    token = open(expanduser("~/.pushover.token"),"r") do f
+        token = read(f, String)
+    end
+    user = open(expanduser("~/.pushover.user"),"r") do f
+        user = read(f, String)
+    end
+    return PushoverClient(user, token)
+end
+
+function pushover(pos...; kws...)
+    send(getPushoverClient(), pos...; kws...)
+end
+
 
 end

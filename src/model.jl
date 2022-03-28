@@ -186,6 +186,42 @@ module model
         end
     end
     export plot
-    
+
+    module comparison
+        using DataFrames
+        using Statistics
+        function subtract(library::Dict, which_keys::Vector{String};
+                by::Vector{String}=["unit","area"],
+                measures::Vector{String}=["prob","logprob"])
+
+                df = vcat((value for (key,value) in library if key in which_keys)...)
+
+                splits = [by; "type"]
+                gdf = groupby(df, splits)
+                new = DataFrame()
+                for (i,d) ∈ enumerate(gdf)
+                    n = combine(dropmissing(d), :prob=>mean=>:prob, :logprob=>mean=>:logprob)
+                    n = hcat(n, DataFrame(d[1, splits]))
+                    append!(new, n)
+                end
+
+                out = nothing
+                uType = unique(new.type)
+                for (i,measure) ∈ enumerate(measures)
+                    measure = [measure]
+                    unused = setdiff(measures, measure)
+                    u = unstack(new[!, Not(unused)], :type, measure[1])
+                    if i == 1
+                        out = u
+                    end
+                    measure=measure[1]
+                    subtract = ((x,y) -> y-x)
+                    out[!,measure] = select(u, uType => subtract => measure)[!,measure]
+                end
+                out = out[!, Not(uType)]
+            end
+    end
+    export comparison
+
 end
 export model

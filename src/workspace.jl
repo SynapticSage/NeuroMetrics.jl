@@ -1,7 +1,7 @@
 module workspace
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
-using Pushover, Revise
+using Revise
 using Interact, Blink, Mux, ProgressMeter
 using Statistics
 __revise_mode__ = :eval
@@ -9,19 +9,9 @@ __revise_mode__ = :eval
 includet(srcdir("raw.jl"))
 includet(srcdir("table.jl"))
 includet(srcdir("raster.jl"))
+includet(srcdir("utils.jl"))
 
-function getPushoverClient()
 
-    token = open(expanduser("~/.pushover.token"),"r") do f
-        token = read(f, String)
-    end
-    user = open(expanduser("~/.pushover.user"),"r") do f
-        user = read(f, String)
-    end
-
-    return PushoverClient(user, token)
-
-end
 
 animal = "RY16"
 day=36
@@ -34,7 +24,8 @@ else
     spikes, beh, lfp, cells, tetrode, ripples = raw.load(animal, day; 
                                                         data_source=data_source)
 end
-send(getPushoverClient(), "Finished loading julia data")
+
+send(utils.getPushoverClient(), "Finished loading julia data")
 
 
 

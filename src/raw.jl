@@ -12,6 +12,7 @@ module raw
     include(srcdir("utils", "SearchSortedNearest.jl", "src",
                        "SearchSortedNearest.jl"))
     animal_dayfactor = Dict("RY16"=>33, "RY22"=>0)
+    csvkws=(; silencewarnings=true)
     export animal_dayfactor
 
     """
@@ -88,11 +89,9 @@ module raw
         typemap = Dict(Int64=>Int16);
         behCSV = datadir("exp_raw", "visualize_raw_neural",
                          "$(animal)_$(day)_beh.csv")
-        beh = CSV.read(behCSV, DataFrame,
-                 strict=false,
-                 missingstring=["NaNNaNi", "NaNNaNi,", ""],
-                 types=typeFunc,
-                 typemap=typemap)
+        beh = CSV.read(behCSV, DataFrame;
+                 strict=false, missingstring=["NaNNaNi", "NaNNaNi,", ""], 
+                 types=typeFunc, typemap=typemap, csvkws...)
         if beh.time isa Vector{String}
             beh.time = parse.(Float32, beh.time);
         end
@@ -109,9 +108,9 @@ module raw
         rawSpikingCSV = DrWatson.datadir("exp_raw",
                                          "visualize_raw_neural",
                                          "$(animal)_$(day)_labeled_spiking.csv")
-        raster = CSV.read(rawSpikingCSV, DataFrame,
-                 strict=false,
-                 missingstring=["NaN", "", "NaNNaNi"])
+        raster = CSV.read(rawSpikingCSV, DataFrame;
+                 strict=false, missingstring=["NaN", "", "NaNNaNi"],
+                 csvkws...)
 
 
         # And let's add some brain area specific numbering
@@ -129,9 +128,9 @@ module raw
         csvFile = DrWatson.datadir("exp_raw",
                                          "visualize_raw_neural",
                                          "$(animal)_$(day)_cell.csv")
-        cells = CSV.read(csvFile, DataFrame,
-                 strict=false,
-                 missingstring=["NaN", "", "NaNNaNi"])
+        cells = CSV.read(csvFile, DataFrame;
+                 strict=false, missingstring=["NaN", "", "NaNNaNi"],
+                 csvkws...)
         return cells
     end
 
@@ -140,9 +139,10 @@ module raw
         csvFile = DrWatson.datadir("exp_raw",
                                    "visualize_raw_neural",
                                    "$(animal)_$(day)_ripple.csv")
-        ripples = CSV.read(csvFile, DataFrame, strict=false,
+        ripples = CSV.read(csvFile, DataFrame; strict=false,
                  typemap=typemap,
-                 missingstring=["NaN", "NaNNaNi", "NaNNaNi,", ""])
+                 missingstring=["NaN", "NaNNaNi", "NaNNaNi,", ""],
+                 csvkws...)
     end
 
     function load_lfp(animal, day; vars=nothing)
@@ -170,22 +170,26 @@ module raw
         csvFile = DrWatson.datadir("exp_raw",
                                    "visualize_raw_neural",
                                    "$(animal)_$(day)_task.csv")
-        task = CSV.read(csvFile, DataFrame, strict=false,
-                 typemap=typemap,
-                 missingstring=["NaN", "NaNNaNi", "NaNNaNi,", ""])
+        task = CSV.read(csvFile, DataFrame; strict=false, typemap=typemap,
+                 missingstring=["NaN", "NaNNaNi", "NaNNaNi,", ""],
+                 csvkws...)
         transform!(task, :x => pxtocm => :x, :y => pxtocm => :y)
         return task
     end
 
-    function decodedir(method="sortedspike", transition="empirical", binstate="notbinned", n_split=4, downsamp=1, speedup=1.0)
+    function decodedir(;method="sortedspike", transition="empirical", binstate="notbinned", n_split=4, downsamp=1, speedup=1.0)
         base = "/Volumes/FastData/decode/"
         paramfolder = "$method.$transition.$binstate.n_split=$n_split.downsamp=$downsamp.speedup=$(@sprintf("%1.1f", speedup))"
         return joinpath(base, paramfolder)
     end
     function decodepath(animal="RY16", day=36, epoch=7; type="test", split=1, kws...)
-        dir = decodedir(kws...)
+        dir = decodedir(;kws...)
         file = "$(animal)decode$(@sprintf("%02d",day))-$(@sprintf("%02d", epoch))split=$split.$type.nc"
-        joinpath(dir, file)
+        fullpath = joinpath(dir, file)
+        if !(isfile(fullpath))
+            @warn "file=$fullpath does not exist"
+        end
+        return fullpath
     end
 
     function load_decode(filename)
@@ -194,9 +198,9 @@ module raw
             v.vars["time"] = v.vars["Var1"]
             pop!(v.vars, "Var1")
         end
-        lfp = Dict(var => Array(v.vars[var]) 
+        decode = Dict(var => Array(v.vars[var]) 
                    for var in keys(v.vars))
-        return lfp
+        return decode
     end
 
     function load_tetrode(animal,day)
@@ -213,7 +217,7 @@ module raw
     end
 
     function load_pathtable(animal, day)
-        f=CSV.read(datadir("paths.csv"), DataFrame)
+        f=CSV.read(datadir("paths.csv"), DataFrame; csvkws...)
         init = Dates.Time("00:00:00")
         function s(x)
             x = Second.(x .- init)
@@ -259,6 +263,14 @@ module raw
             Δₚ = [0; diff(phase)]
             change_points = Δₚ .< 0
             cycle_labels = accumulate(+, change_points)
+            lfp[!,"cycle"] = cycle_labels
+            return lfp
+        end
+        function mean_lfp(lfp; mean_fields=["phase","amp","raw"])
+            lfpd = groupby(lfpd, :time)
+            new = DataFrame()
+            non_mean_fields = setdiff(names(lfp), mean_fields)
+            combine(lfpd, mean_fields.=>mean.=>mean_fields, non_mean_fields.=>first.=>non_mean_fields
         end
     end
     export lfp
@@ -425,7 +437,8 @@ module raw
             return videopath
         end
         function load(pos...; kws...)
-            df = CSV.read(get_path(pos...;kws...), DataFrame, header=3, skipto=4)
+            df = CSV.read(get_path(pos...;kws...), DataFrame; header=3, skipto=4,
+                         csvkws...)
             transform!(df, :coords=>(x->x*(1/30))=>:time, 
                           [:x,:x_1]=>((a,b)->(a.+b)./2)=>:X,
                           [:y,:y_1]=>((a,b)->(a.+b)./2)=>:Y,

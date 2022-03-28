@@ -79,16 +79,18 @@ argglobal
 %argdel
 edit raw.jl
 argglobal
-balt ~/Code/projects/goal-code/_research/decode/ThetaSeqPlots.jl
-let s:l = 1 - ((0 * winheight(0) + 14) / 29)
+balt ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
+let s:l = 1 - ((0 * winheight(0) + 13) / 27)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
 keepjumps 1
 normal! 0
 tabnext 1
-badd +37 ~/Code/projects/goal-code/_research/decode/ThetaSeqPlots.jl
-badd +0 raw.jl
+badd +267 raw.jl
+badd +77 utils.jl
+badd +178 ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
+badd +13 ~/Code/projects/goal-code/src/workspace.jl
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
 endif
