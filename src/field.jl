@@ -202,7 +202,7 @@ module field
         gridc = edge_to_center.(gride)
         
         return (hist=fields, kde=kdfields, cgrid=gridc, egrid=gride,
-                gridh=gridh, gridk=gridk)
+                gridh=gridh, gridk=gridk, beh=, behdens=)
     end
 
     function center_to_edge(grid)

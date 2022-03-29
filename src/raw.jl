@@ -285,9 +285,33 @@ module raw
         function mean_lfp(lfp; mean_fields=["phase","amp","raw"], func=Circular.median)
             lfp = groupby(lfp, :time)
             non_mean_fields = setdiff(names(lfp), mean_fields)
-            combine(lfp, mean_fields.=>func.=>mean_fields, 
+            lfp =combine(lfp, mean_fields.=>func.=>mean_fields, 
                          non_mean_fields.=>first.=>non_mean_fields)
+            return lfp[!, Not(:tetrode)]
         end
+        """
+        weighted_lfp
+
+        creates an amplitude weighted average of fields across tetrodes
+        """
+        function weighted_lfp(lfp; mean_fields=["phase","amp","raw"], weighting="amp")
+            lfp = groupby(lfp, :time)
+            non_mean_fields = setdiff(names(lfp), mean_fields)
+            new = DataFrame()
+            @time for lf in lfp
+                item = DataFrame(lf[1,:])
+                for field in mean_fields
+                    item[!, field] .= sum(lf[!, field] .* lf[!, weighting])/sum(lf.amp)
+                end
+                append!(new, item)
+            end
+            return new[!, Not(:tetrode)]
+        end
+
+        function unstack_tetrode(df, meausure::Symbol=:phase)
+            unstack(df[!, [:time, :tetrode, measure]], :tetrode, measure)
+        end
+
     end
     export lfp
 

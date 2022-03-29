@@ -3,8 +3,13 @@ module model
     using StatsBase
     using ProgressMeter
     using DataFrames
+    using ..field
+    using ..table
     include(srcdir("utils", "SearchSortedNearest.jl", "src",
                    "SearchSortedNearest.jl"))
+
+    function reconstruction(jointdensity, marginalrate)
+    end
 
     """
     data
@@ -162,14 +167,17 @@ module model
         lookup(data) = fit(Histogram, data, grid).weights
     end
 
-    function run(spikes, beh, fieldobj, props)
+    function run(spikes, beh, fieldobj, props; type="")
+        if type==""
+            @warn "Blank type"
+        end
         # Ready the data
-        data = field.model.data(spikes, beh; grid=fieldobj.cgrid, props=props)
+        D = model.data(spikes, beh; grid=fieldobj.cgrid, props=props)
         # Acquire the probabilities fields | data
-        likelihood = field.model.probability(data, fieldobj.hist)
+        likelihood = model.probability(D, fieldobj.hist)
         # Convert to dataframe
         likelihood = field.to_dataframe(likelihood,
-                                        other_labels=Dict(:type=>"goal"),
+                                        other_labels=Dict(:type=>type),
                                         name="prob")
         likelihood[!,"logprob"] = log10.(likelihood.prob)
         table.naninf_to_missing!(likelihood, [:prob, :logprob])
@@ -178,8 +186,8 @@ module model
 
     module plot
         using DataFrames
-        using Gadfly
         using Statistics
+        using Gadfly, StatsPlots, DrWatson
 
         function individual_poisson_mean_unitarea(likelihood; field=:prob)
             meanlike = combine(groupby(dropmissing(likelihood), [:unit, :area]), 
@@ -198,15 +206,29 @@ module model
                              Geom.bar(position=:dodge))]
             hstack(p...)
         end
+
+        function comparison_binaryop_striplot_unitarea(df; label="tmp", hline=[])
+            ylabel = replace(label, "-div-"=>"/")
+            p = @df df Plots.scatter(:areaNum, :prob, group=:area, ylabel=ylabel, legend=:bottomleft, alpha=0.6, xticks=((2,1),["CA1","PFC"]))
+            Plots.hline!(hline; c=:black, linestyle=:dash, label="line of similarity")
+            savefig(p, plotsdir("fields","poisson_model", "$label.pdf"))
+            savefig(p, plotsdir("fields","poisson_model", "$label.png"))
+            savefig(p, plotsdir("fields","poisson_model", "$label.svg"))
+            p
+        end
+
     end
     export plot
 
     module comparison
         using DataFrames
         using Statistics
-        function subtract(library::Dict, which_keys::Vector{String};
+        using GroupSlices
+        using Distributions
+        function binaryop(library::Dict, which_keys::Vector{String};
                 by::Vector{String}=["unit","area"],
-                measures::Vector{String}=["prob","logprob"])
+                op=-, measures::Vector{String}=["prob","logprob"])
+            println("Which_keys = $which_keys")
 
                 df = vcat((value for (key,value) in library if key in which_keys)...)
 
@@ -221,6 +243,7 @@ module model
 
                 out = nothing
                 uType = unique(new.type)
+                @assert length(uType) == 2 "not enough types"
                 for (i,measure) ∈ enumerate(measures)
                     measure = [measure]
                     unused = setdiff(measures, measure)
@@ -229,10 +252,12 @@ module model
                         out = u
                     end
                     measure=measure[1]
-                    subtract = ((x,y) -> y-x)
-                    out[!,measure] = select(u, uType => subtract => measure)[!,measure]
+                    subtract = ((x,y) -> op(y,x))
+                    out[!,measure]=select(u, uType => subtract => measure)[!,measure]
                 end
                 out = out[!, Not(uType)]
+                out.areaNum = GroupSlices.groupslices(out.area) + rand(Uniform(-0.1,0.1), length(out.area))
+                out
             end
     end
     export comparison

@@ -169,17 +169,20 @@ end
 
 
 # LFP scratchpad
-@time lfpd, lfp_avg = begin
+@time lfpd = begin
     lfpd = combine(groupby(lfp, :tetrode), df->raw.downsample(df;dfactor=15))#little more memory hungry than for-loop version
     lfpd = combine(groupby(lfpd, :tetrode), raw.lfp.annotate_cycles)
-    tetrode, lfpd = raw.register(tetrode, lfpd; transfer=["area"], on="tetrode")
-    lfp_avg = combine(groupby(lfpd, :area), raw.lfp.mean_lfp)
+    tetrode, lfpd = raw.register(tetrode, lfpd; transfer=["area"], on="tetrode");
+    #lfp_avg = combine(groupby(lfpd, :area), raw.lfp.mean_lfp)
+    #@time lfp_wavg = combine(groupby(lfpd, :area), raw.lfp.weighted_lfp)
+    #lfp_avg = combine(groupby(lfp_avg, :area), raw.lfp.annotate_cycles)
 end
 cycle_max = combine(groupby(lfpd, [:tetrode, :area]), :cycle=>maximum)
 utils.pushover("Finished preprocessing lfp")
 
+# Checking the lfp
 using StatsPlots
-@df cycle_max Plots.scatter(:area, :cycle_maximum, group=[:area])
+@df cycle_max Plots.scatter(:area, :cycle_maximum, group=:area)
 @df cycle_max Plots.histogram(:cycle_maximum)
 @df lfpd Plots.plot(:time, :cycle, group=:tetrode)
 

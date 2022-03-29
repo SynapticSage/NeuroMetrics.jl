@@ -34,11 +34,36 @@ sum(summary.nrow .< 100)
 
 if dopoissonmodel
 
-    P["goal"]            = model.run(spikes, beh, goalpath,        goalprops)
-    P["place_undergoal"] = model.run(spikes, beh, place_undergoal, props)
+    P["goal"]            = model.run(spikes, beh, goalpath, props,
+                                     type="goal")
+    P["place_undergoal"] = model.run(spikes, beh, place_undergoal, props,
+                                     type="place_undergoal")
+
+    C["goal-place_undergoal"] = model.comparison.binaryop(P, ["place_undergoal", "goal"], op=-)
+    C["goal/place_undergoal"] = model.comparison.binaryop(P, ["place_undergoal", "goal"], op=./)
+    combine(groupby(C["goal-place_undergoal"], :area), :prob=>median)
+    combine(groupby(C["goal/place_undergoal"], :area), :prob=>median)
+    combine(groupby(C["goal-place_undergoal"], :area), :prob=>x->mean(x .> 0))
+    combine(groupby(C["goal/place_undergoal"], :area), :prob=>x->mean(x .> 1))
 
     if ploton
         model.plot.individual_poisson_mean_unitarea(P["goal"])
+        model.plot.individual_poisson_mean_unitarea(P["place_undergoal"])
+        p = model.plot.comparison_binaryop_striplot_unitarea(C["goal-place_undergoal"],
+                                                         hline=[0],
+                                                         label="goal-place")
+        p = model.plot.comparison_binaryop_striplot_unitarea(C["goal/place_undergoal"],
+                                                         hline=[1],
+                                                         label="goal/place")
+
+        p = @df C["goal/place_undergoal"] density(:prob, group=:area)
+        savefig(p, plotsdir("fields", "poisson_model", "goal-div-place-density.svg"))
+        savefig(p, plotsdir("fields", "poisson_model", "goal-div-place-density.png"))
+        savefig(p, plotsdir("fields", "poisson_model", "goal-div-place-density.pdf"))
+        p = @df C["goal-place_undergoal"] density(:prob, group=:area)
+        savefig(p, plotsdir("fields", "poisson_model", "goal-minus-place-density.svg"))
+        savefig(p, plotsdir("fields", "poisson_model", "goal-minus-place-density.png"))
+        savefig(p, plotsdir("fields", "poisson_model", "goal-minus-place-density.pdf"))
     end
 
 end
