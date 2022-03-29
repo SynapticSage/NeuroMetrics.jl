@@ -1,8 +1,6 @@
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
-using Pushover, Revise
-using Interact, Blink, Mux, ProgressMeter
-using ProgressMeter
+using Pushover, Revise, Interact, Blink, Mux, ProgressMeter
 using Statistics
 using VideoIO
 using ColorSchemes, Colors
@@ -13,7 +11,6 @@ if savestuff
 else
     using GLMakie, Makie
 end
-using Interact, Blink
 using DataFrames
 
 set_theme!(theme_dark())
@@ -30,10 +27,13 @@ includet("/home/ryoung/Code/projects/goal-code/src/utils/SearchSortedNearest.jl/
 # DATASETS
 # -----------
 animal, day, epoch = "RY16", 36, 7
-beh    = raw.load_behavior(animal, day)
-spikes = raw.load_spikes(animal,   day)
-lfp  = raw.load_lfp(animal,      day)
-task   = raw.load_task(animal,     day)
+@time beh    = raw.load_behavior(animal, day)
+@time spikes = raw.load_spikes(animal,   day)
+@time cells = raw.load_cells(animal,   day)
+@time tetrode = raw.load_tetrode(animal,   day)
+@time lfp  = raw.load_lfp(animal,      day)
+@time task   = raw.load_task(animal,     day)
+utils.pushover("Finished loaded thetaseqplots.jl")
 
 # -----------
 # SETTINGS
@@ -169,10 +169,17 @@ end
 
 
 # LFP scratchpad
-lfpd = lfp[1:15:end, :] # lets screw around with downsampled set
-@time lfpd = combine(groupby(lfpd, :tetrode), raw.lfp.annotate_cycles)
+@time lfpd, lfp_avg = begin
+    lfpd = combine(groupby(lfp, :tetrode), df->raw.downsample(df;dfactor=15))#little more memory hungry than for-loop version
+    lfpd = combine(groupby(lfpd, :tetrode), raw.lfp.annotate_cycles)
+    tetrode, lfpd = raw.register(tetrode, lfpd; transfer=["area"], on="tetrode")
+    lfp_avg = combine(groupby(lfpd, :area), raw.lfp.mean_lfp)
+end
 cycle_max = combine(groupby(lfpd, [:tetrode, :area]), :cycle=>maximum)
-@df cycle_max Plots.scatter(:area, :cycle_maximum)
+utils.pushover("Finished preprocessing lfp")
+
+using StatsPlots
+@df cycle_max Plots.scatter(:area, :cycle_maximum, group=[:area])
 @df cycle_max Plots.histogram(:cycle_maximum)
 @df lfpd Plots.plot(:time, :cycle, group=:tetrode)
 

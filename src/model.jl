@@ -162,6 +162,20 @@ module model
         lookup(data) = fit(Histogram, data, grid).weights
     end
 
+    function run(spikes, beh, fieldobj, props)
+        # Ready the data
+        data = field.model.data(spikes, beh; grid=fieldobj.cgrid, props=props)
+        # Acquire the probabilities fields | data
+        likelihood = field.model.probability(data, fieldobj.hist)
+        # Convert to dataframe
+        likelihood = field.to_dataframe(likelihood,
+                                        other_labels=Dict(:type=>"goal"),
+                                        name="prob")
+        likelihood[!,"logprob"] = log10.(likelihood.prob)
+        table.naninf_to_missing!(likelihood, [:prob, :logprob])
+        return likelihood
+    end
+
     module plot
         using DataFrames
         using Gadfly

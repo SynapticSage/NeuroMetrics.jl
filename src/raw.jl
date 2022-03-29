@@ -12,8 +12,11 @@ module raw
     include(srcdir("utils", "SearchSortedNearest.jl", "src",
                        "SearchSortedNearest.jl"))
     animal_dayfactor = Dict("RY16"=>33, "RY22"=>0)
-    csvkws=(; silencewarnings=true)
+    csvkws=(; silencewarnings=true, buffer_in_memory=true, ntasks=1)
     export animal_dayfactor
+    function findNearest(pos...;kws...) 
+        SearchSortedNearest.searchsortednearest(pos...;kws...)
+    end
 
     """
         load(animal, day)
@@ -75,6 +78,10 @@ module raw
     end
 
 
+    function behaviorpath(animal::String, day::Int)
+        path = datadir("exp_raw", "visualize_raw_neural",
+                         "$(animal)_$(day)_beh")
+    end
     function load_behavior(animal::String, day::Int)
         function typeFunc(type, name)
             if occursin("Vec", string(name))
@@ -87,8 +94,7 @@ module raw
             return type
         end
         typemap = Dict(Int64=>Int16);
-        behCSV = datadir("exp_raw", "visualize_raw_neural",
-                         "$(animal)_$(day)_beh.csv")
+        behCSV = behaviorpath(animal, day) * ".csv"
         beh = CSV.read(behCSV, DataFrame;
                  strict=false, missingstring=["NaNNaNi", "NaNNaNi,", ""], 
                  types=typeFunc, typemap=typemap, csvkws...)
@@ -102,6 +108,8 @@ module raw
         end
         @assert ("x" ∈ names(beh)) "Fuck"
         return beh
+    end
+    function save_behavior(animal::String, day::Int)
     end
 
     function load_spikes(animal::String, day::Int; beh=Nothing)
@@ -213,7 +221,12 @@ module raw
             row[!, :n_cells] .= n_cells;
             append!(tetrodes, row);
         end
-        return tetrodes[!, Not(:cell)]
+        out = if "cell" in names(tetrodes)
+                tetrodes[!, Not(:cell)]
+            else
+                tetrodes
+            end
+        return out
     end
 
     function load_pathtable(animal, day)
@@ -258,6 +271,9 @@ module raw
     export task
 
     module lfp
+        using DataFrames
+        using Statistics
+        using DirectionalStatistics
         function annotate_cycles(lfp; phase_col="phase")
             phase = lfp[!, phase_col]
             Δₚ = [0; diff(phase)]
@@ -266,11 +282,11 @@ module raw
             lfp[!,"cycle"] = cycle_labels
             return lfp
         end
-        function mean_lfp(lfp; mean_fields=["phase","amp","raw"])
-            lfpd = groupby(lfpd, :time)
-            new = DataFrame()
+        function mean_lfp(lfp; mean_fields=["phase","amp","raw"], func=Circular.median)
+            lfp = groupby(lfp, :time)
             non_mean_fields = setdiff(names(lfp), mean_fields)
-            combine(lfpd, mean_fields.=>mean.=>mean_fields, non_mean_fields.=>first.=>non_mean_fields
+            combine(lfp, mean_fields.=>func.=>mean_fields, 
+                         non_mean_fields.=>first.=>non_mean_fields)
         end
     end
     export lfp
@@ -301,64 +317,101 @@ module raw
     function downsample(x; dfactor=10)
         δ = dfactor;
         downsamp = x[begin:δ:end, :];
-        (downsamp)
+        downsamp
     end
 
-    function filterTables(data::DataFrame...;
-            filters::Union{Nothing,Dict}=Dict(),
-            lookupcols=nothing, lookupon="time")::Vector{DataFrame}
-
-        if filters == nothing
-            filters = Dict()
+    """
+    """
+    function register(data::DataFrame...; transfer::T,
+            on::String="time")::Vector{DataFrame} where T <: Union{Tuple{Tuple{NamedTuple, Vector{String}}}, Dict{NamedTuple, Vector{String}}}
+        if data isa Tuple
+            data = [data...];
         end
-
-        data = [data...];
         # Get our columns into target
-        if lookupcols != nothing
-            for col ∈ lookupcols
-                source = col[1].source
-                target = col[1].target
-                columns_to_transfer   = col[2]
-                if columns_to_transfer == All()
-                    continue
-                end
+        println("→ → → → → → → → → → → → ")
+        println("Registration")
+        println("→ → → → → → → → → → → → ")
+        for col ∈ transfer
+            source = col[1].source
+            target = col[1].target
+            columns_to_transfer   = col[2]
+            if columns_to_transfer == All()
+                continue
+            end
+            println("columns=$columns_to_transfer from source->target on $on")
 
-                match_on_source = data[source][:, lookupon]
-                match_on_target = data[target][:, lookupon]
-                match_on_target = convert.(Float64, match_on_target)
-                match_on_source = convert.(Float64, match_on_source)
-                match_on_source = (match_on_source,)
-                indices_of_source_samples_in_target = SearchSortedNearest.searchsortednearest.(match_on_source, match_on_target)
-                for (i, item) ∈ Iterators.enumerate(columns_to_transfer)
-                    data[target][!, item] = 
-                        data[source][indices_of_source_samples_in_target, item]
-                end
+            match_on_source = data[source][:, on]
+            match_on_target = data[target][:, on]
+            match_on_target = convert.(Float64, match_on_target)
+            match_on_source = convert.(Float64, match_on_source)
+            match_on_source = (match_on_source,)
+            indices_of_source_samples_in_target = findNearest.(match_on_source, match_on_target)
+            for (i, item) ∈ Iterators.enumerate(columns_to_transfer)
+                data[target][!, item] =
+                data[source][indices_of_source_samples_in_target, item]
             end
         end
+        println("← ← ← ← ← ← ← ← ← ← ← ← ")
+        return data
+    end
+    """
+    register
 
-        # Filtration
+    register columns in a `source` to a `target` dataframe `on` a certain
+    column
+    """
+    function register(source::DataFrame, target::DataFrame; 
+            transfer::Vector{String}, on::String="time")::Vector{DataFrame}
+        println("Entering shorcut")
+        addressing = (;source=1, target=2)
+        transfer = ((addressing, transfer),) # create set of addressed transfer instructions
+        source, target = register(source, target, DataFrame(); transfer=transfer, on=on)
+    end
+    """
+    filter
+
+    instructions to query/filter values in a set of dataframes
+    """
+    function filter(data::DataFrame...; 
+            filters::Union{Dict,Vector{Dict}})::Vector{DataFrame}
+        data = [data...]
+        if filters isa Dict
+            filters = [filters]
+        end
         println("→ → → → → → → → → → → → ")
         println("Filtration")
         println("→ → → → → → → → → → → → ")
         for filt ∈ filters
-            for i ∈ 1:length(data)
-                #print(filt)
-                filter_cols, filter_function = filt
-                @assert !(filter_cols isa Bool)
-                @assert !(filter_function isa Bool)
-                @assert !(filter_function isa Vector{Bool})
-                @assert !(filter_cols isa Vector{Bool})
-                inds = filter_function(data[i][!, filter_cols]);
-                percent = mean(inds)*100
-                println("data_$i filtration: $percent percent pass filter")
-                x = data[i][findall(inds), :];
-                data[i] = x;
+            for filt_pair ∈ filt
+                for i ∈ 1:length(data)
+                    filter_cols, filter_function = filt_pair
+                    @assert !(filter_cols isa Bool)
+                    @assert !(filter_function isa Bool)
+                    @assert !(filter_function isa Vector{Bool})
+                    @assert !(filter_cols isa Vector{Bool})
+                    inds = filter_function(data[i][!, filter_cols]);
+                    percent = mean(inds)*100
+                    println("data_$i filtration: $percent percent pass filter on $filter_cols")
+                    x = data[i][findall(inds), :];
+                    data[i] = x;
+                end
             end
         end
         println("← ← ← ← ← ← ← ← ← ← ← ← ")
-
         return data
-
+    end
+    """
+    """
+    function filterTables(data::DataFrame...; 
+            filters::Union{Nothing,Dict, Vector{Dict}}=[Dict()],
+            lookupcols=nothing, lookupon="time")::Vector{DataFrame}
+        if lookupcols != nothing
+            data = register(data...; lookupcols=lookupcols, lookupon=lookupon)
+        end
+        if filters != nothing
+            data = filter(data...; filters=filters)
+        end
+        return data
     end
 
     module video

@@ -172,7 +172,6 @@ module field
             end
         end
 
-
         if isempty(beh) || isempty(data)
             throw(ArgumentError("Your filtration leads to empty data"))
         end
@@ -219,7 +218,10 @@ module field
 
 
     """
-    +purpose: converts a field dictionary (multiple units) into a field dataframe
+    to_dataframe
+
+    #purpose
+    converts a field dictionary (multiple units) into a field dataframe
     """
     function to_dataframe(fields::Dict; other_labels=Dict(), 
             key_name::Union{Nothing,String}=nothing, kws...)

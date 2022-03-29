@@ -77,31 +77,46 @@ endif
 set shortmess=aoO
 argglobal
 %argdel
-edit raw.jl
+edit ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
+let s:save_splitbelow = &splitbelow
+let s:save_splitright = &splitright
+set splitbelow splitright
+let &splitbelow = s:save_splitbelow
+let &splitright = s:save_splitright
+wincmd t
+let s:save_winminheight = &winminheight
+let s:save_winminwidth = &winminwidth
+set winminheight=0
+set winheight=1
+set winminwidth=0
+set winwidth=1
 argglobal
-balt ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
-let s:l = 1 - ((0 * winheight(0) + 13) / 27)
+balt raw.jl
+let s:l = 180 - ((21 * winheight(0) + 14) / 29)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 1
-normal! 0
+keepjumps 180
+normal! 03|
 tabnext 1
-badd +267 raw.jl
+badd +96 raw.jl
 badd +77 utils.jl
-badd +178 ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
+badd +180 ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
 badd +13 ~/Code/projects/goal-code/src/workspace.jl
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
 endif
 unlet! s:wipebuf
 set winheight=1 winwidth=20 shortmess=filnxtToOFAIc
+let &winminheight = s:save_winminheight
+let &winminwidth = s:save_winminwidth
 let s:sx = expand("<sfile>:p:r")."x.vim"
 if filereadable(s:sx)
   exe "source " . fnameescape(s:sx)
 endif
 let &g:so = s:so_save | let &g:siso = s:siso_save
 set hlsearch
+nohlsearch
 let g:this_session = v:this_session
 let g:this_obsession = v:this_session
 doautoall SessionLoadPost

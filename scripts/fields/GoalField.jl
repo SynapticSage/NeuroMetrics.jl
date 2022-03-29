@@ -12,6 +12,8 @@ filters = merge(kws.filters,
 newkws = (;kws..., resolution=80, gaussian=3*0.5, filters=filters)
 goalpath = field.get_fields(beh, spikes; props=goalprops, newkws...)
 F["goal"] = goalpath
+place_undergoal = field.get_fields(beh, spikes; props=["x","y"], newkws...)
+F["place_undergoal"] = place_undergoal
 
 if ploton
     a=field.plot.show_fields(goalpath.hist)
@@ -32,19 +34,11 @@ sum(summary.nrow .< 100)
 
 if dopoissonmodel
 
-    # Ready the data
-    data = field.model.data(spikes, beh; grid=goalpath.cgrid, props=props)
-    # Acquire the probabilities fields | data
-    likelihood = field.model.probability(data, place.hist)
-    # Convert to dataframe
-    likelihood = field.to_dataframe(likelihood, other_labels=Dict(:type=>"goal"),
-                                    name="prob")
-    likelihood[!,"logprob"] = log10.(likelihood.prob)
-    table.naninf_to_missing!(likelihood, [:prob, :logprob])
-    P["goal"] = likelihood
+    P["goal"]            = model.run(spikes, beh, goalpath,        goalprops)
+    P["place_undergoal"] = model.run(spikes, beh, place_undergoal, props)
 
     if ploton
-        model.plot.individual_poisson_mean_unitarea(likelihood)
+        model.plot.individual_poisson_mean_unitarea(P["goal"])
     end
 
 end
