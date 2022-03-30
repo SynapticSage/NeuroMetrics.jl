@@ -308,7 +308,7 @@ module raw
             return new[!, Not(:tetrode)]
         end
 
-        function unstack_tetrode(df, meausure::Symbol=:phase)
+        function unstack_tetrode(df; measure::Symbol=:phase)
             unstack(df[!, [:time, :tetrode, measure]], :tetrode, measure)
         end
 

@@ -30,6 +30,7 @@ module field
     function group(fields::Union{Tuple,Vector},
             names::Union{Vector{String},Vector{Symbol}};
             grouptype::Type=Dict, requireAll=false)
+
         keyset = keys(fields[1])
         for i in range(2,length(fields))
             keyset = union(keyset, keys(fields[i]))
@@ -93,6 +94,38 @@ module field
         return grid
     end
 
+
+    function _handle_missing_cols_and_filters(beh::DataFrame, data::DataFrame; 
+            filters::Union{Dict,Nothing}=nothing, props::String{Vector}=[]
+        )
+        user_specified_filter = (filters != nothing)
+        missing_columns_in_df = !all(in.(props,[names(data)]))
+        if user_specified_filter || missing_columns_in_df
+            if user_specified_filter
+                filter_props = [key for (key,value) in filters
+                                if key != All()]
+            else
+                filter_props = ()
+            end
+            augmented_props = [filter_props..., props...]
+            lookupcols = Dict((source=1,target=2) => augmented_props)
+            tmp, data = raw.filterTables(beh, data; filters=filters,
+                                              lookupcols=lookupcols)
+            if behfilter isa Bool
+                if behfilter
+                    println("Replacing behavior with filtered behavior")
+                    beh = tmp;
+                else
+                    println("NOT replacing behavior with filtered behavior")
+                end
+            elseif behfilter isa Dict
+                    println("replacing behavior with custom filter")
+                beh = raw.filterTables(beh; filters=behfilter,
+                                       lookupcols=nothing)[1]
+            end
+        end
+        beh, data
+    end
     """
         get_fields
 
@@ -145,37 +178,15 @@ module field
             filters::Union{Dict,Nothing}=nothing)
 
         # Add revelent columns to data and filter?
-        user_specified_filter = (filters != nothing)
-        missing_columns_in_df = !all(in.(props,[names(data)]))
-        if user_specified_filter || missing_columns_in_df
-            if user_specified_filter
-                filter_props = [key for (key,value) in filters
-                                if key != All()]
-            else
-                filter_props = ()
-            end
-            augmented_props = [filter_props..., props...]
-            lookupcols = Dict((source=1,target=2) => augmented_props)
-            tmp, data = raw.filterTables(beh, data; filters=filters,
-                                              lookupcols=lookupcols)
-            if behfilter isa Bool
-                if behfilter
-                    println("Replacing behavior with filtered behavior")
-                    beh = tmp;
-                else
-                    println("NOT replacing behavior with filtered behavior")
-                end
-            elseif behfilter isa Dict
-                    println("replacing behavior with custom filter")
-                beh = raw.filterTables(beh; filters=behfilter,
-                                       lookupcols=nothing)[1]
-            end
-        end
+        beh, data = _handle_missing_cols_and_filters(beh, data;
+                                                     filters=filters,
+                                                     props=props)
 
         if isempty(beh) || isempty(data)
             throw(ArgumentError("Your filtration leads to empty data"))
         end
 
+        # HISTOGRAM
         if dohist
             println("props=$props")
             fields, gridh = hist.fields(data, beh; props=props,
@@ -185,6 +196,8 @@ module field
         else
             fields, gridh = nothing, nothing
         end
+
+        # KERNEL DENSITY
         atmost2d = (length(props) <= 2)
         if dokde && atmost2d
             kdfields, gridk = kerneldens.fields(data, beh; props=props,

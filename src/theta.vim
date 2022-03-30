@@ -87,9 +87,9 @@ normal! zt
 keepjumps 1
 normal! 0
 tabnext 1
-badd +311 raw.jl
+badd +312 raw.jl
 badd +77 utils.jl
-badd +172 ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
+badd +186 ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
 badd +13 ~/Code/projects/goal-code/src/workspace.jl
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf

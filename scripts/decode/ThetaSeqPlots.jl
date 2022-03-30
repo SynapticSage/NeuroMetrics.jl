@@ -12,6 +12,7 @@ else
     using GLMakie, Makie
 end
 using DataFrames
+using StatsPlots
 
 set_theme!(theme_dark())
 __revise_mode__ = :eval
@@ -176,12 +177,12 @@ end
     #lfp_avg = combine(groupby(lfpd, :area), raw.lfp.mean_lfp)
     #@time lfp_wavg = combine(groupby(lfpd, :area), raw.lfp.weighted_lfp)
     #lfp_avg = combine(groupby(lfp_avg, :area), raw.lfp.annotate_cycles)
+    lfpd
 end
 cycle_max = combine(groupby(lfpd, [:tetrode, :area]), :cycle=>maximum)
 utils.pushover("Finished preprocessing lfp")
 
 # Checking the lfp
-using StatsPlots
 @df cycle_max Plots.scatter(:area, :cycle_maximum, group=:area)
 @df cycle_max Plots.histogram(:cycle_maximum)
 @df lfpd Plots.plot(:time, :cycle, group=:tetrode)
