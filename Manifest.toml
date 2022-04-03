@@ -1158,6 +1158,12 @@ version = "0.15.1"
 deps = ["Artifacts", "Pkg"]
 uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
 
+[[deps.LazyGrids]]
+deps = ["Statistics"]
+git-tree-sha1 = "c81535336e0b80dede3a54061b794917019da56d"
+uuid = "7031d0ef-c40d-4431-b2f8-61a8d2f650db"
+version = "0.3.0"
+
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"

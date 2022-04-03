@@ -9,8 +9,8 @@ module raw
     using Statistics
     using Dates
     using Printf
-    include(srcdir("utils", "SearchSortedNearest.jl", "src",
-                       "SearchSortedNearest.jl"))
+    include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
+    import ..utils
     animal_dayfactor = Dict("RY16"=>33, "RY22"=>0)
     csvkws=(; silencewarnings=true, buffer_in_memory=true, ntasks=1)
     export animal_dayfactor
@@ -115,11 +115,11 @@ module raw
     function load_spikes(animal::String, day::Int; beh=Nothing)
         rawSpikingCSV = DrWatson.datadir("exp_raw",
                                          "visualize_raw_neural",
-                                         "$(animal)_$(day)_labeled_spiking.csv")
+                                         "$(animal)_$(day)_labeled_spiking.csv"
+                                        )
         raster = CSV.read(rawSpikingCSV, DataFrame;
                  strict=false, missingstring=["NaN", "", "NaNNaNi"],
                  csvkws...)
-
 
         # And let's add some brain area specific numbering
         groups = groupby(raster, "area");
@@ -134,8 +134,8 @@ module raw
 
     function load_cells(animal::String, day::Int)
         csvFile = DrWatson.datadir("exp_raw",
-                                         "visualize_raw_neural",
-                                         "$(animal)_$(day)_cell.csv")
+                                   "visualize_raw_neural",
+                                   "$(animal)_$(day)_cell.csv")
         cells = CSV.read(csvFile, DataFrame;
                  strict=false, missingstring=["NaN", "", "NaNNaNi"],
                  csvkws...)
@@ -179,13 +179,13 @@ module raw
                                    "visualize_raw_neural",
                                    "$(animal)_$(day)_task.csv")
         task = CSV.read(csvFile, DataFrame; strict=false, typemap=typemap,
-                 missingstring=["NaN", "NaNNaNi", "NaNNaNi,", ""],
-                 csvkws...)
+                 missingstring=["NaN", "NaNNaNi", "NaNNaNi,", ""], csvkws...)
         transform!(task, :x => pxtocm => :x, :y => pxtocm => :y)
         return task
     end
 
-    function decodedir(;method="sortedspike", transition="empirical", binstate="notbinned", n_split=4, downsamp=1, speedup=1.0)
+    function decodedir(;method="sortedspike", transition="empirical",
+            binstate="notbinned", n_split=4, downsamp=1, speedup=1.0)
         base = "/Volumes/FastData/decode/"
         paramfolder = "$method.$transition.$binstate.n_split=$n_split.downsamp=$downsamp.speedup=$(@sprintf("%1.1f", speedup))"
         return joinpath(base, paramfolder)
@@ -345,9 +345,11 @@ module raw
     end
 
     """
+    function register(data::DataFrame...; transfer,
+            on::String="time")::Vector{DataFrame} 
     """
-    function register(data::DataFrame...; transfer::T,
-            on::String="time")::Vector{DataFrame} where T <: Union{Tuple{Tuple{NamedTuple, Vector{String}}}, Dict{NamedTuple, Vector{String}}}
+    function register(data::DataFrame...; transfer,
+            on::String="time")::Vector{DataFrame} 
         if data isa Tuple
             data = [data...];
         end
@@ -381,62 +383,85 @@ module raw
     """
     register
 
+    function register(source::DataFrame, target::DataFrame; 
+            transfer, on::String="time")::Vector{DataFrame}
+
     register columns in a `source` to a `target` dataframe `on` a certain
     column
     """
     function register(source::DataFrame, target::DataFrame; 
-            transfer::Vector{String}, on::String="time")::Vector{DataFrame}
+            transfer, on::String="time")::Union{Tuple, DataFrame}
         println("Entering shorcut")
-        addressing = (;source=1, target=2)
-        transfer = ((addressing, transfer),) # create set of addressed transfer instructions
-        source, target = register(source, target, DataFrame(); transfer=transfer, on=on)
+        if transfer isa Vector{String}
+            addressing = (;source=1, target=2)
+            transfer = ((addressing, transfer),) # create set of addressed transfer instructions
+        end
+        source, target, _ = register(source, target, DataFrame(); transfer=transfer, on=on)
+        return source, target
     end
     """
     filter
 
     instructions to query/filter values in a set of dataframes
     """
-    function filter(data::DataFrame...; 
-            filters::Union{Dict,Vector{Dict}})::Vector{DataFrame}
+    function filter(data::DataFrame...; filters::Dict=Dict())::Vector{DataFrame}
         data = [data...]
-        if filters isa Dict
-            filters = [filters]
-        end
         println("→ → → → → → → → → → → → ")
         println("Filtration")
         println("→ → → → → → → → → → → → ")
-        for filt ∈ filters
-            for filt_pair ∈ filt
-                for i ∈ 1:length(data)
-                    filter_cols, filter_function = filt_pair
-                    @assert !(filter_cols isa Bool)
-                    @assert !(filter_function isa Bool)
-                    @assert !(filter_function isa Vector{Bool})
-                    @assert !(filter_cols isa Vector{Bool})
-                    inds = filter_function(data[i][!, filter_cols]);
-                    percent = mean(inds)*100
-                    println("data_$i filtration: $percent percent pass filter on $filter_cols")
-                    x = data[i][findall(inds), :];
-                    data[i] = x;
+        for (cols, filt_for_cols) ∈ filters
+            for i ∈ 1:length(data)
+                @assert !(cols isa Bool)
+                @assert !(filt_for_cols isa Bool)
+                @assert !(filt_for_cols isa Vector{Bool})
+                @assert !(cols isa Vector{Bool})
+                if filt_for_cols isa Function
+                    inds = filt_for_cols(data[i][!, cols]);
+                elseif typeof(filt_for_cols) <: Vector
+                    inds = accumulate(.&, [ff(data[i][!, cols]) for ff
+                                           in filt_for_cols])[end]
+                else
+                    println("cols = $cols")
+                    println("Typeof(cols) = $(typeof(cols))")
+                    println("filt_for_cols = $filt_for_cols")
+                    throw(TypeError(:filt_for_cols, "",Vector,typeof(filt_for_cols)))
                 end
+                percent = mean(inds)*100
+                println("data_$i filtration: $percent percent pass filter on $cols")
+                x = data[i][findall(inds), :];
+                data[i] = x;
             end
         end
         println("← ← ← ← ← ← ← ← ← ← ← ← ")
         return data
     end
+
     """
+    `filterAndRegister`
+
+    combination of  `raw.filter()` and `raw.register()` steps
     """
-    function filterTables(data::DataFrame...; 
-            filters::Union{Nothing,Dict, Vector{Dict}}=[Dict()],
-            lookupcols=nothing, lookupon="time")::Vector{DataFrame}
-        if lookupcols != nothing
-            data = register(data...; lookupcols=lookupcols, lookupon=lookupon)
+    function filterAndRegister(data::DataFrame...;
+            filters::Union{Nothing,Dict}=nothing, transfer=nothing,
+            on="time")::Vector{DataFrame}
+        if transfer != nothing
+            data = register(data...; transfer=transfer, on=on)
+            #utils.piso(data)
         end
         if filters != nothing
             data = filter(data...; filters=filters)
         end
-        return data
+        return data    
     end
+
+    """
+    `filterTables`
+
+    alias for `filterAndRegister`
+    """
+    filterTables(data::DataFrame...; filters::Union{Nothing,Dict}=nothing,
+                 lookupcols=nothing, lookupon="time") =
+    filterAndRegister(data...;transfer=lookupcols, on=lookupon, filters=filters)
 
     module video
         using Glob, Printf

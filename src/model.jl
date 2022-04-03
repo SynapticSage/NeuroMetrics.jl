@@ -4,22 +4,62 @@ module model
     using ProgressMeter
     using DataFrames
     using ..field
-    using ..table
-    include(srcdir("utils", "SearchSortedNearest.jl", "src",
-                   "SearchSortedNearest.jl"))
+    import ..table
+    include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
 
+    """
+    reconstruction(jointdensity, marginalrate) -> R̂
+
+    Example: reconstruct the response to `p(x, y, Γ)` under marginal `p(Γ)`
+    """
     function reconstruction(jointdensity, marginalrate)
+        R̂ =  sum(jointdensity .* marginalrate) ./ sum(jointdensity)
     end
 
     """
-    data
+    reconstruction_error(joint, reconstructed_joint) -> ϵ
+    """
+    function reconstruction_error(joint::AbstractArray, 
+                                  reconstructed_joint::AbstractArray)
+        Δ = diff(extrema(joint))
+        ϵ = ((joint - reconstructed_joint).^2) ./ Δ
+    end
+
+    """
+    marginalize(field, dims)
+
+    example: p(x,y,Γ) ->(Γ) p(x,y)
+    """
+    function marginalize(field::NamedTuple, dims::Vector{Int};
+                         isdensity::Bool=false)
+        field = Dict(zip(field))
+        for (key, item) ∈ field
+            if occursin("grid", key)
+                S = setdiff(1:length(grid), dims)
+                item = item[S]
+            else
+                dens = isdensity ? true : isdens[key]
+                item = marginalize(item, dims; isdensity=dens)
+            end
+        end
+        return field
+    end
+    function marginalize(field::AbstractArray, dims::Vector{Int};
+            isdensity::Bool=false)
+        Σ = sum(field, dims=dims)
+        if isdensity; Σ = Σ./sum(Σ); end
+        return Σ
+    end
+
+    """
+    data(spikes, behavior; grid, props)
 
     gets a form that represents the data
 
     get the D of spikes per behavioral Δt
     """
     function data(spikes, behavior; grid=nothing, props=nothing,
-            toleranceₑ=0.1, as="group", fixbigfact=true)
+            toleranceₑ=0.0, as="group", fixbigfact=true)
         spikes = copy(spikes)
 
         # Map each spike to its behavioral bin

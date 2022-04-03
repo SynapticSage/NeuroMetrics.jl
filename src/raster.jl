@@ -14,10 +14,10 @@ module raster
 
 using ColorSchemes, Colors, ColorSchemes, Gadfly
 using DataFrames, CSV, Statistics
-using DrWatson
+#using DrWatson
 using ProgressMeter, Debugger
 using Measures
-include(srcdir("table.jl"))
+include("table.jl")
 __revise_mode__ = :eval
 
 StringSymbol = Union{String, Symbol}

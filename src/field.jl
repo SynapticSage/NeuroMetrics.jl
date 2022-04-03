@@ -1,7 +1,7 @@
 module field
 
     export getSettings
-    export get_fields
+    export get_fields, Field
     export _occNormField
     export skipnan
     export to_dataframe
@@ -13,18 +13,17 @@ module field
     import DataStructures: OrderedDict
     using DataStructures
     using Statistics
+    using NaNStatistics
 
     # Goal Vector Libraries
-    using DrWatson
-    @assert isfile(srcdir("raw.jl"))
-    include(srcdir("raw.jl"))
-    include(srcdir("utils", "SearchSortedNearest.jl", "src",
-                       "SearchSortedNearest.jl"))
-    include(srcdir("utils.jl"))
+    #using DrWatson
+    include("raw.jl")
+    include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
+    include("utils.jl")
     # Submodules
-    include(srcdir("model.jl"))
+    include("model.jl")
     export model
-    include(srcdir("info.jl"))
+    include("info.jl")
     export info
 
     function group(fields::Union{Tuple,Vector},
@@ -95,9 +94,11 @@ module field
     end
 
 
-    function _handle_missing_cols_and_filters(beh::DataFrame, data::DataFrame; 
-            filters::Union{Dict,Nothing}=nothing, props::String{Vector}=[]
-        )
+    function _handle_missing_cols_and_filters(beh::DataFrame, 
+            data::DataFrame; 
+            filters::Union{Dict,Nothing}=nothing, 
+            props::Vector{String}=[],
+            behfilter::Union{Dict, Bool}=nothing)
         user_specified_filter = (filters != nothing)
         missing_columns_in_df = !all(in.(props,[names(data)]))
         if user_specified_filter || missing_columns_in_df
@@ -109,6 +110,7 @@ module field
             end
             augmented_props = [filter_props..., props...]
             lookupcols = Dict((source=1,target=2) => augmented_props)
+
             tmp, data = raw.filterTables(beh, data; filters=filters,
                                               lookupcols=lookupcols)
             if behfilter isa Bool
@@ -180,6 +182,7 @@ module field
         # Add revelent columns to data and filter?
         beh, data = _handle_missing_cols_and_filters(beh, data;
                                                      filters=filters,
+                                                     behfilter=behfilter,
                                                      props=props)
 
         if isempty(beh) || isempty(data)
@@ -187,36 +190,39 @@ module field
         end
 
         # HISTOGRAM
+        H = (;hist=nothing, grid=nothing, norm=nothing)
         if dohist
             println("props=$props")
-            fields, gridh = hist.fields(data, beh; props=props,
+            H = hist.fields(data, beh; props=props,
                                         resolution=resolution, 
                                         splitby=splitby,
                                         gaussian=gaussian);
-        else
-            fields, gridh = nothing, nothing
         end
 
         # KERNEL DENSITY
         atmost2d = (length(props) <= 2)
+        K = (;kde=nothing, grid=nothing, norm=nothing)
         if dokde && atmost2d
-            kdfields, gridk = kerneldens.fields(data, beh; props=props,
+            K = kerneldens.fields(data, beh; props=props,
                                          splitby=splitby,
                                          resolution=Int.(resolution ./
                                                         hist2kde_ratio));
             if normkde
-                kdfields = kerneldens.norm_kde_by_histcount(kdfields, fields)
+                kdfields = kerneldens.norm_kde_by_histcount(K.kde, H.hist)
+                K = (;kde=kdfields, grid=K.grid, norm=K.norm)
             end
-        else
-            kdfields, gridk = nothing, nothing
         end
 
-        gride = gridh
+        gride = H.grid
         gridc = edge_to_center.(gride)
         
-        return (hist=fields, kde=kdfields, cgrid=gridc, egrid=gride,
-                gridh=gridh, gridk=gridk, beh=, behdens=)
+        return (hist=H.hist, kde=K.kde, 
+                cgrid=gridc, egrid=gride, gridh=H.grid, gridk=K.grid, 
+                beh=H.norm, behdens=to_density(H.norm))
     end
+
+    Field = NamedTuple{(:hist, :kde, :cgrid, :egrid, :gridh, :gridk, :beh, :behdens), 
+                       Tuple{Dict, Dict, Tuple, Tuple, Tuple, Vector, Array, Array}}
 
     function center_to_edge(grid)
         grid = collect(grid)
@@ -227,6 +233,12 @@ module field
     function edge_to_center(grid)
         grid = collect(grid)
         grid = dropdims(mean([vec(grid[1:end-1]) vec(grid[2:end])], dims=2), dims=2)
+    end
+    function to_density(field)
+        field = field./nansum(vec(field))
+    end
+    function to_density(field, density)
+        throw(InvalidStateException("to density not defined for this case yet"))
     end
 
 
@@ -287,8 +299,8 @@ module field
         using ..field
         using DataFrames
         using StatsBase
-        using DrWatson
-        include(srcdir("utils.jl"))
+        #using DrWatson
+        include("utils.jl")
 
         function h2d(thing::DataFrame, props::Vector{String}; grid=(),
                 hist2dkws=Dict())
@@ -356,7 +368,7 @@ module field
                                            gaussian=gaussian)
             end
 
-            return dist, grid
+            return (hist=dist, grid=grid, norm=behDist_nanWhere0)
         end
     end
     export hist
@@ -366,8 +378,8 @@ module field
         using DataFrames
         using StatsBase, KernelDensity
         using KernelDensitySJ
-        using DrWatson
-        include(srcdir("utils.jl"))
+        #using DrWatson
+        include("utils.jl")
         function KDE(data, props; bandwidth=:silverman)
             data = dropmissing(data[:,props])
             #for col in props
@@ -504,7 +516,8 @@ module field
                 dist = _occNormField(dist, behDist; gaussian=0.0, 
                                            behzeroinds=behzeroinds)
             end
-            return dist, grid
+
+            return (kde=dist, grid=grid, norm=behDist)
         end
     end
     export kerneldens
@@ -626,6 +639,7 @@ module field
             else
                 kwargs = ()
             end
+            # ------
             # HEATMAP
             # ------
             hm = heatmap(xy..., F; clims=Tuple(clims), kwargs...,
