@@ -34,3 +34,16 @@ println("raw.filterAndRegister")
 spikes, behavior = raw.filterAndRegister(spikes, behavior; filters=filters, on="time", transfer=register_prop)
 @test all(abs.(spikes.velVec) .> 5)
 @test all((spikes.x .> 2) .& (spikes.x .< 400))
+
+# TODO Test transfer can be given as a Dict{NamedTuple, Vector{String}} instruction
+
+
+
+# --.--          |        ,---.o     |        |
+#   |  ,---.,---.|---     |__. .,---.|    ,---|
+#   |  |---'`---.|        |    ||---'|    |   |
+#   `  `---'`---'`---'    `    ``---'`---'`---'
+props = ["x", "y"]
+newkws = (; kws..., resolution=resolution, gaussian=2.3*0.5, props=props,
+          filters=merge(kws.filters))
+place = field.get_fields(beh, spikes; newkws...);

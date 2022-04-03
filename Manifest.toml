@@ -2075,6 +2075,12 @@ uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
 uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
+[[deps.ThreadSafeDicts]]
+deps = ["Distributed"]
+git-tree-sha1 = "f9dd17de65a737450645e568ae050cd75f31ac59"
+uuid = "4239201d-c60e-5e0a-9702-85d713665ba7"
+version = "0.0.6"
+
 [[deps.ThreadingUtilities]]
 deps = ["ManualMemory"]
 git-tree-sha1 = "f8629df51cab659d70d2e5618a430b4d3f37f2c3"

@@ -26,32 +26,6 @@ module model
     end
 
     """
-    marginalize(field, dims)
-
-    example: p(x,y,Γ) ->(Γ) p(x,y)
-    """
-    function marginalize(field::NamedTuple, dims::Vector{Int};
-                         isdensity::Bool=false)
-        field = Dict(zip(field))
-        for (key, item) ∈ field
-            if occursin("grid", key)
-                S = setdiff(1:length(grid), dims)
-                item = item[S]
-            else
-                dens = isdensity ? true : isdens[key]
-                item = marginalize(item, dims; isdensity=dens)
-            end
-        end
-        return field
-    end
-    function marginalize(field::AbstractArray, dims::Vector{Int};
-            isdensity::Bool=false)
-        Σ = sum(field, dims=dims)
-        if isdensity; Σ = Σ./sum(Σ); end
-        return Σ
-    end
-
-    """
     data(spikes, behavior; grid, props)
 
     gets a form that represents the data

@@ -109,10 +109,8 @@ module field
                 filter_props = ()
             end
             augmented_props = [filter_props..., props...]
-            lookupcols = Dict((source=1,target=2) => augmented_props)
-
             tmp, data = raw.filterTables(beh, data; filters=filters,
-                                              lookupcols=lookupcols)
+                                              lookupcols=augmented_props)
             if behfilter isa Bool
                 if behfilter
                     println("Replacing behavior with filtered behavior")
@@ -299,6 +297,7 @@ module field
         using ..field
         using DataFrames
         using StatsBase
+        using ThreadSafeDicts
         #using DrWatson
         include("utils.jl")
 
@@ -338,8 +337,12 @@ module field
                 collect(zip(sort(collect(groups.keymap),by=x->x[2])...))[1]
                 ugroups = 
                 [(;zip(groups.cols,ugroup)...) for ugroup in ugroups]
-                spikeDist = Dict(ugroups[i] => field_of_group(i) 
-                                 for i ∈ 1:length(groups))
+                #spikeDist = Dict(ugroups[i] => field_of_group(i) 
+                #                 for i ∈ 1:length(groups))
+                spikeDist = ThreadSafeDict()
+                for i ∈ 1:length(groups)
+                    spikeDist[ugroups[i]] = field_of_group(i) 
+                end
             else
                 if splitby != nothing
                     @warn "splitby not empty, yet not all columns in df"
@@ -354,14 +357,16 @@ module field
             behDist_nanWhere0[behzeroinds] .= NaN;
             behDist.weights[behDist.weights .== 0] .= 1;
             
-            if spikeDist isa Dict
-                dist = Dict{typeof(ugroups[1]), Any}()
-                for i ∈ keys(spikeDist)
-                    dist[i] = _occNormField(spikeDist[i].weights,
+            if spikeDist isa Union{Dict,ThreadSafeDict}
+                dist = ThreadSafeDict{typeof(ugroups[1]), Any}()
+                Threads.@threads for i ∈ 1:length(keys(spikeDist))
+                    key = Tuple(keys(spikeDist))[i]
+                    dist[key] = _occNormField(spikeDist[key].weights,
                                                   behDist.weights;
                                                   behzeroinds=behzeroinds,
                                                   gaussian=gaussian)
                 end
+                dist = Dict(dist)
             else
                 dist = _occNormField(spikeDist.weights, behDist.weights;
                                            behzeroinds=behzeroinds,
@@ -670,42 +675,6 @@ module field
     end
     export plot
 
-    module operation
-        using Statistics
-        using Bootstrap
-        """
-        field_operation
-
-        used to collapse a field onto 1D
-        """
-        function unary(field, operation::Function=mean;
-            kws...)
-            if typeof(field) <: AbstractArray
-                field = operation(field; kws...)
-            elseif field isa Dict
-                field = Dict(name=>unary(f, operation; kws...) for (name,f) in
-                             field)
-            end
-            return field
-        end
-        """
-        field_operation
-
-        used to do an operation between fields
-        """
-        function binary(fieldA, fieldB, operation::Function=(./); kws...)
-            if typeof(fieldA) <: AbstractArray
-                field = operation(fieldA, fieldB; kws...)
-            elseif fieldA isa Dict
-                field = Dict(namesA=>binary(fieldA[namesA], fieldB[namesA],
-                                          operation; kws...) for namesA in
-                             keys(fieldA))
-            else
-                throw(TypeError("fielld is wrong type $(typeof(fieldA))"))
-            end
-            return field
-        end
-    end
 
     function _occNormField(data::AbstractArray,
             behDist::Union{Array,Matrix};
