@@ -1,11 +1,12 @@
 module model
+
     using DrWatson
     using StatsBase
     using ProgressMeter
     using DataFrames
     using NaNStatistics
     include("utils.jl")
-    include("field.jl")
+    import ..field #valid if a module has already nested this!
     include("table.jl")
     include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
 

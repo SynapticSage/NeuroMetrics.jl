@@ -1,5 +1,5 @@
-includet(srcdir("operation.jl"))
 includet(srcdir("model.jl"))
+includet(srcdir("operation.jl"))
 
 # PLACE-GOAL JOINT DISTRIBUTION P(X,Y,γ,p)
 props = ["x", "y", "currentPathLength", "currentAngle"]
@@ -20,6 +20,7 @@ R̂["goal"] = operation.apply(model.reconstruction, F["placegoal-joint"].behdens
 R̂["place"] = operation.apply(model.reconstruction, F["placegoal-joint"].behdens, 
                             F["goal-marginal"].hist)
 
+utils.pushover("Finished reconstruction")
 if ploton
     # Reconstructions
     field.plot.show_fields(R̂["place"])

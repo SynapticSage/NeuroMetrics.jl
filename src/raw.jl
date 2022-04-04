@@ -52,7 +52,7 @@ module raw
         end
         
         # Determine a time normalizing function
-        normalizing_time(data) = ("behavior" ∈ data_source) ? minimum(data["behavior"].time) : 0
+        normalizing_time(data) = ("behavior"∈data_source) ? minimum(data["behavior"].time) : 0
         normalize(data, time) = (time .- normalizing_time(data))./60;
 
         # Load each data source
@@ -270,6 +270,7 @@ module raw
         using DataFrames
         using Statistics
         using DirectionalStatistics
+        using ImageFiltering
         function annotate_cycles(lfp; phase_col="phase")
             phase = lfp[!, phase_col]
             Δₚ = [0; diff(phase)]
@@ -284,6 +285,13 @@ module raw
             lfp =combine(lfp, mean_fields.=>func.=>mean_fields, 
                          non_mean_fields.=>first.=>non_mean_fields)
             return lfp[!, Not(:tetrode)]
+        end
+        function gauss_lfp(lfp; fields=["phase"], gaussian=3)
+            kernel = Kernel.gaussian((gaussian,))
+            for field in fields
+                lfp[!,field] = imfilter(lfp[!,field], kernel)
+            end
+            return lfp
         end
         """
         weighted_lfp
