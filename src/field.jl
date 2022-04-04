@@ -1,4 +1,4 @@
-module field
+module fimport ..ield
 
     export getSettings
     export get_fields, Field
@@ -25,6 +25,9 @@ module field
     export model
     include("info.jl")
     export info
+
+    rateConversion = 30
+    export rateConversion
 
     function group(fields::Union{Tuple,Vector},
             names::Union{Vector{String},Vector{Symbol}};
@@ -92,7 +95,6 @@ module field
 
         return grid
     end
-
 
     function _handle_missing_cols_and_filters(beh::DataFrame, 
             data::DataFrame; 
@@ -263,6 +265,7 @@ module field
         end
         return D
     end
+
     """
         field_to_dataframe(field::AbstractArray; other_labels=Dict())
 
@@ -299,7 +302,7 @@ module field
         using StatsBase
         using ThreadSafeDicts
         #using DrWatson
-        include("utils.jl")
+        utils
 
         function h2d(thing::DataFrame, props::Vector{String}; grid=(),
                 hist2dkws=Dict())
@@ -359,18 +362,21 @@ module field
             
             if spikeDist isa Union{Dict,ThreadSafeDict}
                 dist = ThreadSafeDict{typeof(ugroups[1]), Any}()
+                println("rateConversion = $(field.rateConversion)")
                 Threads.@threads for i ∈ 1:length(keys(spikeDist))
                     key = Tuple(keys(spikeDist))[i]
                     dist[key] = _occNormField(spikeDist[key].weights,
                                                   behDist.weights;
                                                   behzeroinds=behzeroinds,
                                                   gaussian=gaussian)
+                    dist[key] ./= field.rateConversion
                 end
                 dist = Dict(dist)
             else
                 dist = _occNormField(spikeDist.weights, behDist.weights;
                                            behzeroinds=behzeroinds,
                                            gaussian=gaussian)
+                    dist ./= field.rateConversion
             end
 
             return (hist=dist, grid=grid, norm=behDist_nanWhere0)
@@ -544,6 +550,7 @@ module field
         using Plots, LaTeXStrings, Measures
         using Statistics
         using ProgressMeter
+        import ..utils
 
         function transform_key(key; splitter::String="\n")
             tk(key) = replace(string(key), "("=>"",",)"=>"",", "=>splitter,
@@ -628,7 +635,7 @@ module field
             end
             return obj
         end
-        function show_field(F; key::Union{String,NamedTuple,Nothing}=NamedTuple(),
+        function show_field(F::AbstractMatrix; key::Union{String,NamedTuple,Nothing}=NamedTuple(),
                 keyappend::Union{String,NamedTuple,Nothing}=nothing,
                 keyprepend::Union{String,NamedTuple,Nothing}=nothing,
                 xy=[], textcolor=:black, justification::Symbol=:bottom,
@@ -675,7 +682,6 @@ module field
     end
     export plot
 
-
     function _occNormField(data::AbstractArray,
             behDist::Union{Array,Matrix};
             behzeroinds::Union{AbstractArray,Nothing}=nothing,
@@ -692,5 +698,6 @@ module field
         end
         return X
     end
+
 end
 

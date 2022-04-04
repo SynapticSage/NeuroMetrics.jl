@@ -3,8 +3,10 @@ module model
     using StatsBase
     using ProgressMeter
     using DataFrames
+    using NaNStatistics
     using ..field
     import ..table
+    include("utils.jl")
     include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
 
     """
@@ -12,8 +14,17 @@ module model
 
     Example: reconstruct the response to `p(x, y, Γ)` under marginal `p(Γ)`
     """
-    function reconstruction(jointdensity, marginalrate)
-        R̂ =  sum(jointdensity .* marginalrate) ./ sum(jointdensity)
+    function reconstruction(jointdensity::AbstractArray,
+            marginalrate::AbstractArray; kws...)
+        dims = setdiff(1:ndims(jointdensity), findall(size(marginalrate).==1))
+        #println("dims=$dims")
+        A = jointdensity .* marginalrate
+        B = jointdensity
+        for dim ∈ dims
+            A =  nansum(A; dims=dim) 
+            B =  nansum(B; dims=dim)
+        end
+        return utils.squeeze(A./B)
     end
 
     """

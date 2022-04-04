@@ -8,6 +8,7 @@ using Pushover
 
 export skipnan
 export itsizeof, piso
+export squeeze
 
 skipnan(x) = Iterators.filter(!isnan, x)
 
@@ -26,6 +27,12 @@ end
 function piso(X)
     println([size(x) for x in X])
 end
+
+function squeeze(A::AbstractArray)  
+    s = size(A)
+    A = dropdims(A, dims = tuple(findall(size(A) .== 1)...))
+    return A
+end  
 
 function randomize_int(X)
     Xmin = minimum(X);
