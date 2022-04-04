@@ -14,7 +14,7 @@ includet(srcdir("raw.jl"))
 includet(srcdir("field.jl"))
 includet(srcdir("filt.jl"))
 includet(srcdir("table.jl"))
-spikes, beh, ripples, cells = raw.load("RY16", 36);
+@time spikes, beh, ripples, cells = raw.load("RY16", 36);
 function sf(p, loc)
     p.attr[:size] = (1900, 1900)
     savefig(p, loc)

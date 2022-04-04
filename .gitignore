@@ -8,6 +8,7 @@ videos
 plots
 notebooks
 _research
+vim # for vim session files
 
 ################################################################################
 #                                    Julia                                     #
@@ -328,6 +329,9 @@ TSWLatexianTemp*
 ### LaTeX Patch ###
 # glossaries
 *.glstex
+
+# VIM SESSION FILES #
+*.vim
 
 ################################################################################
 #                              Operating systems                               #

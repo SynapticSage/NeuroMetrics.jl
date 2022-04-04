@@ -3,8 +3,13 @@ includet(srcdir("operation.jl"))
 
 # PLACE-GOAL JOINT DISTRIBUTION P(X,Y,γ,p)
 props = ["x", "y", "currentPathLength", "currentAngle"]
+filters = merge(kws.filters,
+                filt.correct,
+                filt.notnan("currentAngle"), 
+                filt.minmax("currentPathLength", 2, 150))
 newkws = (; kws..., resolution=40, gaussian=0, props=props,
-          filters=merge(kws.filters))
+          filters=merge(kws.filters, filters))
+
 X = field.get_fields(beh, spikes; newkws...);
 F["placegoal-joint"] = X
 
@@ -20,12 +25,26 @@ R̂["goal"] = operation.apply(model.reconstruction, F["placegoal-joint"].behdens
 R̂["place"] = operation.apply(model.reconstruction, F["placegoal-joint"].behdens, 
                             F["goal-marginal"].hist)
 
+error = model.reconstruction_error(F["place-marginal-sq"], R̂["place"])
+
 utils.pushover("Finished reconstruction")
 if ploton
     # Reconstructions
-    field.plot.show_fields(R̂["place"])
-    field.plot.show_fields(R̂["goal"])
+    p = field.plot.show_fields(R̂["place"])
+    savefig(p, plotsdir("fields", "reconstruction", "reconstructed_place_from_goal.svg"))
+    savefig(p, plotsdir("fields", "reconstruction", "reconstructed_place_from_goal.png"))
+    savefig(p, plotsdir("fields", "reconstruction", "reconstructed_place_from_goal.pdf"))
+    p = field.plot.show_fields(R̂["goal"])
+    savefig(p, plotsdir("fields", "reconstruction", "reconstructed_goal_from_place.svg"))
+    savefig(p, plotsdir("fields", "reconstruction", "reconstructed_goal_from_place.png"))
+    savefig(p, plotsdir("fields", "reconstruction", "reconstructed_goal_from_place.pdf"))
     # Marginals
-    field.plot.show_fields(F["place-marginal"].hist)
-    field.plot.show_fields(F["goal-marginal"])
+    p = field.plot.show_fields(F["place-marginal-sq"].hist)
+    savefig(p, plotsdir("fields", "reconstruction", "marginal_place.svg"))
+    savefig(p, plotsdir("fields", "reconstruction", "marginal_place.png"))
+    savefig(p, plotsdir("fields", "reconstruction", "marginal_place.pdf"))
+    p = field.plot.show_fields(F["goal-marginal-sq"].hist)
+    savefig(p, plotsdir("fields", "reconstruction", "marginal_goal.svg"))
+    savefig(p, plotsdir("fields", "reconstruction", "marginal_goal.png"))
+    savefig(p, plotsdir("fields", "reconstruction", "marginal_goal.pdf"))
 end

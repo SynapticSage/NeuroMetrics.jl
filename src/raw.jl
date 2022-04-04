@@ -52,7 +52,12 @@ module raw
         end
         
         # Determine a time normalizing function
-        normalizing_time(data) = ("behavior"∈data_source) ? minimum(data["behavior"].time) : 0
+        if "behavior" ∈ data_source
+            normalizing_time(data) = minimum(data["behavior"].time)
+        else
+            normalizing_time(data) = 0
+        end
+
         normalize(data, time) = (time .- normalizing_time(data))./60;
 
         # Load each data source
@@ -420,8 +425,10 @@ module raw
                 @assert !(filt_for_cols isa Vector{Bool})
                 @assert !(cols isa Vector{Bool})
                 if filt_for_cols isa Function
+                    println("Filter is a function")
                     inds = filt_for_cols(data[i][!, cols]);
                 elseif typeof(filt_for_cols) <: Vector
+                    println("Filter is a set of functions")
                     inds = accumulate(.&, [ff(data[i][!, cols]) for ff
                                            in filt_for_cols])[end]
                 else

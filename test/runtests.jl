@@ -1,6 +1,7 @@
 using GoalFetchAnalysis
 using Test
 using Revise
+include(srcdir("filt.jl"))
 
 #     --.--,---.,---.--.--    ,---.,---.. . .   #
 #       |  |--- `---.  |      |---'|---|| | |   #
@@ -44,6 +45,6 @@ spikes, behavior = raw.filterAndRegister(spikes, behavior; filters=filters, on="
 #   |  |---'`---.|        |    ||---'|    |   |
 #   `  `---'`---'`---'    `    ``---'`---'`---'
 props = ["x", "y"]
-newkws = (; kws..., resolution=resolution, gaussian=2.3*0.5, props=props,
-          filters=merge(kws.filters))
-place = field.get_fields(beh, spikes; newkws...);
+kws=(;resolution=80, splitby=[:unit,:area], filters=merge(filt.speed_lib, filt.cellcount))
+newkws = (; kws..., gaussian=2.3*0.5, props=props, filters=merge(kws.filters))
+place = field.get_fields(behavior, spikes; newkws...);

@@ -101,8 +101,10 @@ module field
             filters::Union{Dict,Nothing}=nothing, 
             props::Vector{String}=[],
             behfilter::Union{Dict, Bool}=nothing)
+
         user_specified_filter = (filters != nothing)
         missing_columns_in_df = !all(in.(props,[names(data)]))
+
         if user_specified_filter || missing_columns_in_df
             if user_specified_filter
                 filter_props = [key for (key,value) in filters
@@ -111,8 +113,11 @@ module field
                 filter_props = ()
             end
             augmented_props = [filter_props..., props...]
-            tmp, data = raw.filterTables(beh, data; filters=filters,
-                                              lookupcols=augmented_props)
+            println("augmented_props=$augmented_props")
+            tmp, data = raw.filterAndRegister(beh, data; filters=filters,
+                                              transfer=augmented_props,
+                                              on="time")
+            @assert length(unique(data.velVec)) > 1 "Fuck 2"
             if behfilter isa Bool
                 if behfilter
                     println("Replacing behavior with filtered behavior")
@@ -126,8 +131,10 @@ module field
                                        lookupcols=nothing)[1]
             end
         end
+        #@assert length(unique(data.velVec)) > 1 "Fuck 3"
         beh, data
     end
+
     """
         get_fields
 
@@ -180,12 +187,16 @@ module field
             filters::Union{Dict,Nothing}=nothing)
 
         # Add revelent columns to data and filter?
-        beh, data = _handle_missing_cols_and_filters(beh, data;
+        beh, data = _handle_missing_cols_and_filters(copy(beh), copy(data);
                                                      filters=filters,
                                                      behfilter=behfilter,
                                                      props=props)
 
+        print("GOT HERE")
+
         if isempty(beh) || isempty(data)
+            println("size(beh)=$(size(beh))")
+            println("size(data)=$(size(data))")
             throw(ArgumentError("Your filtration leads to empty data"))
         end
 

@@ -80,11 +80,11 @@ argglobal
 edit ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
 argglobal
 balt raw.jl
-let s:l = 1 - ((0 * winheight(0) + 13) / 26)
+let s:l = 213 - ((24 * winheight(0) + 13) / 26)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 1
+keepjumps 213
 normal! 0
 tabnext 1
 badd +294 raw.jl
