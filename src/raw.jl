@@ -10,7 +10,7 @@ module raw
     using Dates
     using Printf
     include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
-    import ..utils
+    include("utils.jl")
     animal_dayfactor = Dict("RY16"=>33, "RY22"=>0)
     csvkws=(; silencewarnings=true, buffer_in_memory=true, ntasks=1)
     export animal_dayfactor
@@ -52,11 +52,7 @@ module raw
         end
         
         # Determine a time normalizing function
-        if "behavior" ∈ data_source
-            normalizing_time(data) = minimum(data["behavior"].time);
-        else
-            normalizing_time(data) = 0;
-        end
+        normalizing_time(data) = ("behavior" ∈ data_source) ? minimum(data["behavior"].time) : 0
         normalize(data, time) = (time .- normalizing_time(data))./60;
 
         # Load each data source

@@ -4,9 +4,9 @@ module model
     using ProgressMeter
     using DataFrames
     using NaNStatistics
-    using ..field
-    import ..table
     include("utils.jl")
+    include("field.jl")
+    include("table.jl")
     include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
 
     """

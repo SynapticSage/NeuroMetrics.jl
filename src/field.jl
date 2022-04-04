@@ -1,4 +1,4 @@
-module fimport ..ield
+module field
 
     export getSettings
     export get_fields, Field
@@ -302,7 +302,7 @@ module fimport ..ield
         using StatsBase
         using ThreadSafeDicts
         #using DrWatson
-        utils
+        import ..utils
 
         function h2d(thing::DataFrame, props::Vector{String}; grid=(),
                 hist2dkws=Dict())
