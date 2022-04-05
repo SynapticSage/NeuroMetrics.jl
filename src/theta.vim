@@ -74,28 +74,33 @@ cd ~/Code/projects/goal-code/src
 if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
   let s:wipebuf = bufnr('%')
 endif
+let s:shortmess_save = &shortmess
 set shortmess=aoO
+badd +1 ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
+badd +294 raw.jl
+badd +77 utils.jl
+badd +33 ~/Code/projects/goal-code/src/workspace.jl
+badd +107 ~/Code/projects/goal-code/src/decode.jl
+badd +14 ~/Code/projects/goal-code/scripts/theta/identify_best_cycling.jl
+badd +40 table.jl
 argglobal
 %argdel
-edit ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
+edit ~/Code/projects/goal-code/scripts/theta/identify_best_cycling.jl
 argglobal
-balt raw.jl
-let s:l = 213 - ((24 * winheight(0) + 13) / 26)
+balt ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
+let s:l = 1 - ((0 * winheight(0) + 18) / 37)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 213
+keepjumps 1
 normal! 0
 tabnext 1
-badd +294 raw.jl
-badd +77 utils.jl
-badd +225 ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
-badd +33 ~/Code/projects/goal-code/src/workspace.jl
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
 endif
 unlet! s:wipebuf
-set winheight=1 winwidth=20 shortmess=filnxtToOFAIc
+set winheight=1 winwidth=20
+let &shortmess = s:shortmess_save
 let s:sx = expand("<sfile>:p:r")."x.vim"
 if filereadable(s:sx)
   exe "source " . fnameescape(s:sx)

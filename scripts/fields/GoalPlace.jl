@@ -4,7 +4,7 @@
 # |   ||   |,---||    |        |   ||    ,---||    |---'
 # `---'`---'`---^`---'`---'    |---'`---'`---^`---'`---'
 #                              |                        
-grouping = field.group([place.hist,goalpath.hist, place.hist, goalpath.kde],
+grouping = field.group([place.Rₕ ,goalpath.Rₕ, place.Rₖ, goalpath.Rₖ],
                        ["place","goal","placekde","goalkde"],
                        requireAll=true)
 overall = field.plot.show_fieldgroups(grouping)
@@ -24,7 +24,7 @@ field.plot.save_dict_fieldplots(individualgroups, name, ext=["svg","png","pdf"])
 #                        filt.notnan("currentAngle"), filt.minmax("currentPathLength", 0, 250)))
 #goalplace = field.get_fields(beh, spikes; props=goalprops, newkws...)
 #place = field.get_fields(beh, spikes; props=goalprops[1:2], newkws...)
-#fields = field.operation.binary(goalplace.hist, place.hist)
+#fields = field.operation.binary(goalplace.Rₕ, place.Rₕ)
 #
 #variation(x) = median(abs.(x .- median(x)))
 #bootvariation(x) = statistic.boot(collect(skipnan(x)), 10000, variation)

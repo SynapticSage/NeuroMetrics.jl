@@ -7,6 +7,7 @@ module model
     using NaNStatistics
     include("utils.jl")
     import ..field #valid if a module has already nested this!
+    include("operation.jl")  #valid if a module has already nested this!
     include("table.jl")
     include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
 
@@ -31,10 +32,31 @@ module model
     """
     reconstruction_error(joint, reconstructed_joint) -> ϵ
     """
-    function reconstruction_error(joint::AbstractArray, 
-                                  reconstructed_joint::AbstractArray)
-        Δ = diff(extrema(joint))
-        ϵ = ((joint - reconstructed_joint).^2) ./ Δ
+    function reconstruction_error(original::Dict, 
+                                  reconstructed::Dict;
+                                  kws...)
+        println("kws->",kws)
+        func(x::AbstractArray, y::AbstractArray) = model.reconstruction_error(x,y;kws...)
+        println("func->",func)
+        func(x::AbstractArray, y::AbstractArray) = model.reconstruction_error(x,y;kws...)
+        operation.apply(func, original, reconstructed)
+
+    end
+    function reconstruction_error(field::AbstractArray, 
+                                  reconstructed_field::AbstractArray;
+                                  L::Int=2, reduce::Bool=true)
+        Δ = diff([extrema(field)...])
+        ϵ = field - reconstructed_field
+        if L != 1
+            ϵ  = ϵ .^ L
+        end
+        if reduce
+            ϵ = nanmean(ϵ)
+            ϵ /= Δ
+        else
+            ϵ ./= Δ
+        end
+        return ϵ
     end
 
     """

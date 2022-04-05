@@ -1,8 +1,8 @@
-"""
-Boilerplate for field
-
-plus runs all field analyses
-"""
+#
+#Boilerplate for field
+#
+#plus runs all field analyses
+#
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
 # Grab our raw data
@@ -27,7 +27,7 @@ P = Dict() # Store poisson model
 resolution = 80; # field resolution
 splitby=["unit", "area"]
 kws=(;resolution, splitby, filters=merge(filt.speed_lib, filt.cellcount))
-runanalyses, ploton, dopoissonmodel = true, false, true
+runanalyses, ploton, dopoissonmodel = false, false, true
 
 if runanalyses
     include(scriptsdir("fields", "PlaceField.jl")) # 1

@@ -2,7 +2,6 @@ module field
 
     export getSettings
     export get_fields, Field
-    export _occNormField
     export skipnan
     export to_dataframe
 
@@ -25,6 +24,8 @@ module field
     export model
     include("info.jl")
     export info
+    include("operation.jl")
+    export operation
 
     rateConversion = 30
     export rateConversion
@@ -192,8 +193,6 @@ module field
                                                      behfilter=behfilter,
                                                      props=props)
 
-        print("GOT HERE")
-
         if isempty(beh) || isempty(data)
             println("size(beh)=$(size(beh))")
             println("size(data)=$(size(data))")
@@ -201,7 +200,7 @@ module field
         end
 
         # HISTOGRAM
-        H = (;hist=nothing, grid=nothing, norm=nothing)
+        H = (;hist=nothing, grid=nothing, occ=nothing, occzeroinds=nothing)
         if dohist
             println("props=$props")
             H = hist.fields(data, beh; props=props,
@@ -212,7 +211,7 @@ module field
 
         # KERNEL DENSITY
         atmost2d = (length(props) <= 2)
-        K = (;kde=nothing, grid=nothing, norm=nothing)
+        K = (;kde=nothing, grid=nothing, occ=nothing, occzeroinds=nothing)
         if dokde && atmost2d
             K = kerneldens.fields(data, beh; props=props,
                                          splitby=splitby,
@@ -220,20 +219,19 @@ module field
                                                         hist2kde_ratio));
             if normkde
                 kdfields = kerneldens.norm_kde_by_histcount(K.kde, H.hist)
-                K = (;kde=kdfields, grid=K.grid, norm=K.norm)
+                K = (;kde=kdfields, grid=K.grid, norm=K.norm, occzeroinds=K.occzeroinds)
             end
         end
 
         gride = H.grid
         gridc = edge_to_center.(gride)
         
-        return (hist=H.hist, kde=K.kde, 
-                cgrid=gridc, egrid=gride, gridh=H.grid, gridk=K.grid, 
-                beh=H.norm, behdens=to_density(H.norm))
+        out =  (Cₕ=H.hist, Cₖ=K.kde, occ=H.occ, occzeroinds=H.occzeroinds,
+                cgrid=gridc, egrid=gride, gridh=H.grid, gridk=K.grid)
     end
 
-    Field = NamedTuple{(:hist, :kde, :cgrid, :egrid, :gridh, :gridk, :beh, :behdens), 
-                       Tuple{Dict, Dict, Tuple, Tuple, Tuple, Vector, Array, Array}}
+    #Field = NamedTuple{(:hist, :kde, :cgrid, :egrid, :gridh, :gridk, :beh, :behdens), 
+    #                   Tuple{Dict, Dict, Tuple, Tuple, Tuple, Vector, Array, Array}}
 
     function center_to_edge(grid)
         grid = collect(grid)
@@ -251,7 +249,6 @@ module field
     function to_density(field, density)
         throw(InvalidStateException("to density not defined for this case yet"))
     end
-
 
     """
     to_dataframe
@@ -309,11 +306,9 @@ module field
 
     module hist
         using ..field
+        import ..utils
         using DataFrames
         using StatsBase
-        using ThreadSafeDicts
-        #using DrWatson
-        import ..utils
 
         function h2d(thing::DataFrame, props::Vector{String}; grid=(),
                 hist2dkws=Dict())
@@ -353,9 +348,9 @@ module field
                 [(;zip(groups.cols,ugroup)...) for ugroup in ugroups]
                 #spikeDist = Dict(ugroups[i] => field_of_group(i) 
                 #                 for i ∈ 1:length(groups))
-                spikeDist = ThreadSafeDict()
+                spikeDist = Dict()
                 for i ∈ 1:length(groups)
-                    spikeDist[ugroups[i]] = field_of_group(i) 
+                    spikeDist[ugroups[i]] = field_of_group(i).weights
                 end
             else
                 if splitby != nothing
@@ -371,26 +366,8 @@ module field
             behDist_nanWhere0[behzeroinds] .= NaN;
             behDist.weights[behDist.weights .== 0] .= 1;
             
-            if spikeDist isa Union{Dict,ThreadSafeDict}
-                dist = ThreadSafeDict{typeof(ugroups[1]), Any}()
-                println("rateConversion = $(field.rateConversion)")
-                Threads.@threads for i ∈ 1:length(keys(spikeDist))
-                    key = Tuple(keys(spikeDist))[i]
-                    dist[key] = _occNormField(spikeDist[key].weights,
-                                                  behDist.weights;
-                                                  behzeroinds=behzeroinds,
-                                                  gaussian=gaussian)
-                    dist[key] ./= field.rateConversion
-                end
-                dist = Dict(dist)
-            else
-                dist = _occNormField(spikeDist.weights, behDist.weights;
-                                           behzeroinds=behzeroinds,
-                                           gaussian=gaussian)
-                    dist ./= field.rateConversion
-            end
-
-            return (hist=dist, grid=grid, norm=behDist_nanWhere0)
+            return (hist=spikeDist, grid=grid, occ=behDist_nanWhere0,
+                    occzeroinds=behzeroinds)
         end
     end
     export hist
@@ -487,8 +464,8 @@ module field
             # Grid settings
             grid = getSettings(beh, props, 
                                      resolution=resolution, settingType="kde")
-            grid_hist = getSettings(beh, props, 
-                                          resolution=resolution, settingType="hist")
+            grid_hist = getSettings(beh, props, resolution=resolution,
+                                    settingType="hist")
             # Behavioral distribution
             behDist = KDE(beh, props);
             behDist_hist = hist.h2d(beh, props, grid=grid_hist).weights;
@@ -514,32 +491,28 @@ module field
                 spikeDist = KDE(data[!,:], props)
             end
 
+            # Occupancy
             behDist = pdf(behDist, grid...);
             zero_fraction = 0.0000000001
             behDist[behDist .<= zero_fraction] .= 1
             behzeroinds = behDist_hist .<= 0
 
+            # Spike count
             if spikeDist isa Dict
                 dist = Dict{typeof(ugroups[1]),Any}();
                 for i ∈ keys(spikeDist)
                     if spikeDist[i] == nothing
                         dist[i] = nothing
                     else
-                        cell = pdf(spikeDist[i], grid...)
-                        dist[i] = _occNormField(cell, behDist; 
-                                                      gaussian=0.0,
-                                                      behzeroinds=behzeroinds)
+                        dist[i] = pdf(spikeDist[i], grid...)
                     end
                 end
             else
-                dist = pdf(spikeDist, grid...)
                 @assert dist != nothing
-                println(size(dist), typeof(dist))
-                dist = _occNormField(dist, behDist; gaussian=0.0, 
-                                           behzeroinds=behzeroinds)
+                dist = pdf(spikeDist, grid...)
             end
 
-            return (kde=dist, grid=grid, norm=behDist)
+            return (kde=dist, grid=grid, occ=behDist, occzeroinds=behzeroinds)
         end
     end
     export kerneldens
@@ -692,23 +665,6 @@ module field
         end
     end
     export plot
-
-    function _occNormField(data::AbstractArray,
-            behDist::Union{Array,Matrix};
-            behzeroinds::Union{AbstractArray,Nothing}=nothing,
-            gaussian::Real=0.0)
-        X = convert(Array{Float64}, data);
-        X = replace(X, NaN=>0)
-        #zeroinds = X .== 0
-        X = X ./ behDist;
-        if gaussian != 0.0
-            X = imfilter(X, Kernel.gaussian(gaussian))
-        end
-        if behzeroinds != nothing
-            X[behzeroinds] .= NaN;
-        end
-        return X
-    end
 
 end
 

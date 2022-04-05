@@ -12,18 +12,17 @@ F["place"] = place
 # Generate all of the fields >  5cm/s
 # --------------------------
 if ploton
-    grouping = field.group([place.hist,place.kde],["hist","kd"])
-
-    a=field.plot.show_fields(place.hist)
-    b=field.plot.show_fields(place.kde)
+    grouping = field.group([place.Rₕ,place.Rₖ],["hist","kd"])
+    a        = field.plot.show_fields(place.Rₕ)
+    b        = field.plot.show_fields(place.Rₖ)
     overall = field.plot.show_fieldgroups(grouping)
-
     name=plotsdir("fields", "individual_pf_vel=gt4")
     if !(isdir(name))
         mkdir(name)
     end
     name=plotsdir("fields", "individual_pf_vel=gt4", "place")
-    individualgroups = field.plot.show_fieldgroups(grouping, as=Dict, nplots_factor=0.4)
+    individualgroups = field.plot.show_fieldgroups(grouping, as=Dict,
+                                                   nplots_factor=0.4)
     field.plot.save_dict_fieldplots(individualgroups, name)
 end
 
@@ -31,7 +30,7 @@ if dopoissonmodel
     # Ready the data
     data = field.model.data(spikes, beh; grid=place.cgrid, props=props)
     # Acquire the probabilities fields | data
-    likelihood = field.model.probability(data, place.hist)
+    likelihood = field.model.probability(data, place.Rₕ)
     # Convert to dataframe
     likelihood = field.to_dataframe(likelihood, other_labels=Dict(:type=>"xy"),
                                     name="prob")

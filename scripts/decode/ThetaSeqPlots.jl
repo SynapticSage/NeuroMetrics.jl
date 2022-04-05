@@ -5,6 +5,7 @@ using Statistics
 using VideoIO
 using ColorSchemes, Colors
 import ColorSchemeTools
+import DSP
 savestuff = true
 if savestuff
     using CairoMakie, Makie
@@ -168,66 +169,3 @@ dat = permutedims(D[variable], [2,1,3])
 
 end
 
-
-# LFP scratchpad
-@time lfpd = begin
-    lfpd = combine(groupby(lfp, :tetrode), df->raw.downsample(df;dfactor=15))#little more memory hungry than for-loop version
-    lfpd = combine(groupby(lfpd, :tetrode), raw.lfp.annotate_cycles)
-    tetrode, lfpd = raw.register(tetrode, lfpd; transfer=["area"], on="tetrode");
-    #lfp_avg = combine(groupby(lfpd, :area), raw.lfp.mean_lfp)
-    #@time lfp_wavg = combine(groupby(lfpd, :area), raw.lfp.weighted_lfp)
-    #lfp_avg = combine(groupby(lfp_avg, :area), raw.lfp.annotate_cycles)
-    lfpd
-end
-cycle_max = combine(groupby(lfpd, [:tetrode, :area]), :cycle=>maximum)
-ca1, pfc = groupby(lfpd, :area)
-uca1 = dropmissing(raw.lfp.unstack_tetrode(ca1))
-upfc = dropmissing(raw.lfp.unstack_tetrode(pfc))
-utils.pushover("Finished preprocessing lfp")
-
-
-# Separate out groups of correlated theta phase C>1 and average those (until this is done, use tet=1 to cut theta cycles)
-good_ca1_tets = parse.(Int, names(uca1)[2:end][C[1,:] .> 0])
-filt = in.(ca1.tetrode, [good_ca1_tets])
-ca1_avg = raw.lfp.mean_lfp(ca1[filt,:])
-# ---------------------------------------------------------------------
-# Butterworth and hilbert the averaged raw (averaging introduces higher
-# freequency changes)
-# ---------------------------------------------------------------------
-filt = DSP.analogfilter(DSP.Bandpass(6, 12, fs=1/median(diff(ca1_avg.time))),
-                 DSP.Butterworth(5))
-ca1_avg.raw = Float64.(ca1_avg.raw)
-ca1_avg.phase = Float64.(ca1_avg.phase)
-#-----------------------------------
-# Figure out how DSP filt filt works
-#-----------------------------------
-x = DSP.filtfilt(filt.p, ca1_avg.raw)
-hilb = DSP.hilbert(ca1_avg.raw)
-ca1_avg.raw, ca1_avg.amp, ca1_avg.phase = raw, abs.(hilb), angle.(hilb)
-# ---------------------------------------------------------------------
-# Need just a single peak and trough per cycle to annotate_cylces
-# ---------------------------------------------------------------------
-ca1_avg = raw.lfp.gauss_lfp(ca1_avg)
-
-
-# Checking the lfp
-using StatsPlots
-@df cycle_max Plots.scatter(:area, :cycle_maximum, group=:area)
-@df cycle_max Plots.histogram(:cycle_maximum)
-@df lfpd Plots.plot(:time, :cycle, group=:tetrode)
-@df uca1[1:10:10000,:] corrplot(cols(2:10))
-
-
-C = Statistics.cor(Matrix(uca1[:, 2:end]))
-Plots.heatmap(C, c=:vik, clims=(-1,1), xticks=(1:size(C,2),
-                                               names(uca1)[2:end]),
-xrotation=90, yticks=(1:size(C,2), names(uca1)[2:end]), yrotation=0,
-title="CA1 Theta Phase Correlation")
-Plots.savefig(plotsdir("theta","heatmap_correlation_thetaphase_ca1.svg"))
-
-C = Statistics.cor(Matrix(upfc[:, 2:end]))
-Plots.heatmap(C, c=:vik, clims=(-1,1), xticks=(1:size(C,2),
-                                               names(uca1)[2:end]),
-xrotation=90, yticks=(1:size(C,2), names(uca1)[2:end]), yrotation=0,
-title="Theta Phase Correlation")
-Plots.savefig(plotsdir("theta","heatmap_correlation_thetaphase_pfc.svg"))

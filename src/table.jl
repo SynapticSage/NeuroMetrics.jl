@@ -37,8 +37,8 @@ function get_periods(raster::DataFrame, property::String; removeMissing=false)
         raster = dropmissing(raster);
     end
     period = groupby(raster, property)
-    period = combine(period, :time=>minimum=>:start,
-                             :time=>maximum=>:end,)
+    period = combine(period, :time=>(minimum)=>:start,
+                             :time=>(maximum)=>:end)
     period.δ = period.end .- period.start;
     period.prop .= property
     period

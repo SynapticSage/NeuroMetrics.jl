@@ -105,4 +105,7 @@ module heatmap
 end
 export heatmap
 
+function theta(lfp)
+end
+
 end

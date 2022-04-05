@@ -53,5 +53,17 @@ function test_filt(spikes)
     println(all(combine(groupby(x,:unit),nrow=>:count)[:,:count] .> 50))
 end
 
+"""
+Currently matches N filters with matching keys
+
+... this could do a lot more, like function as a swapin for the
+actual merge method for Dicts, and search for matching keys
+"""
+function merge(D::Dict...)
+    K = keys(D[1])[1]
+    newD[K] = [D[K] for d in D]
+    newD
+end
+
 end
 
