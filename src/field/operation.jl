@@ -40,7 +40,7 @@ function binary(fieldA, fieldB, operation::Function=(./); kws...)
 end
 
 isdens = Dict(:Cₕ=>false, :Cₖ=>false, :occ=>false, :behdens=>true,
-              :Rₕ=>false, :Rₖ=>false)
+              :occR=>true, :Rₕ=>false, :Rₖ=>false)
 
 """
 marginalize(field, dims)
@@ -69,10 +69,12 @@ function marginalize(field::NamedTuple; dims::Vector{Int}=[],
             item = marginalize(item; dims=dims, isdensity=dens, 
                             normalizeFR=field[:occ])
             if dosqueeze; item = squeeze(item); end
-        elseif startswith(sKey, "C") || sKey == "occ"  # count
+        elseif startswith(sKey, "C") || sKey == "occ"
             dens = isdensity ? true : isdens[key]
             item = marginalize(item; dims=dims, isdensity=dens)
-            if dosqueeze; item = squeeze(item); end
+            if dosqueeze && sKey != "occ" ; item = squeeze(item); end
+        end
+        if dosqueeze && "occ" in keys(field)
         end
         field[key] = item
     end
@@ -88,12 +90,15 @@ TODO renan areas where all() missing values in relevent dims
 """
 function marginalize(field::AbstractArray; dims::Vector{Int}=[],
         isdensity::Bool=false, 
-        normalizeFR::Union{Nothing, AbstractArray}=nothing)
+        normalizeFR::Union{Nothing, AbstractArray}=nothing,
+        maintainNaN::Bool=true)
     for dim in dims
         field = nansum(field, dims=dim)
     end
     if !(normalizeFR isa Nothing)
-        field ./ normalizeFR
+        occzero = normalizeFR .== NaN
+        field = field ./ normalizeFR
+        field[occzero] .= NaN
     end
     if isdensity; field = field./nansum(field); end
     return field
@@ -187,6 +192,7 @@ function occnorm(data::AbstractArray,
         X = imfilter(X, Kernel.gaussian(gaussian))
     end
     if occzeroinds != nothing
+        #println("apply occzeroinds")
         X[occzeroinds] .= NaN;
     end
     return X

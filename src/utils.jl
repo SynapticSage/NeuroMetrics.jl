@@ -5,6 +5,7 @@ using CSV, DataFrames
 using Gadfly
 using Colors, ColorSchemes
 using Pushover
+using Statistics
 
 export skipnan
 export itsizeof, piso
@@ -24,8 +25,17 @@ end
 function itsizeof(X)
     [size(x) for x in X]
 end
-function piso(X)
+function piso(X::Union{Vector,Tuple})
     println([size(x) for x in X])
+end
+function piso(X::T) where T <: Dict
+    println(Dict(key=>size(x) for (key,x) in X))
+end
+function pnf(X::Union{Vector,Tuple})
+    println([mean(isnan.(x)) for x in X])
+end
+function pnf(X::T) where T <: Dict
+    println(Dict(key=>mean(isnan.(x)) for (key,x) in X))
 end
 
 function squeeze(A::AbstractArray)  

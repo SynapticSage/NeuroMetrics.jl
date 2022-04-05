@@ -7,9 +7,8 @@ goalprops = ["currentPathLength","currentAngle"];
 filters = merge(kws.filters,
                 filt.correct,
                 filt.notnan("currentAngle"), 
-                filt.merge(filt.notnan("currentPathLength"),
-                           filt.minmax("currentPathLength", 2, 150)))
-newkws = (;kws..., resolution=80, gaussian=3*0.5, filters=filters)
+                filt.merge(filt.notnan("currentPathLength"), filt.minmax("currentPathLength", 2, 150)))
+newkws = (;kws..., resolution=60, gaussian=3*0.5, filters=filters)
 goalpath = field.get_fields(beh, spikes; props=goalprops, newkws...)
 F["goal"] = goalpath
 place_undergoal = field.get_fields(beh, spikes; props=["x","y"], newkws...)

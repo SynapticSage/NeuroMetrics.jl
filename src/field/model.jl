@@ -7,7 +7,7 @@ module model
     using NaNStatistics
     include("utils.jl")
     import ..field #valid if a module has already nested this!
-    include("field/operation.jl")  #valid if a module has already nested this!
+    include("operation.jl")  #valid if a module has already nested this!
     include("table.jl")
     include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
 
@@ -93,7 +93,7 @@ module model
                 D[col .> 20, c] .= 20 # maximumal non-big() factorial
             end
         end
-            @assert !(isempty(D))
+        @assert !(isempty(D))
 
         # Let's lookup the linear index into a field for every behavioral
         # time

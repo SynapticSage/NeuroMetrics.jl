@@ -279,7 +279,7 @@ module raw
         function annotate_cycles(lfp; phase_col="phase")
             phase = lfp[!, phase_col]
             Δₚ = [0; diff(phase)]
-            change_points = Δₚ .< 0
+            change_points = UInt32.(Δₚ .< 0)
             cycle_labels = accumulate(+, change_points)
             lfp[!,"cycle"] = cycle_labels
             return lfp

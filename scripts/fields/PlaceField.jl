@@ -32,7 +32,7 @@ if dopoissonmodel
     # Acquire the probabilities fields | data
     likelihood = field.model.probability(data, place.Rₕ)
     # Convert to dataframe
-    likelihood = field.to_dataframe(likelihood, other_labels=Dict(:type=>"xy"),
+    likelihood = table.to_dataframe(likelihood, other_labels=Dict(:type=>"xy"),
                                     name="prob")
     likelihood[!,"logprob"] = log10.(likelihood.prob)
     table.naninf_to_missing!(likelihood, [:prob, :logprob])

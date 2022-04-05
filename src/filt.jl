@@ -60,8 +60,9 @@ Currently matches N filters with matching keys
 actual merge method for Dicts, and search for matching keys
 """
 function merge(D::Dict...)
-    K = keys(D[1])[1]
-    newD[K] = [D[K] for d in D]
+    newD = Dict{keytype(D[1])}{Any}()
+    K = Tuple(keys(D[1]))[1]
+    newD[K] = [d[K] for d in D]
     newD
 end
 

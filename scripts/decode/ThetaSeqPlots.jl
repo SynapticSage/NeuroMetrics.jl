@@ -54,8 +54,6 @@ utils.mkifne(plotsdir("ripples","mpp_decode", "withBehVideo=$usevideo", outputVi
 utils.mkifne(plotsdir("ripples","mpp_decode"))
 utils.mkifne(plotsdir("ripples","mpp_decode","withBehVideo=$usevideo"))
 wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
-
-
 utils.pushover("Finished preprocess sequenece")
 
 # -----------

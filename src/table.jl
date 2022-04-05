@@ -15,6 +15,10 @@ using ProgressMeter
 using Statistics
 using Blink
 using TableView
+using LazyGrids: ndgrid
+using DataStructures
+export to_dataframe
+export to_dataframe
 __revise_mode__ = :eval
 ∞ = Inf;
 
@@ -32,16 +36,18 @@ ColumnSelector = Union{Nothing,Vector{String},InvertedIndex,Cols,All,Between}
 # |    |   ||   ||    |    ||   ||   |,---||    ||    |   |
 # `    `---'`   '`---'`---'``---'`   '`---^`---'``---'`---|
 #                                                     `---'
-function get_periods(raster::DataFrame, property::String; removeMissing=false)
+function get_periods(df::DataFrame, property::String, pos...; removeMissing=false, kws...)
     if removeMissing
-        raster = dropmissing(raster);
+        df = dropmissing(df);
     end
-    period = groupby(raster, property)
-    period = combine(period, :time=>(minimum)=>:start,
-                             :time=>(maximum)=>:end)
+    period = groupby(df, property)
+    println(typeof(period))
+    print(methods(combine))
+    period = combine(period, pos..., :time => (x->minimum(x)) => :start,
+                                     :time => (x->maximum(x)) => :end)
     period.δ = period.end .- period.start;
     period.prop .= property
-    period
+    return period
 end
 
 function remove_interperiod_time!(raster::DataFrame, period::DataFrame)
@@ -380,9 +386,10 @@ function _occupancy_normalize(data::DataFrame, beh::DataFrame,
     return data
 end
 
-function combine(data::Dict{Any, Any})
-    return vcat((x[2] for x in data)...)
-end
+#function combine(data::Dict{Any, Any})
+#    print("Dict combine")
+#    return vcat((x[2] for x in data)...)
+#end
 
 function nan_to_missing(df::DataFrame, cols::Union{Vector{String}, Vector{Symbol}})
     for col in cols
@@ -415,6 +422,61 @@ function display_table(data; others...)
     w=Window()
     body!(w, TableView.showtable(data, dark=true, height=950, others...))
 end
+
+"""
+to_dataframe
+
+#purpose
+converts a field dictionary (multiple units) into a field dataframe
+"""
+function to_dataframe(fields::Dict; other_labels=Dict(), 
+        key_name::Union{Nothing,String}=nothing, kws...)
+    D = DataFrame()
+    for (key, field) in fields
+        if key_name != nothing && (key isa NamedTuple || key isa Dict)
+            other_labels[key_name] = key
+        elseif key isa NamedTuple
+            key_dict = Dict(string(k)=>v for (k, v) in pairs(key))
+            other_labels = merge(other_labels, key_dict)
+        end
+        if fields[key] != nothing
+            append!(D, to_dataframe(fields[key]; other_labels=other_labels,
+                                    kws...))
+        end
+    end
+    return D
+end
+
+"""
+    field_to_dataframe(field::AbstractArray; other_labels=Dict())
+
++purpose: converts a single field matrix into a field dataframe
+"""
+function to_dataframe(F::AbstractArray;
+        props::Vector{String}=Vector{String}([]), grid::Tuple=(),
+        gridtype="center", other_labels=Dict(), name::String="")
+    D = ndgrid((1:size(F,i) for i in 1:ndims(F))...)
+    D = OrderedDict{String,Any}("dim_$d"=>vec(D[d])
+                          for d in 1:ndims(F))
+    if ~isempty(props)
+        if gridtype == "edge"
+            grid = edge_to_center.(grid)
+        end
+        grid = ndgrid(grid...)
+    end
+    for (label, value) in other_labels
+        if label isa Symbol
+            label = String(label)
+        end
+        D[label] = value
+    end
+    for (prop, G) in zip(props, grid)
+        D[prop] = vec(G)
+    end
+    D[name] = vec(F);
+    D = DataFrame(D)
+end
+
 
 module group
     coords(groups) = collect(zip(sort(collect(groups.keymap),by=x->x[2])...))[1]

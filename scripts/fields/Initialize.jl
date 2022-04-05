@@ -14,14 +14,18 @@ includet(srcdir("raw.jl"))
 includet(srcdir("field.jl"))
 includet(srcdir("filt.jl"))
 includet(srcdir("table.jl"))
+includet(srcdir("operation.jl"))
+includet(srcdir("model.jl"))
 @time spikes, beh, ripples, cells = raw.load("RY16", 36);
 function sf(p, loc)
     p.attr[:size] = (1900, 1900)
     savefig(p, loc)
     savefig(p*".svg", loc)
 end
+
 F = Dict() # Store field 
 P = Dict() # Store poisson model
+R̂ = Dict() # Store reconstructions
 
 # Generalized settings
 resolution = 80; # field resolution

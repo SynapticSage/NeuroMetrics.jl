@@ -77,18 +77,18 @@ endif
 let s:shortmess_save = &shortmess
 set shortmess=aoO
 badd +1 ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
-badd +294 raw.jl
+badd +282 raw.jl
 badd +77 utils.jl
 badd +33 ~/Code/projects/goal-code/src/workspace.jl
 badd +107 ~/Code/projects/goal-code/src/decode.jl
-badd +14 ~/Code/projects/goal-code/scripts/theta/identify_best_cycling.jl
-badd +40 table.jl
+badd +49 ~/Code/projects/goal-code/scripts/theta/identify_best_cycling.jl
+badd +46 table.jl
 argglobal
 %argdel
 edit ~/Code/projects/goal-code/scripts/theta/identify_best_cycling.jl
 argglobal
 balt ~/Code/projects/goal-code/scripts/decode/ThetaSeqPlots.jl
-let s:l = 1 - ((0 * winheight(0) + 18) / 37)
+let s:l = 1 - ((0 * winheight(0) + 27) / 54)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
@@ -107,6 +107,7 @@ if filereadable(s:sx)
 endif
 let &g:so = s:so_save | let &g:siso = s:siso_save
 set hlsearch
+nohlsearch
 let g:this_session = v:this_session
 let g:this_obsession = v:this_session
 doautoall SessionLoadPost

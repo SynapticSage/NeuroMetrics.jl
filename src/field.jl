@@ -3,12 +3,10 @@ module field
     export getSettings
     export get_fields, Field
     export skipnan
-    export to_dataframe
 
     # Julia Packages
     using DataFrames
     using ImageFiltering
-    using LazyGrids: ndgrid
     import DataStructures: OrderedDict
     using DataStructures
     using Statistics
@@ -20,11 +18,11 @@ module field
     include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
     include("utils.jl")
     # Submodules
-    include("model.jl")
+    include("field/model.jl")
     export model
-    include("info.jl")
+    include("field/info.jl")
     export info
-    include("operation.jl")
+    include("field/operation.jl")
     export operation
 
     rateConversion = 30
@@ -219,15 +217,17 @@ module field
                                                         hist2kde_ratio));
             if normkde
                 kdfields = kerneldens.norm_kde_by_histcount(K.kde, H.hist)
-                K = (;kde=kdfields, grid=K.grid, norm=K.norm, occzeroinds=K.occzeroinds)
+                K = (;kde=kdfields, grid=K.grid, occ=K.occ, occzeroinds=K.occzeroinds)
             end
         end
 
         gride = H.grid
         gridc = edge_to_center.(gride)
         
-        out =  (Cₕ=H.hist, Cₖ=K.kde, occ=H.occ, occzeroinds=H.occzeroinds,
-                cgrid=gridc, egrid=gride, gridh=H.grid, gridk=K.grid)
+        out =  (Cₕ=H.hist, Cₖ=K.kde, occ=H.occ, occR=to_density(H.occ),
+                occzeroinds=H.occzeroinds, cgrid=gridc, egrid=gride,
+                gridh=H.grid, gridk=K.grid)
+        out = operation.occnorm(out)
     end
 
     #Field = NamedTuple{(:hist, :kde, :cgrid, :egrid, :gridh, :gridk, :beh, :behdens), 
@@ -248,60 +248,6 @@ module field
     end
     function to_density(field, density)
         throw(InvalidStateException("to density not defined for this case yet"))
-    end
-
-    """
-    to_dataframe
-
-    #purpose
-    converts a field dictionary (multiple units) into a field dataframe
-    """
-    function to_dataframe(fields::Dict; other_labels=Dict(), 
-            key_name::Union{Nothing,String}=nothing, kws...)
-        D = DataFrame()
-        for (key, field) in fields
-            if key_name != nothing && (key isa NamedTuple || key isa Dict)
-                other_labels[key_name] = key
-            elseif key isa NamedTuple
-                key_dict = Dict(string(k)=>v for (k, v) in pairs(key))
-                other_labels = merge(other_labels, key_dict)
-            end
-            if fields[key] != nothing
-                append!(D, to_dataframe(fields[key]; other_labels=other_labels,
-                                        kws...))
-            end
-        end
-        return D
-    end
-
-    """
-        field_to_dataframe(field::AbstractArray; other_labels=Dict())
-
-    +purpose: converts a single field matrix into a field dataframe
-    """
-    function to_dataframe(F::AbstractArray;
-            props::Vector{String}=Vector{String}([]), grid::Tuple=(),
-            gridtype="center", other_labels=Dict(), name::String="")
-        D = ndgrid((1:size(F,i) for i in 1:ndims(F))...)
-        D = OrderedDict{String,Any}("dim_$d"=>vec(D[d])
-                              for d in 1:ndims(F))
-        if ~isempty(props)
-            if gridtype == "edge"
-                grid = edge_to_center.(grid)
-            end
-            grid = ndgrid(grid...)
-        end
-        for (label, value) in other_labels
-            if label isa Symbol
-                label = String(label)
-            end
-            D[label] = value
-        end
-        for (prop, G) in zip(props, grid)
-            D[prop] = vec(G)
-        end
-        D[name] = vec(F);
-        D = DataFrame(D)
     end
 
     module hist
@@ -348,7 +294,7 @@ module field
                 [(;zip(groups.cols,ugroup)...) for ugroup in ugroups]
                 #spikeDist = Dict(ugroups[i] => field_of_group(i) 
                 #                 for i ∈ 1:length(groups))
-                spikeDist = Dict()
+                spikeDist = Dict{typeof(ugroups[1]),Any}();
                 for i ∈ 1:length(groups)
                     spikeDist[ugroups[i]] = field_of_group(i).weights
                 end
@@ -433,9 +379,9 @@ module field
         """
         function norm_kde_by_histcount(kde::Union{AbstractArray, Dict}, 
                 hist::Union{AbstractArray,Dict}, skip_keyerror=false)
-            if typeof(hist) ≠ typeof(kde)
-                throw(ArgumentError("type of hist should match type of kde"))
-            end
+            #if typeof(hist) ≠ typeof(kde)
+            #    throw(ArgumentError("type of hist should match type of kde\n...type(hist)=$(supertype(typeof(hist))) != $(supertype(typeof(kde)))"))
+            #end
             if kde isa AbstractArray
                 area_hist = sum(utils.skipnan(hist))
                 area_kde  = sum(utils.skipnan(kde))
