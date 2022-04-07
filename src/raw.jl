@@ -317,6 +317,7 @@ module raw
             if phase isa Vector{Int16}
                 phase = phase_to_radians(lfp[:,"phase"])
             end
+            println("Method=$method")
             if method == "resets"
                 Δₚ = [0; diff(phase)]
                 reset_points = UInt32.(Δₚ .< (-1.5*π))
@@ -324,8 +325,9 @@ module raw
             elseif method == "peak-to-peak"
                 step_size = median(diff(phase))
                 Δₚ = [0; diff(phase)]
-                falling_zero_point = [(phase[1:end-1] .>=0) .& (phase[2:end] .<0) ; false]
-                cycle_labels = accumulate(+, falling_zero_point)
+                #falling_zero_point = [(phase[1:end-1] .>=0) .& (phase[2:end] .<0) ; false]
+                rising_zero_point = [(phase[2:end] .>=0) .& (phase[1:end-1] .<0) ; false]
+                cycle_labels = accumulate(+, rising_zero_point)
             else
                 throw(ArgumentError("Unrecognized method=$method"))
             end

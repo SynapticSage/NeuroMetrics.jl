@@ -1,6 +1,7 @@
 quickactivate("/home/ryoung/Projects/goal-code/")
 include(scriptsdir("fields", "Initialize.jl"))
 using StatsPlots
+using MetaDataFrames
 
 # PLACE-GOAL JOINT DISTRIBUTION P(X,Y,γ,p)
 props = ["x", "y", "currentPathLength", "currentAngle","stopWell"]
@@ -41,8 +42,8 @@ E = vcat(E_place_under_goal, E_goal_under_place, source=:source=>["pug","gup"])
 uE = unstack(E, :source, :error)
 uE.PG_GP_ratio = uE.pug./uE.gup
 uE.PG_GP_diff = uE.pug.-uE.gup
-uE.PG_GP_ratio_gt1 = uE.ratio .>= 1
-uE.PG_GP_ratio_gt1 = replace(uE.ratio .>= 1)
+uE.PG_GP_ratio_gt1 = uE.PG_GP_ratio .>= 1
+uE.PG_GP_ratio_gt1_str = replace(uE.PG_GP_ratio .>= 1)
 cells = leftjoin(cells, uE[:,[:unit,:pug,:gup,:PG_GP_ratio, :PG_GP_ratio_gt1]])
 
 

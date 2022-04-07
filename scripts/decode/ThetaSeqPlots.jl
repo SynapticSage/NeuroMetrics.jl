@@ -76,28 +76,28 @@ dat = permutedims(D[variable], [2,1,3])
 # Ready theta waves
 
 tetrode = 5
+load_cycles = false
 if load_cycles
     cycles = raw.load_cycles(animal, day, tetrode)
 else
     lfp = raw.lfp.annotate_cycles(raw.lfp.getTet(lfp,5), method="peak-to-peak")
+    lfp.phase = raw.lfp.phase_to_radians(lfp.phase)
     cycles = raw.lfp.get_cycle_table(lfp)
 end
 validcycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles)
 validcycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), validcycles)
 
 @showprogress for (cyc, cycle) in enumerate(eachrow(validcycles))
-
     start, stop = cycle.start, cycle.end
     filt = (D["time"].>=start) .& (D["time"].<=stop)
-    lfp_filt = (lfp[!,"time"].>=start) .& (lfp[!,"time"].<=stop)
     if any(filt)
         println(cyc)
         dat_sub = dat[:,:, filt]
+        lfp_filt = (lfp[!,"time"].>=start) .& (lfp[!,"time"].<=stop)
         break
     else
         continue
     end
-end
 
     fig=Figure()
     B = beh[(beh.time.>=start) .& (beh.time.<=stop),:]
@@ -180,6 +180,5 @@ end
             save(savefile, fig, pt_per_unit = 1)
         end
     end
-
 end
 

@@ -41,8 +41,6 @@ function get_periods(df::DataFrame, property::String, pos...; removeMissing=fals
         df = dropmissing(df);
     end
     period = groupby(df, property)
-    println(typeof(period))
-    print(methods(combine))
     period = combine(period, pos..., :time => (x->minimum(x)) => :start,
                                      :time => (x->maximum(x)) => :end)
     period.δ = period.end .- period.start;

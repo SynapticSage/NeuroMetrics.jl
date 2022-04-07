@@ -50,10 +50,17 @@ module model
     function reconstruction_error(field::AbstractArray, 
                                   reconstructed_field::AbstractArray;
                                   L::Int=2, reduce::Bool=true)
-        Δ = diff([nanextrema(field)...])
-        ε = field .- reconstructed_field
+        ex = extrema(utils.skipnan(vec(field)))
+        Δ = diff([ex...])
+        ε = vec(field) .- vec(reconstructed_field)
+        if all(isnan.(ε))
+            @warn "All differnces are NaN"
+        end
         if L != 1
             ε  = ε .^ L
+        end
+        if all(isnan.(ε))
+            @warn "(2)All differnces are NaN"
         end
         if reduce
             ε = nanmean(ε)

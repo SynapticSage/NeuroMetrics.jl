@@ -542,9 +542,8 @@ module field
                 end
             end
         end
-        function show_fields(F::Dict; fontscale=true,
-                background=:grey30, textcolor=:white,
-                as::Union{Type,<:Function}=Plots.plot,
+        function show_fields(F::Dict; fontscale=true, background=:grey30,
+                textcolor=:white, as::Union{Type,<:Function}=Plots.plot,
                 plotkws::NamedTuple=NamedTuple(), kws...)
             if fontscale
                 kws2 = (;nplots=length(F))
@@ -565,21 +564,40 @@ module field
             end
             return obj
         end
-        function show_field(F::AbstractMatrix; key::Union{String,NamedTuple,Nothing}=NamedTuple(),
+        function show_field(F::AbstractVector; func=Plots.line,
+                key::Union{String,NamedTuple,Nothing}=NamedTuple(),
                 keyappend::Union{String,NamedTuple,Nothing}=nothing,
                 keyprepend::Union{String,NamedTuple,Nothing}=nothing,
-                xy=[], textcolor=:black, justification::Symbol=:bottom,
+                x=[], textcolor=:black, justification::Symbol=:bottom,
                 fontsize=12, location=(1, 0.03), nplots=1, nplots_factor=1,
                 quant::Vector{Float64}=[0.05,0.99], kws...)
-            if ((typeof(F) <: AbstractArray) == false) || 
-                all(isnan.(F))
+            if all(isnan.(F)) || isempty(F)
+                return Plots.plot()
+            end
+            ylims = quantile(utils.skipnan(vec(F)), quant)
+            if xy == []; kwargs = (xticks=[], yticks=[])
+            else; kwargs = ()
+            end
+            l = func(x..., F; kwargs..., kws...)
+            annotate_field(key=key, keyappend=keyappend, keyprepend=keyprepend,
+                           grid=grid, textcolor=textcolor,
+                           justification=justification,
+                           location=location,nplots=nplots,
+                           nplots_factor=nplots_factor)
+        end
+        function show_field(F::AbstractMatrix; 
+                key::Union{String,NamedTuple,Nothing}=NamedTuple(),
+                keyappend::Union{String,NamedTuple,Nothing}=nothing,
+                keyprepend::Union{String,NamedTuple,Nothing}=nothing,
+                grid=[], textcolor=:black, justification::Symbol=:bottom,
+                fontsize=12, location=(1, 0.03), nplots=1, nplots_factor=1,
+                quant::Vector{Float64}=[0.05,0.99], kws...)
+            if all(isnan.(F)) || isempty(F)
                 return Plots.plot()
             end
             clims = quantile(utils.skipnan(vec(F)), quant)
-            if xy == []
-                kwargs = (xticks=[], yticks=[])
-            else
-                kwargs = ()
+            if xy == []; kwargs = (xticks=[], yticks=[])
+            else; kwargs = ()
             end
             # ------
             # HEATMAP
@@ -589,6 +607,48 @@ module field
                          c=cgrad(:acton,rev=false), showaxis=:no, kws...)
             #old cms = :linear_kryw_5_100_c67_n256
             #:lajolla
+            annotate_field(key=key, keyappend=keyappend, keyprepend=keyprepend,
+                           grid=grid, textcolor=textcolor,
+                           justification=justification,
+                           location=location,nplots=nplots,
+                           nplots_factor=nplots_factor)
+        end
+        function show_field(F::AbstractArray{T,3}; 
+                    key::Union{String,NamedTuple,Nothing}=NamedTuple(),
+                    keyappend::Union{String,NamedTuple,Nothing}=nothing,
+                    keyprepend::Union{String,NamedTuple,Nothing}=nothing,
+                    grid=[], textcolor=:black, justification::Symbol=:bottom,
+                    fontsize=12, location=(1, 0.03), nplots=1, nplots_factor=1,
+                    quant::Vector{Float64}=[0.05,0.99], seriestype=:volume,
+                    slice_dim=3, kws...) where T <: Real
+            if all(isnan.(F)) || isempty(F)
+                return Plots.plot()
+            end
+            if seriestype isa Symbol
+                Plots.plot3d(F; seriestype=seriestype, kws...)
+                annotate_field(key=key, keyappend=keyappend, keyprepend=keyprepend,
+                               grid=grid, textcolor=textcolor,
+                               justification=justification,
+                               location=location, nplots=nplots,
+                               nplots_factor=nplots_factor)
+            else
+                mapslices(x->show_field(x;key=key, keyappend=keyappend,
+                                        keyprepend=keyprepend, grid=grid,
+                                        textcolor=textcolor,
+                                        justification=justification,
+                                        fontsize=fontsize, location=location,
+                                        nplots=nplots,
+                                        nplots_factor=nplots_factor,
+                                        quant=quant)
+                          F, dims=slice_dim)
+            end
+        end
+        function annotate_field(;
+                    key::Union{String,NamedTuple,Nothing}=NamedTuple(),
+                    keyappend::Union{String,NamedTuple,Nothing}=nothing,
+                    keyprepend::Union{String,NamedTuple,Nothing}=nothing,
+                    grid=[], textcolor=:black, justification::Symbol=:bottom,
+                    fontsize=12, location=(1, 0.03), nplots=1, nplots_factor=1)
             # ANNOTATION OF KEY
             # -----------------
             fontsize = max(Int(round(fontsize/(nplots*nplots_factor))),3)
@@ -610,6 +670,7 @@ module field
             annotate!(hm, x, y, t) 
         end
     end
+    
     export plot
 
 end
