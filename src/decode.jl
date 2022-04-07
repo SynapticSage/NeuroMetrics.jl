@@ -105,7 +105,12 @@ module heatmap
 end
 export heatmap
 
-function theta(lfp)
+import GR
+function volume()
+end
+function xtk(D)
+    x = D["x_position"]
+    xticks = (;xticks=collect(LinRange(0,1,length(x))), xtickslabels=x)
 end
 
 end

@@ -15,39 +15,40 @@ end
 cycle_max = combine(groupby(lfpd, [:tetrode, :area]), :cycle=>maximum)
 ca1, pfc = groupby(lfpd, :area)
 uca1 = raw.lfp.unstack_tetrode(ca1)
-upfc = dropmissing(raw.lfp.unstack_tetrode(pfc))
+for (c, col) in enumerate(eachcol(uca1))
+    if c == 1; continue; end
+    col = collect(Missings.replace(convert.(Union{Float16,Missing}, col),NaN))
+    uca1[!, c] = col
+end
 
 # Separate out groups of correlated theta phase C>1 and average those (until this is done, use tet=1 to cut theta cycles)
 import NaNStatistics, Missings
 CA1_c  = NaNStatistics.nancor(Matrix(uca1[:, 2:end]))
-good_ca1_tets = parse.(Int, names(uca1)[2:end][CA1_c[1,:] .> 0])
+seed_tetrode = 2
+good_ca1_tets = parse.(Int, names(uca1)[2:end][CA1_c[seed_tetrode,:] .> 0])
 filt = in.(ca1.tetrode, [good_ca1_tets])
-ca1_avg = raw.lfp.mean_lfp(ca1[filt,:])
+#ca1_avg = raw.lfp.mean_lfp(ca1[filt,:])
+## Butterworth and hilbert the averaged raw (averaging introduces higher
+## freequency changes)
+#filt = DSP.analogfilter(DSP.Bandpass(6, 12, fs=1/median(diff(ca1_avg.time))),
+#                 DSP.Butterworth(5))
+#ca1_avg.raw, ca1_avg.phase  =  Float64.(ca1_avg.raw), Float64.(ca1_avg.phase)
+##x = DSP.filtfilt(filt.p, ca1_avg.phase)
+#hilb = DSP.hilbert(ca1_avg.raw)
+#ca1_avg.amp, ca1_avg.phase = abs.(hilb), angle.(hilb)
+## Find higher variance tetrodes
+#ca1_avg = raw.lfp.gauss_lfp(ca1_avg)
 
-# Butterworth and hilbert the averaged raw (averaging introduces higher
-# freequency changes)
-filt = DSP.analogfilter(DSP.Bandpass(6, 12, fs=1/median(diff(ca1_avg.time))),
-                 DSP.Butterworth(5))
-ca1_avg.raw, ca1_avg.phase  =  Float64.(ca1_avg.raw), Float64.(ca1_avg.phase)
-#x = DSP.filtfilt(filt.p, ca1_avg.phase)
-hilb = DSP.hilbert(ca1_avg.raw)
-ca1_avg.amp, ca1_avg.phase = abs.(hilb), angle.(hilb)
-
-# Find higher variance tetrodes
-ca1_avg = raw.lfp.gauss_lfp(ca1_avg)
 filt = in.(ca1.tetrode, [good_ca1_tets])
 variances = combine(groupby(ca1[filt,:],:tetrode),:raw=>var)
 ranked_variances = sort(variances,:raw_var,rev=true)
 
 
 # Make cycle table for high var tetrodes
-function get_cycle_table(lfp)
-    @assert "cycle" in names(lfp)
-    tab = table.get_periods(lfp, "cycle")
-    # TODO will eventually add more stats before this function exits
-    return tab
-end
-cycles = get_cycle_table(filter(:tetrode=> t->t==5, lfp))
+tetrode = 5
+cycles = raw.lfp.get_cycle_table(raw.lfp.annotate_cycles(raw.lfp.getTet(lfp,tetrode)))
+lfp.phase = raw.lfp.phase_to_radians(lfp.phase)
+raw.save_cycles(cycles, animal, day, tetrode)
 
 ## PLOTTING ###
 # Checking the lfp
@@ -70,3 +71,4 @@ Plots.heatmap(C, c=:vik, clims=(-1,1), xticks=(1:size(C,2),
 xrotation=90, yticks=(1:size(C,2), names(uca1)[2:end]), yrotation=0,
 title="Theta Phase Correlation")
 Plots.savefig(plotsdir("theta","heatmap_correlation_thetaphase_pfc.svg"))
+

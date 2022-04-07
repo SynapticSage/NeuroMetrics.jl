@@ -12,10 +12,11 @@ using Plots, Measures
 using ProgressMeter
 includet(srcdir("raw.jl"))
 includet(srcdir("field.jl"))
-includet(srcdir("filt.jl"))
-includet(srcdir("table.jl"))
 includet(srcdir("field/operation.jl"))
 includet(srcdir("field/model.jl"))
+includet(srcdir("filt.jl"))
+includet(srcdir("table.jl"))
+includet(srcdir("utils.jl"))
 @time spikes, beh, ripples, cells = raw.load("RY16", 36);
 function sf(p, loc)
     p.attr[:size] = (1900, 1900)

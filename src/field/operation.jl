@@ -3,7 +3,7 @@ module operation
 using Statistics
 using NaNStatistics
 using Bootstrap
-include("utils.jl")
+include("../utils.jl")
 export utils
 
 """

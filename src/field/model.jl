@@ -5,11 +5,12 @@ module model
     using ProgressMeter
     using DataFrames
     using NaNStatistics
-    include("utils.jl")
+    println(pwd())
+    include("../utils.jl")
+    include("../table.jl")
+    include("../utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
+    include("./operation.jl")  #valid if a module has already nested this!
     import ..field #valid if a module has already nested this!
-    include("field/operation.jl")  #valid if a module has already nested this!
-    include("table.jl")
-    include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
 
     """
     reconstruction(jointdensity, marginalrate) -> R̂
@@ -50,17 +51,17 @@ module model
                                   reconstructed_field::AbstractArray;
                                   L::Int=2, reduce::Bool=true)
         Δ = diff([nanextrema(field)...])
-        ϵ = field .- reconstructed_field
+        ε = field .- reconstructed_field
         if L != 1
-            ϵ  = ϵ .^ L
+            ε  = ε .^ L
         end
         if reduce
-            ϵ = nanmean(ϵ)
-            ϵ /= Δ
+            ε = nanmean(ε)
+            ε /= Δ
         else
-            ϵ ./= Δ
+            ε ./= Δ
         end
-        return ϵ
+        return ε
     end
 
     """

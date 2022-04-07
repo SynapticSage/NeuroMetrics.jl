@@ -6,7 +6,7 @@ using VideoIO
 using ColorSchemes, Colors
 import ColorSchemeTools
 import DSP
-savestuff = true
+savestuff = false
 if savestuff
     using CairoMakie, Makie
 else
@@ -75,15 +75,29 @@ dat = permutedims(D[variable], [2,1,3])
 
 # Ready theta waves
 
+tetrode = 5
+if load_cycles
+    cycles = raw.load_cycles(animal, day, tetrode)
+else
+    lfp = raw.lfp.annotate_cycles(raw.lfp.getTet(lfp,5), method="peak-to-peak")
+    cycles = raw.lfp.get_cycle_table(lfp)
+end
+validcycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles)
+validcycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), validcycles)
+
 @showprogress for (cyc, cycle) in enumerate(eachrow(validcycles))
-    print(rip)
 
-    start, stop = ripple.start, ripple.stop
-    dat_sub = dat[:,:,(D["time"].>=start) .& (D["time"].<=stop)]
-
-    if size(dat_sub,3) == 0
+    start, stop = cycle.start, cycle.end
+    filt = (D["time"].>=start) .& (D["time"].<=stop)
+    lfp_filt = (lfp[!,"time"].>=start) .& (lfp[!,"time"].<=stop)
+    if any(filt)
+        println(cyc)
+        dat_sub = dat[:,:, filt]
+        break
+    else
         continue
     end
+end
 
     fig=Figure()
     B = beh[(beh.time.>=start) .& (beh.time.<=stop),:]
@@ -99,6 +113,7 @@ dat = permutedims(D[variable], [2,1,3])
             cmap = parse.(Colorant, cmap)
             jitter= (α * rand(Float64,size(unit.time))) .- α/2
             scatter!(ax, unit.time, i*ones(size(unit.time))*4, color=cmap, strokewidth=1, markersize=3)
+            line!(ax, )
         catch
         end
     end
@@ -119,15 +134,16 @@ dat = permutedims(D[variable], [2,1,3])
     behy(t) = B[decode_inds[t],"y"]
     behpoint(t) = (behx(t), behy(t))
     P(t) = Point2f.(behx(t), behy(t))
-    area = ripple.area
-    color         = decode.scatter.marker_color([ripple.area])
-    sc_glow_color = decode.scatter.glow_color([ripple.area])
-    sc_glow_width = ripple.amp
+    #area = cycle.area
+    area = "CA1"
+    color         = decode.scatter.marker_color([area])
+    sc_glow_color = decode.scatter.glow_color([area])
+    sc_glow_width = cycle.amp_mean/10
 
     # ----------------------------
     # SETUP FIGURE, AXIS, ARTISTIS
     # ----------------------------
-    ax = Axis(fig[2:3,1], xlabel="centimeter", ylabel="centimeter", title="area=$(ripple.area), amp=$(round(ripple.amp,digits=2))")
+    ax = Axis(fig[2:3,1], xlabel="centimeter", ylabel="centimeter", title="area=$(area), amp=$(round(cycle.amp_mean,digits=2))")
     boundary = Float64.(isnan.(dat_sub[:,:,1]))
     bound_color = [RGBA(colorant"grey20", 0.0), RGBA(colorant"grey14", 1.0)]
     boundary_cmap = ColorSchemeTools.make_colorscheme(bound_color, 20)
@@ -157,9 +173,9 @@ dat = permutedims(D[variable], [2,1,3])
 
     if savestuff
         for e in ["pdf","svg"]
-            savefile = plotsdir("ripples","mpp_decode", "withBehVideo=$usevideo",
+            savefile = plotsdir("theta","mpp_decode", "withBehVideo=$usevideo",
                                  outputVideo,
-                                 "rip=$rip.$area.amp=$(round(ripple.amp,digits=2))" *
+                                 "cycle=$cyc.$area.$tetrode.amp=$(round(ripple.amp,digits=2))" *
                                  ".$e")
             save(savefile, fig, pt_per_unit = 1)
         end

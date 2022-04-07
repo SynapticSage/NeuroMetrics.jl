@@ -8,12 +8,12 @@ filters = merge(kws.filters,
                 filt.correct,
                 filt.notnan("currentAngle"), 
                 filt.minmax("currentPathLength", 2, 150))
-newkws = (; kws..., resolution=[40, 40, 40, 40], gaussian=0, props=props,
+newkws = (; kws..., resolution=[40, 40, 40, 40, 5], gaussian=0, props=props,
           filters=merge(kws.filters, filters))
 X = field.get_fields(beh, spikes; newkws...);
 F["placegoal-joint"] = X
 X = operation.occnorm(X)
-goal_dims = [3,4]
+goal_dims = [3,4,5]
 place_dims = [1,2]
 
 # Acquire marginals P(X,Y), P(γ, p)
@@ -33,8 +33,8 @@ R̂["place"] = operation.apply(model.reconstruction,
 
 # Get reconstruction model error summary
 E_place_under_goal = model.reconstruction_error(F["place-marginal-sq"].Rₕ, R̂["place"])
-E_goal_under_place = model.reconstruction_error(F["goal-marginal-sq"].Rₕ, R̂["goal"])
-E_place_under_goal = table.to_dataframe(E_place_under_goal; name="error"x
+E_goal_under_place = model.reconstruction_error(F["goal-marginal-sq"].Rₕ,  R̂["goal"])
+E_place_under_goal = table.to_dataframe(E_place_under_goal; name="error")
 E_goal_under_place = table.to_dataframe(E_goal_under_place; name="error")
 E = vcat(E_place_under_goal, E_goal_under_place; source=["pug","gup"])
 E = vcat(E_place_under_goal, E_goal_under_place, source=:source=>["pug","gup"])

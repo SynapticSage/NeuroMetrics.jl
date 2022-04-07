@@ -133,14 +133,33 @@ module raw
         raster = combine(groups, x->x)
     end
 
-    function load_cells(animal::String, day::Int)
-        csvFile = DrWatson.datadir("exp_raw",
-                                   "visualize_raw_neural",
-                                   "$(animal)_$(day)_cell.csv")
-        cells = CSV.read(csvFile, DataFrame;
+    function cellpath(animal::String, day::Int; satellite::Bool=false)
+        tag = begin
+            if satellite
+                "_satellite"
+            else
+                ""
+            end
+        end
+        csvFile = DrWatson.datadir("exp_raw", "visualize_raw_neural",
+                                   "$(animal)_$(day)_cell$tag.csv")
+    end
+    function load_cells(pos...; kws...)
+        cells = CSV.read(cellpath(pos...; kws...), DataFrame;
                  strict=false, missingstring=["NaN", "", "NaNNaNi"],
                  csvkws...)
         return cells
+    end
+    function save_cells(cells::DataFrame, pos...; merge_if_exist::Bool=true, kws...)
+        kws = (;satellite=true, kws...) # satellite default is true
+        csvFile = cellpath(pos...; kws...)
+        if merge_if_exist && isfile(csvFile)
+            prevcells = load_cells(pos...; kws...)
+            cells = outerjoin(cells, prevcells, makeunique=true)
+            # TODO function to accept left or right dups
+        end
+        cells |> CSV.write(csvFile)
+        println("Success")
     end
 
     function load_ripples(animal, day)
@@ -154,11 +173,12 @@ module raw
                  csvkws...)
     end
 
-    function load_lfp(animal, day; vars=nothing)
-        netcdf = DrWatson.datadir("exp_raw",
-                                         "visualize_raw_neural",
+    function lfppath(animal::String, day::Int)
+        netcdf = DrWatson.datadir("exp_raw", "visualize_raw_neural",
                                          "$(animal)_$(day)_rhythm.nc")
-        v = NetCDF.open(netcdf)
+    end
+    function load_lfp(pos...; vars=nothing)
+        v = NetCDF.open(lfppath(pos...))
         if "Var1" in keys(v.vars)
             v.vars["time"] = v.vars["Var1"]
             pop!(v.vars, "Var1")
@@ -173,8 +193,19 @@ module raw
                              for var in keyset))
         return lfp
     end
+    function cyclepath(animal::String, day::Int, tetrode::Union{String,Int})
+        csv = DrWatson.datadir("exp_raw", "visualize_raw_neural",
+                                  "$(animal)_$(day)_tet=$(tetrode)_cycles.csv")
+    end
+    function save_cycles(cycles, pos...)
+        cycles |> CSV.write(cyclepath(pos...))
+    end
+    function load_cycles(pos...)
+        cycles = CSV.read(cyclepath(pos...), DataFrame; strict=false,
+                 missingstring=["NaN", "NaNNaNi", "NaNNaNi,", ""], csvkws...)
+    end
 
-    function load_task(animal, day)
+    function load_task(animal::String, day::Int)
         typemap = Dict(Int64=>Int16);
         csvFile = DrWatson.datadir("exp_raw",
                                    "visualize_raw_neural",
@@ -185,7 +216,7 @@ module raw
         return task
     end
 
-    function decodedir(;method="sortedspike", transition="empirical",
+    function decodedir(;method::String="sortedspike", transition="empirical",
             binstate="notbinned", n_split=4, downsamp=1, speedup=1.0)
         base = "/Volumes/FastData/decode/"
         paramfolder = "$method.$transition.$binstate.n_split=$n_split.downsamp=$downsamp.speedup=$(@sprintf("%1.1f", speedup))"
@@ -276,11 +307,28 @@ module raw
         using Statistics
         using DirectionalStatistics
         using ImageFiltering
-        function annotate_cycles(lfp; phase_col="phase")
+        include("table.jl")
+        function phase_to_radians(phase)
+            phase = convert.(Float32, phase)
+            phase = 2*π*(phase .- minimum(phase))./diff([extrema(phase)...]) .- π
+        end
+        function annotate_cycles(lfp; phase_col="phase", method="peak-to-peak")
             phase = lfp[!, phase_col]
-            Δₚ = [0; diff(phase)]
-            change_points = UInt32.(Δₚ .< 0)
-            cycle_labels = accumulate(+, change_points)
+            if phase isa Vector{Int16}
+                phase = phase_to_radians(lfp[:,"phase"])
+            end
+            if method == "resets"
+                Δₚ = [0; diff(phase)]
+                reset_points = UInt32.(Δₚ .< (-1.5*π))
+                cycle_labels = accumulate(+, reset_points)
+            elseif method == "peak-to-peak"
+                step_size = median(diff(phase))
+                Δₚ = [0; diff(phase)]
+                falling_zero_point = [(phase[1:end-1] .>=0) .& (phase[2:end] .<0) ; false]
+                cycle_labels = accumulate(+, falling_zero_point)
+            else
+                throw(ArgumentError("Unrecognized method=$method"))
+            end
             lfp[!,"cycle"] = cycle_labels
             return lfp
         end
@@ -303,7 +351,8 @@ module raw
 
         creates an amplitude weighted average of fields across tetrodes
         """
-        function weighted_lfp(lfp; mean_fields=["phase","amp","raw"], weighting="amp")
+        function weighted_lfp(lfp; mean_fields=["phase","amp","raw"],
+                weighting="amp")
             lfp = groupby(lfp, :time)
             non_mean_fields = setdiff(names(lfp), mean_fields)
             new = DataFrame()
@@ -320,6 +369,13 @@ module raw
         function unstack_tetrode(df; measure::Symbol=:phase)
             unstack(df[!, [:time, :tetrode, measure]], :tetrode, measure)
         end
+
+        function get_cycle_table(lfp)
+            @assert "cycle" in names(lfp)
+            tab = table.get_periods(lfp, "cycle", :amp=>mean)
+            return tab
+        end
+        getTet(L::DataFrame, T::Int) = filter(:tetrode=> t->t==T, L)
 
     end
     export lfp
@@ -442,6 +498,9 @@ module raw
                 x = data[i][findall(inds), :];
                 data[i] = x;
             end
+        end
+        for i in 1:length(data)
+            println("final_size(data($i)) = $(size(data[i]))")
         end
         println("← ← ← ← ← ← ← ← ← ← ← ← ")
         return data
