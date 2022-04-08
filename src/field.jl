@@ -579,7 +579,7 @@ module field
             else; kwargs = ()
             end
             l = func(x..., F; kwargs..., kws...)
-            annotate_field(key=key, keyappend=keyappend, keyprepend=keyprepend,
+            annotate_field(l; key=key, keyappend=keyappend, keyprepend=keyprepend,
                            grid=grid, textcolor=textcolor,
                            justification=justification,
                            location=location,nplots=nplots,
@@ -607,7 +607,7 @@ module field
                          c=cgrad(:acton,rev=false), showaxis=:no, kws...)
             #old cms = :linear_kryw_5_100_c67_n256
             #:lajolla
-            annotate_field(key=key, keyappend=keyappend, keyprepend=keyprepend,
+            annotate_field(hm; key=key, keyappend=keyappend, keyprepend=keyprepend,
                            grid=grid, textcolor=textcolor,
                            justification=justification,
                            location=location,nplots=nplots,
@@ -625,8 +625,8 @@ module field
                 return Plots.plot()
             end
             if seriestype isa Symbol
-                Plots.plot3d(F; seriestype=seriestype, kws...)
-                annotate_field(key=key, keyappend=keyappend, keyprepend=keyprepend,
+                p = Plots.plot3d(F; seriestype=seriestype, kws...)
+                annotate_field(p, key=key, keyappend=keyappend, keyprepend=keyprepend,
                                grid=grid, textcolor=textcolor,
                                justification=justification,
                                location=location, nplots=nplots,
@@ -639,11 +639,11 @@ module field
                                         fontsize=fontsize, location=location,
                                         nplots=nplots,
                                         nplots_factor=nplots_factor,
-                                        quant=quant)
+                                        quant=quant),
                           F, dims=slice_dim)
             end
         end
-        function annotate_field(;
+        function annotate_field(hm;
                     key::Union{String,NamedTuple,Nothing}=NamedTuple(),
                     keyappend::Union{String,NamedTuple,Nothing}=nothing,
                     keyprepend::Union{String,NamedTuple,Nothing}=nothing,

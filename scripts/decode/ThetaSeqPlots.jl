@@ -1,3 +1,6 @@
+#
+# TODO: Add points ahead of and behind animal
+# TODO: Add theta wave to scatter
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
 using Pushover, Revise, Interact, Blink, Mux, ProgressMeter
@@ -6,6 +9,7 @@ using VideoIO
 using ColorSchemes, Colors
 import ColorSchemeTools
 import DSP
+using StatsPlots
 savestuff = false
 if savestuff
     using CairoMakie, Makie
@@ -50,9 +54,9 @@ thresh_var = Dict("likelihood"=>0.1,
                   "acausal_posterior"=>0.985,
                   "causal_posterior"=>0.985)
 outputVideo = "animation.$(decoder_type)_$(transition_type)_$(split_type)_$(split)_$(variable)_$(basename(video))"
-utils.mkifne(plotsdir("ripples","mpp_decode", "withBehVideo=$usevideo", outputVideo))
-utils.mkifne(plotsdir("ripples","mpp_decode"))
-utils.mkifne(plotsdir("ripples","mpp_decode","withBehVideo=$usevideo"))
+utils.mkifne(plotsdir("theta","mpp_decode", "withBehVideo=$usevideo", outputVideo))
+utils.mkifne(plotsdir("theta","mpp_decode"))
+utils.mkifne(plotsdir("theta","mpp_decode","withBehVideo=$usevideo"))
 wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
 utils.pushover("Finished preprocess sequenece")
 
@@ -73,50 +77,57 @@ end
 dat = permutedims(D[variable], [2,1,3])
 #mint = minimum(beh[beh.epoch.==epoch,:].time)
 
-# Ready theta waves
+beh, spikes, lfp, D = raw.normalize_time(beh, spikes, lfp, D);
 
 tetrode = 5
-load_cycles = false
+load_cycles = true
+lfp = raw.lfp.annotate_cycles(raw.lfp.getTet(lfp,5), method="peak-to-peak")
+lfp.phase = raw.lfp.phase_to_radians(lfp.phase)
 if load_cycles
     cycles = raw.load_cycles(animal, day, tetrode)
 else
-    lfp = raw.lfp.annotate_cycles(raw.lfp.getTet(lfp,5), method="peak-to-peak")
-    lfp.phase = raw.lfp.phase_to_radians(lfp.phase)
     cycles = raw.lfp.get_cycle_table(lfp)
+    raw.save_cycles(cycles, animal, day, tetrode)
 end
 validcycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles)
 validcycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), validcycles)
 
-@showprogress for (cyc, cycle) in enumerate(eachrow(validcycles))
+@showprogress for (cyc, cycle) in collect(enumerate(eachrow(validcycles)))[93741:end]
     start, stop = cycle.start, cycle.end
     filt = (D["time"].>=start) .& (D["time"].<=stop)
     if any(filt)
-        println(cyc)
         dat_sub = dat[:,:, filt]
         lfp_filt = (lfp[!,"time"].>=start) .& (lfp[!,"time"].<=stop)
-        break
+        lfp_sub = lfp[lfp_filt, :]
     else
+        continue
+    end
+    B = beh[(beh.time.>=start) .& (beh.time.<=stop),:]
+    if isempty(B)
+        @warn "Empty behavior for cycle $cyc"
         continue
     end
 
     fig=Figure()
-    B = beh[(beh.time.>=start) .& (beh.time.<=stop),:]
     sp = copy(spikes[(spikes.time.>start) .& (spikes.time .<stop),:])
     sp = groupby(sp, :unit)
     sp = [sp...]
     sp = sort(sp, by=x->median(x.time))
+    lfp_sub.raw = utils.norm_extrema(lfp_sub.raw, [0,length(sp)])
     ax = Axis(fig[4,1])
     α = 0.1
     for (i,unit) in enumerate(sp)
+        print(i, " ")
+        cmap = get(ColorSchemes.hawaii, ((unit.time.-start)./(stop-start)))
+        cmap = parse.(Colorant, cmap)
+        jitter= (α * rand(Float64,size(unit.time))) .- α/2
         try
-            cmap = get(ColorSchemes.hawaii, ((unit.time.-start)./(stop-start)))
-            cmap = parse.(Colorant, cmap)
-            jitter= (α * rand(Float64,size(unit.time))) .- α/2
-            scatter!(ax, unit.time, i*ones(size(unit.time))*4, color=cmap, strokewidth=1, markersize=3)
-            line!(ax, )
+        GLMakie.scatter!(ax, unit.time, i*ones(size(unit.time))*4, color=cmap, strokewidth=1, markersize=3)
         catch
+            @warn "$i failed"
         end
     end
+    lines!(ax, lfp_sub.time, lfp_sub.raw)
 
     # -----------------
     # READY HEATMAP VARS
@@ -138,7 +149,7 @@ validcycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), validcycles)
     area = "CA1"
     color         = decode.scatter.marker_color([area])
     sc_glow_color = decode.scatter.glow_color([area])
-    sc_glow_width = cycle.amp_mean/10
+    sc_glow_width = cycle.amp_mean/20
 
     # ----------------------------
     # SETUP FIGURE, AXIS, ARTISTIS
@@ -172,10 +183,10 @@ validcycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), validcycles)
              label = "Time", flipaxis = false, vertical=false)
 
     if savestuff
-        for e in ["pdf","svg"]
+        for e in ["pdf","png"]
             savefile = plotsdir("theta","mpp_decode", "withBehVideo=$usevideo",
                                  outputVideo,
-                                 "cycle=$cyc.$area.$tetrode.amp=$(round(ripple.amp,digits=2))" *
+                                 "cycle=$cyc.$area.$tetrode.amp=$(round(cycle.amp_mean,digits=2))" *
                                  ".$e")
             save(savefile, fig, pt_per_unit = 1)
         end

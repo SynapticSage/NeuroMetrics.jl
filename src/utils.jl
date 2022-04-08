@@ -38,6 +38,13 @@ function pnf(X::T) where T <: Dict
     println(Dict(key=>mean(isnan.(x)) for (key,x) in X))
 end
 
+function norm_extrema(x::Vector{T1}, minmax::Union{Vector{T2},Tuple{T2}}) where
+    T1 <: Real where T2 <: Real
+    @assert (minmax[2]-minmax[1]) .> 0
+    x = (x .- minimum(x))./(maximum(x) - minimum(x))
+    x = x .* diff(minmax) .+ minmax[1]
+end
+
 function squeeze(A::AbstractArray)  
     s = size(A)
     A = dropdims(A, dims = tuple(findall(size(A) .== 1)...))

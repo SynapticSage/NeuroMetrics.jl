@@ -576,8 +576,8 @@ module raw
         end
         function load(pos...; kws...)
             videopath = get_path(pos...; kws...)
-            stream = VideoIO.open(videopath)
-            vid = VideoIO.openvideo(stream)
+            stream    = VideoIO.open(videopath)
+            vid       = VideoIO.openvideo(stream)
         end
     end
     export video
@@ -623,5 +623,23 @@ module raw
         end
     end
     export dlc
+
+    function normalize_time(data::Union{DataFrame, Dict}...)
+        if data[1] isa DataFrame
+            println("a")
+            tₘ = minimum(data[1].time)
+        else
+            println("b")
+            tₘ = minimum(data[1]["time"])
+        end
+        for source ∈ 1:length(data)
+            if data[source] isa DataFrame && ("time" ∈ names(data[source]))
+                data[source].time = data[source].time .- tₘ
+            elseif "time" ∈ keys(data[source])
+                data[source]["time"] = data[source]["time"] .- tₘ
+            end
+        end
+        return data
+    end
 
 end
