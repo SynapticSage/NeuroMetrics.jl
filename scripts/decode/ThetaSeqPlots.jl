@@ -12,10 +12,13 @@ import DSP
 using StatsPlots
 savestuff = false
 if savestuff
-    using CairoMakie, Makie
+    using CairoMakie
+    using GLMakie: heatmap!, scatter!, lines!
 else
-    using GLMakie, Makie
+    using GLMakie
+    using GLMakie: heatmap!, scatter!, lines!
 end
+using Makie
 using DataFrames
 import Plots
 
@@ -36,7 +39,7 @@ animal, day, epoch = "RY16", 36, 7
 @time beh    = raw.load_behavior(animal, day)
 @time spikes = raw.load_spikes(animal,   day)
 @time cells = raw.load_cells(animal,   day)
-@time tetrode = raw.load_tetrode(animal,   day)
+#@time tetrode = raw.load_tetrode(animal,   day)
 @time lfp  = raw.load_lfp(animal,      day)
 @time task   = raw.load_task(animal,     day)
 utils.pushover("Finished loaded thetaseqplots.jl")
@@ -80,7 +83,7 @@ dat = permutedims(D[variable], [2,1,3])
 beh, spikes, lfp, D = raw.normalize_time(beh, spikes, lfp, D);
 
 tetrode = 5
-load_cycles = true
+load_cycles = false
 lfp = raw.lfp.annotate_cycles(raw.lfp.getTet(lfp,5), method="peak-to-peak")
 lfp.phase = raw.lfp.phase_to_radians(lfp.phase)
 if load_cycles
@@ -92,28 +95,32 @@ end
 validcycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles)
 validcycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), validcycles)
 
-@showprogress for (cyc, cycle) in collect(enumerate(eachrow(validcycles)))[93741:end]
+@showprogress for (cyc, cycle) in collect(enumerate(eachrow(validcycles)))[93740:end]
     start, stop = cycle.start, cycle.end
     filt = (D["time"].>=start) .& (D["time"].<=stop)
     if any(filt)
         dat_sub = dat[:,:, filt]
         lfp_filt = (lfp[!,"time"].>=start) .& (lfp[!,"time"].<=stop)
         lfp_sub = lfp[lfp_filt, :]
+        println("cycle ", cyc)
+        break
     else
         continue
     end
+
     B = beh[(beh.time.>=start) .& (beh.time.<=stop),:]
     if isempty(B)
         @warn "Empty behavior for cycle $cyc"
         continue
     end
 
-    fig=Figure()
+    fig=Figure(resolution=Tuple(0.8*[1200,1600]))
+    yfactor=4
     sp = copy(spikes[(spikes.time.>start) .& (spikes.time .<stop),:])
+    lfp_sub.raw = utils.norm_extrema(lfp_sub.raw, [0, length(unique(sp.unit))*yfactor])
     sp = groupby(sp, :unit)
     sp = [sp...]
     sp = sort(sp, by=x->median(x.time))
-    lfp_sub.raw = utils.norm_extrema(lfp_sub.raw, [0,length(sp)])
     ax = Axis(fig[4,1])
     α = 0.1
     for (i,unit) in enumerate(sp)
@@ -122,12 +129,12 @@ validcycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), validcycles)
         cmap = parse.(Colorant, cmap)
         jitter= (α * rand(Float64,size(unit.time))) .- α/2
         try
-        GLMakie.scatter!(ax, unit.time, i*ones(size(unit.time))*4, color=cmap, strokewidth=1, markersize=3)
+            scatter!(ax, unit.time, i*ones(size(unit.time))*yfactor, color=cmap, strokewidth=1, markersize=6)
         catch
             @warn "$i failed"
         end
     end
-    lines!(ax, lfp_sub.time, lfp_sub.raw)
+    lines!(ax, lfp_sub.time, lfp_sub.raw, linewidth=2)
 
     # -----------------
     # READY HEATMAP VARS
@@ -154,7 +161,7 @@ validcycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), validcycles)
     # ----------------------------
     # SETUP FIGURE, AXIS, ARTISTIS
     # ----------------------------
-    ax = Axis(fig[2:3,1], xlabel="centimeter", ylabel="centimeter", title="area=$(area), amp=$(round(cycle.amp_mean,digits=2))")
+    ax = Axis(fig[2:3,1], xlabel="centimeter", ylabel="centimeter", title="area=$(area), amp=$(round(cycle.amp_mean,digits=2))", aspect=1.7)
     boundary = Float64.(isnan.(dat_sub[:,:,1]))
     bound_color = [RGBA(colorant"grey20", 0.0), RGBA(colorant"grey14", 1.0)]
     boundary_cmap = ColorSchemeTools.make_colorscheme(bound_color, 20)

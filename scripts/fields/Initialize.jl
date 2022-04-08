@@ -10,6 +10,8 @@ using DataFrames
 using KernelDensity, Distributions
 using Plots, Measures
 using ProgressMeter
+using StatsPlots
+using MetaDataFrames
 includet(srcdir("raw.jl"))
 includet(srcdir("field.jl"))
 includet(srcdir("field/operation.jl"))

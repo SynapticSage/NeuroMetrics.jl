@@ -1,7 +1,5 @@
 quickactivate("/home/ryoung/Projects/goal-code/")
 include(scriptsdir("fields", "Initialize.jl"))
-using StatsPlots
-using MetaDataFrames
 
 # PLACE-GOAL JOINT DISTRIBUTION P(X,Y,γ,p)
 props = ["x", "y", "currentPathLength", "currentAngle","stopWell"]
@@ -50,6 +48,11 @@ cells = leftjoin(cells, uE[:,[:unit,:pug,:gup,:PG_GP_ratio, :PG_GP_ratio_gt1]])
 if ploton
 
 
+    ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
+    #           SUMMARIES ... of reconstructions ...       #
+    ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
+    
+    # Title: Visaluze 𝓍 = error 𝒷𝓎 {PUG, GUP} x (AREA)
     p1=@df @subset(E,:area.=="CA1") Plots.histogram(:error, group=:source,
                                                     alpha=.6, title="CA1",
                                                     nbins=100)
@@ -58,6 +61,7 @@ if ploton
                                                     nbins=100, xlim=(0,0.65))
     Plots.plot(p1,p2)
 
+    # Title: Visaluze 𝓍 = Δ(pug-gup) 𝒷𝓎 (AREA)
     p1=@df @subset(uE,:area.=="CA1") Plots.histogram(:PG_GP_diff,
                                                      label="Difference of
                                                      pug/gup", nbins=100,
@@ -77,7 +81,11 @@ if ploton
     @df uE Plots.scatter(:pug, :gup, label="pug to gup", xlim=(0,3))
     Plots.plot!(0:30, 0:30, linestyle=:dash, c=:black, label="line of equivalence")
 
-    # Reconstructions
+
+    ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
+    #              RECONSTRUCTIONS                         #
+    ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
+    
     p = field.plot.show_fields(R̂["place"])
     savefig(p, plotsdir("fields", "reconstruction", "reconstructed_place_from_goal.svg"))
     savefig(p, plotsdir("fields", "reconstruction", "reconstructed_place_from_goal.png"))
@@ -87,7 +95,11 @@ if ploton
     savefig(p, plotsdir("fields", "reconstruction", "reconstructed_goal_from_place.png"))
     savefig(p, plotsdir("fields", "reconstruction", "reconstructed_goal_from_place.pdf"))
 
-    # Marginals
+
+    ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
+    #                   MARGNIAL                           #
+    ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
+
     p = field.plot.show_fields(F["place-marginal-sq"].Rₕ)
     savefig(p, plotsdir("fields", "reconstruction", "marginal_place.svg"))
     savefig(p, plotsdir("fields", "reconstruction", "marginal_place.png"))
@@ -97,8 +109,20 @@ if ploton
     savefig(p, plotsdir("fields", "reconstruction", "marginal_goal.png"))
     savefig(p, plotsdir("fields", "reconstruction", "marginal_goal.pdf"))
 
+    ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
+    #     JUXTAPOSITION OF RECONSTRUCTION AND MARGNALS     #
+    ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
 
-    # Missing samples
+    groups=field.group([F["place-marginal-sq"].Rₕ, R̂["place"]], 
+                       ["M(place)", "R̂(place)"])
+    overall = field.plot.show_fieldgroups(groups)
+    
+
+
+    ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
+    #                   SUMMARY OF MISSING SAMPLES         #
+    ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
+
     Plots.heatmap(utils.squeeze(sum(Float64.(X.occzeroinds),dims=goal_dims)), title="Quantification of missing samples\nin γ and p of (x,y,γ,p)\n")
     Plots.savefig(plotsdir("fields","reconstruction", "goal_marginalize_quantification_of_goal_missing_samples.svg"))
     Plots.heatmap(utils.squeeze(mean(Float64.(X.occzeroinds),dims=goal_dims)), title="Quantification of missing samples\nin γ and p of (x,y,γ,p)\n")

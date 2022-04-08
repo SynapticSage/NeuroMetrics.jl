@@ -17,7 +17,7 @@ F["place_undergoal"] = place_undergoal
 if ploton
     a=field.plot.show_fields(goalpath.Rₕ)
     b=field.plot.show_fields(goalpath.Rₖ)
-    grouping = field.group([goalpath.Rₕ,goalpath.Rₖ],["hist","kd"])
+    grouping = field.group([goalpath.Rₕ,goalpath.Rₖ], ["hist","kd"])
     overall = field.plot.show_fieldgroups(grouping)
     name=plotsdir("fields", "individual_gf_vel=gt2")
     mkdir(name)

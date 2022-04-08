@@ -564,45 +564,49 @@ module field
             end
             return obj
         end
-        function show_field(F::AbstractVector; func=Plots.line,
+        function show_field(FF::AbstractVector; func=Plots.line,
                 key::Union{String,NamedTuple,Nothing}=NamedTuple(),
                 keyappend::Union{String,NamedTuple,Nothing}=nothing,
                 keyprepend::Union{String,NamedTuple,Nothing}=nothing,
                 x=[], textcolor=:black, justification::Symbol=:bottom,
                 fontsize=12, location=(1, 0.03), nplots=1, nplots_factor=1,
                 quant::Vector{Float64}=[0.05,0.99], kws...)
-            if all(isnan.(F)) || isempty(F)
+            if all(isnan.(FF)) || isempty(FF)
                 return Plots.plot()
             end
-            ylims = quantile(utils.skipnan(vec(F)), quant)
-            if xy == []; kwargs = (xticks=[], yticks=[])
-            else; kwargs = ()
+            ylims = quantile(utils.skipnan(vec(FF)), quant)
+            if grid == []; extrakwargs = (xticks=[], yticks=[])
+            else; extrakwargs = ()
             end
-            l = func(x..., F; kwargs..., kws...)
+            kws = (;extrakws..., kws...)
+            l = func(x..., FF; kws...)
             annotate_field(l; key=key, keyappend=keyappend, keyprepend=keyprepend,
                            grid=grid, textcolor=textcolor,
                            justification=justification,
                            location=location,nplots=nplots,
                            nplots_factor=nplots_factor)
         end
-        function show_field(F::AbstractMatrix; 
+        function show_field(FF::AbstractMatrix; 
                 key::Union{String,NamedTuple,Nothing}=NamedTuple(),
                 keyappend::Union{String,NamedTuple,Nothing}=nothing,
                 keyprepend::Union{String,NamedTuple,Nothing}=nothing,
                 grid=[], textcolor=:black, justification::Symbol=:bottom,
                 fontsize=12, location=(1, 0.03), nplots=1, nplots_factor=1,
                 quant::Vector{Float64}=[0.05,0.99], kws...)
-            if all(isnan.(F)) || isempty(F)
+            if all(isnan.(FF)) || isempty(FF)
                 return Plots.plot()
             end
-            clims = quantile(utils.skipnan(vec(F)), quant)
-            if xy == []; kwargs = (xticks=[], yticks=[])
-            else; kwargs = ()
+            clims = quantile(utils.skipnan(vec(FF)), quant)
+            if grid == []; 
+                extrakwargs = (xticks=[], yticks=[])
+                grid = ()
+            else; extrakwargs = (); pos = grid;
             end
+            kws = (;extrakwargs..., kws...)
             # ------
             # HEATMAP
             # ------
-            hm = heatmap(xy..., F; clims=Tuple(clims), kwargs...,
+            hm = heatmap(pos..., FF; clims=Tuple(clims), 
                          colorbar=false, padding=(0,0),
                          c=cgrad(:acton,rev=false), showaxis=:no, kws...)
             #old cms = :linear_kryw_5_100_c67_n256
@@ -613,7 +617,7 @@ module field
                            location=location,nplots=nplots,
                            nplots_factor=nplots_factor)
         end
-        function show_field(F::AbstractArray{T,3}; 
+        function show_field(FF::AbstractArray{T,3}; 
                     key::Union{String,NamedTuple,Nothing}=NamedTuple(),
                     keyappend::Union{String,NamedTuple,Nothing}=nothing,
                     keyprepend::Union{String,NamedTuple,Nothing}=nothing,
@@ -621,18 +625,29 @@ module field
                     fontsize=12, location=(1, 0.03), nplots=1, nplots_factor=1,
                     quant::Vector{Float64}=[0.05,0.99], seriestype=:volume,
                     slice_dim=3, kws...) where T <: Real
-            if all(isnan.(F)) || isempty(F)
+            if all(isnan.(FF)) || isempty(FF)
                 return Plots.plot()
             end
             if seriestype isa Symbol
-                p = Plots.plot3d(F; seriestype=seriestype, kws...)
-                annotate_field(p, key=key, keyappend=keyappend, keyprepend=keyprepend,
-                               grid=grid, textcolor=textcolor,
-                               justification=justification,
-                               location=location, nplots=nplots,
-                               nplots_factor=nplots_factor)
+                println("Volume path")
+                kws = (; margins=-2mm, padding=(-1,-1), kws...)
+                    #FF = replace(FF, NaN=>0)
+                    t=text_annotate(key=key, keyappend=keyappend, 
+                                    keyprepend=keyprepend,
+                                   grid=grid, textcolor=textcolor,
+                                   justification=justification,
+                                   location=location, nplots=nplots,
+                                   nplots_factor=nplots_factor)
+                    kws = (; t..., kws...)
+                    p = Plots.plot3d(FF; seriestype=seriestype, kws...)
+                try
+                    println("volume plotted")
+                    println("annotation plotted")
+                catch
+                    @warn "Failed on key=$key"
+                end
             else
-                mapslices(x->show_field(x;key=key, keyappend=keyappend,
+                p = mapslices(x->show_field(x;key=key, keyappend=keyappend,
                                         keyprepend=keyprepend, grid=grid,
                                         textcolor=textcolor,
                                         justification=justification,
@@ -640,8 +655,9 @@ module field
                                         nplots=nplots,
                                         nplots_factor=nplots_factor,
                                         quant=quant),
-                          F, dims=slice_dim)
+                          FF, dims=slice_dim)
             end
+            return p
         end
         function annotate_field(hm;
                     key::Union{String,NamedTuple,Nothing}=NamedTuple(),
@@ -668,6 +684,39 @@ module field
             annotation = join(annotation, "\n")
             t = text(annotation, justification, color, :right, :bold, pointsize=fontsize)
             annotate!(hm, x, y, t) 
+        end
+        function text_annotate(;
+                    key::Union{String,NamedTuple,Nothing}=NamedTuple(),
+                    keyappend::Union{String,NamedTuple,Nothing}=nothing,
+                    keyprepend::Union{String,NamedTuple,Nothing}=nothing,
+                    grid=[], textcolor=:black, justification::Symbol=:bottom,
+                    fontsize=12, location=(1, 0.03), nplots=1, nplots_factor=1)
+            # ANNOTATION OF KEY
+            # -----------------
+            fontsize = max(Int(round(fontsize/(nplots*nplots_factor))),3)
+            #println("fontsize=$fontsize")
+            get_loc(p,l) = p[1] + (p[2]-p[1])*l
+            x = get_loc(xlims(), location[1])
+            y = get_loc(ylims(), location[2])
+            color = textcolor
+            font = :bold
+            annotation = [transform_key(key)]
+            if keyappend != nothing
+                push!(annotation, transform_key(keyappend))
+            end
+            if keyprepend != nothing
+                pushfirst!(annotation, transform_key(keyappend))
+            end
+            annotation = join(annotation, "\n")
+            return (;title=annotation, titlefontsize=fontsize,
+                    titlefontcolor=textcolor, titlefontvalign=justification)
+        end
+        function title_annotate(hm; kws...)
+            annotation = text_annotate(;kws...).title
+            hm.attr[:plot_title]    = annotation
+            hm.attr[:plot_titlefontvaling] = justification
+            hm.attr[:plot_titlefontcolor] = color
+            hm.attr[:window_title] = annotation
         end
     end
     

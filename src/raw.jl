@@ -624,7 +624,8 @@ module raw
     end
     export dlc
 
-    function normalize_time(data::Union{DataFrame, Dict}...)
+    function normalize_time(data::Union{DataFrame, Dict}...; factor=1)
+        data = [data...]
         if data[1] isa DataFrame
             println("a")
             tₘ = minimum(data[1].time)
@@ -634,9 +635,9 @@ module raw
         end
         for source ∈ 1:length(data)
             if data[source] isa DataFrame && ("time" ∈ names(data[source]))
-                data[source].time = data[source].time .- tₘ
+                data[source].time = (data[source].time .- tₘ)*factor
             elseif "time" ∈ keys(data[source])
-                data[source]["time"] = data[source]["time"] .- tₘ
+                data[source]["time"] = (data[source]["time"] .- tₘ)*factor
             end
         end
         return data
