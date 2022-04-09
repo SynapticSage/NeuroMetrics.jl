@@ -59,7 +59,7 @@ function marginalize(field::NamedTuple; dims::Vector{Int}=[],
         if item == nothing
             continue
         end
-        println(key)
+        #println(key)
         sKey = String(key)
         if occursin("grid", sKey)
             S = setdiff(1:length(item), dims)
@@ -134,15 +134,24 @@ end
 Apply an operation to a dict or set of dict objects containing some type of
 field information
 """
-function apply(func::Function, D::Dict...; keypolicy::Function=intersect,
-        kws...)
+function apply(func::Function, D::Dict...; tolerate_error::Bool=false,
+        keypolicy::Function=intersect, kws...)
     #println("apply 3")
     K = [Set(keys(d)) for d∈D]
     K = accumulate(keypolicy, K)[end]
     result = Dict()
     for k∈K
         d = (d[k] for d in D)
-        result[k] = func(d...; kws...)
+        if tolerate_error
+            try
+                result[k] = func(d...; kws...)
+            catch
+                @warn "key=$k during operation.apply results in error"
+                result[k] = nothing
+            end
+        else
+            result[k] = func(d...; kws...)
+        end
     end
     return result
 end
@@ -163,8 +172,7 @@ function apply(func::Function, X::AbstractArray, D::Dict; kws...)
     return result
 end
 
-function occnorm(F::NamedTuple, dfields=["Cₕ","Cₖ"]; occfield="occ",
-        ozifield="occzeroinds", kws...)
+function occnorm(F::NamedTuple, dfields=["Cₕ","Cₖ"]; occfield="occ", ozifield="occzeroinds", kws...)
     F = Dict(pairs(F))
     for d in dfields
         newName = replace(d, "C"=>"R")
@@ -196,6 +204,34 @@ function occnorm(data::AbstractArray,
         X[occzeroinds] .= NaN;
     end
     return X
+end
+
+function cast32(F::NamedTuple; kws...)
+    F = Dict(pairs(F))
+    for d in keys(F)
+        if F[d] == nothing
+            continue
+        end
+        println(d)
+        if F[d] isa Dict
+            F[d] = operation.apply(x->Float32.(x), F[d]; kws...)
+        elseif F[d] isa AbstractArray{Float64}
+            F[d] = Float32.(F[d])
+        elseif F[d] isa AbstractArray{Int64}
+            F[d] = Int32.(F[d])
+        end
+    end
+    return NamedTuple(F)
+end
+
+function rsub(D::Dict, N::Int)
+    K = Tuple(keys(D))
+    r = rand(1:length(K), N)
+    K = K[r]
+    D  = Dict(k=>D[k] for k in K)
+end
+
+function ksub(D::Dict, p::Pair...)
 end
 
 end

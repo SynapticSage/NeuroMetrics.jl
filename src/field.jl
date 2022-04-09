@@ -182,6 +182,7 @@ module field
             dokde::Bool=true,
             dohist::Bool=true,
             normkde::Bool=true,
+            savemem::Bool=true,
             behfilter::Union{Bool, Dict}=true,
             filters::Union{Dict,Nothing}=nothing)
 
@@ -202,6 +203,7 @@ module field
         if dohist
             println("props=$props")
             H = hist.fields(data, beh; props=props,
+                                        savemem=savemem,
                                         resolution=resolution, 
                                         splitby=splitby,
                                         gaussian=gaussian);
@@ -212,6 +214,7 @@ module field
         K = (;kde=nothing, grid=nothing, occ=nothing, occzeroinds=nothing)
         if dokde && atmost2d
             K = kerneldens.fields(data, beh; props=props,
+                                         savemem=savemem,
                                          splitby=splitby,
                                          resolution=Int.(resolution ./
                                                         hist2kde_ratio));
@@ -228,6 +231,7 @@ module field
                 occzeroinds=H.occzeroinds, cgrid=gridc, egrid=gride,
                 gridh=H.grid, gridk=K.grid)
         out = operation.occnorm(out)
+        return out
     end
 
     #Field = NamedTuple{(:hist, :kde, :cgrid, :egrid, :gridh, :gridk, :beh, :behdens), 
@@ -266,6 +270,7 @@ module field
         function fields(data::DataFrame, beh::DataFrame;
                 splitby::Union{Nothing,Vector{Symbol},Vector{String},String}="unit",
                 resolution::Union{Vector{Int},Int}=50, 
+                savemem::Bool=true,
                 props::Vector{String}=["x","y"],
                 gaussian::Real = 0.0
             )
@@ -296,7 +301,11 @@ module field
                 #                 for i ∈ 1:length(groups))
                 spikeDist = Dict{typeof(ugroups[1]),Any}();
                 for i ∈ 1:length(groups)
-                    spikeDist[ugroups[i]] = field_of_group(i).weights
+                    if savemem
+                        spikeDist[ugroups[i]] = Float32.(field_of_group(i).weights)
+                    else
+                        spikeDist[ugroups[i]] = field_of_group(i).weights
+                    end
                 end
             else
                 if splitby != nothing
@@ -307,7 +316,11 @@ module field
 
             # Transform behavior
             behDist_nanWhere0 = copy(behDist.weights);
-            behDist_nanWhere0 = convert.(Float64, behDist_nanWhere0);
+            if savemem
+                behDist_nanWhere0 = convert.(Float32, behDist_nanWhere0);
+            else
+                behDist_nanWhere0 = convert.(Float64, behDist_nanWhere0);
+            end
             behzeroinds = behDist_nanWhere0 .== 0
             behDist_nanWhere0[behzeroinds] .= NaN;
             behDist.weights[behDist.weights .== 0] .= 1;
@@ -405,6 +418,7 @@ module field
         function fields(data::DataFrame, beh::DataFrame;
                 splitby::Union{Nothing,Vector{String},Vector{Symbol},String}="unit",
                 resolution::Union{Int,Vector{Int}}=200,
+                savemem::Bool=true,
                 props::Vector{String}=["x","y"])
 
             # Grid settings
@@ -442,6 +456,9 @@ module field
             zero_fraction = 0.0000000001
             behDist[behDist .<= zero_fraction] .= 1
             behzeroinds = behDist_hist .<= 0
+            if savemem
+                behDist = Float32.(behDist)
+            end
 
             # Spike count
             if spikeDist isa Dict
@@ -450,7 +467,11 @@ module field
                     if spikeDist[i] == nothing
                         dist[i] = nothing
                     else
-                        dist[i] = pdf(spikeDist[i], grid...)
+                        if savemem
+                            dist[i] = Float32.(pdf(spikeDist[i], grid...))
+                        else
+                            dist[i] = pdf(spikeDist[i], grid...)
+                        end
                     end
                 end
             else
@@ -557,18 +578,18 @@ module field
                          foreground_color=background,
                          background_color_outside=background, plotkws...)
                 kws = (;textcolor=textcolor, kws...)
-                obj =  as((show_field(f; kws2..., key=key, kws...) for (key,f) in sort(collect(F), by=x->x[1]))...;
-                         plotkws...)
+                obj =  as((show_field(f; kws2..., key=key, kws...) for (key,f)
+                           in sort(collect(F), by=x->x[1]))...; plotkws...)
             else
                 obj =  as(show_field(f; kws2..., key=key, kws...) for (key,f) in F)
             end
             return obj
         end
-        function show_field(FF::AbstractVector; func=Plots.line,
+        function show_field(FF::AbstractVector; func=Plots.bar,
                 key::Union{String,NamedTuple,Nothing}=NamedTuple(),
                 keyappend::Union{String,NamedTuple,Nothing}=nothing,
                 keyprepend::Union{String,NamedTuple,Nothing}=nothing,
-                x=[], textcolor=:black, justification::Symbol=:bottom,
+                grid=[], textcolor=:black, justification::Symbol=:bottom,
                 fontsize=12, location=(1, 0.03), nplots=1, nplots_factor=1,
                 quant::Vector{Float64}=[0.05,0.99], kws...)
             if all(isnan.(FF)) || isempty(FF)
@@ -578,8 +599,8 @@ module field
             if grid == []; extrakwargs = (xticks=[], yticks=[])
             else; extrakwargs = ()
             end
-            kws = (;extrakws..., kws...)
-            l = func(x..., FF; kws...)
+            kws = (;extrakwargs..., kws...)
+            l = func(grid..., FF; kws...)
             annotate_field(l; key=key, keyappend=keyappend, keyprepend=keyprepend,
                            grid=grid, textcolor=textcolor,
                            justification=justification,
@@ -599,7 +620,7 @@ module field
             clims = quantile(utils.skipnan(vec(FF)), quant)
             if grid == []; 
                 extrakwargs = (xticks=[], yticks=[])
-                grid = ()
+                grid = (); pos = ();
             else; extrakwargs = (); pos = grid;
             end
             kws = (;extrakwargs..., kws...)

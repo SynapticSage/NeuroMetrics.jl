@@ -40,9 +40,12 @@ end
 
 function norm_extrema(x::Vector{T1}, minmax::Union{Vector{T2},Tuple{T2}}) where
     T1 <: Real where T2 <: Real
-    @assert (minmax[2]-minmax[1]) .> 0
-    x = (x .- minimum(x))./(maximum(x) - minimum(x))
-    x = x .* diff(minmax) .+ minmax[1]
+    if minmax[2] == minmax[1]
+        x = minmax[1] * ones(size(x))
+    else
+        x = (x .- minimum(x))./(maximum(x) - minimum(x))
+        x = x .* diff(minmax) .+ minmax[1]
+    end
 end
 
 function squeeze(A::AbstractArray)  

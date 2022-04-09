@@ -1,35 +1,72 @@
 quickactivate("/home/ryoung/Projects/goal-code/")
-include(scriptsdir("fields", "Initialize.jl"))
+@time include(scriptsdir("fields", "Initialize.jl"))
 
-# PLACE-GOAL JOINT DISTRIBUTION P(X,Y,γ,p)
+# ----------------------------------------
+# FUNCTION SPECIFIC SHORTCUTS AND SETTINGS
+# ----------------------------------------
+shortcut_names = OrderedDict("x-y" => "place",
+                     "currentPathLength-currentAngle-stopWell"=>"particular-goal",
+                     "currentPathLength-currentAngle"=>"goal",
+                     "currentAngle-stopWell"=>"particular-angle",
+                     "currentPathLength-stopWell"=>"particular-distance",
+                     "currentAngle"=>"γ",
+                     "currentPathLength"=>"p",
+                     "stopWell"=>"G")
+𝕀(d) = Dict(zip(values(shortcut_names), keys(shortcut_names)))[d]
+reconstructions = (
+                   ("place","goal"),
+                   ("goal", "place"),
+                   ("place","particular-goal"),
+                   ("particular-goal", "place"),
+                   ("γ", "place"),
+                   ("particular-γ", "place"),
+                  )
 props = ["x", "y", "currentPathLength", "currentAngle","stopWell"]
+𝔻(dims) = [findfirst(dim.==props) for dim in split(dims,"-")]
+𝔻₀(dims) = setdiff(1:length(props), 𝔻(dims)) # dims inverse
+𝔻₀ⱼ(dims) = join(props[𝔻₀(dims)],"-") # joined
+ℝ(dims) = replace(dims, [shortcut_names...][begin:1:end]...) # replace
+ℝ₀ⱼ(dims) = ℝ(join(props[𝔻₀(dims)],"-")) # joined
+
+
+# ----------------------------------------
+# PLACE-GOAL JOINT DISTRIBUTION P(x,y, γ,p,G)
+# ----------------------------------------
 filters = merge(kws.filters,
                 filt.correct,
                 filt.notnan("currentAngle"), 
                 filt.minmax("currentPathLength", 2, 150))
 newkws = (; kws..., resolution=[40, 40, 40, 40, 5], gaussian=0, props=props,
           filters=merge(kws.filters, filters))
-X = field.get_fields(beh, spikes; newkws...);
+@time X = field.get_fields(beh, spikes; newkws...);
 F["placegoal-joint"] = X
 X = operation.occnorm(X)
-goal_dims = [3,4,5]
-place_dims = [1,2]
 
-# Acquire marginals P(X,Y), P(γ, p)
-F["place-marginal"]    = operation.marginalize(X, dims=goal_dims)
-F["goal-marginal"]     = operation.marginalize(X, dims=place_dims)
-F["place-marginal-sq"] = operation.marginalize(X, dims=goal_dims, dosqueeze=true)
-F["goal-marginal-sq"]  = operation.marginalize(X, dims=place_dims, dosqueeze=true)
+# ---------
+# MARGINALS
+# ---------
+# Acquire marginals P(X,Y), P(γ, p, G)
+@showprogress for (dims, name) in shortcut_names
+    F["$name-marginal"]    = operation.marginalize(X, dims=𝔻₀(dims))
+    F["$name-marginal-sq"] = operation.marginalize(X, dims=𝔻₀(dims), 
+                                                   dosqueeze=true)
+end
 
+# ---------------
+# Reconstructions
+# ---------------
 # Obtain reconstructions!
 R̂ = Dict()
-R̂["goal"] = operation.apply(model.reconstruction,
-                                  F["placegoal-joint"].occR,
-                                  F["place-marginal"].Rₕ)
-R̂["place"] = operation.apply(model.reconstruction,
-                            F["placegoal-joint"].occR, 
-                            F["goal-marginal"].Rₕ)
+for reconstruction, marginal in reconstructions
+    marginal = ℝ(𝔻₀ⱼ(𝕀(reconstruction)))
+    R̂[reconstruction] = operation.apply(model.reconstruction,
+                                          F["placegoal-joint"].occR,
+                                          F["$marginal-marginal"].Rₕ)
+end
 
+# ---------------
+# SUMMARIES
+# ---------------
 # Get reconstruction model error summary
 E_place_under_goal = model.reconstruction_error(F["place-marginal-sq"].Rₕ, R̂["place"])
 E_goal_under_place = model.reconstruction_error(F["goal-marginal-sq"].Rₕ,  R̂["goal"])
@@ -45,6 +82,11 @@ uE.PG_GP_ratio_gt1_str = replace(uE.PG_GP_ratio .>= 1)
 cells = leftjoin(cells, uE[:,[:unit,:pug,:gup,:PG_GP_ratio, :PG_GP_ratio_gt1]])
 
 
+                    
+#,---.|         |    
+#|---'|    ,---.|--- 
+#|    |    |   ||    
+#`    `---'`---'`---'
 if ploton
 
 
@@ -116,13 +158,19 @@ if ploton
     groups=field.group([F["place-marginal-sq"].Rₕ, R̂["place"]], 
                        ["M(place)", "R̂(place)"])
     overall = field.plot.show_fieldgroups(groups)
+
+    # SEGFAULTS w/o filtering
+    #groups=field.group([F["goal-marginal-sq"].Rₕ, R̂["goal"]], 
+    #                   ["M(place)", "R̂(place)"])
+    #overall = field.plot.show_fieldgroups(groups)
     
 
 
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
     #                   SUMMARY OF MISSING SAMPLES         #
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
-
+    goal_dims = [3,4,5]
+    place_dims = [1,2]
     Plots.heatmap(utils.squeeze(sum(Float64.(X.occzeroinds),dims=goal_dims)), title="Quantification of missing samples\nin γ and p of (x,y,γ,p)\n")
     Plots.savefig(plotsdir("fields","reconstruction", "goal_marginalize_quantification_of_goal_missing_samples.svg"))
     Plots.heatmap(utils.squeeze(mean(Float64.(X.occzeroinds),dims=goal_dims)), title="Quantification of missing samples\nin γ and p of (x,y,γ,p)\n")

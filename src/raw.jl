@@ -372,9 +372,9 @@ module raw
             unstack(df[!, [:time, :tetrode, measure]], :tetrode, measure)
         end
 
-        function get_cycle_table(lfp)
+        function get_cycle_table(lfp, pos...)
             @assert "cycle" in names(lfp)
-            tab = table.get_periods(lfp, "cycle", :amp=>mean)
+            tab = table.get_periods(lfp, "cycle", :amp=>mean, pos...)
             return tab
         end
         getTet(L::DataFrame, T::Int) = filter(:tetrode=> t->t==T, L)

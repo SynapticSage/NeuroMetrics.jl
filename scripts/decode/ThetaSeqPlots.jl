@@ -1,6 +1,4 @@
-#
 # TODO: Add points ahead of and behind animal
-# TODO: Add theta wave to scatter
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
 using Pushover, Revise, Interact, Blink, Mux, ProgressMeter
@@ -10,10 +8,11 @@ using ColorSchemes, Colors
 import ColorSchemeTools
 import DSP
 using StatsPlots
-savestuff = false
+savestuff = true
 if savestuff
     using CairoMakie
-    using GLMakie: heatmap!, scatter!, lines!
+    using CairoMakie: heatmap!, scatter!, lines!
+    using Makie
 else
     using GLMakie
     using GLMakie: heatmap!, scatter!, lines!
@@ -42,7 +41,6 @@ animal, day, epoch = "RY16", 36, 7
 #@time tetrode = raw.load_tetrode(animal,   day)
 @time lfp  = raw.load_lfp(animal,      day)
 @time task   = raw.load_task(animal,     day)
-utils.pushover("Finished loaded thetaseqplots.jl")
 
 # -----------
 # SETTINGS
@@ -61,7 +59,6 @@ utils.mkifne(plotsdir("theta","mpp_decode", "withBehVideo=$usevideo", outputVide
 utils.mkifne(plotsdir("theta","mpp_decode"))
 utils.mkifne(plotsdir("theta","mpp_decode","withBehVideo=$usevideo"))
 wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
-utils.pushover("Finished preprocess sequenece")
 
 # -----------
 # GET DECODER
@@ -86,24 +83,29 @@ tetrode = 5
 load_cycles = false
 lfp = raw.lfp.annotate_cycles(raw.lfp.getTet(lfp,5), method="peak-to-peak")
 lfp.phase = raw.lfp.phase_to_radians(lfp.phase)
+beh, lfp = raw.register(beh, lfp; transfer=["velVec"], on="time")
 if load_cycles
     cycles = raw.load_cycles(animal, day, tetrode)
 else
-    cycles = raw.lfp.get_cycle_table(lfp)
+    cycles = raw.lfp.get_cycle_table(lfp, :velVec=>mean)
+    cycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles)
+    cycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), cycles)
+    cycles = filter(:velVec_mean => 𝒱  -> abs.(𝒱)  .> 2 , cycles)
     raw.save_cycles(cycles, animal, day, tetrode)
 end
-validcycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles)
-validcycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), validcycles)
 
-@showprogress for (cyc, cycle) in collect(enumerate(eachrow(validcycles)))[93740:end]
+utils.pushover("Loaded and preprocessed thetaseqplots.jl...initializing theta sequences")
+
+@showprogress for (cyc, cycle) in collect(enumerate(eachrow(cycles)))[46237:end] # TODO hardcoding == bad!
+
     start, stop = cycle.start, cycle.end
     filt = (D["time"].>=start) .& (D["time"].<=stop)
     if any(filt)
         dat_sub = dat[:,:, filt]
         lfp_filt = (lfp[!,"time"].>=start) .& (lfp[!,"time"].<=stop)
         lfp_sub = lfp[lfp_filt, :]
-        println("cycle ", cyc)
-        break
+        #println("cycle ", cyc)
+        #break
     else
         continue
     end
@@ -124,7 +126,7 @@ validcycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), validcycles)
     ax = Axis(fig[4,1])
     α = 0.1
     for (i,unit) in enumerate(sp)
-        print(i, " ")
+        #print(i, " ")
         cmap = get(ColorSchemes.hawaii, ((unit.time.-start)./(stop-start)))
         cmap = parse.(Colorant, cmap)
         jitter= (α * rand(Float64,size(unit.time))) .- α/2

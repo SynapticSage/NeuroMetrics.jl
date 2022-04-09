@@ -11,7 +11,8 @@ using KernelDensity, Distributions
 using Plots, Measures
 using ProgressMeter
 using StatsPlots
-using MetaDataFrames
+using DataFramesMeta
+using DataStructures: OrderedDict
 includet(srcdir("raw.jl"))
 includet(srcdir("field.jl"))
 includet(srcdir("field/operation.jl"))
@@ -34,12 +35,16 @@ R̂ = Dict() # Store reconstructions
 resolution = 80; # field resolution
 splitby=["unit", "area"]
 kws=(;resolution, splitby, filters=merge(filt.speed_lib, filt.cellcount))
-runanalyses, ploton, dopoissonmodel = false, false, true
+ploton, dofields, dopoissonmodel, doreconstruction = false, false, false, false
 
-if runanalyses
+if dofields
     include(scriptsdir("fields", "PlaceField.jl")) # 1
     include(scriptsdir("fields", "GoalField.jl")) # 2
     include(scriptsdir("fields", "Poisson_CompareGoalPlace.jl")) # 3
     include(scriptsdir("fields", "PlotGoalPlace.jl")) # 4
     include(scriptsdir("fields", "SplitGoalPlace.jl")) # 5
+end
+
+if doreconstruction
+    include(scriptsdir("fields", "ReconstructionAnalysis_GoalPlace_SplitBy.jl"))
 end
