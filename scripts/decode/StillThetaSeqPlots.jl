@@ -38,7 +38,6 @@ animal, day, epoch = "RY16", 36, 7
 @time beh    = raw.load_behavior(animal, day)
 @time spikes = raw.load_spikes(animal,   day)
 @time cells = raw.load_cells(animal,   day)
-#@time tetrode = raw.load_tetrode(animal,   day)
 @time lfp  = raw.load_lfp(animal,      day)
 @time task   = raw.load_task(animal,     day)
 

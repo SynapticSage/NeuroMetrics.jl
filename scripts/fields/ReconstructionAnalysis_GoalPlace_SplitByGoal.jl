@@ -4,27 +4,37 @@ quickactivate("/home/ryoung/Projects/goal-code/")
 # ----------------------------------------
 # FUNCTION SPECIFIC SHORTCUTS AND SETTINGS
 # ----------------------------------------
+# Marginals and reconstructions, and data structures to map em out
 shortcut_names = OrderedDict("x-y" => "place",
-                     "currentPathLength-currentAngle-stopWell"=>"particular-goal",
-                     "currentPathLength-currentAngle"=>"goal",
-                     "currentAngle-stopWell"=>"particular-angle",
-                     "currentPathLength-stopWell"=>"particular-distance",
                      "currentAngle"=>"γ",
                      "currentPathLength"=>"p",
                      "stopWell"=>"G")
 𝕀(d) = Dict(zip(values(shortcut_names), keys(shortcut_names)))[d]
-reconstructions = (
-                   ("place","goal"),
+reconstructions = (("place","goal"),
                    ("goal", "place"),
                    ("place","particular-goal"),
                    ("particular-goal", "place"),
                    ("γ", "place"),
-                   ("particular-γ", "place"),
-                  )
+                   ("aparticular-γ", "place"))
 props = ["x", "y", "currentPathLength", "currentAngle","stopWell"]
+
+# Shortcut functions
+"""
+Returns the integer dim indices for a prop-string e.g. "x-y"->[1,2]
+"""
 𝔻(dims) = [findfirst(dim.==props) for dim in split(dims,"-")]
+"""
+Returns the remaining dimensions not covered by a prop-string
+"""
 𝔻₀(dims) = setdiff(1:length(props), 𝔻(dims)) # dims inverse
+"""
+Returns remaning dimensions as a joined prop string, instead of ints
+"""
 𝔻₀ⱼ(dims) = join(props[𝔻₀(dims)],"-") # joined
+"""
+Returns string with shortcut names
+and the ₀ version returns the remaining names
+"""
 ℝ(dims) = replace(dims, [shortcut_names...][begin:1:end]...) # replace
 ℝ₀ⱼ(dims) = ℝ(join(props[𝔻₀(dims)],"-")) # joined
 
@@ -46,10 +56,8 @@ X = operation.occnorm(X)
 # MARGINALS
 # ---------
 # Acquire marginals P(X,Y), P(γ, p, G)
-@showprogress for (dims, name) in shortcut_names
-    F["$name-marginal"]    = operation.marginalize(X, dims=𝔻₀(dims))
-    F["$name-marginal-sq"] = operation.marginalize(X, dims=𝔻₀(dims), 
-                                                   dosqueeze=true)
+@time @showprogress for (dims, name) in shortcut_names
+    @time F["$name-marginal"]    = operation.marginalize(X, dims=𝔻₀(dims));
 end
 
 # ---------------
@@ -57,19 +65,19 @@ end
 # ---------------
 # Obtain reconstructions!
 R̂ = Dict()
-for reconstruction, marginal in reconstructions
+for (reconstruction, marginal) in reconstructions
     marginal = ℝ(𝔻₀ⱼ(𝕀(reconstruction)))
-    R̂[reconstruction] = operation.apply(model.reconstruction,
+    @time R̂[reconstruction] = operation.apply(model.reconstruction,
                                           F["placegoal-joint"].occR,
-                                          F["$marginal-marginal"].Rₕ)
+                                          F["$marginal-marginal"].Rₕ);
 end
 
 # ---------------
 # SUMMARIES
 # ---------------
 # Get reconstruction model error summary
-E_place_under_goal = model.reconstruction_error(F["place-marginal-sq"].Rₕ, R̂["place"])
-E_goal_under_place = model.reconstruction_error(F["goal-marginal-sq"].Rₕ,  R̂["goal"])
+E_place_under_goal = model.reconstruction_error(F["place-marginal"].Rₕsq, R̂["place"])
+E_goal_under_place = model.reconstruction_error(F["goal-marginal"].Rₕsq,  R̂["goal"])
 E_place_under_goal = table.to_dataframe(E_place_under_goal; name="error")
 E_goal_under_place = table.to_dataframe(E_goal_under_place; name="error")
 E = vcat(E_place_under_goal, E_goal_under_place; source=["pug","gup"])
@@ -142,11 +150,11 @@ if ploton
     #                   MARGNIAL                           #
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
 
-    p = field.plot.show_fields(F["place-marginal-sq"].Rₕ)
+    p = field.plot.show_fields(F["place-marginal"].Rₕsq)
     savefig(p, plotsdir("fields", "reconstruction", "marginal_place.svg"))
     savefig(p, plotsdir("fields", "reconstruction", "marginal_place.png"))
     savefig(p, plotsdir("fields", "reconstruction", "marginal_place.pdf"))
-    p = field.plot.show_fields(F["goal-marginal-sq"].Rₕ)
+    p = field.plot.show_fields(F["goal-marginal"].Rₕsq)
     savefig(p, plotsdir("fields", "reconstruction", "marginal_goal.svg"))
     savefig(p, plotsdir("fields", "reconstruction", "marginal_goal.png"))
     savefig(p, plotsdir("fields", "reconstruction", "marginal_goal.pdf"))
@@ -155,7 +163,7 @@ if ploton
     #     JUXTAPOSITION OF RECONSTRUCTION AND MARGNALS     #
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
 
-    groups=field.group([F["place-marginal-sq"].Rₕ, R̂["place"]], 
+    groups=field.group([F["place-marginal"].Rₕsq, R̂["place"]], 
                        ["M(place)", "R̂(place)"])
     overall = field.plot.show_fieldgroups(groups)
 

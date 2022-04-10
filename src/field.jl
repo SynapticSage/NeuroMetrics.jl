@@ -229,7 +229,7 @@ module field
         
         out =  (Cₕ=H.hist, Cₖ=K.kde, occ=H.occ, occR=to_density(H.occ),
                 occzeroinds=H.occzeroinds, cgrid=gridc, egrid=gride,
-                gridh=H.grid, gridk=K.grid)
+                gridh=H.grid, gridk=K.grid, dims=props)
         out = operation.occnorm(out)
         return out
     end
@@ -563,9 +563,13 @@ module field
                 end
             end
         end
+        function selectbackground()
+            ndim = ndims(operation.selectind(F, 1))
+        end
         function show_fields(F::Dict; fontscale=true, background=:grey30,
                 textcolor=:white, as::Union{Type,<:Function}=Plots.plot,
                 plotkws::NamedTuple=NamedTuple(), kws...)
+            plotkws = (;selectbackground(F)..., plotkws...)
             if fontscale
                 kws2 = (;nplots=length(F))
             else

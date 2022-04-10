@@ -53,7 +53,8 @@ or a dict of fields
 or a field itself (AbstractArray)
 """
 function marginalize(field::NamedTuple; dims::Vector{Int}=[],
-                     isdensity::Bool=false, dosqueeze::Bool=false)
+                     isdensity::Bool=false, dosqueeze::Bool=true,
+                     removecount::Bool=true)
     field = Dict(pairs(field))
     for (key, item) ∈ field
         if item == nothing
@@ -66,17 +67,32 @@ function marginalize(field::NamedTuple; dims::Vector{Int}=[],
             item = item[S]
         elseif startswith(sKey, "R") # rates
             dens = isdensity ? true : isdens[key]
-            item = marginalize(item; dims=dims, isdensity=dens, 
+            item = marginalize(item; dims=dims, isdensity=dens,  #TODO should item be count Cₓ instead of rate Rₓ
                             normalizeFR=field[:occ])
-            if dosqueeze; item = squeeze(item); end
-        elseif startswith(sKey, "C") || sKey == "occ"
+        elseif (startswith(sKey, "C") && !(removecount)) || sKey == "occ" 
             dens = isdensity ? true : isdens[key]
             item = marginalize(item; dims=dims, isdensity=dens)
-            if dosqueeze && sKey != "occ" ; item = squeeze(item); end
+        elseif sKey == "dims"
+            dims = dims[setdiff(1:length(dims), dims)]
         end
         if dosqueeze && "occ" in keys(field)
         end
         field[key] = item
+    end
+    if removecount
+        for key ∈ keys(field)
+            if startswith(String(key), "C")
+                delete!(field, key)
+            end
+        end
+    end
+    if dosqueeze 
+        for key ∈ keys(field) 
+            if any(startswith.(String(key),["R","C"]))
+                item = squeeze(field[key]);
+                field[Symbol(String(key) * "sq")] = item
+            end
+        end
     end
     return NamedTuple(field)
 end
@@ -172,7 +188,8 @@ function apply(func::Function, X::AbstractArray, D::Dict; kws...)
     return result
 end
 
-function occnorm(F::NamedTuple, dfields=["Cₕ","Cₖ"]; occfield="occ", ozifield="occzeroinds", kws...)
+function occnorm(F::NamedTuple, dfields=["Cₕ","Cₖ"]; occfield="occ",
+        ozifield="occzeroinds", kws...)
     F = Dict(pairs(F))
     for d in dfields
         newName = replace(d, "C"=>"R")
@@ -193,7 +210,13 @@ function occnorm(data::AbstractArray,
         occupancy::Union{Array,Matrix};
         occzeroinds::Union{AbstractArray,Nothing}=nothing,
         gaussian::Real=0.0)
-    X = convert(Array{Float64}, data);
+    if data[1] isa Int64
+        X = convert(Array{Float64}, data);
+    elseif data[1] isa Int32
+        X = convert(Array{Float32}, data);
+    else
+        X = data
+    end
     X = replace(X, NaN=>0)
     X = X ./ occupancy;
     if gaussian != 0.0
@@ -223,15 +246,66 @@ function cast32(F::NamedTuple; kws...)
     end
     return NamedTuple(F)
 end
-
-function rsub(D::Dict, N::Int)
+function selectrand(D::Dict, N::Int)
     K = Tuple(keys(D))
     r = rand(1:length(K), N)
     K = K[r]
     D  = Dict(k=>D[k] for k in K)
 end
+const sr = selectrand
 
-function ksub(D::Dict, p::Pair...)
+function selectkey(D::Dict, P::Pair...)
+    K = keys(D)
+    for (tupfield, command) in P
+        if tupfield isa String
+            tupfield = Symbol(tupfield)
+        end
+        if command isa Function
+           if tupfield isa Sybmol
+                func = command
+                K = filter(k->func(k[tupfield]), K)
+           elseif tupfield == All()
+               K = filter(func, K)
+           end
+        else
+            obj = command
+            K = filter(k->k[tupfield] == obj, K)
+        end
+    end
+    Dict(k=>D[k] for k in K)
+end
+const sk = selectkey
+
+function selectind(D::Dict, ind::Int=1)
+    K = Tuple(keys(D))
+    D[K[ind]]
+end
+const si = selectind
+
+function dimofval_to_key(F::Dict, dim::Int; 
+        name::Union{String, Symbol}=:auto,
+        indices::Union{Vector,Tuple,Nothing}=nothing)
+    F′ = Dict()
+    if name isa Vector{String}
+        name = name[dim] # user passed in fields.dims
+        if indices != nothing
+            indices = indices[dim] # user passesd in fields.grid
+        end
+    end
+    if name isa String; name=Symbol(name); end
+    for (key, value) in F
+        @assert key isa NamedTuple
+        f = F[key]
+        if indices == nothing
+            indices = 1:size(value,dim)
+        end
+        slices = eachslice(value, dims=dim)
+        for (index, slice) in zip(indices, slices)
+            key′ = (; key..., Dict(name=>index)...)
+            F′[key′] = slice
+        end
+    end
+    F′
 end
 
 end
