@@ -29,6 +29,7 @@ beh     = raw.load_behavior("RY16", 36)
 spikes  = raw.load_spikes("RY16",   36)
 ripples = raw.load_ripples("RY16",  36)
 task    = raw.load_task("RY16",  36)
+wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
 cmtopx(x) = 0.1487 * x
 pxtocm(x) = x / 0.1487 
 
@@ -49,7 +50,6 @@ thresh_var = Dict("likelihood"=>0.1,
               "causal_posterior"=>0.985)
 outputVideo = "animation.$(decoder_type)_$(transition_type)_$(split_type)_$(split)_$(variable)_$(basename(video))"
 mkdir(plotsdir("ripples","mpp_decode", "withBehVideo=$usevideo", outputVideo))
-wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
 
 # -----------
 # GET DECODER

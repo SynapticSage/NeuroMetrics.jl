@@ -20,6 +20,7 @@ includet(srcdir("field/model.jl"))
 includet(srcdir("filt.jl"))
 includet(srcdir("table.jl"))
 includet(srcdir("utils.jl"))
+@assert field.get_fields isa Function
 @time spikes, beh, ripples, cells = raw.load("RY16", 36);
 function sf(p, loc)
     p.attr[:size] = (1900, 1900)

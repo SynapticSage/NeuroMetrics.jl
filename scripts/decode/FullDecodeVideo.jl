@@ -18,25 +18,30 @@ includet("/home/ryoung/Code/projects/goal-code/src/utils/SearchSortedNearest.jl/
 # -----------
 # DATASETS
 # -----------
-animal, day, epoch = "RY16", 36, 7
+animal, day, epoch, ca1tetrode = "RY16", 36, 7, 5
 @time beh    = raw.load_behavior(animal, day)
 @time spikes = raw.load_spikes(animal,   day)
-@time cells = raw.load_cells(animal,   day)
-@time lfp  = raw.load_lfp(animal,      day)
+@time cells  = raw.load_cells(animal,    day)
+@time lfp    = raw.load_lfp(animal,      day)
 @time task   = raw.load_task(animal,     day)
+@time ripples= raw.load_ripples(animal,  day)
+@time cycles = raw.load_cycles(animal,   day, tetrode)
+wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
+video="/Volumes/Colliculus/RY16_experiment/actualVideos/RY16_69_0$(epoch)_CMt.1.mp4"
 
 # -----------
 # SETTINGS
 # -----------
 usevideo=false
-mkdir(plotsdir("mpp_decode", "withBehVideo=$usevideo"))
-transition_type = "empirical"
-decoder_type    = "sortedspike"
-variable        = "causal_posterior"
-epoch = 7
-video="/Volumes/Colliculus/RY16_experiment/actualVideos/RY16_69_0$epoch_CMt.1.mp4"
+dir = plotsdir("mpp_decode", "withBehVideo=$usevideo")
+if !(isdir(dir))
+    mkdir(dir)
+end
+transition_type, decoder_type = "empirical", "sortedspike"
+variable                      = "causal_posterior"
 outputVideo = "animation.$(decoder_type)_$(transition_type)_$(split_type)_$(split)_$(variable)_$(basename(video))"
-(split, split_type) = collect(Iterators.product([0,1,2], ["testing","training"]))[1]
+(split, split_type) = collect(Iterators.product([0,1,2],
+                                                ["testing","training"]))[1]
 thresh = Dict("likelihood"=>0.1,
               "acausal_posterior"=>0.65,
               "causal_posterior"=> 0.65)
@@ -46,12 +51,25 @@ thresh = Dict("likelihood"=>0.1,
 # -----------
 #D = raw.load_decode("/Volumes/FastData/RY16deepinsight36-07.$split_type.$transition_type.speedup=1.0.$split.nc")
 #D = raw.load_decode("/Volumes/FastData/RY16deepinsight36-07.prediction.spikedecoder.test.nc")
-D = raw.load_decode("/Volumes/FastData/RY16deepinsight36-0$epoch.$split_type.$decoder_type.$transition_type.speedup=1.0.$split.nc")
+decode_file = raw.decodepath(animal, day, epoch, transition="empirical",
+                             method="sortedspike", split=split,
+                             type=split_type, speedup=20.0)
+D = raw.load_decode(decode_file)
+beh, spikes, ripples, D = raw.normalize_time(beh, spikes, ripples, D);
 x = D["x_position"]
 y = D["y_position"]
 T = D["time"]
+dat = D[variable]
+D = nothing
 stream = VideoIO.open(video)
 vid = VideoIO.openvideo(stream)
+
+# -------------------------------------------------
+# Create a merged table of ripples and theta cycles
+# -------------------------------------------------
+events = vcat(transform(cycles,:end=>:stop), ripples, cols=:union, source=:source=>[:theta, :ripple]);
+events = sort(events, :start)[!, Not(:end)]
+
 
 # -----------------------------------------------
 # Setup observable and connect decoder to behavior
@@ -60,7 +78,7 @@ decode_inds = SearchSortedNearest.searchsortednearest.([beh.time], D["time"])
 t = Observable{Int}(1)
 
 mint = minimum(beh[beh.epoch.==epoch,:].time)
-dat = permutedims(D[variable], [2,1,3])
+dat = permutedims(dat, [2,1,3])
 dat = decodee.quantile_threshold(dat)
 
 #@time tetrode = raw.load_tetrode(animal,   day)
@@ -69,6 +87,7 @@ dat = decodee.quantile_threshold(dat)
 # -----------------
 H(t) = dat[:,:,t]
 HH = @lift(H($t))
+
 
 # -----------------
 # READ SCATTER VARS

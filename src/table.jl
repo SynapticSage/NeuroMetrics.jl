@@ -426,6 +426,9 @@ to_dataframe
 #purpose
 converts a field dictionary (multiple units) into a field dataframe
 """
+#function to_dataframe(fields::AbstractDict; kws...)
+#    fields = Dict(key=>fields[key] for key in keys(fields))
+#end
 function to_dataframe(fields::Dict; other_labels=Dict(), 
         key_name::Union{Nothing,String}=nothing, kws...)
     D = DataFrame()

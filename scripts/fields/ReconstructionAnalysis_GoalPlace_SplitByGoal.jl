@@ -12,7 +12,7 @@ shortcut_names = OrderedDict(
 𝕀(d) = Dict(zip(values(shortcut_names), keys(shortcut_names)))[d]
 reconstruction_comparisons = Dict( 
   "vs(angle,place)"            => ("γ|x,y","x,y|γ"),
-  "vs(spect-angle,spec-place)" => ("γ,G|x,y","x,y|γG"),
+  "vs(spect-angle,spec-place)" => ("γ,G|x,y","x,y|γ,G"),
   "vs(spec-angle,place)"       => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
   "vs(goal,place)"             => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
   "vs(spec-goal,place)"        => ("p,γ,G|x,y,G","x,y,G|p,γ,"),
@@ -25,7 +25,13 @@ props = ["x", "y", "currentPathLength", "currentAngle","stopWell"]
 """
 Returns the integer dim indices for a prop-string e.g. "x-y"->[1,2]
 """
-𝔻(dimstr) = [findfirst(dim.==dims) for dim in split(dimstr,",")]
+function 𝔻(dimstr)
+    out = [findfirst(dim.==dims) for dim in split(dimstr,",")]
+    if out isa Vector{Nothing}
+        @error "Nope! One your dims=$dimstr is wrong. Check for missing syntax (commas)"
+    end
+    return out
+end
 """
 Returns the remaining dimensions not covered by a prop-string
 """
@@ -55,6 +61,7 @@ newkws = (; kws..., resolution=[40, 40, 40, 40, 5], gaussian=0, props=props,
           filters=merge(kws.filters, filters))
 @time X = field.get_fields(beh, spikes; newkws...);
 F["placegoal-joint"] = X
+utils.pushover("Processed up to joint distribution")
 
 # ---------
 # MARGINALS
@@ -62,8 +69,10 @@ F["placegoal-joint"] = X
 # Acquire marginals P(X,Y), P(γ, p, G)
 @time @showprogress for marginal in marginals_required
     d̅ =  𝔻₀(marginal)
-    @time F[marginal] = operation.marginalize(X, dims=d̅);
+    println("marginal=>$marginal d̅ = $(d̅)")
+    @time F[marginal] = operation.marginalize(X, dims = d̅ );
 end
+utils.pushover("Finished marginals")
 
 # ---------------
 # Reconstructions

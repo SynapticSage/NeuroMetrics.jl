@@ -5,7 +5,8 @@ module timeshift
     export field
     using ThreadSafeDicts
     using DataStructures
-    include("table.jl")
+    using ProgressMeter
+    include("../table.jl")
     export table
 
     # -------------------- SHIFTING TYPES ---------------------------
@@ -14,11 +15,12 @@ module timeshift
 
     # -------------------- SHIFTED Receptive Fields --------------------------
     function get_field_shift(beh::DataFrame, data::DataFrame, shift::Real; kws...)
+        print("Using single")
         fieldobj = field.get_fields(σ(beh, shift), data; kws...)
     end
 
     function get_field_shift(beh::DataFrame, data::DataFrame,
-            shifts::Union{StepRangeLen,Vector{Real}}; 
+            shifts::Union{StepRangeLen,Vector{T}} where T <: Real; 
             multithread::Bool=true,
             postfunc::Union{Function,Nothing}=nothing,
             kws...)
@@ -27,15 +29,15 @@ module timeshift
         if multithread
             Threads.@threads for shift in shifts
                 result = field.get_fields(σ(beh,shift), data; kws...)
-                if postfunc
+                if postfunc != nothing
                     result = postfunc(result)
                 end
                 push!(safe_dict, shift=>result)
             end
         else
-            for shift in shifts
+            @showprogress for shift in shifts
                 result = field.get_fields(σ(beh,shift), data; kws...)
-                if postfunc
+                if postfunc != nothing
                     result = postfunc(result)
                 end
                 push!(safe_dict, shift=>result)

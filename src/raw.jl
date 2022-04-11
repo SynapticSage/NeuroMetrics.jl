@@ -481,10 +481,10 @@ module raw
                 @assert !(filt_for_cols isa Vector{Bool})
                 @assert !(cols isa Vector{Bool})
                 if filt_for_cols isa Function
-                    println("Filter is a function")
+                    #println("Filter is a function")
                     inds = filt_for_cols(data[i][!, cols]);
                 elseif typeof(filt_for_cols) <: Vector
-                    println("Filter is a set of functions")
+                    #println("Filter is a set of functions")
                     inds = accumulate(.&, [ff(data[i][!, cols]) for ff
                                            in filt_for_cols])[end]
                 else
@@ -622,7 +622,8 @@ module raw
     end
     export dlc
 
-    function normalize_time(data::Union{DataFrame, Dict}...; factor=1)
+    function normalize_time(data::Union{DataFrame, Dict}...;
+            timefields::Dict=Dict(), factor=1)
         data = [data...]
         if data[1] isa DataFrame
             println("a")
