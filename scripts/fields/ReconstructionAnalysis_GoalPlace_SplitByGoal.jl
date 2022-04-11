@@ -5,32 +5,36 @@ quickactivate("/home/ryoung/Projects/goal-code/")
 # FUNCTION SPECIFIC SHORTCUTS AND SETTINGS
 # ----------------------------------------
 # Marginals and reconstructions, and data structures to map em out
-shortcut_names = OrderedDict("x-y" => "place",
+shortcut_names = OrderedDict(
                      "currentAngle"=>"γ",
                      "currentPathLength"=>"p",
                      "stopWell"=>"G")
 𝕀(d) = Dict(zip(values(shortcut_names), keys(shortcut_names)))[d]
-reconstructions = (("place","goal"),
-                   ("goal", "place"),
-                   ("place","particular-goal"),
-                   ("particular-goal", "place"),
-                   ("γ", "place"),
-                   ("aparticular-γ", "place"))
+reconstruction_comparisons = Dict( 
+  "vs(angle,place)"            => ("γ|x,y","x,y|γ"),
+  "vs(spect-angle,spec-place)" => ("γ,G|x,y","x,y|γG"),
+  "vs(spec-angle,place)"       => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
+  "vs(goal,place)"             => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
+  "vs(spec-goal,place)"        => ("p,γ,G|x,y,G","x,y,G|p,γ,"),
+  "vs(spec-goal,spec-place)"   => ("p,γ,G|x,y,G","x,y,G|p,γ,G"))
+reconstructions_required = vec([x[i] for x in values(reconstruction_comparisons), i in 1:2])
+marginals_required = Tuple(Set(vec([split(x,"|")[i] for x in reconstructions_required, i in 1:2])))
 props = ["x", "y", "currentPathLength", "currentAngle","stopWell"]
+dims  = ℝ(props)
 
 # Shortcut functions
 """
 Returns the integer dim indices for a prop-string e.g. "x-y"->[1,2]
 """
-𝔻(dims) = [findfirst(dim.==props) for dim in split(dims,"-")]
+𝔻(dimstr) = [findfirst(dim.==dims) for dim in split(dimstr,",")]
 """
 Returns the remaining dimensions not covered by a prop-string
 """
-𝔻₀(dims) = setdiff(1:length(props), 𝔻(dims)) # dims inverse
+𝔻₀(dimstr) = setdiff(1:length(props), 𝔻(dimstr)) # dims inverse
 """
 Returns remaning dimensions as a joined prop string, instead of ints
 """
-𝔻₀ⱼ(dims) = join(props[𝔻₀(dims)],"-") # joined
+𝔻̅ⱼ(dims) = join(props[𝔻₀(dims)],"-") # joined
 """
 Returns string with shortcut names
 and the ₀ version returns the remaining names
@@ -56,8 +60,9 @@ X = operation.occnorm(X)
 # MARGINALS
 # ---------
 # Acquire marginals P(X,Y), P(γ, p, G)
-@time @showprogress for (dims, name) in shortcut_names
-    @time F["$name-marginal"]    = operation.marginalize(X, dims=𝔻₀(dims));
+@time @showprogress for marginal in marginals_required
+    d̅ =  𝔻₀(marginal)
+    @time F[marginal] = operation.marginalize(X, dims=d̅);
 end
 
 # ---------------
@@ -65,11 +70,12 @@ end
 # ---------------
 # Obtain reconstructions!
 R̂ = Dict()
-for (reconstruction, marginal) in reconstructions
-    marginal = ℝ(𝔻₀ⱼ(𝕀(reconstruction)))
+for reconstruction in reconstructions_required
+    given = split(reconstruction, "|")[2]
+    inverse_given = join(dims[𝔻₀(given)], ",")
     @time R̂[reconstruction] = operation.apply(model.reconstruction,
                                           F["placegoal-joint"].occR,
-                                          F["$marginal-marginal"].Rₕ);
+                                          F[marginal].Rₕ);
 end
 
 # ---------------

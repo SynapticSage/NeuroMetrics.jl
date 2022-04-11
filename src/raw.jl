@@ -41,8 +41,7 @@ module raw
 
         # Establish a load order
         if as == "dict"
-            load_order = sort(data_source, by=source->source=="behavior",
-                              rev=true)
+            load_order = sort(data_source, by=source->source=="behavior", rev=true)
         elseif as == "tuple"
             if "behavior" in data_source
                 load_order = ("behavior", setdiff(data_source, ["behavior"])...)
@@ -87,8 +86,7 @@ module raw
         function typeFunc(type, name)
             if occursin("Vec", string(name))
                 type = ComplexF32;
-            elseif name == "time"
-                type = Float32;
+            elseif name == "time" type = Float32;
             else
                 type = nothing;
             end

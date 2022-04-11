@@ -2,20 +2,25 @@ module timeshift
     using DataFrames
     import ..field
     export get_field_shift
+    export field
+    using ThreadSafeDicts
+    using DataStructures
+
+    shift_func(data, shift) = transform(data, :time => (t->t.+shift) =>:time)
+    const σ = shift_func
 
     function get_field_shift(beh::DataFrame, data::DataFrame, shift::Real; kws...)
-        beh = copy(beh)
-        beh.time = beh.time .+ shift
-        fieldobj = field.get_fields(beh, data; kws...)
+        fieldobj = field.get_fields(σ(beh, shift), data; kws...)
     end
 
     function get_field_shift(beh::DataFrame, data::DataFrame,
-            shifts::Vector{Real}; kws...)
+            shifts::Union{StepRangeLen,Vector{Real}}; kws...)
 
-        out = []
+        out = ThreadSafeDict()
         Threads.@threads for shift in shifts
-            append!(out, get_fields(beh, data; kws...) for shift in shifts)
+            push!(out, shift=>field.get_fields(σ(beh,shift), data; kws...))
         end
+        return out
     end
 
 end

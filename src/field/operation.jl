@@ -62,6 +62,9 @@ function marginalize(field::NamedTuple; dims::Vector{Int}=[],
         end
         #println(key)
         sKey = String(key)
+        if endswith(sKey, "sq")
+            continue
+        end
         if occursin("grid", sKey)
             S = setdiff(1:length(item), dims)
             item = item[S]

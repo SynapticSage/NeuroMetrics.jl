@@ -32,7 +32,6 @@ P = Dict() # Store poisson model
 R̂ = Dict() # Store reconstructions
 
 # Generalized settings
-resolution = 80; # field resolution
 splitby=["unit", "area"]
 kws=(;resolution, splitby, filters=merge(filt.speed_lib, filt.cellcount))
 ploton, dofields, dopoissonmodel, doreconstruction = false, false, false, false

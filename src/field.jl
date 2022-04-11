@@ -24,6 +24,8 @@ module field
     export info
     include("field/operation.jl")
     export operation
+    include("field/timeshift.jl")
+    export timeshift
 
     rateConversion = 30
     export rateConversion
