@@ -20,7 +20,6 @@ reconstruction_comparisons = Dict(
 reconstructions_required = vec([x[i] for x in values(reconstruction_comparisons), i in 1:2])
 marginals_required = Tuple(Set(vec([split(x,"|")[i] for x in reconstructions_required, i in 1:2])))
 props = ["x", "y", "currentPathLength", "currentAngle","stopWell"]
-dims  = ℝ(props)
 
 # Shortcut functions
 """
@@ -42,6 +41,8 @@ and the ₀ version returns the remaining names
 ℝ(dims) = replace(dims, [shortcut_names...][begin:1:end]...) # replace
 ℝ₀ⱼ(dims) = ℝ(join(props[𝔻₀(dims)],"-")) # joined
 
+dims  = ℝ(props)
+
 
 # ----------------------------------------
 # PLACE-GOAL JOINT DISTRIBUTION P(x,y, γ,p,G)
@@ -54,7 +55,6 @@ newkws = (; kws..., resolution=[40, 40, 40, 40, 5], gaussian=0, props=props,
           filters=merge(kws.filters, filters))
 @time X = field.get_fields(beh, spikes; newkws...);
 F["placegoal-joint"] = X
-X = operation.occnorm(X)
 
 # ---------
 # MARGINALS

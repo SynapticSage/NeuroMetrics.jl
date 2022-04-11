@@ -52,11 +52,11 @@ or a dict of fields
 
 or a field itself (AbstractArray)
 """
-function marginalize(field::NamedTuple; dims::Vector{Int}=[],
+function marginalize(F::NamedTuple; dims::Vector{Int}=[],
                      isdensity::Bool=false, dosqueeze::Bool=true,
                      removecount::Bool=true)
-    field = Dict(pairs(field))
-    for (key, item) ∈ field
+    F = Dict(pairs(F))
+    for (key, item) ∈ F
         if item == nothing
             continue
         end
@@ -65,61 +65,66 @@ function marginalize(field::NamedTuple; dims::Vector{Int}=[],
         if endswith(sKey, "sq")
             continue
         end
+        println(sKey)
         if occursin("grid", sKey)
             S = setdiff(1:length(item), dims)
             item = item[S]
         elseif startswith(sKey, "R") # rates
             dens = isdensity ? true : isdens[key]
             item = marginalize(item; dims=dims, isdensity=dens,  #TODO should item be count Cₓ instead of rate Rₓ
-                            normalizeFR=field[:occ])
+                            normalizeFR=F[:occ])
         elseif (startswith(sKey, "C") && !(removecount)) || sKey == "occ" 
             dens = isdensity ? true : isdens[key]
             item = marginalize(item; dims=dims, isdensity=dens)
         elseif sKey == "dims"
             dims = dims[setdiff(1:length(dims), dims)]
         end
-        if dosqueeze && "occ" in keys(field)
+        if dosqueeze && "occ" in keys(F)
         end
-        field[key] = item
+        F[key] = item
     end
     if removecount
-        for key ∈ keys(field)
+        for key ∈ keys(F)
             if startswith(String(key), "C")
-                delete!(field, key)
+                delete!(F, key)
             end
         end
     end
     if dosqueeze 
-        for key ∈ keys(field) 
-            if any(startswith.(String(key),["R","C"]))
-                item = squeeze(field[key]);
-                field[Symbol(String(key) * "sq")] = item
+        for key ∈ String.(keys(F))
+            if endswith(key, "sq")
+                continue
+            end
+            if any(startswith.(key,["R","C"]))
+                item = F[Symbol(key)]
+                println("Size item=$(size(si(item)))")
+                item = operation.squeeze(item);
+                println("Size item=$(size(si(item)))")
+                F[Symbol(key * "sq")] = item
             end
         end
     end
-    return NamedTuple(field)
+    return NamedTuple(F)
 end
 function marginalize(fields::Dict; kws...)
     return Dict(key=>marginalize(field; kws...) for (key,field) in fields)
 end
-"""
-marginalize
-
-TODO renan areas where all() missing values in relevent dims
-"""
 function marginalize(field::AbstractArray; dims::Vector{Int}=[],
         isdensity::Bool=false, 
         normalizeFR::Union{Nothing, AbstractArray}=nothing,
         maintainNaN::Bool=true)
+    println("(1) size(field) = $(size(field))")
     for dim in dims
         field = nansum(field, dims=dim)
     end
+    println("(2) size(field) = $(size(field))")
     if !(normalizeFR isa Nothing)
         occzero = normalizeFR .== NaN
         field = field ./ normalizeFR
         field[occzero] .= NaN
     end
     if isdensity; field = field./nansum(field); end
+    println("(3) size(field) = $(size(field))")
     return field
 end
 
@@ -142,7 +147,7 @@ function squeeze(field::NamedTuple)
             continue
         end
         if !(occursin("grid", String(key)))
-            item = squeeze(item)
+            item = operation.squeeze(item)
         end
         field[key] = item
     end

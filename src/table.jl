@@ -18,7 +18,6 @@ using TableView
 using LazyGrids: ndgrid
 using DataStructures
 export to_dataframe
-export to_dataframe
 __revise_mode__ = :eval
 ∞ = Inf;
 
@@ -431,9 +430,9 @@ function to_dataframe(fields::Dict; other_labels=Dict(),
         key_name::Union{Nothing,String}=nothing, kws...)
     D = DataFrame()
     for (key, field) in fields
-        if key_name != nothing && (key isa NamedTuple || key isa Dict)
+        if key_name != nothing #&& (key isa NamedTuple || key isa Dict)
             other_labels[key_name] = key
-        elseif key isa NamedTuple
+        elseif (key isa NamedTuple) || (key isa Dict)
             key_dict = Dict(string(k)=>v for (k, v) in pairs(key))
             other_labels = merge(other_labels, key_dict)
         end
@@ -450,12 +449,15 @@ end
 
 +purpose: converts a single field matrix into a field dataframe
 """
-function to_dataframe(F::AbstractArray;
+function to_dataframe(F::Union{AbstractArray,Real};
         props::Vector{String}=Vector{String}([]), grid::Tuple=(),
         gridtype="center", other_labels=Dict(), name::String="")
     D = ndgrid((1:size(F,i) for i in 1:ndims(F))...)
     D = OrderedDict{String,Any}("dim_$d"=>vec(D[d])
                           for d in 1:ndims(F))
+    if typeof(F) <: Real
+        F = [F]
+    end
     if ~isempty(props)
         if gridtype == "edge"
             grid = edge_to_center.(grid)

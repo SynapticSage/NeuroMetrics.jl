@@ -1,34 +1,38 @@
 module info
     using Entropies: Probabilities
+    using NaNStatistics
     skipnan(x) = Iterators.filter(!isnan, x)
 
     """
-    `spatial_information`
+    `information`
 
-    computes the `spatial_information` 
+    computes the `information` of a receptive field
 
     see yartsev dotson 2021 supp
     """
-    function spatial_information(fields::Dict, 
+    function information(F::NamedTuple)
+        return info.information(F.Rₕ, F.occR)
+    end
+    function information(F::Dict, 
             behProb::Union{AbstractArray, Probabilities})
-        if behfield isa AbstractArray
-            behProb = Probabilities(collect(skipnan(vec(behfield))))
+        if behProb isa AbstractArray
+            behProb = Probabilities(collect(skipnan(vec(behProb))))
         end
-        I = copy(fields)
-        for i in keys(fields)
-            I[i] = spatial_information(fields)
+        I = Dict()
+        for i in keys(F)
+            I[i] = info.information(F[i], behProb)
         end
         return I
     end
-    function spatial_information(fields::AbstractArray, 
+    function information(field::AbstractArray, 
             behProb::Union{AbstractArray, Probabilities})
-        if behfield isa AbstractArray
-            behProb = Probabilities(collect(skipnan(vec(behfield))))
+        if behProb isa AbstractArray
+            behProb = Probabilities(collect(skipnan(vec(behProb))))
         end
-        I = copy(fields)
-        fields = collect(skipnan(vec(fields)))
-        R = fields ./ mean(fields)
-        I = sum( behProb .* R .* log2.(R) )
+        #I = copy(field)
+        field = collect(skipnan(vec(field)))
+        R = field ./ nanmean(field)
+        I = nansum( behProb .* R .* log2.(R) )
         return I
     end
 
