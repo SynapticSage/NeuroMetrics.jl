@@ -38,6 +38,9 @@ spikes, beh = raw.load("RY16", 36, data_source=["spikes","behavior"])
 # More shifts
 # ------------
 # For 200 shifts, we're in the domain of 30 minutes
+#
+#
+# A (( ---- PLACE ---- ))
 props = ["x", "y"]
 splitby=["unit", "area"]
 kws=(;splitby, filters=merge(filt.speed_lib, filt.cellcount))
@@ -53,20 +56,40 @@ place_fineNarrow = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.01:1
 place_broadTimes = @spawn @time timeshift.get_field_shift(beh, spikes, -4:0.05:4;
                                         postfunc=info.information,
                                         multithread=false, newkws...);
+# B (( ---- GOAL ---- ))
 filters = merge(kws.filters,
                 filt.correct,
                 filt.notnan("currentAngle"), 
                 filt.minmax("currentPathLength", 2, 150))
 props = ["currentAngle", "currentPathLength"]
-splitby=["unit", "area"]
-newkws = (; kws..., filters=merge(kws.filters, filters), resolution=40, gaussian=2.3*0.5, props=props)
-goal = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.01:1; 
+newkws = (; kws..., filters=merge(kws.filters, filters),
+          resolution=40, gaussian=2.3*0.5, props=props)
+goal = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.05:1; 
+                                        multithread=true, 
+                                        postfunc=info.information, newkws...);
+goal_fineNarrow = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.01:1; 
                                         multithread=true, 
                                         postfunc=info.information, newkws...);
 goal_broadTimes = @spawn @time timeshift.get_field_shift(beh, spikes, -4:0.05:4; 
                                         multithread=true, 
                                         postfunc=info.information, newkws...);
+# C (( ---- SPECGOAL ---- ))
+props = ["currentAngle", "currentPathLength", "stopWell"]
+newkws = (; kws..., filters=merge(kws.filters, filters),
+          resolution=[40, 40, 5], gaussian=2.3*0.5, props=props)
+specgoal = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.05:1; 
+                                        multithread=true, 
+                                        postfunc=info.information, newkws...);
+# D (( ---- FULL ---- ))
+props = ["x", "y", "currentAngle", "currentPathLength", "stopWell"]
+newkws = (; kws..., filters=merge(kws.filters, filters),
+          resolution=[40, 40, 40, 40, 5], gaussian=2.3*0.5, props=props)
+full = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.05:1; 
+                                        multithread=true, 
+                                        postfunc=info.information, newkws...);
 
+
+# (( PLACE ))
 if isdefined(Main, :place_broadTimes)
     place_broadTimes = Dict(fetch(place_broadTimes)...)
 end
@@ -76,8 +99,19 @@ end
 if isdefined(Main, :place)
     place = Dict(fetch(place)...)
 end
+# (( GOAL ))
 if isdefined(Main, :goal)
     goal = Dict(fetch(goal)...)
+end
+if isdefined(Main, :goal_fineNarrow)
+    goal_fineNarrow = Dict(fetch(goal_fineNarrow)...)
+end
+if isdefined(Main, :goal_broadTimes)
+    goal_broadTimes = Dict(fetch(goal_broadTimes)...)
+end
+# (( SPECGOAL ))
+if isdefined(Main, :specgoal)
+    specgoal = Dict(fetch(specgoal)...)
 end
 utils.pushover("Finished spawned shift processes")
 
@@ -145,6 +179,8 @@ function plot_shifts(place; desc="")
     savefig(plotsdir("fields", "shifts", "$(descSave)_heatmap_x=shift,y=cellsort_by=area.svg"))
 end
 plot_shifts(place_broadTimes, desc="Traj length sample: ")
-plot_shifts(place_fineNarrow, desc="HIGHRES")
-plot_shifts(place, desc="LOWRES")
-plot_shifts(goal, desc="GOAL")
+plot_shifts(place_fineNarrow, desc="PLACE_HIGHRES")
+plot_shifts(place, desc="PLACE_LOWRES")
+plot_shifts(goal_fineNarrow, desc="GOAL_HIGHRES")
+plot_shifts(goal_broadTimes, desc="GOAL_TRAJ_LEN")
+plot_shifts(specgoal, desc="SPECGOAL")

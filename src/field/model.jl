@@ -5,6 +5,7 @@ module model
     using ProgressMeter
     using DataFrames
     using NaNStatistics
+    import Plots
     println(pwd())
     include("../utils.jl")
     include("../table.jl")
@@ -18,21 +19,48 @@ module model
     Example: reconstruct the response to `p(x, y, Γ)` under marginal `p(Γ)`
     """
     function reconstruction(jointdensity::AbstractArray,
-            marginalrate::AbstractArray; kws...)
+            marginalrate::AbstractArray; 
+            marginalize_dims::Union{Nothing, Vector{Int}}=nothing, kws...)
         singular_marginal_dims = findall(size(marginalrate).==1)
         if isempty(singular_marginal_dims)
             @warn "Potentially missing singular marginal dims"
         end
-        dims = setdiff(1:ndims(jointdensity), singular_marginal_dims)
-        #println("dims=$dims")
-        A = jointdensity .* marginalrate
-        B = jointdensity
-        for dim ∈ dims
-            A =  nansum(A; dims=dim) 
-            B =  nansum(B; dims=dim)
+        if marginalize_dims == nothing
+            dims = setdiff(1:ndims(jointdensity), singular_marginal_dims)
+        else
+            dims = marginalize_dims
         end
-        return utils.squeeze(A./B)
+        RateProb = jointdensity .* marginalrate
+        Prob = jointdensity
+        for dim ∈ dims
+            RateProb = nansum(RateProb; dims=dim)
+            Prob     = nansum(Prob;     dims=dim)
+        end
+        return utils.squeeze(RateProb./Prob)
     end
+    #"""
+    #reconstruction(jointdensity, marginalcount, marginalocc)
+
+    #version for spike count based reoncstruction
+    #"""
+    #function reconstruction(jointdensity::AbstractArray,
+    #        marginalcount::AbstractArray, marginalocc::AbstractArray;
+    #        extra_marginal_dims::Vector{Int}=[], kws...)
+    #    singular_marginal_dims = findall(size(marginalcount).==1)
+    #    singular_marginal_dims = singular_marginal_dims ∪ extra_marginal_dims
+    #    if isempty(singular_marginal_dims)
+    #        @warn "Potentially missing singular marginal dims"
+    #    end
+    #    dims = setdiff(1:ndims(jointdensity), singular_marginal_dims)
+    #    CountProb = jointdensity .* marginalcount
+    #    OccProb   = jointdensity .* marginalocc
+    #    for dim ∈ dims
+    #        CountProb = nansum(CountProb; dims=dim)
+    #        OccProb   = nansum(OccProb;   dims=dim)
+    #    end
+    #    return utils.squeeze(CountProb./OccProb)
+    #end
+
 
     """
     reconstruction_error(joint, reconstructed_joint) -> ϵ
@@ -40,16 +68,15 @@ module model
     function reconstruction_error(original::Dict, 
                                   reconstructed::Dict;
                                   kws...)
-        println("kws->",kws)
         func(x::AbstractArray, y::AbstractArray) = model.reconstruction_error(x,y;kws...)
-        println("func->",func)
-        func(x::AbstractArray, y::AbstractArray) = model.reconstruction_error(x,y;kws...)
+        #println("func->",func)
         operation.apply(func, original, reconstructed)
 
     end
     function reconstruction_error(field::AbstractArray, 
                                   reconstructed_field::AbstractArray;
-                                  L::Int=2, reduce::Bool=true)
+                                  L::Int=2, reduce::Bool=true, 
+                                  debug::Bool=false)
         ex = extrema(utils.skipnan(vec(field)))
         Δ = diff([ex...])
         ε = vec(field) .- vec(reconstructed_field)
@@ -67,6 +94,13 @@ module model
             ε /= Δ
         else
             ε ./= Δ
+        end
+        if debug
+            p = Plots.plot(
+                           Plots.heatmap(utils.squeeze(field), title="marginal"),
+                           Plots.heatmap(utils.squeeze(reconstructed_field), title="recon. marginal"),
+                title="error=$ε")
+            return p
         end
         return ε
     end

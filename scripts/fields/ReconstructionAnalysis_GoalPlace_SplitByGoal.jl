@@ -1,5 +1,6 @@
 quickactivate("/home/ryoung/Projects/goal-code/")
 @time include(scriptsdir("fields", "Initialize.jl"))
+using NaNStatistics
 
 # ----------------------------------------
 # FUNCTION SPECIFIC SHORTCUTS AND SETTINGS
@@ -9,15 +10,17 @@ shortcut_names = OrderedDict(
                              "currentAngle"=>"γ",
                              "currentPathLength"=>"p",
                              "stopWell"=>"G")
+si = operation.selectind
 𝕀(d) = Dict(zip(values(shortcut_names), keys(shortcut_names)))[d]
 reconstruction_comparisons = Dict( 
                                   "vs(angle,place)"            => ("γ|x,y","x,y|γ"),
                                   "vs(spect-angle,spec-place)" => ("γ,G|x,y","x,y|γ,G"),
                                   "vs(spec-angle,place)"       => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
-                                  "vs(goal,place)"             => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
-                                  "vs(spec-goal,place)"        => ("p,γ,G|x,y,G","x,y,G|p,γ,"),
+                                  "vs(goal,place)"             => ("p,γ|x,y","x,y|p,γ"),
+                                  "vs(spec-goal,place)"        => ("p,γ,G|x,y,G","x,y,G|p,γ"),
                                   "vs(spec-goal,spec-place)"   => ("p,γ,G|x,y,G","x,y,G|p,γ,G"))
 reconstructions_required = vec([x[i] for x in values(reconstruction_comparisons), i in 1:2])
+reconstructions_required = [Set(reconstructions_required)...]
 props = ["x", "y", "currentPathLength", "currentAngle","stopWell"]
 
 # Shortcut functions
@@ -62,6 +65,7 @@ newkws = (; kws..., resolution=[40, 40, 40, 40, 5], gaussian=0, props=props,
           filters=merge(kws.filters, filters))
 @time X = field.get_fields(beh, spikes; newkws...);
 F["placegoal-joint"] = X
+field_size = size(operation.selectind(X.Rₕ))
 utils.pushover("Processed up to joint distribution")
 
 # ---------
@@ -73,7 +77,6 @@ utils.pushover("Processed up to joint distribution")
     println("marginal=>$marginal d̅ = $(d̅)")
     @time F[marginal] = operation.marginalize(X, dims = d̅ );
 end
-utils.pushover("Finished marginals")
 
 # ---------------
 # Reconstructions
@@ -81,9 +84,18 @@ utils.pushover("Finished marginals")
 # Obtain reconstructions!
 R̂ = Dict()
 @time for reconstruction in reconstructions_required
-    given = split(reconstruction, "|")[2]
-    inverse_given = join(dims[𝔻₀(given)], ",")
-    @time R̂[reconstruction] = operation.apply(model.reconstruction, F["placegoal-joint"].occR, F[inverse_given].Rₕ);
+    dimr, given = split(reconstruction, "|")
+    #inverse_given = join(dims[𝔻₀(given)], ",")
+    #ig_set   = split(inverse_given,",")
+    marginalize_dims = 𝔻̅(dimr)
+    println(reconstruction)
+    @time R̂[reconstruction] = operation.apply(model.reconstruction, 
+                                              F["placegoal-joint"].occR, 
+                                              F[given].Rₕ;
+                                              marginalize_dims=marginalize_dims,
+                                             );
+    @assert ndims(si(R̂[reconstruction])) == length(split(dimr,","))
+    @assert all(size(si(R̂[reconstruction])) .== field_size[𝔻(dimr)])
 end
 
 # ---------------
@@ -95,16 +107,21 @@ for reconstruction in reconstructions_required
     what, given = split(reconstruction, "|")
     error = model.reconstruction_error(F[what].Rₕsq, R̂[reconstruction])
     error = table.to_dataframe(error; name="error")
-    append!(E, error)
+    push!(E, error)
 end
-E = vcat(error..., source=:model=>[reconstructions_required])
+E = vcat(E..., source=:model=>reconstructions_required)
+what,under = [vec(x) for x in eachrow(cat(split.(E.model,"|")...; dims=2))]
+E.what, E.under = what, under
+E = sort(E, [:model, :area, :unit])
+utils.pushover("Finished reconstruction summaries")
 
 # Stacked summary!
-uE = unstack(E, :source, :error)
-uE.PG_GP_ratio = uE.pug./uE.gup
-uE.PG_GP_diff = uE.pug.-uE.gup
-uE.PG_GP_ratio_gt1 = uE.PG_GP_ratio .>= 1
-uE.PG_GP_ratio_gt1_str = replace(uE.PG_GP_ratio .>= 1)
+uE = unstack(E, :model, :error)[!,Not([:dim_1, :dim_2])]
+uE.∑ε = vec(nansum(Matrix(uE[:, reconstructions_required]); dims=2))
+uE = sort(uE, [:area,:∑ε])
+for rc in reconstruction_comparisons
+    
+end
 cells = leftjoin(cells, uE[:,[:unit,:pug,:gup,:PG_GP_ratio, :PG_GP_ratio_gt1]])
 
                     
@@ -118,6 +135,13 @@ if ploton
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
     #           SUMMARIES ... of reconstructions ...       #
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
+    
+    g=Gadfly.plot(E, x=:error, xgroup=:model, 
+                  Gadfly.layer(Gadfly.Geom.subplot_grid(Gadfly.Geom.density)));
+
+    heatmap(names(uE)[3:end-1],1:size(uE,1), Matrix(uE[:,3:end-1]), xrotation=45)
+
+    heatmap(names(uE)[3:end-1], names(uE)[3:end-1], cor(Matrix(uE[:, 3:end-1])), xrotation=45)
     
     # Title: Visaluze 𝓍 = error 𝒷𝓎 {PUG, GUP} x (AREA)
     p1=@df @subset(E,:area.=="CA1") Plots.histogram(:error, group=:source,
@@ -196,13 +220,17 @@ if ploton
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
     goal_dims = [3,4,5]
     place_dims = [1,2]
-    Plots.heatmap(utils.squeeze(sum(Float64.(X.occzeroinds),dims=goal_dims)), title="Quantification of missing samples\nin γ and p of (x,y,γ,p)\n")
+    Plots.heatmap(utils.squeeze(sum(Float64.(X.occzeroinds),dims=goal_dims)),
+                  title="Quantification of missing samples\nin γ and p of (x,y,γ,p)\n")
     Plots.savefig(plotsdir("fields","reconstruction", "goal_marginalize_quantification_of_goal_missing_samples.svg"))
-    Plots.heatmap(utils.squeeze(mean(Float64.(X.occzeroinds),dims=goal_dims)), title="Quantification of missing samples\nin γ and p of (x,y,γ,p)\n")
+    Plots.heatmap(utils.squeeze(mean(Float64.(X.occzeroinds),dims=goal_dims)),
+                  title="Quantification of missing samples\nin γ and p of (x,y,γ,p)\n")
     Plots.savefig(plotsdir("fields","reconstruction", "goal_marginalize_FRACTION_quantification_of_goal_missing_samples.svg"))
-    Plots.heatmap(utils.squeeze(sum(Float64.(X.occzeroinds),dims=place_dims)), title="Quantification of missing samples\nin x and y of (x,y,γ,p)\n")
+    Plots.heatmap(utils.squeeze(sum(Float64.(X.occzeroinds),dims=place_dims)),
+                  title="Quantification of missing samples\nin x and y of (x,y,γ,p)\n")
     Plots.savefig(plotsdir("fields","reconstruction", "place_marginalize_quantification_of_goal_missing_samples.svg"))
-    Plots.heatmap(utils.squeeze(mean(Float64.(X.occzeroinds),dims=place_dims)), title="Quantification of missing samples\nin x and y of (x,y,γ,p)\n")
+    Plots.heatmap(utils.squeeze(mean(Float64.(X.occzeroinds),dims=place_dims)),
+                  title="Quantification of missing samples\nin x and y of (x,y,γ,p)\n")
     Plots.savefig(plotsdir("fields","reconstruction", "place_marginalize_FRACTION_quantification_of_goal_missing_samples.svg"))
 
 end
