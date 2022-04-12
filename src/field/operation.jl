@@ -54,7 +54,7 @@ or a field itself (AbstractArray)
 """
 function marginalize(F::NamedTuple; dims::Vector{Int}=[],
                      isdensity::Bool=false, dosqueeze::Bool=true,
-                     removecount::Bool=true)
+                     removecount::Bool=true, debug::Bool=false)
     F = Dict(pairs(F))
     for (key, item) ∈ F
         if item == nothing
@@ -84,7 +84,7 @@ function marginalize(F::NamedTuple; dims::Vector{Int}=[],
         F[key] = item
     end
     if removecount
-        println("Removing counts")
+        if debug; println("Removing counts"); end
         for key ∈ keys(F)
             if startswith(String(key), "C")
                 delete!(F, key)
@@ -92,16 +92,16 @@ function marginalize(F::NamedTuple; dims::Vector{Int}=[],
         end
     end
     if dosqueeze 
-        println("Squeezing")
+        if debug; println("Squeezing"); end
         for key ∈ String.(keys(F))
             if endswith(key, "sq")
                 continue
             end
             if any(startswith.(key,["R","C"]))
                 item = F[Symbol(key)]
-                println("Size item=$(size(si(item)))")
+                if debug; println("Size item=$(size(si(item)))"); end
                 item = operation.squeeze(item);
-                println("Size item=$(size(si(item)))")
+                if debug; println("Size item=$(size(si(item)))"); end
                 F[Symbol(key * "sq")] = item
             end
         end
@@ -115,17 +115,20 @@ function marginalize(field::AbstractArray; dims::Vector{Int}=[],
         isdensity::Bool=false, 
         normalizeFR::Union{Nothing, AbstractArray}=nothing,
         maintainNaN::Bool=true, debug::Bool=false)
+    donorm = !(normalizeFR isa Nothing)
     if debug; println("(1) size(field) = $(size(field)), dims=$dims"); end
-    if !(normalizeFR isa Nothing)
+    if donorm
         occzero = normalizeFR .== NaN
         field[occzero] .= NaN
     end
     for dim in dims
         field = nansum(field, dims=dim)
-        normalizeFR = nansum(normalizeFR, dims=dim)
+        if donorm
+            normalizeFR = nansum(normalizeFR, dims=dim)
+        end
         if debug; println("(2) dim=$dim => size(field) = $(size(field))"); end
     end
-    if !(normalizeFR isa Nothing)
+    if donorm
         field = field ./ normalizeFR
     end
     if isdensity; field = field./nansum(field); end

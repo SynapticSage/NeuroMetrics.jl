@@ -6,19 +6,18 @@ quickactivate("/home/ryoung/Projects/goal-code/")
 # ----------------------------------------
 # Marginals and reconstructions, and data structures to map em out
 shortcut_names = OrderedDict(
-                     "currentAngle"=>"γ",
-                     "currentPathLength"=>"p",
-                     "stopWell"=>"G")
+                             "currentAngle"=>"γ",
+                             "currentPathLength"=>"p",
+                             "stopWell"=>"G")
 𝕀(d) = Dict(zip(values(shortcut_names), keys(shortcut_names)))[d]
 reconstruction_comparisons = Dict( 
-  "vs(angle,place)"            => ("γ|x,y","x,y|γ"),
-  "vs(spect-angle,spec-place)" => ("γ,G|x,y","x,y|γ,G"),
-  "vs(spec-angle,place)"       => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
-  "vs(goal,place)"             => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
-  "vs(spec-goal,place)"        => ("p,γ,G|x,y,G","x,y,G|p,γ,"),
-  "vs(spec-goal,spec-place)"   => ("p,γ,G|x,y,G","x,y,G|p,γ,G"))
+                                  "vs(angle,place)"            => ("γ|x,y","x,y|γ"),
+                                  "vs(spect-angle,spec-place)" => ("γ,G|x,y","x,y|γ,G"),
+                                  "vs(spec-angle,place)"       => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
+                                  "vs(goal,place)"             => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
+                                  "vs(spec-goal,place)"        => ("p,γ,G|x,y,G","x,y,G|p,γ,"),
+                                  "vs(spec-goal,spec-place)"   => ("p,γ,G|x,y,G","x,y,G|p,γ,G"))
 reconstructions_required = vec([x[i] for x in values(reconstruction_comparisons), i in 1:2])
-marginals_required = Tuple(Set(vec([split(x,"|")[i] for x in reconstructions_required, i in 1:2])))
 props = ["x", "y", "currentPathLength", "currentAngle","stopWell"]
 
 # Shortcut functions
@@ -35,11 +34,11 @@ end
 """
 Returns the remaining dimensions not covered by a prop-string
 """
-𝔻₀(dimstr) = setdiff(1:length(props), 𝔻(dimstr)) # dims inverse
+𝔻̅(dimstr) = setdiff(1:length(props), 𝔻(dimstr)) # dims inverse
 """
 Returns remaning dimensions as a joined prop string, instead of ints
 """
-𝔻̅ⱼ(dims) = join(props[𝔻₀(dims)],"-") # joined
+𝔻̅ⱼ(dimstr) = join(dims[𝔻̅(dimstr)],",") # joined
 """
 Returns string with shortcut names
 and the ₀ version returns the remaining names
@@ -48,7 +47,9 @@ and the ₀ version returns the remaining names
 ℝ₀ⱼ(dims) = ℝ(join(props[𝔻₀(dims)],"-")) # joined
 
 dims  = ℝ(props)
-
+x = Set(vec([split(x,"|")[1] for x in reconstructions_required])) # requires the LHS andd inverse of the RHS of each reconstruction
+y = Set(vec([𝔻̅ⱼ(split(x,"|")[2]) for x in reconstructions_required])) # requires the LHS andd inverse of the RHS of each reconstruction
+marginals_required = x ∪ y
 
 # ----------------------------------------
 # PLACE-GOAL JOINT DISTRIBUTION P(x,y, γ,p,G)
@@ -68,7 +69,7 @@ utils.pushover("Processed up to joint distribution")
 # ---------
 # Acquire marginals P(X,Y), P(γ, p, G)
 @time @showprogress for marginal in marginals_required
-    d̅ =  𝔻₀(marginal)
+    d̅ =  𝔻̅(marginal)
     println("marginal=>$marginal d̅ = $(d̅)")
     @time F[marginal] = operation.marginalize(X, dims = d̅ );
 end
@@ -79,31 +80,32 @@ utils.pushover("Finished marginals")
 # ---------------
 # Obtain reconstructions!
 R̂ = Dict()
-for reconstruction in reconstructions_required
+@time for reconstruction in reconstructions_required
     given = split(reconstruction, "|")[2]
     inverse_given = join(dims[𝔻₀(given)], ",")
-    @time R̂[reconstruction] = operation.apply(model.reconstruction,
-                                          F["placegoal-joint"].occR,
-                                          F[marginal].Rₕ);
+    @time R̂[reconstruction] = operation.apply(model.reconstruction, F["placegoal-joint"].occR, F[inverse_given].Rₕ);
 end
 
 # ---------------
 # SUMMARIES
 # ---------------
 # Get reconstruction model error summary
-E_place_under_goal = model.reconstruction_error(F["place-marginal"].Rₕsq, R̂["place"])
-E_goal_under_place = model.reconstruction_error(F["goal-marginal"].Rₕsq,  R̂["goal"])
-E_place_under_goal = table.to_dataframe(E_place_under_goal; name="error")
-E_goal_under_place = table.to_dataframe(E_goal_under_place; name="error")
-E = vcat(E_place_under_goal, E_goal_under_place; source=["pug","gup"])
-E = vcat(E_place_under_goal, E_goal_under_place, source=:source=>["pug","gup"])
+E = Vector{DataFrame}([])
+for reconstruction in reconstructions_required
+    what, given = split(reconstruction, "|")
+    error = model.reconstruction_error(F[what].Rₕsq, R̂[reconstruction])
+    error = table.to_dataframe(error; name="error")
+    append!(E, error)
+end
+E = vcat(error..., source=:model=>[reconstructions_required])
+
+# Stacked summary!
 uE = unstack(E, :source, :error)
 uE.PG_GP_ratio = uE.pug./uE.gup
 uE.PG_GP_diff = uE.pug.-uE.gup
 uE.PG_GP_ratio_gt1 = uE.PG_GP_ratio .>= 1
 uE.PG_GP_ratio_gt1_str = replace(uE.PG_GP_ratio .>= 1)
 cells = leftjoin(cells, uE[:,[:unit,:pug,:gup,:PG_GP_ratio, :PG_GP_ratio_gt1]])
-
 
                     
 #,---.|         |    

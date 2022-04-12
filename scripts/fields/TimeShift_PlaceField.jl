@@ -3,6 +3,8 @@ using Base.Threads: @spawn
 using DataFrames
 using StatsPlots
 using Statistics
+using StatsPlots
+using DataFrames
 includet(srcdir("field.jl"))
 includet(srcdir("filt.jl"))
 includet(srcdir("raw.jl"))
@@ -11,13 +13,9 @@ includet(srcdir("field/info.jl"))
 includet(srcdir("utils.jl"))
 includet(srcdir("table.jl"))
 spikes, beh = raw.load("RY16", 36, data_source=["spikes","behavior"])
-props = ["x", "y"]
-splitby=["unit", "area"]
-kws=(;splitby, filters=merge(filt.speed_lib, filt.cellcount))
-newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
-          filters=merge(kws.filters))
 
-# MULTIPLE TIME SHIFT
+
+# MULTIPLE TIME SHIFT NOTES
 #
 # -----------
 # 16 threads
@@ -31,33 +29,86 @@ newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
 # 4 threads
 # ---------
 #
-@time place = timeshift.get_field_shift(beh, spikes, -1:0.01:1; 
-                                        multithread=true, 
-                                        postfunc=info.information, newkws...);
-utils.pushover("Finished field shift")
-
 # ---------
 # 1 thread
 # ---------
 # (run 1) 108 seconds for 20 shifts without multi-threading, with 10% compile time
-place_fineSecond = @spawn timeshift.get_field_shift(beh, spikes, -1:0.01:1;
+#
+# ------------
+# More shifts
+# ------------
+# For 200 shifts, we're in the domain of 30 minutes
+props = ["x", "y"]
+splitby=["unit", "area"]
+kws=(;splitby, filters=merge(filt.speed_lib, filt.cellcount))
+newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
+          filters=merge(kws.filters))
+
+place = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.1:1; 
+                                        multithread=true, 
+                                        postfunc=info.information, newkws...);
+place_fineNarrow = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.01:1;
                                         postfunc=info.information,
                                         multithread=false, newkws...);
-
 place_broadTimes = @spawn @time timeshift.get_field_shift(beh, spikes, -4:0.05:4;
                                         postfunc=info.information,
                                         multithread=false, newkws...);
-place_broadTimes = Dict(fetch(place_broadTimes)...)
-utils.pushover("Finished broadtimes")
+filters = merge(kws.filters,
+                filt.correct,
+                filt.notnan("currentAngle"), 
+                filt.minmax("currentPathLength", 2, 150))
+props = ["currentAngle", "currentPathLength"]
+splitby=["unit", "area"]
+newkws = (; kws..., filters=merge(kws.filters, filters), resolution=40, gaussian=2.3*0.5, props=props)
+goal = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.01:1; 
+                                        multithread=true, 
+                                        postfunc=info.information, newkws...);
+goal_broadTimes = @spawn @time timeshift.get_field_shift(beh, spikes, -4:0.05:4; 
+                                        multithread=true, 
+                                        postfunc=info.information, newkws...);
 
+if isdefined(Main, :place_broadTimes)
+    place_broadTimes = Dict(fetch(place_broadTimes)...)
+end
+if isdefined(Main, :place_fineNarrow)
+    place_fineNarrow = Dict(fetch(place_fineNarrow)...)
+end
+if isdefined(Main, :place)
+    place = Dict(fetch(place)...)
+end
+if isdefined(Main, :goal)
+    goal = Dict(fetch(goal)...)
+end
+utils.pushover("Finished spawned shift processes")
 
-using StatsPlots
-using DataFrames
 
 function plot_shifts(place; desc="")
+
     descSave = replace(desc, ":"=>"", " "=>"-")
-    # ALL CELLS
+    
+
+    # DENSITY ALL CELLS
     df = table.to_dataframe(place, key_name="shift", name="info")
+    df.shift = df.shift .* -1; # beh.time-shift... negative shift is future, so correcting this
+    df = sort(df, [:area,:unit,:shift])
+    taus = unique(sort(df.shift))
+    df_imax = combine(groupby(df, [:unit, :area]), 
+                      :info=>argmax, 
+                      :info=>(x->taus[argmax(x)])=>:bestTau)
+    df_imax = df_imax[df_imax.bestTau.!=taus[1],:] # Excluding samples with the first tau, because that's the null condition for no variation
+
+    @df df_imax density(:bestTau, group=:area, 
+                 title="$desc BestTau(Information)", xlabel="Seconds", ylabel="Density")
+    savefig(plotsdir("fields", "shifts", "$(descSave)_density_x=seconds,y=densBestTau_by=area.svg"))
+    savefig(plotsdir("fields", "shifts", "$(descSave)_density_x=seconds,y=densBestTau_by=area.png"))
+    savefig(plotsdir("fields", "shifts", "$(descSave)_density_x=seconds,y=densBestTau_by=area.pdf"))
+    @df df_imax histogram(:bestTau, group=:area, 
+                 title="$desc BestTau(Information)", xlabel="Seconds", ylabel="Density")
+    savefig(plotsdir("fields", "shifts", "$(descSave)_histogram_x=seconds,y=densBestTau_by=area.svg"))
+    savefig(plotsdir("fields", "shifts", "$(descSave)_histogram_x=seconds,y=densBestTau_by=area.png"))
+    savefig(plotsdir("fields", "shifts", "$(descSave)_histogram_x=seconds,y=densBestTau_by=area.pdf"))
+
+    # HISTOGRAM ALL CELLS
     df_m = combine(groupby(df, [:area, :shift]), :info=>mean)
     @df df_m bar(:shift, :info_mean, group=:area, 
                  title="$desc Median(Information)", xlabel="Seconds", ylabel="Shannon MI Bits")
@@ -85,7 +136,7 @@ function plot_shifts(place; desc="")
                 clims=(0,20), colorbar_title="MI (bits)", colorbar_titlefontrotation=0),
                heatmap(shifts, 1:size(get_area("PFC"),1), get_area("PFC"), 
                 clims=(0,8), colorbar_title="MI (bits)", colorbar_titlefontrotation=0),
-               title="$desc\nMI(Place)", xlabel="time", ylabel="cell"
+               title="$desc\nMI", xlabel="time", ylabel="cell"
     )
     vline!(p[1], [0], c=:white, linestyle=:dash, label="Zero lag")
     vline!(p[2], [0], c=:white, linestyle=:dash, legendposition=:none)
@@ -94,3 +145,6 @@ function plot_shifts(place; desc="")
     savefig(plotsdir("fields", "shifts", "$(descSave)_heatmap_x=shift,y=cellsort_by=area.svg"))
 end
 plot_shifts(place_broadTimes, desc="Traj length sample: ")
+plot_shifts(place_fineNarrow, desc="HIGHRES")
+plot_shifts(place, desc="LOWRES")
+plot_shifts(goal, desc="GOAL")
