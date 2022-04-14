@@ -55,7 +55,7 @@ decode_file = raw.decodepath(animal, day, epoch, transition="empirical",
                              method="sortedspike", split=split,
                              type=split_type, speedup=20.0)
 D = raw.load_decode(decode_file)
-beh, spikes, ripples, D = raw.normalize_time(beh, spikes, ripples, D);
+beh, spikes, ripples, D = raw.normalize_time(beh, spikes, ripples, D; timefields=Dict(3=>["start", "stop", "time"]));
 x = D["x_position"]
 y = D["y_position"]
 T = D["time"]
@@ -74,12 +74,12 @@ events = sort(events, :start)[!, Not(:end)]
 # -----------------------------------------------
 # Setup observable and connect decoder to behavior
 # -----------------------------------------------
-decode_inds = SearchSortedNearest.searchsortednearest.([beh.time], D["time"])
+decode_inds = SearchSortedNearest.searchsortednearest.([beh.time], T)
 t = Observable{Int}(1)
 
 mint = minimum(beh[beh.epoch.==epoch,:].time)
 dat = permutedims(dat, [2,1,3])
-dat = decodee.quantile_threshold(dat)
+dat = decode.quantile_threshold(dat, thresh[variable])
 
 #@time tetrode = raw.load_tetrode(animal,   day)
 # -----------------
@@ -96,7 +96,7 @@ behx(t) = beh[decode_inds[t],"x"]
 behy(t) = beh[decode_inds[t],"y"]
 behpoint(t) = (behx(t), behy(t))
 P             = @lift(Point2f.(behx($t), behy($t)))
-color         = @lift(decoode.scatter.color($t))
+color         = @lift(decode.scatter.color($t))
 sc_glow_color = @lift(decode.scatter.glow_color($t))
 sc_glow_width = @lift(decode.scatter.glow_width($t))
 

@@ -7,21 +7,23 @@ using NaNStatistics
 # ----------------------------------------
 # Marginals and reconstructions, and data structures to map em out
 shortcut_names = OrderedDict(
-                             "currentAngle"=>"γ",
+                             "currentHeadEgoAngle"=>"γ",
                              "currentPathLength"=>"p",
                              "stopWell"=>"G")
 si = operation.selectind
 𝕀(d) = Dict(zip(values(shortcut_names), keys(shortcut_names)))[d]
-reconstruction_comparisons = Dict( 
-                                  "vs(angle,place)"            => ("γ|x,y","x,y|γ"),
-                                  "vs(spect-angle,spec-place)" => ("γ,G|x,y","x,y|γ,G"),
-                                  "vs(spec-angle,place)"       => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
-                                  "vs(goal,place)"             => ("p,γ|x,y","x,y|p,γ"),
-                                  "vs(spec-goal,place)"        => ("p,γ,G|x,y,G","x,y,G|p,γ"),
-                                  "vs(spec-goal,spec-place)"   => ("p,γ,G|x,y,G","x,y,G|p,γ,G"))
-reconstructions_required = vec([x[i] for x in values(reconstruction_comparisons), i in 1:2])
-reconstructions_required = [Set(reconstructions_required)...]
-props = ["x", "y", "currentPathLength", "currentAngle","stopWell"]
+recon_compare = Dict( 
+      "vs(γ|ℙ,ℙ|γ)"     => ("γ|x,y","x,y|γ"),
+      "vs(γₛ|ℙ,ℙ|γₛ)"   => ("γ,G|x,y","x,y|γ,G"),
+      "vs(𝔾|ℙ,ℙ|𝔾)"     => ("p,γ|x,y","x,y|p,γ"),
+      "vs(𝔾ₛ|ℙ,ℙ|𝔾ₛ)"   => ("p,γ,G|x,y","x,y|p,γ,G"),
+      "vs(𝔾ₛ|ℙₛ,ℙₛ|𝔾ₛ)" => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
+     )
+inv(x) = Dict(zip(values(x), keys(x)))
+recon_name(x, op) = replace(x, "vs("=>"ε(", ","=>") $op ε(")
+recon_req = vec([x[i] for x in values(recon_compare), i in 1:2])
+recon_req = [Set(recon_req)...]
+props = ["x", "y", "currentPathLength", "currentHeadEgoAngle","stopWell"]
 
 # Shortcut functions
 """
@@ -50,8 +52,8 @@ and the ₀ version returns the remaining names
 ℝ₀ⱼ(dims) = ℝ(join(props[𝔻₀(dims)],"-")) # joined
 
 dims  = ℝ(props)
-x = Set(vec([split(x,"|")[1] for x in reconstructions_required])) # requires the LHS andd inverse of the RHS of each reconstruction
-y = Set(vec([𝔻̅ⱼ(split(x,"|")[2]) for x in reconstructions_required])) # requires the LHS andd inverse of the RHS of each reconstruction
+x = Set(vec([split(x,"|")[1] for x in recon_req])) # requires the LHS andd inverse of the RHS of each reconstruction
+y = Set(vec([𝔻̅ⱼ(split(x,"|")[2]) for x in recon_req])) # requires the LHS andd inverse of the RHS of each reconstruction
 marginals_required = x ∪ y
 
 # ----------------------------------------
@@ -59,7 +61,7 @@ marginals_required = x ∪ y
 # ----------------------------------------
 filters = merge(kws.filters,
                 filt.correct,
-                filt.notnan("currentAngle"), 
+                filt.notnan("currentHeadEgoAngle"), 
                 filt.minmax("currentPathLength", 2, 150))
 newkws = (; kws..., resolution=[40, 40, 40, 40, 5], gaussian=0, props=props,
           filters=merge(kws.filters, filters))
@@ -83,7 +85,7 @@ end
 # ---------------
 # Obtain reconstructions!
 R̂ = Dict()
-@time for reconstruction in reconstructions_required
+@time for reconstruction in recon_req
     dimr, given = split(reconstruction, "|")
     #inverse_given = join(dims[𝔻₀(given)], ",")
     #ig_set   = split(inverse_given,",")
@@ -103,26 +105,28 @@ end
 # ---------------
 # Get reconstruction model error summary
 E = Vector{DataFrame}([])
-for reconstruction in reconstructions_required
+for reconstruction in recon_req
     what, given = split(reconstruction, "|")
     error = model.reconstruction_error(F[what].Rₕsq, R̂[reconstruction])
     error = table.to_dataframe(error; name="error")
     push!(E, error)
 end
-E = vcat(E..., source=:model=>reconstructions_required)
+E = vcat(E..., source=:model=>recon_req)
 what,under = [vec(x) for x in eachrow(cat(split.(E.model,"|")...; dims=2))]
 E.what, E.under = what, under
 E = sort(E, [:model, :area, :unit])
 utils.pushover("Finished reconstruction summaries")
 
 # Stacked summary!
-uE = unstack(E, :model, :error)[!,Not([:dim_1, :dim_2])]
-uE.∑ε = vec(nansum(Matrix(uE[:, reconstructions_required]); dims=2))
+uE = unstack(E[!,Not([:what,:under])], :model,:error)[!,Not([:dim_1, :dim_2])]
+uE.∑ε = vec(nansum(replace(Matrix(uE[:, recon_req]),missing=>NaN); dims=2))
 uE = sort(uE, [:area,:∑ε])
-for rc in reconstruction_comparisons
-    
+for (rc, compare) in recon_compare
+    #uE[!,rc*"div"] = uE[!, compare[1]] ./ uE[!, compare[2]]
+    println(rc)
+    uE[!,rc] = (uE[!, compare[1]] .- uE[!, compare[2]])./(uE[!,compare[1]] .+ uE[!,compare[2]])
+    uE[!,rc] = (uE[!, compare[1]] .- uE[!, compare[2]])
 end
-cells = leftjoin(cells, uE[:,[:unit,:pug,:gup,:PG_GP_ratio, :PG_GP_ratio_gt1]])
 
                     
 #,---.|         |    
@@ -131,60 +135,63 @@ cells = leftjoin(cells, uE[:,[:unit,:pug,:gup,:PG_GP_ratio, :PG_GP_ratio_gt1]])
 #`    `---'`---'`---'
 if ploton
 
+    function r(df)
+        df = copy(df)
+        reps = merge(Dict(n=>n for n in names(df) if !(occursin("vs",n))),
+                     Dict(n=>replace(recon_name(n,"-")," "=>"") for n in names(df) if occursin("vs",n)))
+        println(reps)
+        rename(df, reps...)
+    end
+    mod(df) = [x  for x in names(df) if occursin("|", x) && !occursin("ε", x) && !(occursin("vs",x))]
+    com(df) = [x for x in sort(names(df)) if (occursin("ε", x) || occursin("vs",x)) && !occursin("∑", x)]
+    MOD(df) = df[!, mod(df)]
+    COM(df) = df[!, com(df)]
+    amM(df)  = (minimum(Matrix(df)), maximum(Matrix(df)))
+    smM(df)  = (-maximum(abs.(Matrix(df))), maximum(abs.(Matrix(df))))
+    ruE = r(uE)
+
 
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
     #           SUMMARIES ... of reconstructions ...       #
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
-    
-    g=Gadfly.plot(E, x=:error, xgroup=:model, 
-                  Gadfly.layer(Gadfly.Geom.subplot_grid(Gadfly.Geom.density)));
 
-    heatmap(names(uE)[3:end-1],1:size(uE,1), Matrix(uE[:,3:end-1]), xrotation=45)
+    # Create summary of reconstructions: Cumulative distributions
 
-    heatmap(names(uE)[3:end-1], names(uE)[3:end-1], cor(Matrix(uE[:, 3:end-1])), xrotation=45)
-    
-    # Title: Visaluze 𝓍 = error 𝒷𝓎 {PUG, GUP} x (AREA)
-    p1=@df @subset(E,:area.=="CA1") Plots.histogram(:error, group=:source,
-                                                    alpha=.6, title="CA1",
-                                                    nbins=100)
-    p2=@df @subset(E,:area.=="PFC") Plots.histogram(:error, group=:source,
-                                                    alpha=.6, title="PFC",
-                                                    nbins=100, xlim=(0,0.65))
-    Plots.plot(p1,p2)
-
-    # Title: Visaluze 𝓍 = Δ(pug-gup) 𝒷𝓎 (AREA)
-    p1=@df @subset(uE,:area.=="CA1") Plots.histogram(:PG_GP_diff,
-                                                     label="Difference of
-                                                     pug/gup", nbins=100,
-                                                     c=:lightblue, title="CA1",
-                                                     xlabel="ε(p|g) - ε(g|p)")
-    vline!([0],linestyle=:dash,c=:violet,linewidth=2, label="equivalence")
-    p2=@df @subset(uE,:area.=="PFC") Plots.histogram(:PG_GP_diff,
-                                                     label="Difference of
-                                                     pug/gup", nbins=100,
-                                                     c=:red, title="PFC",
-                                                     xlabel="ε(p|g) - ε(g|p)")
-    vline!([0],linestyle=:dash,c=:violet,linewidth=2, label="equivalence")
-    Plots.plot(p1,p2)
-
-    @df @subset(uE, :area.=="CA1") Plots.histogram(:PG_GP_ratio_gt1, label="Ratio of pug/gup", nbins=2)
-    @df @subset(uE, :area.=="CA1") Plots.histogram(:PG_GP_ratio_gt1, label="Ratio of pug/gup", nbins=2)
-    @df uE Plots.scatter(:pug, :gup, label="pug to gup", xlim=(0,3))
-    Plots.plot!(0:30, 0:30, linestyle=:dash, c=:black, label="line of equivalence")
+    # Plot out errors and differences per cell
+    layout = @layout [[a; b] c]
+    Plots.plot(
+    heatmap(mod(ruE),1:size(ruE,1), Matrix(MOD(ruE)),  clims=amM(MOD(ruE)), xrotation=45),
+    heatmap(mod(ruE), mod(ruE), cor(Matrix(MOD(ruE))), xrotation=45),
+    heatmap(com(ruE), 1:size(ruE,1), Matrix(COM(ruE)), clims=smM(COM(ruE)), xrotation=20, c=:vik),
+    #heatmap(com(ruE), com(ruE), cor(Matrix(COM(ruE))), clims=(-1,1), xrotation=45, c=:vik),
+    layout=layout
+       )
 
 
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
     #              RECONSTRUCTIONS                         #
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
-    
-    p = field.plot.show_fields(R̂["place"])
-    savefig(p, plotsdir("fields", "reconstruction", "reconstructed_place_from_goal.svg"))
-    savefig(p, plotsdir("fields", "reconstruction", "reconstructed_place_from_goal.png"))
-    savefig(p, plotsdir("fields", "reconstruction", "reconstructed_place_from_goal.pdf"))
-    p = field.plot.show_fields(R̂["goal"])
-    savefig(p, plotsdir("fields", "reconstruction", "reconstructed_goal_from_place.svg"))
-    savefig(p, plotsdir("fields", "reconstruction", "reconstructed_goal_from_place.png"))
-    savefig(p, plotsdir("fields", "reconstruction", "reconstructed_goal_from_place.pdf"))
+
+    # 1D or 2D
+    # Pick a model
+    C = com(uE)[end]
+    best = sort(uE[!, ["unit", "area", C]], C, rev=true)
+    recon₁, recon₂ = recon_compare[C]
+    marg₁, marg₂ = split(recon₁,"|")[1], split(recon₂,"|")[1]
+    ski(f::Dict, p::Pair...) = si(sk(f, p...))
+    ui = @manipulate for neuron in best.unit
+        println("neuron=$neuron")
+        f₁, f₂ = ski(F[marg₁].Rₕsq, "unit"=>neuron), ski(F[marg₂].Rₕsq, "unit"=>neuron)
+        r₁, r₂ = ski(R̂[recon₁], "unit"=>neuron), ski(R̂[recon₂], "unit"=>neuron)
+        Plots.plot(
+                   field.plot.show_field(f₁, key=(;n=neuron, m=marg₁), textcolor=:black, fontsize=10),
+                   field.plot.show_field(f₂, key=(;n=neuron, m=marg₂), textcolor=:black, fontsize=10),
+                   field.plot.show_field(r₁, key=(;n=neuron, m=recon₁),textcolor=:black, fontsize=10),
+                   field.plot.show_field(r₂, key=(;n=neuron, m=recon₂),textcolor=:black, fontsize=10),
+                  )
+    end
+    w = Window()
+    body!(w,ui)
 
 
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
@@ -208,11 +215,12 @@ if ploton
                        ["M(place)", "R̂(place)"])
     overall = field.plot.show_fieldgroups(groups)
 
-    # SEGFAULTS w/o filtering
-    #groups=field.group([F["goal-marginal-sq"].Rₕ, R̂["goal"]], 
-    #                   ["M(place)", "R̂(place)"])
-    #overall = field.plot.show_fieldgroups(groups)
+
     
+    ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
+    # Applet for visualizing top difference comparisons    #
+    ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
+
 
 
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
@@ -234,3 +242,7 @@ if ploton
     Plots.savefig(plotsdir("fields","reconstruction", "place_marginalize_FRACTION_quantification_of_goal_missing_samples.svg"))
 
 end
+
+
+# ADD DATA TO CELL STRUCTURE FOR OTHER ANALYSES
+cells = leftjoin(cells, ue[:,[:unit,]])

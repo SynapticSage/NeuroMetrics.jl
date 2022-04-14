@@ -99,9 +99,9 @@ module field
 
     function _handle_missing_cols_and_filters(beh::DataFrame, 
             data::DataFrame; 
-            filters::Union{Dict,Nothing}=nothing, 
+            filters::Union{AbstractDict,Nothing}=nothing, 
             props::Vector{String}=[],
-            behfilter::Union{Dict, Bool}=nothing)
+            behfilter::Union{AbstractDict, Bool}=nothing)
 
         user_specified_filter = (filters != nothing)
         missing_columns_in_df = !all(in.(props,[names(data)]))
@@ -185,8 +185,8 @@ module field
             dohist::Bool=true,
             normkde::Bool=true,
             savemem::Bool=true,
-            behfilter::Union{Bool, Dict}=true,
-            filters::Union{Dict,Nothing}=nothing)
+            behfilter::Union{Bool, AbstractDict}=true,
+            filters::Union{AbstractDict,Nothing}=nothing)
 
         # Add revelent columns to data and filter?
         beh, data = _handle_missing_cols_and_filters(copy(beh), copy(data);
@@ -274,7 +274,7 @@ module field
                 resolution::Union{Vector{Int},Int}=50, 
                 savemem::Bool=true,
                 props::Vector{String}=["x","y"],
-                gaussian::Real = 0.0
+                gaussian::Real=0.0
             )
             if gaussian isa Int
                 gaussian = convert(Float64, gaussian);

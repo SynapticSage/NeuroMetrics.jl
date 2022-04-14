@@ -14,7 +14,6 @@ includet(srcdir("utils.jl"))
 includet(srcdir("table.jl"))
 spikes, beh = raw.load("RY16", 36, data_source=["spikes","behavior"])
 
-
 # MULTIPLE TIME SHIFT NOTES
 #
 # -----------
@@ -46,7 +45,6 @@ splitby=["unit", "area"]
 kws=(;splitby, filters=merge(filt.speed_lib, filt.cellcount))
 newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
           filters=merge(kws.filters))
-
 place = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.1:1; 
                                         multithread=true, 
                                         postfunc=info.information, newkws...);
@@ -56,6 +54,35 @@ place_fineNarrow = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.01:1
 place_broadTimes = @spawn @time timeshift.get_field_shift(beh, spikes, -4:0.05:4;
                                         postfunc=info.information,
                                         multithread=false, newkws...);
+kws=(;splitby, filters=merge(filt.speed_lib, filt.cellcount))
+newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
+          filters=merge(kws.filters, filt.correct))
+place_correctOnly = @time timeshift.get_field_shift(beh, spikes, -2:0.1:2;
+                                                    multithread=false,
+                                                    postfunc=info.information, newkws...);
+newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
+          filters=merge(kws.filters, filt.incorrect))
+place_incorrectOnly = @spawn @time timeshift.get_field_shift(beh, spikes, -2:0.1:2;
+                                                    multithread=false,
+                                                    postfunc=info.information, newkws...);
+newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
+          filters=merge(kws.filters, filt.nontask))
+place_nontaskOnly = @spawn @time timeshift.get_field_shift(beh, spikes, -2:0.1:2;
+                                                    multithread=false,
+                                                    postfunc=info.information, newkws...);
+
+newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
+          filters=merge(kws.filters, filt.cue, filt.correct))
+place_correctCue = @spawn @time timeshift.get_field_shift(beh, spikes, -2:0.1:2;
+                                                    multithread=false,
+                                                    postfunc=info.information, newkws...);
+newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
+          filters=merge(kws.filters, filt.mem, filt.correct))
+place_correctMem = @spawn @time timeshift.get_field_shift(beh, spikes, -2:0.1:2;
+                                                    multithread=false,
+                                                    postfunc=info.information, newkws...);
+
+
 # B (( ---- GOAL ---- ))
 filters = merge(kws.filters,
                 filt.correct,
@@ -78,6 +105,13 @@ props = ["currentAngle", "currentPathLength", "stopWell"]
 newkws = (; kws..., filters=merge(kws.filters, filters),
           resolution=[40, 40, 5], gaussian=2.3*0.5, props=props)
 specgoal = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.05:1; 
+                                        multithread=true, 
+                                        postfunc=info.information, newkws...);
+# C (( ---- SPECPLACE ---- ))
+props = ["x", "y", "stopWell"]
+newkws = (; kws..., filters=merge(kws.filters, filters),
+          resolution=[40, 40, 5], gaussian=2.3*0.5, props=props)
+specplace = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.05:1; 
                                         multithread=true, 
                                         postfunc=info.information, newkws...);
 # D (( ---- FULL ---- ))
@@ -112,6 +146,17 @@ end
 # (( SPECGOAL ))
 if isdefined(Main, :specgoal)
     specgoal = Dict(fetch(specgoal)...)
+end
+# (( SPECPLACE ))
+if isdefined(Main, :specplace)
+    specplace = Dict(fetch(specplace)...)
+end
+if isdefined(Main, :place_correctOnly)
+    place_correctOnly = Dict(fetch(place_correctOnly)...)
+end
+# (( FULL ))
+if isdefined(Main, :full)
+    full = Dict(fetch(full)...)
 end
 utils.pushover("Finished spawned shift processes")
 
@@ -178,9 +223,17 @@ function plot_shifts(place; desc="")
     savefig(plotsdir("fields", "shifts", "$(descSave)_heatmap_x=shift,y=cellsort_by=area.png"))
     savefig(plotsdir("fields", "shifts", "$(descSave)_heatmap_x=shift,y=cellsort_by=area.svg"))
 end
-plot_shifts(place_broadTimes, desc="Traj length sample: ")
-plot_shifts(place_fineNarrow, desc="PLACE_HIGHRES")
-plot_shifts(place, desc="PLACE_LOWRES")
-plot_shifts(goal_fineNarrow, desc="GOAL_HIGHRES")
-plot_shifts(goal_broadTimes, desc="GOAL_TRAJ_LEN")
-plot_shifts(specgoal, desc="SPECGOAL")
+
+plot_shifts(place_broadTimes,    desc="Traj length sample: ")
+plot_shifts(place_fineNarrow,    desc="PLACE_HIGHRES")
+plot_shifts(place,               desc="PLACE_LOWRES")
+plot_shifts(goal_fineNarrow,     desc="GOAL_HIGHRES")
+plot_shifts(goal_broadTimes,     desc="GOAL_TRAJ_LEN")
+plot_shifts(specgoal,            desc="SPECGOAL")
+plot_shifts(full,                desc="FULL")
+plot_shifts(specplace,           desc="SPECPLACE")
+plot_shifts(place_correctOnly,   desc="PLACE_CORRECTONLY")
+plot_shifts(place_incorrectOnly, desc="PLACE_ERRORONLY")
+plot_shifts(place_nontaskOnly,   desc="PLACE_NONTASK")
+plot_shifts(place_correctCue,    desc="PLACE_CUEcorrect")
+plot_shifts(place_correctMem,    desc="PLACE_MEMcorrect")

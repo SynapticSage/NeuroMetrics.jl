@@ -5,6 +5,7 @@ module timeshift
     export field
     using ThreadSafeDicts
     using DataStructures
+    using DataFramesMeta
     using ProgressMeter
     include("../table.jl")
     export table
@@ -55,6 +56,17 @@ module timeshift
 
     function info_to_dataframe(shifts::AbstractDict; kws...) where T <: AbstractArray
         table.to_dataframe(shifts, key_name="shift", name="info", kws...)
+    end
+
+    function fetch_best_fields(fieldInfo::DataFrame, pos...; kws...)
+        beh, data = pos
+        X = Dict()
+        for neuron in fieldInfo.units
+            D = @subset(data, :unit.==neuron)
+            x = get_fields(σ(beh,fieldInfo.bestTau), D; kws...)
+            push!(X,x)
+        end
+        return X
     end
 
 end

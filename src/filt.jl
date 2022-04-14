@@ -1,16 +1,21 @@
 module filt
 
 using DataFrames
+using DataStructures
 
-speed = Dict("velVec"=>x->(abs.(x) .> 4))
-speed_lib = Dict("velVec"=>x->(abs.(x) .> 2))
-still = Dict("velVec"=>x->(abs.(x) .< 0.5))
-correct = Dict("correct" => x-> x.==1)
+speed = OrderedDict("velVec"=>x->(abs.(x) .> 4))
+speed_lib = OrderedDict("velVec"=>x->(abs.(x) .> 2))
+still = OrderedDict("velVec"=>x->(abs.(x) .< 0.5))
+correct = OrderedDict("correct" => x-> x.==1)
+incorrect = OrderedDict("correct" => x-> x.==0)
+nontask = OrderedDict("correct" => x-> (x.!=0) .&& (x.!=1))
+cue = OrderedDict("cuemem" => x-> x.==0)
+mem = OrderedDict("cuemem" => x-> x.==1)
 
-notnan(x) = Dict(x  => x->((!).(isnan).(x)))
-minmax(x, m, M) = Dict(x  => x-> x .>= m .&& x .<= M)
-max(x, M) = Dict(x  => x-> x .<= M)
-min(x, m) = Dict(x  => x-> x .>= m)
+notnan(x) = OrderedDict(x  => x->((!).(isnan).(x)))
+minmax(x, m, M) = OrderedDict(x  => x-> x .>= m .&& x .<= M)
+max(x, M) = OrderedDict(x  => x-> x .<= M)
+min(x, m) = OrderedDict(x  => x-> x .>= m)
 
 function groupby_summary_filt(df, splitby, summary_condition, combine_args...)
     groups = groupby(df, splitby, sort=true)
@@ -45,7 +50,7 @@ function groupby_summary_cond(df, splitby, summary_condition, combine_args...)
     end
 end
 
-cellcount = Dict( All() => x->groupby_summary_cond(x, :unit, x->x.count.>50, nrow=>:count))
+cellcount = OrderedDict( All() => x->groupby_summary_cond(x, :unit, x->x.count.>50, nrow=>:count))
 
 function test_filt(spikes)
     println(all(combine(groupby(spikes[cellcount(spikes),:],:unit),nrow=>:count)[:,:count] .> 50))
@@ -59,7 +64,7 @@ Currently matches N filters with matching keys
 ... this could do a lot more, like function as a swapin for the
 actual merge method for Dicts, and search for matching keys
 """
-function merge(D::Dict...)
+function merge(D::AbstractDict...)
     newD = Dict{keytype(D[1])}{Any}()
     K = Tuple(keys(D[1]))[1]
     newD[K] = [d[K] for d in D]

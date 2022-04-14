@@ -11,7 +11,7 @@ function movingmean(dat)
     dat=datnew
 end
 
-function quantile_threshold(dat; thresh=nothing, sample_dim=3, nan_replace_val=1)
+function quantile_threshold(dat, thresh=nothing; sample_dim=3, nan_replace_val=1)
     m = [quantile(skipnan(vec(d)), thresh) 
          for d in eachslice(dat, dims=sample_dim)]
     m = reshape(m, (1,1,length(m)))

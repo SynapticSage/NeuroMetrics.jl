@@ -469,7 +469,7 @@ module raw
 
     instructions to query/filter values in a set of dataframes
     """
-    function filter(data::DataFrame...; filters::Dict=Dict())::Vector{DataFrame}
+    function filter(data::DataFrame...; filters::AbstractDict=Dict())::Vector{DataFrame}
         data = [data...]
         println("→ → → → → → → → → → → → ")
         println("Filtration")
@@ -512,7 +512,7 @@ module raw
     combination of  `raw.filter()` and `raw.register()` steps
     """
     function filterAndRegister(data::DataFrame...;
-            filters::Union{Nothing,Dict}=nothing, transfer=nothing,
+            filters::Union{Nothing,AbstractDict}=nothing, transfer=nothing,
             on="time")::Vector{DataFrame}
         if transfer != nothing
             data = register(data...; transfer=transfer, on=on)
@@ -529,7 +529,7 @@ module raw
 
     alias for `filterAndRegister`
     """
-    filterTables(data::DataFrame...; filters::Union{Nothing,Dict}=nothing,
+    filterTables(data::DataFrame...; filters::Union{Nothing,AbstractDict}=nothing,
                  lookupcols=nothing, lookupon="time") =
     filterAndRegister(data...;transfer=lookupcols, on=lookupon, filters=filters)
 
@@ -626,17 +626,26 @@ module raw
             timefields::Dict=Dict(), factor=1)
         data = [data...]
         if data[1] isa DataFrame
-            println("a")
             tₘ = minimum(data[1].time)
         else
-            println("b")
             tₘ = minimum(data[1]["time"])
         end
         for source ∈ 1:length(data)
-            if data[source] isa DataFrame && ("time" ∈ names(data[source]))
-                data[source].time = (data[source].time .- tₘ)*factor
-            elseif "time" ∈ keys(data[source])
-                data[source]["time"] = (data[source]["time"] .- tₘ)*factor
+            if !(source in keys(timefields))
+                tfs = ["time"]
+                println("tfs = $tfs")
+            else
+                tfs = timefields[source]
+                println("tfs = $tfs")
+            end
+            for tf in tfs
+                if data[source] isa DataFrame && (tf ∈ names(data[source]))
+                    data[source][!,tf] = (data[source][!,tf] .- tₘ)*factor
+                elseif !(data[source] isa DataFrame) && (tf ∈ keys(data[source]))
+                    data[source][tf] = (data[source][tf] .- tₘ)*factor
+                else
+                    @warn "No time field for $source"
+                end
             end
         end
         return data
