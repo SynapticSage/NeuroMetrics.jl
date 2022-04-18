@@ -5,11 +5,16 @@ using CSV, DataFrames
 using Gadfly
 using Colors, ColorSchemes
 using Pushover
-using Statistics
+using Statistics, NaNStatistics
+include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
+const searchsortednearest = SearchSortedNearest.searchsortednearest
+const searchsortednext = SearchSortedNearest.searchsortednext
+
 
 export skipnan
 export itsizeof, piso
 export squeeze
+export searchsortednext, searchsortednearest
 
 skipnan(x) = Iterators.filter(!isnan, x)
 
@@ -38,8 +43,11 @@ function pnf(X::T) where T <: Dict
     println(Dict(key=>mean(isnan.(x)) for (key,x) in X))
 end
 
-function norm_extrema(x::Vector{T1}, minmax::Union{Vector{T2},Tuple{T2}}) where
+function norm_extrema(x::Vector{T1}, minmax::Union{Vector{T2},Tuple{T2, T2}}) where
     T1 <: Real where T2 <: Real
+    if minmax isa Tuple
+        minmax = [minmax...]
+    end
     if minmax[2] == minmax[1]
         x = minmax[1] * ones(size(x))
     else
@@ -53,6 +61,10 @@ function squeeze(A::AbstractArray)
     A = dropdims(A, dims = tuple(findall(size(A) .== 1)...))
     return A
 end  
+
+function dextrema(A::AbstractArray; kws...)
+    diff([nanextrema(A)...], kws...)
+end
 
 function randomize_int(X)
     Xmin = minimum(X);

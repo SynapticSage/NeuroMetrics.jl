@@ -9,6 +9,7 @@ module raw
     using Statistics
     using Dates
     using Printf
+    using ProgressMeter
     include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
     include("utils.jl")
     animal_dayfactor = Dict("RY16"=>33, "RY22"=>0)
@@ -157,7 +158,7 @@ module raw
             # TODO function to accept left or right dups
         end
         cells |> CSV.write(csvFile)
-        println("Success")
+        @debug "Success"
     end
 
     function load_ripples(animal, day)
@@ -419,9 +420,9 @@ module raw
             data = [data...];
         end
         # Get our columns into target
-        println("→ → → → → → → → → → → → ")
-        println("Registration")
-        println("→ → → → → → → → → → → → ")
+        @debug "→ → → → → → → → → → → → "
+        @debug "Registration"
+        @debug "→ → → → → → → → → → → → "
         for col ∈ transfer
             source = col[1].source
             target = col[1].target
@@ -429,7 +430,7 @@ module raw
             if columns_to_transfer == All()
                 continue
             end
-            println("columns=$columns_to_transfer from source->target on $on")
+            @debug "columns=$columns_to_transfer from source->target on $on"
 
             match_on_source = data[source][:, on]
             match_on_target = data[target][:, on]
@@ -442,7 +443,7 @@ module raw
                 data[source][indices_of_source_samples_in_target, item]
             end
         end
-        println("← ← ← ← ← ← ← ← ← ← ← ← ")
+        @debug "← ← ← ← ← ← ← ← ← ← ← ← "
         return data
     end
     """
@@ -464,6 +465,46 @@ module raw
         source, target, _ = register(source, target, DataFrame(); transfer=transfer, on=on)
         return source, target
     end
+    function registerEvents(events::DataFrame, target::DataFrame;
+            transfer::Union{Vector{String},String}, on::String="time",
+            eventStart::String="start",
+            eventStop::String="stop")::DataFrame 
+
+        # Get our columns into target
+        @debug "→ → → → → → → → → → → → "
+        @debug "Registration"
+        @debug "→ → → → → → → → → → → → "
+        
+        for col ∈ transfer
+            if col ∉ names(target)
+                @debug "$col not in target"
+                T = eltype(events[!,col])
+                @debug "creating new cool with type = $T"
+                target[!,col] = Array{Union{Missing,T}}(missing, size(target,1))
+            end
+        end
+
+        match = target[!, on]
+        p = Progress(size(events,1), desc="Registering")
+        Threads.@threads for event in eachrow(events)
+
+            start = event[eventStart]
+            stop  = event[eventStop]
+            indices_of_source_samples_in_target = (match .>= start) .&&
+                                                  (match .< stop)
+            @debug "sum=$(sum(indices_of_source_samples_in_target))"
+            for col ∈ transfer
+                if col == All()
+                    continue
+                end
+                target[indices_of_source_samples_in_target, col] .= event[col]
+            end
+            next!(p)
+        end
+
+        @debug "← ← ← ← ← ← ← ← ← ← ← ← "
+        return target
+    end
     """
     filter
 
@@ -471,9 +512,9 @@ module raw
     """
     function filter(data::DataFrame...; filters::AbstractDict=Dict())::Vector{DataFrame}
         data = [data...]
-        println("→ → → → → → → → → → → → ")
-        println("Filtration")
-        println("→ → → → → → → → → → → → ")
+        @debug "→ → → → → → → → → → → → "
+        @debug "Filtration"
+        @debug "→ → → → → → → → → → → → "
         for (cols, filt_for_cols) ∈ filters
             for i ∈ 1:length(data)
                 @assert !(cols isa Bool)
@@ -488,21 +529,21 @@ module raw
                     inds = accumulate(.&, [ff(data[i][!, cols]) for ff
                                            in filt_for_cols])[end]
                 else
-                    println("cols = $cols")
-                    println("Typeof(cols) = $(typeof(cols))")
-                    println("filt_for_cols = $filt_for_cols")
+                    @debug "cols = $cols"
+                    @debug "Typeof(cols) = $(typeof(cols))"
+                    @debug "filt_for_cols = $filt_for_cols"
                     throw(TypeError(:filt_for_cols, "",Vector,typeof(filt_for_cols)))
                 end
                 percent = mean(inds)*100
-                println("data_$i filtration: $percent percent pass filter on $cols")
+                @debug "data_$i filtration: $percent percent pass filter on $cols"
                 x = data[i][findall(inds), :];
                 data[i] = x;
             end
         end
         for i in 1:length(data)
-            println("final_size(data($i)) = $(size(data[i]))")
+            @debug "final_size(data($i)) = $(size(data[i]))"
         end
-        println("← ← ← ← ← ← ← ← ← ← ← ← ")
+        @debug "← ← ← ← ← ← ← ← ← ← ← ← "
         return data
     end
 
@@ -633,10 +674,10 @@ module raw
         for source ∈ 1:length(data)
             if !(source in keys(timefields))
                 tfs = ["time"]
-                println("tfs = $tfs")
+                @debug "tfs = $tfs"
             else
                 tfs = timefields[source]
-                println("tfs = $tfs")
+                @debug "tfs = $tfs"
             end
             for tf in tfs
                 if data[source] isa DataFrame && (tf ∈ names(data[source]))

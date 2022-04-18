@@ -1,6 +1,8 @@
 quickactivate("/home/ryoung/Projects/goal-code/")
 @time include(scriptsdir("fields", "Initialize.jl"))
 using NaNStatistics
+using StatsBase
+using ColorSchemes
 
 # ----------------------------------------
 # FUNCTION SPECIFIC SHORTCUTS AND SETTINGS
@@ -18,6 +20,7 @@ recon_compare = Dict(
       "vs(𝔾|ℙ,ℙ|𝔾)"     => ("p,γ|x,y","x,y|p,γ"),
       "vs(𝔾ₛ|ℙ,ℙ|𝔾ₛ)"   => ("p,γ,G|x,y","x,y|p,γ,G"),
       "vs(𝔾ₛ|ℙₛ,ℙₛ|𝔾ₛ)" => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
+      "vs(ℙₛ|ℙ,ℙ|ℙₛ)"   => ("x,y,G|x,y","x,y|x,y,G"),
      )
 inv(x) = Dict(zip(values(x), keys(x)))
 recon_name(x, op) = replace(x, "vs("=>"ε(", ","=>") $op ε(")
@@ -142,30 +145,82 @@ if ploton
         println(reps)
         rename(df, reps...)
     end
-    mod(df) = [x  for x in names(df) if occursin("|", x) && !occursin("ε", x) && !(occursin("vs",x))]
-    com(df) = [x for x in sort(names(df)) if (occursin("ε", x) || occursin("vs",x)) && !occursin("∑", x)]
-    MOD(df) = df[!, mod(df)]
-    COM(df) = df[!, com(df)]
+    _mod(df::DataFrame) = [x  for x in names(df) if occursin("|", x) && !occursin("ε", x) && !(occursin("vs",x))]
+    _com(df::DataFrame) = [x for x in sort(names(df)) if (occursin("ε", x) || occursin("vs",x)) && !occursin("∑", x)]
+    MOD(df::DataFrame) = df[!, _mod(df)]
+    COM(df::DataFrame) = df[!, _com(df)]
     amM(df)  = (minimum(Matrix(df)), maximum(Matrix(df)))
     smM(df)  = (-maximum(abs.(Matrix(df))), maximum(abs.(Matrix(df))))
     ruE = r(uE)
 
 
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
+    #           SUMMARY ..... TYPICAL ERROR VALUES ....    #
+    ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
+    histogram(vec(Matrix(uE[:,3:end])), bins=100, xticks=(0:0.2:0.8), yscale=:log10, label="typical errors")
+    savefig(plotsdir("fields","reconstruction","hist_typical_errors.png"))
+
+
+    ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
     #           SUMMARIES ... of reconstructions ...       #
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
 
+
+    function K(total, vert=true) 
+        if vert
+        return (;layout= grid(total,1), tickfontsize=3, legendfontsize=4, link=:x)
+        else
+        return (;tickfontsize=3, legendfontsize=4, link=:x)
+        end
+    end
+
+    Δx = 0.00001
     # Create summary of reconstructions: Cumulative distributions
+    P, AUC = [], []
+    colors=get(colorschemes[:isoluminant_cgo_80_c38_n256], 1:length(_mod(uE)), :extrema)
+    total = length(_mod(uE))
+    for (i,col) in enumerate(_mod(uE))
+        x = uE[:,col]
+        x = ecdf(replace(x, missing=>NaN))
+        vals=x.sorted_values[1]:Δx:x.sorted_values[end]
+        color=colors[i]
+        p = Plots.plot(vals, x(vals), fillrange=0, label=col, color=color)
+        auc = cumsum(x(vals))[end]*Δx
+        push!(AUC,auc)
+        Plots.hline!([0.5], c=:black, linestyle=:dash, label="half mast")
+        Plots.annotate!(quantile(vals,0.5), 0.5*1.2, text("auc=$(@sprintf("%2.2f",auc))", :black, 3))
+        push!(P, p)
+    end
+    p1 = Plots.plot(P[sortperm(AUC)]...; K(total,false)..., margin=-1mm, legendposition=:bottomright)
+
+    P, AUC = [], []
+    total = length(_com(ruE))
+    colors=get(colorschemes[:tableau_red_green_gold], 1:total, :extrema)
+    for (i, col) in enumerate(_com(ruE))
+        x = ruE[:,col]
+        x = ecdf(replace(x, missing=>NaN))
+        vals=x.sorted_values[1]:Δx:x.sorted_values[end]
+        color=colors[i]
+        auc = cumsum(x(vals))[end]*Δx.*sign.(x(vals))
+        push!(AUC,auc)
+        p = Plots.plot(vals, x(vals), fillrange=0, label=col, link=:x, c=color, color=color)
+        Plots.vline!([0], c=:black, linestyle=:dash, label="no difference", legendposition=:left)
+        #Plots.annotate!(quantile(vals,0.5), 0.5*1.2, text("auc=$(@sprintf("%2.2f",auc))", :black, 3))
+        push!(P, p)
+    end
+    p2= Plots.plot(P[sortperm(AUC)]...; K(total, true)..., link=:x, margin=-1mm)
+
+    Plots.plot(p1, p2)
+
 
     # Plot out errors and differences per cell
     layout = @layout [[a; b] c]
     Plots.plot(
-    heatmap(mod(ruE),1:size(ruE,1), Matrix(MOD(ruE)),  clims=amM(MOD(ruE)), xrotation=45),
-    heatmap(mod(ruE), mod(ruE), cor(Matrix(MOD(ruE))), xrotation=45),
-    heatmap(com(ruE), 1:size(ruE,1), Matrix(COM(ruE)), clims=smM(COM(ruE)), xrotation=20, c=:vik),
+    heatmap(_mod(ruE),1:size(ruE,1), Matrix(MOD(ruE)),  clims=amM(MOD(ruE)), xrotation=45),
+    heatmap(_mod(ruE), _mod(ruE), cor(Matrix(MOD(ruE))), xrotation=45),
+    heatmap(_com(ruE), 1:size(ruE,1), Matrix(COM(ruE)), clims=smM(COM(ruE)), xrotation=20, c=:vik),
     #heatmap(com(ruE), com(ruE), cor(Matrix(COM(ruE))), clims=(-1,1), xrotation=45, c=:vik),
-    layout=layout
-       )
+    layout=layout)
 
 
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
@@ -174,24 +229,30 @@ if ploton
 
     # 1D or 2D
     # Pick a model
-    C = com(uE)[end]
-    best = sort(uE[!, ["unit", "area", C]], C, rev=true)
-    recon₁, recon₂ = recon_compare[C]
-    marg₁, marg₂ = split(recon₁,"|")[1], split(recon₂,"|")[1]
-    ski(f::Dict, p::Pair...) = si(sk(f, p...))
-    ui = @manipulate for neuron in best.unit
-        println("neuron=$neuron")
-        f₁, f₂ = ski(F[marg₁].Rₕsq, "unit"=>neuron), ski(F[marg₂].Rₕsq, "unit"=>neuron)
-        r₁, r₂ = ski(R̂[recon₁], "unit"=>neuron), ski(R̂[recon₂], "unit"=>neuron)
-        Plots.plot(
-                   field.plot.show_field(f₁, key=(;n=neuron, m=marg₁), textcolor=:black, fontsize=10),
-                   field.plot.show_field(f₂, key=(;n=neuron, m=marg₂), textcolor=:black, fontsize=10),
-                   field.plot.show_field(r₁, key=(;n=neuron, m=recon₁),textcolor=:black, fontsize=10),
-                   field.plot.show_field(r₂, key=(;n=neuron, m=recon₂),textcolor=:black, fontsize=10),
-                  )
+    using Interact, Blink
+    W = []
+    for i in [1,2,4]
+        C = _com(uE)[i]
+        best = sort(uE[!, ["unit", "area", C]], C, rev=true)
+        recon₁, recon₂ = recon_compare[C]
+        marg₁, marg₂ = split(recon₁,"|")[1], split(recon₂,"|")[1]
+        sk = operation.sk
+        ski(f::Dict, p::Pair...) = si(sk(f, p...))
+        ui = @manipulate for neuron in best.unit
+            println("neuron=$neuron")
+            f₁, f₂ = ski(F[marg₁].Rₕsq, "unit"=>neuron), ski(F[marg₂].Rₕsq, "unit"=>neuron)
+            r₁, r₂ = ski(R̂[recon₁], "unit"=>neuron), ski(R̂[recon₂], "unit"=>neuron)
+            Plots.plot(
+                       field.plot.show_field(f₁, key=(;n=neuron, m=marg₁), textcolor=:black, fontsize=10),
+                       field.plot.show_field(f₂, key=(;n=neuron, m=marg₂), textcolor=:black, fontsize=10),
+                       field.plot.show_field(r₁, key=(;n=neuron, m=recon₁),textcolor=:black, fontsize=10),
+                       field.plot.show_field(r₂, key=(;n=neuron, m=recon₂),textcolor=:black, fontsize=10),
+                      )
+        end
+        w = Window()
+        body!(w,ui)
+        push!(W,w)
     end
-    w = Window()
-    body!(w,ui)
 
 
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##

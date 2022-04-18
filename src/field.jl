@@ -114,20 +114,20 @@ module field
                 filter_props = ()
             end
             augmented_props = [filter_props..., props...]
-            println("augmented_props=$augmented_props")
+            @debug "augmented_props=$augmented_props"
             tmp, data = raw.filterAndRegister(beh, data; filters=filters,
                                               transfer=augmented_props,
                                               on="time")
             @assert length(unique(data.velVec)) > 1 "Fuck 2"
             if behfilter isa Bool
                 if behfilter
-                    println("Replacing behavior with filtered behavior")
+                    @debug "Replacing behavior with filtered behavior"
                     beh = tmp;
                 else
-                    println("NOT replacing behavior with filtered behavior")
+                    @debug "NOT replacing behavior with filtered behavior"
                 end
             elseif behfilter isa Dict
-                    println("replacing behavior with custom filter")
+                    @debug "replacing behavior with custom filter"
                 beh = raw.filterTables(beh; filters=behfilter,
                                        lookupcols=nothing)[1]
             end
@@ -195,15 +195,15 @@ module field
                                                      props=props)
 
         if isempty(beh) || isempty(data)
-            println("size(beh)=$(size(beh))")
-            println("size(data)=$(size(data))")
+            @debug "size(beh)=$(size(beh))"
+            @debug "size(data)=$(size(data))"
             throw(ArgumentError("Your filtration leads to empty data"))
         end
 
         # HISTOGRAM
         H = (;hist=nothing, grid=nothing, occ=nothing, occzeroinds=nothing)
         if dohist
-            println("props=$props")
+            @debug "props=$props"
             H = hist.fields(data, beh; props=props,
                                         savemem=savemem,
                                         resolution=resolution, 
@@ -283,8 +283,8 @@ module field
             grid = field.getSettings(beh, props, 
                                     resolution=resolution,
                                     settingType="hist");
-            println("Grid=$grid")
-            println("resolution=$resolution")
+            @debug "Grid=$grid"
+            @debug "resolution=$resolution"
 
             behDist = field.hist.h2d(beh, props, grid=grid);
             
@@ -544,7 +544,7 @@ module field
                      for key in keys_]
             if as == Plots.plot
                 grid = [p.layout for p in plots]
-                print(size(grid))
+                @debug "show_fieldgroups: gridsize=$(size(grid))"
                 grid = reshape(grid, groupgrid)
                 plots=Plots.plot(plots..., grid=grid)
             elseif as == Dict || as == NamedTuple
@@ -656,7 +656,7 @@ module field
                 return Plots.plot()
             end
             if seriestype isa Symbol
-                println("Volume path")
+                @debug "Volume path"
                 kws = (; margins=-2mm, padding=(-1,-1), kws...)
                     #FF = replace(FF, NaN=>0)
                     t=text_annotate(key=key, keyappend=keyappend, 
@@ -668,8 +668,8 @@ module field
                     kws = (; t..., kws...)
                     p = Plots.plot3d(FF; seriestype=seriestype, kws...)
                 try
-                    println("volume plotted")
-                    println("annotation plotted")
+                    @debug "volume plotted"
+                    @debug "annotation plotted"
                 catch
                     @warn "Failed on key=$key"
                 end

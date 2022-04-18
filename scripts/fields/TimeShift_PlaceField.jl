@@ -45,7 +45,7 @@ splitby=["unit", "area"]
 kws=(;splitby, filters=merge(filt.speed_lib, filt.cellcount))
 newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
           filters=merge(kws.filters))
-place = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.1:1; 
+place = @spawn @time timeshift.get_field_shift(beh, spikes, -2:0.1:2; 
                                         multithread=true, 
                                         postfunc=info.information, newkws...);
 place_fineNarrow = @spawn @time timeshift.get_field_shift(beh, spikes, -1:0.01:1;
