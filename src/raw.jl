@@ -10,6 +10,7 @@ module raw
     using Dates
     using Printf
     using ProgressMeter
+    using Infiltrator
     include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
     include("utils.jl")
     animal_dayfactor = Dict("RY16"=>33, "RY22"=>0)
@@ -310,6 +311,7 @@ module raw
         function phase_to_radians(phase)
             phase = convert.(Float32, phase)
             phase = 2*π*(phase .- minimum(phase))./diff([extrema(phase)...]) .- π
+            phase = convert.(Float16, phase)
         end
         function annotate_cycles(lfp; phase_col="phase", method="peak-to-peak")
             phase = lfp[!, phase_col]
@@ -327,6 +329,14 @@ module raw
                 #falling_zero_point = [(phase[1:end-1] .>=0) .& (phase[2:end] .<0) ; false]
                 rising_zero_point = [(phase[2:end] .>=0) .& (phase[1:end-1] .<0) ; false]
                 cycle_labels = accumulate(+, rising_zero_point)
+                lfp[!,"phase′"] = mod2pi.(lfp[!,"phase"] .+ pi)
+            elseif method == "trough-to-trough"
+                step_size = median(diff(phase))
+                Δₚ = [0; diff(phase)]
+                falling_zero_point = [(phase[1:end-1] .>=0) .& (phase[2:end] .<0) ; false]
+                #rising_zero_point = [(phase[2:end] .>=0) .& (phase[1:end-1] .<0) ; false]
+                cycle_labels = accumulate(+, falling_zero_point)
+                lfp[!,"phase′"] = mod.(lfp[!,"phase"] .- pi, 2*pi)
             else
                 throw(ArgumentError("Unrecognized method=$method"))
             end
@@ -664,7 +674,7 @@ module raw
     export dlc
 
     function normalize_time(data::Union{DataFrame, Dict}...;
-            timefields::Dict=Dict(), factor=1)
+            timefields::Dict=Dict(), factor=1, warnifnotime::Bool=false)
         data = [data...]
         if data[1] isa DataFrame
             tₘ = minimum(data[1].time)
@@ -672,6 +682,7 @@ module raw
             tₘ = minimum(data[1]["time"])
         end
         for source ∈ 1:length(data)
+            @debug "source = $source"
             if !(source in keys(timefields))
                 tfs = ["time"]
                 @debug "tfs = $tfs"
@@ -685,11 +696,39 @@ module raw
                 elseif !(data[source] isa DataFrame) && (tf ∈ keys(data[source]))
                     data[source][tf] = (data[source][tf] .- tₘ)*factor
                 else
-                    @warn "No time field for $source"
+                    if warnifnotime
+                        @warn "No time_field=$tf for $source"
+                    else
+                        @error "No time_field=$tf for $source"
+                    end
                 end
             end
         end
         return data
+    end
+
+    function keep_overlapping_times(data::Union{DataFrame, Dict, Vector}...; 
+            tf="time", returninds::Vector=[])
+        
+        sz = []
+        for d in data
+            if d isa DataFrame
+                if d isa DataFrame && (tf ∈ names(data[source]))
+                    push!(sz, extrema(d[!,tf]))
+                elseif !(data[source] isa DataFrame) && (tf ∈ keys(data[source]))
+                    push!(sz, extrema(data[source][tf]))
+                end
+            elseif d isa Vector
+                push!(sz, extrema(d)) 
+            end
+        end
+
+        sz = cat([[s...] for s in sz]...; dims=2)'
+        minmax = [minimum(sz[:,1]), maximum(sz[:,2])]
+
+        for i in 1:length(data)
+        end
+
     end
 
 end

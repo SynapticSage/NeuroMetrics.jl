@@ -59,6 +59,75 @@ x = Set(vec([split(x,"|")[1] for x in recon_req])) # requires the LHS andd inver
 y = Set(vec([𝔻̅ⱼ(split(x,"|")[2]) for x in recon_req])) # requires the LHS andd inverse of the RHS of each reconstruction
 marginals_required = x ∪ y
 
+# ----------------
+# Helper functions
+# ----------------
+function perform_reconstructions_marginals_and_error(beh, spikes, field_kws; 
+        F::Dict=Dict())
+    @time X = field.get_fields(beh, spikes; field_kws...);
+    #F["placegoal-joint"] = X
+    field_size = size(operation.selectind(X.Rₕ))
+
+    # ---------
+    # MARGINALS
+    # ---------
+    # Acquire marginals P(X,Y), P(γ, p, G)
+    @time @showprogress for marginal in marginals_required
+        d̅ =  𝔻̅(marginal)
+        println("marginal=>$marginal d̅ = $(d̅)")
+        @time F[marginal] = operation.marginalize(X, dims = d̅ );
+    end
+
+    # ---------------
+    # Reconstructions
+    # ---------------
+    # Obtain reconstructions!
+    R̂ = Dict()
+    @time for reconstruction in recon_req
+        dimr, given = split(reconstruction, "|")
+        #inverse_given = join(dims[𝔻₀(given)], ",")
+        #ig_set   = split(inverse_given,",")
+        marginalize_dims = 𝔻̅(dimr)
+        println(reconstruction)
+        @time R̂[reconstruction] = operation.apply(model.reconstruction, 
+                                                  X.occR, 
+                                                  F[given].Rₕ;
+                                                  marginalize_dims=marginalize_dims,
+                                                 );
+        @assert ndims(si(R̂[reconstruction])) == length(split(dimr,","))
+        @assert all(size(si(R̂[reconstruction])) .== field_size[𝔻(dimr)])
+    end
+
+    # ---------------
+    # SUMMARIES
+    # ---------------
+    # Get reconstruction model error summary
+    E = Vector{DataFrame}([])
+    for reconstruction in recon_req
+        what, given = split(reconstruction, "|")
+        error = model.reconstruction_error(F[what].Rₕsq, R̂[reconstruction])
+        error = table.to_dataframe(error; name="error")
+        push!(E, error)
+    end
+    E = vcat(E..., source=:model=>recon_req)
+    what,under = [vec(x) for x in eachrow(cat(split.(E.model,"|")...; dims=2))]
+    E.what, E.under = what, under
+    E = sort(E, [:model, :area, :unit])
+    utils.pushover("Finished reconstruction summaries")
+    return E
+end
+function create_unstacked_error_table(E, recon_compare)
+    uE = unstack(E[!,Not([:what,:under])], :model,:error)[!,Not([:dim_1, :dim_2])]
+    uE.∑ε = vec(nansum(replace(Matrix(uE[:, recon_req]),missing=>NaN); dims=2))
+    uE = sort(uE, [:area,:∑ε])
+    for (rc, compare) in recon_compare
+        #uE[!,rc*"div"] = uE[!, compare[1]] ./ uE[!, compare[2]]
+        println(rc)
+        uE[!,rc] = (uE[!, compare[1]] .- uE[!, compare[2]])./(uE[!,compare[1]] .+ uE[!,compare[2]])
+        uE[!,rc] = (uE[!, compare[1]] .- uE[!, compare[2]])
+    end
+end
+
 # ----------------------------------------
 # PLACE-GOAL JOINT DISTRIBUTION P(x,y, γ,p,G)
 # ----------------------------------------
@@ -66,71 +135,17 @@ filters = merge(kws.filters,
                 filt.correct,
                 filt.notnan("currentHeadEgoAngle"), 
                 filt.minmax("currentPathLength", 2, 150))
-newkws = (; kws..., resolution=[40, 40, 40, 40, 5], gaussian=0, props=props,
+field_kws = (; kws..., resolution=[40, 40, 40, 40, 5], gaussian=0, props=props,
           filters=merge(kws.filters, filters))
-@time X = field.get_fields(beh, spikes; newkws...);
-F["placegoal-joint"] = X
-field_size = size(operation.selectind(X.Rₕ))
-utils.pushover("Processed up to joint distribution")
+E = perform_reconstructions_marginals_and_error(beh, spikes, field_kws; F=F)
 
-# ---------
-# MARGINALS
-# ---------
-# Acquire marginals P(X,Y), P(γ, p, G)
-@time @showprogress for marginal in marginals_required
-    d̅ =  𝔻̅(marginal)
-    println("marginal=>$marginal d̅ = $(d̅)")
-    @time F[marginal] = operation.marginalize(X, dims = d̅ );
-end
+# ----------------------------------------
+# PLACE-GOAL-headdir JOINT DISTRIBUTION P(x,y,H,G)
+# ----------------------------------------
+perform_reconstructions_marginals_and_error(beh, spikes, field_kws; F=F, E=E)
 
-# ---------------
-# Reconstructions
-# ---------------
-# Obtain reconstructions!
-R̂ = Dict()
-@time for reconstruction in recon_req
-    dimr, given = split(reconstruction, "|")
-    #inverse_given = join(dims[𝔻₀(given)], ",")
-    #ig_set   = split(inverse_given,",")
-    marginalize_dims = 𝔻̅(dimr)
-    println(reconstruction)
-    @time R̂[reconstruction] = operation.apply(model.reconstruction, 
-                                              F["placegoal-joint"].occR, 
-                                              F[given].Rₕ;
-                                              marginalize_dims=marginalize_dims,
-                                             );
-    @assert ndims(si(R̂[reconstruction])) == length(split(dimr,","))
-    @assert all(size(si(R̂[reconstruction])) .== field_size[𝔻(dimr)])
-end
-
-# ---------------
-# SUMMARIES
-# ---------------
-# Get reconstruction model error summary
-E = Vector{DataFrame}([])
-for reconstruction in recon_req
-    what, given = split(reconstruction, "|")
-    error = model.reconstruction_error(F[what].Rₕsq, R̂[reconstruction])
-    error = table.to_dataframe(error; name="error")
-    push!(E, error)
-end
-E = vcat(E..., source=:model=>recon_req)
-what,under = [vec(x) for x in eachrow(cat(split.(E.model,"|")...; dims=2))]
-E.what, E.under = what, under
-E = sort(E, [:model, :area, :unit])
-utils.pushover("Finished reconstruction summaries")
-
-# Stacked summary!
-uE = unstack(E[!,Not([:what,:under])], :model,:error)[!,Not([:dim_1, :dim_2])]
-uE.∑ε = vec(nansum(replace(Matrix(uE[:, recon_req]),missing=>NaN); dims=2))
-uE = sort(uE, [:area,:∑ε])
-for (rc, compare) in recon_compare
-    #uE[!,rc*"div"] = uE[!, compare[1]] ./ uE[!, compare[2]]
-    println(rc)
-    uE[!,rc] = (uE[!, compare[1]] .- uE[!, compare[2]])./(uE[!,compare[1]] .+ uE[!,compare[2]])
-    uE[!,rc] = (uE[!, compare[1]] .- uE[!, compare[2]])
-end
-
+# Acquire tidy unstacked representation
+uE = create_unstacked_error_table(E, recon_compare)
                     
 #,---.|         |    
 #|---'|    ,---.|--- 

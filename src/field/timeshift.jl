@@ -29,6 +29,7 @@ module timeshift
             kws...)
 
         safe_dict = ThreadSafeDict()
+        p = Progress(length(shifts), desc="field shift calculations")
         if multithread
             Threads.@threads for shift in shifts
                 result = field.get_fields(σ(beh,shift), data; kws...)
@@ -36,6 +37,7 @@ module timeshift
                     result = postfunc(result)
                 end
                 push!(safe_dict, shift=>result)
+                next!(p)
             end
         else
             @showprogress for shift in shifts
@@ -44,6 +46,7 @@ module timeshift
                     result = postfunc(result)
                 end
                 push!(safe_dict, shift=>result)
+                next!(p)
             end
         end
         safe_dict = Dict(safe_dict...)
@@ -59,8 +62,10 @@ module timeshift
             kws...)
 
         safe_dict = ThreadSafeDict()
+        sets = collect(product(1:nShuffle, shifts))
+        p = Progress(length(sets), desc="SHUFFLED field shift calculations")
         if multithread
-            Threads.@threads for (shuffle,shift) in product(1:nShuffle, shifts)
+            Threads.@threads for (shuffle,shift) in sets
                 shuffle_kws[:shuffledist_df] = beh
                 spikes = shuffle_func(spikes; shuffle_kws...)
                 result = field.get_fields(σ(beh,shift), data; kws...)
@@ -70,7 +75,7 @@ module timeshift
                 push!(safe_dict, shift=>result)
             end
         else
-            @showprogress for (shuffle,shift) in product(1:nShuffle, shifts)
+            @showprogress for (shuffle,shift) in sets
                 shuffle_kws[:shuffledist_df] = beh
                 spikes = shuffle_func(spikes; shuffle_kws...)
                 result = field.get_fields(σ(beh,shift), data; kws...)

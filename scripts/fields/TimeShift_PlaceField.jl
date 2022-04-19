@@ -237,3 +237,8 @@ plot_shifts(place_incorrectOnly, desc="PLACE_ERRORONLY")
 plot_shifts(place_nontaskOnly,   desc="PLACE_NONTASK")
 plot_shifts(place_correctCue,    desc="PLACE_CUEcorrect")
 plot_shifts(place_correctMem,    desc="PLACE_MEMcorrect")
+
+# Shuffle test
+place = @time timeshift.get_field_shift_shufflesfield_shift(beh, spikes, -2:0.1:2; 
+                                        multithread=true, 
+                                        postfunc=info.information, newkws...);
