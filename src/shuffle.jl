@@ -12,10 +12,12 @@ module shuffle
     # # # # # # # # # # # # # # # # # # # # # # # # 
     # Main shuffle types
     # # # # # # # # # # # # # # # # # # # # # # # # 
-    function all(spikes, distribution::Distribution)
-        @debug "all where distribution::Distribution"
+    function all(spikes::AbstractDataFrame, distribution::Distribution;
+            only_times::Bool=false, kws...)
+        @debug "all where distribution::Distribution=$distribution"
         spikes = copy(spikes)
         spikes.time = spikes.time .+ rand(distribution, 1) 
+        only_times ? spikes[!,[:time]] : spikes
     end
     function all(spikes; kws...)
         @debug "all where no distribution"
@@ -24,14 +26,17 @@ module shuffle
         spikes = all(spikes, distribution)
     end
 
-    function by(spikes::DataFrame, distribution::Distribution; split::SplitType=:unit)
+    function by(spikes::DataFrame, distribution::Distribution; 
+                split::SplitType=:unit, kws...)
+        @debug "by() with distribution=$distribution"
         spikes = copy(spikes)
-        spikes = combine(groupby(spikes, split), sp->all(sp, distribution))
+        spikes = combine(groupby(spikes, split), sp->all(sp, distribution; kws...))
     end
 
     function by(spikes; split::SplitType=:unit, kws...)
-        distribution = _create_distribution(spikes, distribution; kws...)
-        by(spikes; distribution=distribution, split=split)
+        @debug "by() with no distribution"
+        distribution = _create_distribution(spikes; kws...)
+        by(spikes, distribution; split=split, kws...)
     end
 
     function byspike(spikes, distribution::Distribution)
