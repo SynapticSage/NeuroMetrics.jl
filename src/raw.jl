@@ -710,25 +710,56 @@ module raw
     function keep_overlapping_times(data::Union{DataFrame, Dict, Vector}...; 
             tf="time", returninds::Vector=[])
         
+        # Get time extrema
         sz = []
         for d in data
-            if d isa DataFrame
-                if d isa DataFrame && (tf ∈ names(data[source]))
-                    push!(sz, extrema(d[!,tf]))
-                elseif !(data[source] isa DataFrame) && (tf ∈ keys(data[source]))
-                    push!(sz, extrema(data[source][tf]))
-                end
+            if d isa DataFrame && (tf ∈ names(d))
+                push!(sz, extrema(d[!,tf]))
+            elseif !(data[source] isa DataFrame) && (tf ∈ keys(d))
+                push!(sz, extrema(d[tf]))
             elseif d isa Vector
                 push!(sz, extrema(d)) 
             end
         end
 
+        # Compute overall extrema
         sz = cat([[s...] for s in sz]...; dims=2)'
-        minmax = [minimum(sz[:,1]), maximum(sz[:,2])]
+        minmax = [maximum(sz[:,1]), minimum(sz[:,2])]
 
-        for i in 1:length(data)
+        # Contrain each object to live in the overall extrema
+        ind_constrain(x) = (x .>= minmax[1]) .&& (x .< minmax[2])
+        for (i, d) in zip(1:length(data), data)
+            if d isa DataFrame && (tf ∈ names(d))
+                inds = ind_constrain(d[!,tf])
+            elseif !(data[source] isa DataFrame) && (tf ∈ keys(d))
+                inds = ind_constrain(d[tf]) 
+            elseif d isa Vector
+                inds = ind_constrain(d) 
+            end
+            
+            if i in returninds
+                data[i] = inds
+            else
+                if d isa DataFrame && (tf ∈ names(d))
+                    data[i] = d[inds, :]
+                elseif !(data[source] isa DataFrame) && (tf ∈ keys(d))
+                    time_length = length(d[tf])
+                    dims = Dict(key=>findfirst(size(value).==time_length)
+                                for (key,value) in d)
+                    for (k,v) in d
+                        I = Vector{Any}([Colon() for i in 1:ndims(v)])
+                        if !(isempty(dims[k]))
+                            I[dims[k]] = inds
+                        end
+                        data[i][k] = getindex(v, I...)
+                    end
+                elseif d isa Vector
+                    data[i] = d[inds]
+                end
+            end
         end
 
+        return data
     end
 
 end
