@@ -8,6 +8,7 @@ module timeshift
     using DataFramesMeta
     using ProgressMeter
     include("../table.jl")
+    include("../shuffle.jl")
     export table
 
     # -------------------- SHIFTING TYPES ---------------------------
@@ -24,6 +25,7 @@ module timeshift
             shifts::Union{StepRangeLen,Vector{T}} where T <: Real; 
             multithread::Bool=true,
             postfunc::Union{Function,Nothing}=nothing,
+            as::Type=OrderedDict,
             kws...)
 
         safe_dict = ThreadSafeDict()
@@ -45,10 +47,45 @@ module timeshift
             end
         end
         safe_dict = Dict(safe_dict...)
+        out = as(key=>pop!(safe_dict, key) for key in sort([keys(safe_dict)...]))
+        return out
+    end
+
+    function get_field_shift_shuffles(beh::DataFrame, data::DataFrame,
+            shifts::Union{StepRangeLen,Vector{T}} where T <: Real; 
+            multithread::Bool=true,
+            nShuffle::Int=0, shuffle_pos::Tuple=(), shuffle_kws::NamedTuple=(;), shuffle_func=shuffle.by,
+            postfunc::Union{Function,Nothing}=nothing,
+            kws...)
+
+        safe_dict = ThreadSafeDict()
+        if multithread
+            Threads.@threads for (shuffle,shift) in product(1:nShuffle, shifts)
+                shuffle_kws[:shuffledist_df] = beh
+                spikes = shuffle_func(spikes; shuffle_kws...)
+                result = field.get_fields(σ(beh,shift), data; kws...)
+                if postfunc != nothing
+                    result = postfunc(result)
+                end
+                push!(safe_dict, shift=>result)
+            end
+        else
+            @showprogress for (shuffle,shift) in product(1:nShuffle, shifts)
+                shuffle_kws[:shuffledist_df] = beh
+                spikes = shuffle_func(spikes; shuffle_kws...)
+                result = field.get_fields(σ(beh,shift), data; kws...)
+                if postfunc != nothing
+                    result = postfunc(result)
+                end
+                push!(safe_dict, (shift=shift,shuffle=shuffle)=>result)
+            end
+        end
+        safe_dict = Dict(safe_dict...)
         out = OrderedDict(key=>pop!(safe_dict, key) 
                           for key in sort([keys(safe_dict)...]))
         return out
     end
+
 
     function to_dataframe(shifts::AbstractDict; kws...) 
         table.to_dataframe(shifts, key_name="shift", kws...)
