@@ -467,7 +467,6 @@ module raw
     """
     function register(source::DataFrame, target::DataFrame; 
             transfer, on::String="time")::Union{Tuple, DataFrame}
-        println("Entering shorcut")
         if transfer isa Vector{String}
             addressing = (;source=1, target=2)
             transfer = ((addressing, transfer),) # create set of addressed transfer instructions

@@ -1,6 +1,7 @@
 quickactivate("/home/ryoung/Projects/goal-code/")
 @time include(scriptsdir("fields", "Initialize.jl"))
-includet(srcdir("field","recon.jl"))
+recon = field.recon
+#recon_process =  field.recon_process
 using NaNStatistics
 using StatsBase
 using ColorSchemes
@@ -43,20 +44,18 @@ field_kws = (; kws..., resolution=[40, 40, 40, 40, 5], gaussian=0,
              props=["x", "y", "currentPathLength",
                     "currentHeadEgoAngle","stopWell"],
           filters=merge(kws.filters, filters))
-includet(srcdir("field","recon_process.jl"))
-E = perform_reconstructions_marginals_and_error(beh, spikes, field_kws; F=F,
+E = recon_process.perform_reconstructions_marginals_and_error(beh, spikes, field_kws; 
+                                                              F=F,
                                                recon_compare=recon_compare)
 
 # ----------------------------------------
 # PLACE-GOAL-headdir JOINT DISTRIBUTION P(x,y,H,G)
 # ----------------------------------------
-props = ["x", "y", "headdir","stopWell"]
 recon_compare = Dict("vs(ℙₕ|ℙₛ,ℙₛ|ℙₕ)" => ("x,y,G|x,y,H","x,y,H|x,y,G"))
-headdir_kws = (;field_kws..., props = props)
-headdir_kws = (;field_kws..., resolution = [40,40,6,5])
-includet(srcdir("field","recon_process.jl"))
-E = perform_reconstructions_marginals_and_error(beh, spikes, headdir_kws; 
-                                                F=F, recon_summary=E, recon_compare)
+headdir_kws = (;field_kws..., props = ["x", "y", "headdir","stopWell"])
+headdir_kws = (;headdir_kws..., resolution = [40,40,6,5])
+E = recon_process.perform_reconstructions_marginals_and_error(beh, spikes, headdir_kws; 
+                                                F=F, recon_summary=E, recon_compare);
 
 # Acquire tidy unstacked representation
 uE = create_unstacked_error_table(E, recon_compare)
@@ -70,7 +69,7 @@ if ploton
     function r(df)
         df = copy(df)
         reps = merge(Dict(n=>n for n in names(df) if !(occursin("vs",n))),
-                     Dict(n=>replace(recon_name(n,"-")," "=>"") for n in names(df) if occursin("vs",n)))
+                     Dict(n=>replace(get_recon_name(n,"-")," "=>"") for n in names(df) if occursin("vs",n)))
         println(reps)
         rename(df, reps...)
     end

@@ -18,11 +18,14 @@ includet(srcdir("raster.jl"))
 includet(srcdir("decode.jl"))
 includet(srcdir("utils.jl"))
 includet("/home/ryoung/Code/projects/goal-code/src/utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
+ENV["JULIA_DEBUG"] = Main
 
 # -----------------
 # HELPER FUNCTIONS 
 # -----------------
 na = [CartesianIndex()]
+checks = []
+check_phase(lfp) = push!(checks, @df lfp[1:2500,:] begin Plots.plot(:time,:raw ,label="raw"); Plots.plot!(:time, mod2pi.(:phase) .+100,label="phase"); end)
 
 # -----------
 # DATASETS
@@ -78,7 +81,9 @@ nmint = minimum(beh[beh.epoch.==epoch,:].time)
 # -------------------------------------------------
 # (1) Annotate and filter Θ cycles 
 lfp = raw.lfp.annotate_cycles(lfp, method="peak-to-peak")
+check_phase(lfp)
 lfp.phase = raw.lfp.phase_to_radians(lfp.phase)
+check_phase(lfp)
 beh, lfp = raw.register(beh, lfp; transfer=["velVec"], on="time")
 lfp.raw = Float32.(utils.norm_extrema(lfp.raw, extrema(spikes.unit)))
 
@@ -97,10 +102,12 @@ lfp = groupby(lfp,:chunks)
     group[(!).(goodcycles), :cycle] .= -1
 end
 lfp = combine(lfp, identity)
+check_phase(lfp)
 
 # (4) Annotate ripples into lfp
 lfp.cycle, lfp.phase, lfp.time = Int32.(lfp.cycle), Float32.(lfp.phase),
                                  Float32.(lfp.time)
+check_phase(lfp)
 ripples.type = ripples.area .* " ripple"
 ripples.rip_id = 1:size(ripples,1)
 lfp = raw.registerEvents(ripples, lfp, 
@@ -114,6 +121,7 @@ if remove_nonoverlap
                                                                   returninds=[5])
     dat, T = dat[:,:,T_inds], T[T_inds]
 end
+check_phase(lfp)
 
 utils.pushover("Ready to create cyycle specific probs")
 
@@ -141,6 +149,7 @@ theta, ripple, non = copy(dat), copy(dat), copy(dat)
     theta[:,:,t] = θ
     ripple[:,:,t] = ρ
 end
+check_phase(lfp)
 
 # Create cumulative theta sweeps
 sweep = (a,b)->isnan(b) ? a : b
@@ -164,6 +173,7 @@ lfp = groupby(lfp,:rip_id)
     ripple[:, :, cycle] = accumulate((a,b)->sweep.(a,b), ripple[:,:,cycle],  dims=3)
 end
 lfp = combine(lfp,identity)
+check_phase(lfp)
 
 
 t = Observable(Int(1000))
