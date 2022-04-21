@@ -311,7 +311,7 @@ module raw
         function phase_to_radians(phase)
             phase = convert.(Float32, phase)
             phase = 2*π*(phase .- minimum(phase))./diff([extrema(phase)...]) .- π
-            phase = convert.(Float16, phase)
+            #phase = convert.(Float16, phase)
         end
         function annotate_cycles(lfp; phase_col="phase", method="peak-to-peak")
             phase = lfp[!, phase_col]
@@ -329,7 +329,7 @@ module raw
                 #falling_zero_point = [(phase[1:end-1] .>=0) .& (phase[2:end] .<0) ; false]
                 rising_zero_point = [(phase[2:end] .>=0) .& (phase[1:end-1] .<0) ; false]
                 cycle_labels = accumulate(+, rising_zero_point)
-                lfp[!,"phase′"] = mod2pi.(lfp[!,"phase"] .+ pi)
+                lfp[!,"phase"] = mod.(lfp[!,"phase"], 2*pi)
             elseif method == "trough-to-trough"
                 step_size = median(diff(phase))
                 Δₚ = [0; diff(phase)]
@@ -709,13 +709,15 @@ module raw
 
     function keep_overlapping_times(data::Union{DataFrame, Dict, Vector}...; 
             tf="time", returninds::Vector=[])
+
+        data=[data...]
         
         # Get time extrema
         sz = []
         for d in data
             if d isa DataFrame && (tf ∈ names(d))
                 push!(sz, extrema(d[!,tf]))
-            elseif !(data[source] isa DataFrame) && (tf ∈ keys(d))
+            elseif !(d isa DataFrame) && (tf ∈ keys(d))
                 push!(sz, extrema(d[tf]))
             elseif d isa Vector
                 push!(sz, extrema(d)) 
@@ -726,23 +728,25 @@ module raw
         sz = cat([[s...] for s in sz]...; dims=2)'
         minmax = [maximum(sz[:,1]), minimum(sz[:,2])]
 
+
         # Contrain each object to live in the overall extrema
         ind_constrain(x) = (x .>= minmax[1]) .&& (x .< minmax[2])
         for (i, d) in zip(1:length(data), data)
             if d isa DataFrame && (tf ∈ names(d))
                 inds = ind_constrain(d[!,tf])
-            elseif !(data[source] isa DataFrame) && (tf ∈ keys(d))
+            elseif !(d isa DataFrame) && (tf ∈ keys(d))
                 inds = ind_constrain(d[tf]) 
             elseif d isa Vector
                 inds = ind_constrain(d) 
             end
+
             
             if i in returninds
                 data[i] = inds
             else
                 if d isa DataFrame && (tf ∈ names(d))
                     data[i] = d[inds, :]
-                elseif !(data[source] isa DataFrame) && (tf ∈ keys(d))
+                elseif !(d isa DataFrame) && (tf ∈ keys(d))
                     time_length = length(d[tf])
                     dims = Dict(key=>findfirst(size(value).==time_length)
                                 for (key,value) in d)

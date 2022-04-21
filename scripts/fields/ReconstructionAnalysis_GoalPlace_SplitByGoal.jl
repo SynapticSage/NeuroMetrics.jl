@@ -1,121 +1,21 @@
 quickactivate("/home/ryoung/Projects/goal-code/")
 @time include(scriptsdir("fields", "Initialize.jl"))
+includet(srcdir("field","recon.jl"))
 using NaNStatistics
 using StatsBase
 using ColorSchemes
 
-# ----------------------------------------
-# FUNCTION SPECIFIC SHORTCUTS AND SETTINGS
-# ----------------------------------------
-# Marginals and reconstructions, and data structures to map em out
-shortcut_names = OrderedDict(
-                             "currentHeadEgoAngle"=>"γ",
-                             "currentPathLength"=>"p",
-                             "stopWell"=>"G")
-si = operation.selectind
-𝕀(d) = Dict(zip(values(shortcut_names), keys(shortcut_names)))[d]
-recon_compare = Dict( 
-      "vs(γ|ℙ,ℙ|γ)"     => ("γ|x,y","x,y|γ"),
-      "vs(γₛ|ℙ,ℙ|γₛ)"   => ("γ,G|x,y","x,y|γ,G"),
-      "vs(𝔾|ℙ,ℙ|𝔾)"     => ("p,γ|x,y","x,y|p,γ"),
-      "vs(𝔾ₛ|ℙ,ℙ|𝔾ₛ)"   => ("p,γ,G|x,y","x,y|p,γ,G"),
-      "vs(𝔾ₛ|ℙₛ,ℙₛ|𝔾ₛ)" => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
-      "vs(ℙₛ|ℙ,ℙ|ℙₛ)"   => ("x,y,G|x,y","x,y|x,y,G"),
-     )
-inv(x) = Dict(zip(values(x), keys(x)))
-recon_name(x, op) = replace(x, "vs("=>"ε(", ","=>") $op ε(")
-recon_req = vec([x[i] for x in values(recon_compare), i in 1:2])
-recon_req = [Set(recon_req)...]
-props = ["x", "y", "currentPathLength", "currentHeadEgoAngle","stopWell"]
-
-# Shortcut functions
-"""
-Returns the integer dim indices for a prop-string e.g. "x-y"->[1,2]
-"""
-function 𝔻(dimstr)
-    out = [findfirst(dim.==dims) for dim in split(dimstr,",")]
-    if out isa Vector{Nothing}
-        @error "Nope! One your dims=$dimstr is wrong. Check for missing syntax (commas)"
-    end
-    return out
-end
-"""
-Returns the remaining dimensions not covered by a prop-string
-"""
-𝔻̅(dimstr) = setdiff(1:length(props), 𝔻(dimstr)) # dims inverse
-"""
-Returns remaning dimensions as a joined prop string, instead of ints
-"""
-𝔻̅ⱼ(dimstr) = join(dims[𝔻̅(dimstr)],",") # joined
-"""
-Returns string with shortcut names
-and the ₀ version returns the remaining names
-"""
-ℝ(dims) = replace(dims, [shortcut_names...][begin:1:end]...) # replace
-ℝ₀ⱼ(dims) = ℝ(join(props[𝔻₀(dims)],"-")) # joined
-
-dims  = ℝ(props)
-x = Set(vec([split(x,"|")[1] for x in recon_req])) # requires the LHS andd inverse of the RHS of each reconstruction
-y = Set(vec([𝔻̅ⱼ(split(x,"|")[2]) for x in recon_req])) # requires the LHS andd inverse of the RHS of each reconstruction
-marginals_required = x ∪ y
+# ---------------------------------------- FUNCTION SPECIFIC SHORTCUTS AND SETTINGS ----------------------------------------
+si,sk = operation.selectind, operation.selectkey
+filters = merge(kws.filters,
+                filt.correct,
+                filt.notnan("currentHeadEgoAngle"), 
+                filt.minmax("currentPathLength", 2, 150))
 
 # ----------------
 # Helper functions
 # ----------------
-function perform_reconstructions_marginals_and_error(beh, spikes, field_kws; 
-        F::Dict=Dict())
-    @time X = field.get_fields(beh, spikes; field_kws...);
-    #F["placegoal-joint"] = X
-    field_size = size(operation.selectind(X.Rₕ))
 
-    # ---------
-    # MARGINALS
-    # ---------
-    # Acquire marginals P(X,Y), P(γ, p, G)
-    @time @showprogress for marginal in marginals_required
-        d̅ =  𝔻̅(marginal)
-        println("marginal=>$marginal d̅ = $(d̅)")
-        @time F[marginal] = operation.marginalize(X, dims = d̅ );
-    end
-
-    # ---------------
-    # Reconstructions
-    # ---------------
-    # Obtain reconstructions!
-    R̂ = Dict()
-    @time for reconstruction in recon_req
-        dimr, given = split(reconstruction, "|")
-        #inverse_given = join(dims[𝔻₀(given)], ",")
-        #ig_set   = split(inverse_given,",")
-        marginalize_dims = 𝔻̅(dimr)
-        println(reconstruction)
-        @time R̂[reconstruction] = operation.apply(model.reconstruction, 
-                                                  X.occR, 
-                                                  F[given].Rₕ;
-                                                  marginalize_dims=marginalize_dims,
-                                                 );
-        @assert ndims(si(R̂[reconstruction])) == length(split(dimr,","))
-        @assert all(size(si(R̂[reconstruction])) .== field_size[𝔻(dimr)])
-    end
-
-    # ---------------
-    # SUMMARIES
-    # ---------------
-    # Get reconstruction model error summary
-    E = Vector{DataFrame}([])
-    for reconstruction in recon_req
-        what, given = split(reconstruction, "|")
-        error = model.reconstruction_error(F[what].Rₕsq, R̂[reconstruction])
-        error = table.to_dataframe(error; name="error")
-        push!(E, error)
-    end
-    E = vcat(E..., source=:model=>recon_req)
-    what,under = [vec(x) for x in eachrow(cat(split.(E.model,"|")...; dims=2))]
-    E.what, E.under = what, under
-    E = sort(E, [:model, :area, :unit])
-    utils.pushover("Finished reconstruction summaries")
-    return E
-end
 function create_unstacked_error_table(E, recon_compare)
     uE = unstack(E[!,Not([:what,:under])], :model,:error)[!,Not([:dim_1, :dim_2])]
     uE.∑ε = vec(nansum(replace(Matrix(uE[:, recon_req]),missing=>NaN); dims=2))
@@ -131,18 +31,32 @@ end
 # ----------------------------------------
 # PLACE-GOAL JOINT DISTRIBUTION P(x,y, γ,p,G)
 # ----------------------------------------
-filters = merge(kws.filters,
-                filt.correct,
-                filt.notnan("currentHeadEgoAngle"), 
-                filt.minmax("currentPathLength", 2, 150))
-field_kws = (; kws..., resolution=[40, 40, 40, 40, 5], gaussian=0, props=props,
+recon_compare = Dict( 
+      "vs(γ|ℙ,ℙ|γ)"     => ("γ|x,y","x,y|γ"),
+      "vs(γₛ|ℙ,ℙ|γₛ)"   => ("γ,G|x,y","x,y|γ,G"),
+      "vs(𝔾|ℙ,ℙ|𝔾)"     => ("p,γ|x,y","x,y|p,γ"),
+      "vs(𝔾ₛ|ℙ,ℙ|𝔾ₛ)"   => ("p,γ,G|x,y","x,y|p,γ,G"),
+      "vs(𝔾ₛ|ℙₛ,ℙₛ|𝔾ₛ)" => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
+      "vs(ℙₛ|ℙ,ℙ|ℙₛ)"   => ("x,y,G|x,y","x,y|x,y,G"),
+     )
+field_kws = (; kws..., resolution=[40, 40, 40, 40, 5], gaussian=0, 
+             props=["x", "y", "currentPathLength",
+                    "currentHeadEgoAngle","stopWell"],
           filters=merge(kws.filters, filters))
-E = perform_reconstructions_marginals_and_error(beh, spikes, field_kws; F=F)
+includet(srcdir("field","recon_process.jl"))
+E = perform_reconstructions_marginals_and_error(beh, spikes, field_kws; F=F,
+                                               recon_compare=recon_compare)
 
 # ----------------------------------------
 # PLACE-GOAL-headdir JOINT DISTRIBUTION P(x,y,H,G)
 # ----------------------------------------
-perform_reconstructions_marginals_and_error(beh, spikes, field_kws; F=F, E=E)
+props = ["x", "y", "headdir","stopWell"]
+recon_compare = Dict("vs(ℙₕ|ℙₛ,ℙₛ|ℙₕ)" => ("x,y,G|x,y,H","x,y,H|x,y,G"))
+headdir_kws = (;field_kws..., props = props)
+headdir_kws = (;field_kws..., resolution = [40,40,6,5])
+includet(srcdir("field","recon_process.jl"))
+E = perform_reconstructions_marginals_and_error(beh, spikes, headdir_kws; 
+                                                F=F, recon_summary=E, recon_compare)
 
 # Acquire tidy unstacked representation
 uE = create_unstacked_error_table(E, recon_compare)

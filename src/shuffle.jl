@@ -102,7 +102,7 @@ module shuffle
         @debug "median_traj_size=$median_traj_size"
         return median_traj_size
     end
-    o
+    
     function _session(data::DataFrame)
         session_length = utils.dextrema(data.time)
         @debug "session_length=$session_length"
