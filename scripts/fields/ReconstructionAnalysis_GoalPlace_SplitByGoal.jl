@@ -5,6 +5,7 @@ recon = field.recon
 using NaNStatistics
 using StatsBase
 using ColorSchemes
+using Printf
 
 # ---------------------------------------- FUNCTION SPECIFIC SHORTCUTS AND SETTINGS ----------------------------------------
 si,sk = operation.selectind, operation.selectkey
@@ -19,7 +20,7 @@ filters = merge(kws.filters,
 
 function create_unstacked_error_table(E, recon_compare)
     uE = unstack(E[!,Not([:what,:under])], :model,:error)[!,Not([:dim_1, :dim_2])]
-    uE.∑ε = vec(nansum(replace(Matrix(uE[:, recon_req]),missing=>NaN); dims=2))
+    uE.∑ε = vec(nansum(replace(Matrix(uE[:, get_recon_req(recon_compare)]),missing=>NaN); dims=2))
     uE = sort(uE, [:area,:∑ε])
     for (rc, compare) in recon_compare
         #uE[!,rc*"div"] = uE[!, compare[1]] ./ uE[!, compare[2]]
@@ -27,6 +28,7 @@ function create_unstacked_error_table(E, recon_compare)
         uE[!,rc] = (uE[!, compare[1]] .- uE[!, compare[2]])./(uE[!,compare[1]] .+ uE[!,compare[2]])
         uE[!,rc] = (uE[!, compare[1]] .- uE[!, compare[2]])
     end
+    uE
 end
 
 # ----------------------------------------
@@ -59,6 +61,7 @@ E = recon_process.perform_reconstructions_marginals_and_error(beh, spikes, headd
 
 # Acquire tidy unstacked representation
 uE = create_unstacked_error_table(E, recon_compare)
+
                     
 #,---.|         |    
 #|---'|    ,---.|--- 

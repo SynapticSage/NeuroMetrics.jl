@@ -3,6 +3,7 @@ module operation
 using Statistics
 using NaNStatistics
 using Bootstrap
+using DataStructures
 include("../utils.jl")
 export utils
 
@@ -108,8 +109,9 @@ function marginalize(F::NamedTuple; dims::Vector{Int}=[],
     end
     return NamedTuple(F)
 end
-function marginalize(fields::Dict; kws...)
-    return Dict(key=>marginalize(field; kws...) for (key,field) in fields)
+function marginalize(fields::AbstractDict; kws...)
+    T = typeof(fields)
+    return T(key=>marginalize(field; kws...) for (key,field) in fields)
 end
 function marginalize(field::AbstractArray; dims::Vector{Int}=[],
         isdensity::Bool=false, 
@@ -246,7 +248,7 @@ function occnorm(data::AbstractArray,
 end
 
 function cast32(F::NamedTuple; kws...)
-    F = Dict(pairs(F))
+    F = OrderedDict(pairs(F))
     for d in keys(F)
         if F[d] == nothing
             continue
@@ -262,15 +264,17 @@ function cast32(F::NamedTuple; kws...)
     end
     return NamedTuple(F)
 end
-function selectrand(D::Dict, N::Int)
+function selectrand(D::AbstractDict, N::Int)
     K = Tuple(keys(D))
+    T = typeof(D)
     r = rand(1:length(K), N)
     K = K[r]
-    D  = Dict(k=>D[k] for k in K)
+    D  = T(k=>D[k] for k in K)
 end
 const sr = selectrand
 
-function selectkey(D::Dict, P::Pair...)
+function selectkey(D::AbstractDict, P::Pair...)
+    T = typeof(D)
     K = keys(D)
     for (tupfield, command) in P
         if tupfield isa String
@@ -288,7 +292,7 @@ function selectkey(D::Dict, P::Pair...)
             K = filter(k->k[tupfield] == obj, K)
         end
     end
-    Dict(k=>D[k] for k in K)
+    T(k=>D[k] for k in K)
 end
 const sk = selectkey
 
@@ -298,7 +302,7 @@ function selectind(D::Dict, ind::Int=1)
 end
 const si = selectind
 
-function dimofval_to_key(F::Dict, dim::Int; 
+function split_dimofval(F::Dict, dim::Int; 
         name::Union{String, Symbol}=:auto,
         indices::Union{Vector,Tuple,Nothing}=nothing)
     F′ = Dict()
@@ -323,5 +327,54 @@ function dimofval_to_key(F::Dict, dim::Int;
     end
     F′
 end
+
+"""
+group
+
+all field objects who share a keey are grouped by their parent fields
+
+the keys for the parent fields are passedd in `names`
+"""
+function group(fields::Union{Tuple,Vector},
+        names::Union{Vector{String},Vector{Symbol}};
+        grouptype::Type=Dict, requireAll=false)
+
+    keyset = keys(fields[1])
+    for i in range(2,length(fields))
+        keyset = union(keyset, keys(fields[i]))
+    end
+    keyset = Tuple(keyset)
+    Grouping = Dict{typeof(keyset[1]), Any}()
+    for key in keyset
+        if requireAll
+            notin = [!(key in keys(field)) for (name,field) in
+                     zip(names,fields)]
+            if any(notin)
+                continue
+            end
+        end
+        if grouptype <: AbstractArray
+            Grouping[key] = Dict(name=>field[key]
+                                  for (name,field) in zip(names, fields)
+                                  if key in keys(field))
+        elseif grouptype == NamedTuple
+            names = Symbol.(names)
+            Grouping[key] = (;((name,field[key]) for (name,field) in
+                               zip(names, fields) if key in keys(field))...)
+        else
+            Grouping[key] = (grouptype)(field[key]
+                                  for (name,field) in zip(names, fields)
+                                  if key in keys(field))
+        end
+    end
+    return Grouping
+end
+
+function catfields
+end
+
+function reorderfields
+end
+
 
 end

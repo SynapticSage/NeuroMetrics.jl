@@ -11,6 +11,7 @@ module recon_process
     sk = field.operation.selectkey
 
     export get_recon_name
+    export get_recon_req
     export perform_reconstructions_marginals_and_error
     
 

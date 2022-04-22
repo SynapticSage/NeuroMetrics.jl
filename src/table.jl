@@ -414,6 +414,22 @@ function naninf_to_missing!(df::DataFrame, cols::Union{Vector{String}, Vector{Sy
     end
 end
 
+function clean_duplicate_cols(df::DataFrame)
+    for detect in "_" .* string(1:4)
+        splits = split.(names(df), detect)
+        check_these = splits[length.(splits) .> 1]
+        for check in check_these
+            col1, col2 = join(check,detect), check[1]
+            dat1, dat2 = eachcol(dropmissin[!,[col1,col2]]))
+            if all(dat1 .== dat2)
+                @info "Removing col=$col1"
+                df = df[!, Not(col1)]
+            end
+        end
+    end
+    return df
+end
+
 
 function display_table(data; others...)
     w=Window()
@@ -480,7 +496,6 @@ function to_dataframe(F::Union{AbstractArray,Real};
     D = DataFrame(D)
 end
 
-
 module group
     coords(groups) = collect(zip(sort(collect(groups.keymap),by=x->x[2])...))[1]
     pairs(groups) = (collect(zip(sort(collect(groups.keymap))))[i][1] 
@@ -491,3 +506,4 @@ end
 export group
 
 end # module
+g(df

@@ -1,8 +1,7 @@
 module raw
-
+    
+    #Imports
     using DrWatson
-    using Debugger
-    using Plots
     using DataFrames
     using NetCDF
     using CSV
@@ -10,15 +9,16 @@ module raw
     using Dates
     using Printf
     using ProgressMeter
-    using Infiltrator
-    include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
+    using Glob
     include("utils.jl")
+    import .utils
+    include("table.jl")
+    import .table
+    const findnearest = utils.searchsortednearest
+
+    # Module-wide settings
     animal_dayfactor = Dict("RY16"=>33, "RY22"=>0)
     csvkws=(; silencewarnings=true, buffer_in_memory=true, ntasks=1)
-    export animal_dayfactor
-    function findNearest(pos...;kws...) 
-        SearchSortedNearest.searchsortednearest(pos...;kws...)
-    end
 
     """
         load(animal, day)
@@ -133,33 +133,43 @@ module raw
         raster = combine(groups, x->x)
     end
 
-    function cellpath(animal::String, day::Int; satellite::Bool=false)
-        tag = begin
-            if satellite
-                "_satellite"
-            else
-                ""
-            end
+    function cellpath(animal::String, day::Int, tag::String=""; kws...)
+        if tag != "" && tag != "*"
+            tag = "_$tag"
         end
         csvFile = DrWatson.datadir("exp_raw", "visualize_raw_neural",
                                    "$(animal)_$(day)_cell$tag.csv")
     end
     function load_cells(pos...; kws...)
-        cells = CSV.read(cellpath(pos...; kws...), DataFrame;
-                 strict=false, missingstring=["NaN", "", "NaNNaNi"],
-                 csvkws...)
+        path = cellpath(pos...; kws...)
+        if occursin("*", path)
+            base, dir = basename(path), dirname(path)
+            @debug "base=$base, dir=$dir"
+            paths = glob(base, dir)
+        else
+            paths = [path]
+        end
+
+        cells = DataFrame()
+        @showprogress 0.1 "loading cell files" for path in paths
+            cell = CSV.read(path, DataFrame;
+                     strict=false, missingstring=["NaN", "", "NaNNaNi"],
+                     csvkws...)
+            cells = isempty(cells) ? cell : outerjoin(cells, cell, on=:unit, makeunique=true)
+            table.clean_duplicate_cols(cells)
+        end
         return cells
     end
     function save_cells(cells::DataFrame, pos...; merge_if_exist::Bool=true, kws...)
-        kws = (;satellite=true, kws...) # satellite default is true
+        #kws = (;kws...) # satellite default is true
         csvFile = cellpath(pos...; kws...)
         if merge_if_exist && isfile(csvFile)
             prevcells = load_cells(pos...; kws...)
             cells = outerjoin(cells, prevcells, makeunique=true)
             # TODO function to accept left or right dups
         end
+        println("Saving cell data at $csvFile")
         cells |> CSV.write(csvFile)
-        @debug "Success"
     end
 
     function load_ripples(animal, day)
@@ -309,15 +319,13 @@ module raw
         using ImageFiltering
         include("table.jl")
         function phase_to_radians(phase)
-            phase = convert.(Float32, phase)
+            phase = Float32.(phase)
             phase = 2*π*(phase .- minimum(phase))./diff([extrema(phase)...]) .- π
             #phase = convert.(Float16, phase)
         end
         function annotate_cycles(lfp; phase_col="phase", method="peak-to-peak")
             phase = lfp[!, phase_col]
-            if phase isa Vector{Int16}
-                phase = phase_to_radians(lfp[:,"phase"])
-            end
+            lfp.phase = phase_to_radians(lfp[:,"phase"])
             println("Method=$method")
             if method == "resets"
                 Δₚ = [0; diff(phase)]
@@ -329,7 +337,7 @@ module raw
                 #falling_zero_point = [(phase[1:end-1] .>=0) .& (phase[2:end] .<0) ; false]
                 rising_zero_point = [(phase[2:end] .>=0) .& (phase[1:end-1] .<0) ; false]
                 cycle_labels = accumulate(+, rising_zero_point)
-                lfp[!,"phase"] = mod.(lfp[!,"phase"], 2*pi)
+                lfp[!,"phase"] = mod2pi.(lfp[!,"phase"])
             elseif method == "trough-to-trough"
                 step_size = median(diff(phase))
                 Δₚ = [0; diff(phase)]
@@ -447,7 +455,7 @@ module raw
             match_on_target = convert.(Float64, match_on_target)
             match_on_source = convert.(Float64, match_on_source)
             match_on_source = (match_on_source,)
-            indices_of_source_samples_in_target = findNearest.(match_on_source, match_on_target)
+            indices_of_source_samples_in_target = findnearest.(match_on_source, match_on_target)
             for (i, item) ∈ Iterators.enumerate(columns_to_transfer)
                 data[target][!, item] =
                 data[source][indices_of_source_samples_in_target, item]
@@ -467,6 +475,9 @@ module raw
     """
     function register(source::DataFrame, target::DataFrame; 
             transfer, on::String="time")::Union{Tuple, DataFrame}
+        if transfer isa String
+            transfer = [transfer]
+        end
         if transfer isa Vector{String}
             addressing = (;source=1, target=2)
             transfer = ((addressing, transfer),) # create set of addressed transfer instructions
@@ -609,7 +620,7 @@ module raw
                 guessdayfactor=true,
                 source="deeplabcut")
             if guessdayfactor
-                dayfactor = animal_dayfactor[animal]
+                dayfactor = raw.animal_dayfactor[animal]
             end
             day += dayfactor
             if source == "deeplabcut"

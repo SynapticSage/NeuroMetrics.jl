@@ -1,7 +1,7 @@
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
 using Pushover, Revise, Interact, Blink, Mux, ProgressMeter
-using Statistics
+using Statistics, NaNStatistics
 using VideoIO
 using ColorSchemes
 using GLMakie
@@ -9,6 +9,7 @@ using ColorSchemes, Colors
 using DataFrames, DataFramesMeta
 import ColorSchemeTools, LoopVectorization
 using Printf
+using StatsPlots: @df
 set_theme!(theme_dark())
 __revise_mode__ = :eval
 #includet(srcdir("table.jl"))
@@ -17,25 +18,23 @@ includet(srcdir("table.jl"))
 includet(srcdir("raster.jl"))
 includet(srcdir("decode.jl"))
 includet(srcdir("utils.jl"))
-includet("/home/ryoung/Code/projects/goal-code/src/utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
-ENV["JULIA_DEBUG"] = Main
+ENV["JULIA_DEBUG"] = nothing
 
 # -----------------
 # HELPER FUNCTIONS 
 # -----------------
 na = [CartesianIndex()]
-checks = []
-check_phase(lfp) = push!(checks, @df lfp[1:2500,:] begin Plots.plot(:time,:raw ,label="raw"); Plots.plot!(:time, mod2pi.(:phase) .+100,label="phase"); end)
 
 # -----------
 # DATASETS
 # -----------
 animal, day, epoch, ca1_tetrode = "RY16", 36, 7, 5
-thresh = Dict("likelihood"=>0.1, "acausal_posterior"=>0.90, "causal_posterior"=> 0.90)
+thresh = Dict("likelihood"=>0.1, "acausal_posterior"=>0.95, "causal_posterior"=> 0.95)
 transition_type, decoder_type = "empirical", "sortedspike"
 variable                      = "causal_posterior"
 usevideo                      = false
 remove_nonoverlap             = true # set to true if you expect multiple splits in this code
+dosweep                       = false
 @time beh    = raw.load_behavior(animal, day)
 @time spikes = raw.load_spikes(animal,   day)
 @time cells  = raw.load_cells(animal,    day)
@@ -81,10 +80,10 @@ nmint = minimum(beh[beh.epoch.==epoch,:].time)
 # -------------------------------------------------
 # (1) Annotate and filter Θ cycles 
 lfp = raw.lfp.annotate_cycles(lfp, method="peak-to-peak")
-check_phase(lfp)
 lfp.phase = raw.lfp.phase_to_radians(lfp.phase)
-check_phase(lfp)
 beh, lfp = raw.register(beh, lfp; transfer=["velVec"], on="time")
+beh, ripples = raw.register(beh, ripples; transfer=["velVec"], on="time")
+ripples = ripples[abs.(ripples.velVec) .< 2, :]
 lfp.raw = Float32.(utils.norm_extrema(lfp.raw, extrema(spikes.unit)))
 
 # (2) Throw away bad Θ cycles
@@ -92,6 +91,7 @@ cycles = raw.lfp.get_cycle_table(lfp, :velVec=>mean)
 cycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles)
 cycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), cycles)
 cycles = filter(:velVec_mean => (𝒱  -> abs.(𝒱)  .> 2) , cycles)
+# TODO Remove any cycles in side a ripple
 
 # (3) Remove cycle labels in lfp of bad Θ cycles
 #lfpcyc, cyc = lfp.cycle, cycles.cycle
@@ -102,12 +102,10 @@ lfp = groupby(lfp,:chunks)
     group[(!).(goodcycles), :cycle] .= -1
 end
 lfp = combine(lfp, identity)
-check_phase(lfp)
 
 # (4) Annotate ripples into lfp
 lfp.cycle, lfp.phase, lfp.time = Int32.(lfp.cycle), Float32.(lfp.phase),
                                  Float32.(lfp.time)
-check_phase(lfp)
 ripples.type = ripples.area .* " ripple"
 ripples.rip_id = 1:size(ripples,1)
 lfp = raw.registerEvents(ripples, lfp, 
@@ -121,12 +119,12 @@ if remove_nonoverlap
                                                                   returninds=[5])
     dat, T = dat[:,:,T_inds], T[T_inds]
 end
-check_phase(lfp)
+[extrema(x.time) for x in (lfp, spikes, ripples, beh)]
 
 utils.pushover("Ready to create cyycle specific probs")
 
 # Add ripple phase
-lfp = combine(lfp, identity)
+lfp = sort(combine(lfp, identity), :time)
 lfp.rip_phase = Float32.(combine(groupby(lfp, :rip_id, sort=false), x->1/nrow(x)*ones(nrow(x))).x1)
 # Theta : Create probability chunks by phase
 dat = Float32.(dat)
@@ -135,13 +133,15 @@ theta, ripple, non = copy(dat), copy(dat), copy(dat)
     I = utils.searchsortednearest(lfp.time, time)
     θ = theta[:, :, t] 
     ρ = ripple[:, :, t] 
-    if lfp.cycle[I] == -1
+    not_a_theta_cycle = lfp.cycle[I] == -1
+    is_a_ripple = !(ismissing(lfp.rip_id))
+    if not_a_theta_cycle # NOT THETA
         θ .= NaN
-        if !(ismissing(lfp.rip_id))
+        if is_a_ripple # IS RIPPLE?
             ρ[(!).(isnan.(θ))] .= lfp.rip_phase[I]
             non[:,:,t] .= NaN
         end
-    else
+    else # THETA CYCLE
         θ[(!).(isnan.(θ))] .= lfp.phase[I]
         ρ .= NaN
         non[:,:,t] .= NaN
@@ -149,34 +149,38 @@ theta, ripple, non = copy(dat), copy(dat), copy(dat)
     theta[:,:,t] = θ
     ripple[:,:,t] = ρ
 end
-check_phase(lfp)
 
-# Create cumulative theta sweeps
-sweep = (a,b)->isnan(b) ? a : b
-lfp = groupby(lfp,:cycle)
-@time @Threads.threads for group in lfp
-    cycStart, cycStop = utils.searchsortednext(T, group.time[1]), utils.searchsortednext(T, group.time[end])
-    local cycle = cycStart:cycStop
-    if cycle == 1:1 || group.cycle[1] == -1 || ismissing(group.cycle[1])
-        continue
+if dosweep
+
+    # Create cumulative theta sweeps
+    sweep = (a,b)->isnan(b) ? a : nanmean(a, b)
+    lfp = groupby(lfp,:cycle)
+    @time @Threads.threads for group in lfp
+        cycStart, cycStop = utils.searchsortednext(T, group.time[1]),
+                            utils.searchsortednext(T, group.time[end])
+        local cycle = cycStart:cycStop
+        if cycle == 1:1 || group.cycle[1] == -1 || ismissing(group.cycle[1])
+            continue
+        end
+        theta[:, :, cycle] = accumulate((a,b)->sweep.(a,b), theta[:,:,cycle],  dims=3)
     end
-    theta[:, :, cycle] = accumulate((a,b)->sweep.(a,b), theta[:,:,cycle],  dims=3)
-end
-lfp = combine(lfp, identity)
-lfp = groupby(lfp,:rip_id)
-@time @Threads.threads for group in lfp
-    cycStart, cycStop = utils.searchsortednext(T, group.time[1]), utils.searchsortednext(T, group.time[end])
-    local cycle = cycStart:cycStop
-    if cycle == 1:1 || group.cycle[1] == -1 || ismissing(group.cycle[1])
-        continue
+    lfp = combine(lfp, identity)
+    lfp = sort!(lfp,:time)
+
+    # Cumulative ripple sweeps
+    lfp = groupby(lfp,:rip_id)
+    @time @Threads.threads for group in lfp
+        cycStart, cycStop = utils.searchsortednext(T, group.time[1]), utils.searchsortednext(T, group.time[end])
+        local cycle = cycStart:cycStop
+        if cycle == 1:1 || group.cycle[1] == -1 || ismissing(group.cycle[1])
+            continue
+        end
+        ripple[:, :, cycle] = accumulate((a,b)->sweep.(a,b), ripple[:,:,cycle],  dims=3)
     end
-    ripple[:, :, cycle] = accumulate((a,b)->sweep.(a,b), ripple[:,:,cycle],  dims=3)
+    lfp = combine(lfp,identity)
 end
-lfp = combine(lfp,identity)
-check_phase(lfp)
 
 
-t = Observable(Int(1000))
 
 Δ_bounds = [0.20, 0.20] # seconds
 tr = Dict("beh"=>utils.searchsortednearest(beh.time, T[1]),
@@ -228,16 +232,29 @@ function select_prob(t, prob=dat)
     D = prob[:,:, time]
 end
 
+
+# Figure
+Fig = Figure()
+if visualize == :video
+    t = Observable(Int(1000))
+elseif visualize == :slider
+    sl_t = Slider(Fig[1:2, 2], range = 1:length(T), horizontal = false, 
+                  startvalue = 1000)
+    t = lift(sl_t.value) do tt
+        tt
+    end
+end
+
+# Data
 @time behavior     = @lift select_range($t, beh, [0.60, 0.01])
 #@time behavior     = @lift select_est_range($t, tr["beh"], Δt["beh"], beh, [0.60, 0.01])
 @time spike_events = @lift select_range($t, spikes)
 #@time lfp_events   = @lift select_range($t, lfp)
 @time lfp_events   = @lift select_est_range($t, tr["lfp"], Δt["lfp"], lfp)
 
-# Figure
-Fig = Figure()
 # Grids
 gNeural = Fig[2,1] = GridLayout(1,1)
+controls = Fig[1:2, 3]
 # Axes
 @time title_str = @lift "corr=$($behavior.correct[1]), goal=$($behavior.stopWell[1]), vel=$(@sprintf("%2.1f",abs($behavior.velVec[1])))"
 axArena  = Axis(Fig[1,1], xlabel="x", ylabel="y", title=title_str)
@@ -259,11 +276,11 @@ vlines!(axNeural, [0], color=:red, linestyle=:dash)
 #hm_prob = @lift select_prob($t)
 #hm = heatmap!(axArena, x,y, hm_prob, colormap=(:bamako,0.8))
 theta_prob = @lift select_prob($t, theta)
-hm_theta = heatmap!(axArena, x,y, theta_prob, colormap=(:buda,0.8))
+hm_theta = heatmap!(axArena, x,y, theta_prob, colormap=(:buda,0.8), colorrange=(-pi, pi), interpolate=false)
 ripple_prob = @lift select_prob($t, ripple)
-hm_ripple = heatmap!(axArena, x,y, ripple_prob, colormap=(:hawaii,0.8))
-non_prob = @lift select_prob($t, non)
-hm_non = heatmap!(axArena, x,y, non_prob, colormap=(:bamako,0.8))
+hm_ripple = heatmap!(axArena, x,y, ripple_prob, colormap=(:diverging_tritanopic_cwr_75_98_c20_n256, 0.8), interpolate=false)
+#non_prob = @lift select_prob($t, non)
+#hm_non = heatmap!(axArena, x,y, non_prob, colormap=(:bamako,0.8))
 point_xy = @lift(Point2f($behavior.x[1], $behavior.y[1]))
 point_xy = @lift(Point2f($behavior.x[1], $behavior.y[1]))
 line_xy = @lift([Point2f(b.x, b.y) for b in eachrow($behavior)])
@@ -273,11 +290,15 @@ ln_xy = lines!(axArena, line_xy, color=:white, linestyle=:dash)
 
 
 # -------------
-# CREATE VIDEO
+# VISUALIZE
 # -------------
-framerate = 60
-timestamps = range(1000, length(T), step=1)
-#recording = plotsdir("mpp_decode", "withBehVideo=$usevideo", outputVideo)
-record(Fig, "test.mp4", timestamps; framerate=framerate) do stamp
-    t[] = stamp
+if visualize == :video
+    framerate = 60
+    timestamps = range(t, length(T), step=1)
+    #recording = plotsdir("mpp_decode", "withBehVideo=$usevideo", outputVideo)
+    record(Fig, "test.mp4", timestamps; framerate=framerate) do stamp
+        t[] = stamp
+    end
+elseif visualize == :slider
 end
+
