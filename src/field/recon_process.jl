@@ -20,17 +20,43 @@ module recon_process
     # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
     # RUNNING THE PROCESS OF RECONSTRUCTION
     # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
+    """
+    shortcut_names
+
+    shortcut single char names for common behavioral variables
+    """
     shortcut_names = OrderedDict("headdir"             => "H",
                                  "currentHeadEgoAngle" => "γ",
                                  "currentPathLength"   => "p",
                                  "stopWell"            => "G")
+
+    """
+    𝕀
+
+    invert a dictionary mapping
+    """
     𝕀(d) = Dict(zip(values(shortcut_names), keys(shortcut_names)))[d]
+
+    """
+    get_recon_name
+
+    get the name we prefer to use for reconstruction errors
+    """
     get_recon_name(x, op) = replace(x, "vs("=>"ε(", ","=>") $op ε(")
-    function get_recon_req(recon_compare)
-        rr = vec([x[i] for x in values(recon_compare), i in 1:2])
+
+    """
+    get_recon_req
+
+    return all of the required reconstructions for a set of comparisons
+    """
+    function get_recon_req(comparisons::AbstractDict)::Vector{String}
+        rr = vec([x[i] for x in values(comparisons), i in 1:2])
         rr= [Set(rr)...]
     end
+
     """
+    𝔻 : string2num
+
     Returns the integer dim indices for a prop-string e.g. "x-y"->[1,2]
     """
     function 𝔻(dimstr,dims)
@@ -40,20 +66,29 @@ module recon_process
         end
         return out
     end
+    const string2num = 𝔻
+
     """
+    𝔻̅ : string2numinv
+
     Returns the remaining dimensions not covered by a prop-string
     """
     𝔻̅(dimstr,dims) = setdiff(1:length(dims), 𝔻(dimstr,dims)) # dims inverse
+    const string2numinv
+
     """
+    𝔻̅ⱼ : string2stringinv
     Returns remaning dimensions as a joined prop string, instead of ints
     """
     𝔻̅ⱼ(dimstr,dims) = join(dims[𝔻̅(dimstr, dims)],",") # joined
+    const string2stringinv = 𝔻̅ⱼ
+
     """
     Returns string with shortcut names
     and the ₀ version returns the remaining names
     """
-    ℝ(dims)   = replace(dims, [shortcut_names...][begin:1:end]...) # Replace
-    ℝ₀ⱼ(dims,props) = ℝ(join(props[𝔻₀(dims)],"-"))                       # Joined
+    ℝ(dims)   = replace(dims, [shortcut_names...][begin:end]...) # Replace
+    ℝ₀ⱼ(dims,props) = ℝ(join(props[𝔻₀(dims)],"-"))                 # Joined
 
     function perform_reconstructions_marginals_and_error(beh, spikes,
             K::NamedTuple; recon_compare::Union{Dict, Nothing}=nothing,

@@ -12,16 +12,22 @@ includet(srcdir("field/timeshift.jl"))
 includet(srcdir("field/info.jl"))
 includet(srcdir("utils.jl"))
 includet(srcdir("table.jl"))
-spikes, beh = raw.load("RY16", 36, data_source=["spikes","behavior"])
+includet(srcdir("field/recon_process.jl"))
+import recon_process: shortcut_names
+spikes, beh = raw.load("RY16", 36, 
+                       data_source=["spikes","behavior"])
 
-
+# ----------
+# ----------
+# Parameters
+# ----------
 PROPS = ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
-IDEALSIZE = Dict(key=> (key=="stopWell" ? 5 : 40) for key in PROPS)
-shortcut_names = OrderedDict("currentHeadEgoAngle"=>"γ",
-                             "currentPathLength"=>"p",
-                             "stopWell"=>"G")
+IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
+
+
 𝕄(items)  = [replace(item, shortcut_names...) for item in items]
-𝕄̅(items)  = [replace(item, Dict(kv[2]=>kv[1] for kv in shortcut_names)...) for item in items]
+𝕄̅(items)  = [replace(item, Dict(kv[2]=>kv[1] for kv in shortcut_names)...)
+             for item in items]
 sz(items) = [IDEALSIZE(item) for item in items]
 splitby=["unit", "area"]
 #filt.correct,

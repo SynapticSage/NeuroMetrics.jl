@@ -50,7 +50,7 @@ E = recon_process.perform_reconstructions_marginals_and_error(beh, spikes, headd
                                                 F=F, recon_summary=E, recon_compare);
 
 # Acquire tidy unstacked representation
-uE = recon_process.create_unstacked_error_table(E, recon_compare)
+uE = recon_process.create_unstacked_error_table(E, overall_compare)
 
                     
 #,---.|         |    

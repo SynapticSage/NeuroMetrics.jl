@@ -1,3 +1,6 @@
+# -------
+# IMPORTS
+# -------
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
 using Pushover, Revise, Interact, Blink, Mux, ProgressMeter
@@ -31,12 +34,14 @@ na = [CartesianIndex()]
 # DATASETS
 # -----------
 animal, day, epoch, ca1_tetrode = "RY16", 36, 7, 5
-thresh = Dict("likelihood"=>0.1, "acausal_posterior"=>0.95, "causal_posterior"=> 0.95)
+thresh = Dict("likelihood"=>0.1, "acausal_posterior"=>0.97, "causal_posterior"=> 0.97)
+typical_number_of_squares_active = quantile(1:(45*28), 1) - quantile(1:(45*28), 0.97)
 transition_type, decoder_type = "empirical", "sortedspike"
 variable                      = "causal_posterior"
 usevideo                      = false
 remove_nonoverlap             = true # set to true if you expect multiple splits in this code
 dosweep                       = false
+doPrevPast                    = false
 @time beh    = raw.load_behavior(animal, day)
 @time spikes = raw.load_spikes(animal,   day)
 @time cells  = raw.load_cells(animal,    day)
@@ -46,6 +51,7 @@ dosweep                       = false
 wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
 homeWell, arenaWells = begin
     hw = argmax(StatsBase.fit(StatsBase.Histogram, filter(b->b!=-1,beh.stopWell), 1:6).weights)
+    @info "Homewell = $hw"
     wells[hw,:], wells[setdiff(1:5,hw),:]
 end
 boundary = task[(task.name.=="boundary") .& (task.epoch .== epoch), :]
@@ -60,7 +66,7 @@ if !(isdir(dir))
     mkdir(dir)
 end
 outputVideo = "animation.$(decoder_type)_$(transition_type)_$(split_type)_$(split)_$(variable)_$(basename(video))"
-(split, split_type) = collect(Iterators.product([0,1,2], 
+(split, split_type) = collect(Iteratdrs.product([0,1,2], 
                                                 ["test","train"]))[1]
 
 # -----------
@@ -84,7 +90,8 @@ D = nothing
 nmint = minimum(beh[beh.epoch.==epoch,:].time)
 
 # -------------------------------------------------
-# Create a merged table of ripples and theta cycles
+# PREPROCESS LFP 
+# TODO Turn this into a function
 # -------------------------------------------------
 # (1) Annotate and filter Θ cycles 
 lfp = raw.lfp.annotate_cycles(lfp, method="peak-to-peak")
@@ -116,11 +123,14 @@ lfp.cycle, lfp.phase, lfp.time = Int32.(lfp.cycle), Float32.(lfp.phase),
                                  Float32.(lfp.time)
 ripples.type = ripples.area .* " ripple"
 ripples.rip_id = 1:size(ripples,1)
-lfp = raw.registerEvents(ripples, lfp, 
+lfp = raw.registerEventsToContinuous(ripples, lfp, 
                          on="time", 
                          eventStart="start", 
                          eventStop="stop", 
-                         transfer=["rip_id","type"])
+                         ifNonMissingAppend=true,
+                         targetCast=Dict("area"=>x->Vector{Union(Missing,String)}.(x)),
+                         transfer=["rip_id","type","area"])
+lfp.phase_plot = utils.norm_extrema(lfp.phase, extrema(spikes.unit))
 
 if remove_nonoverlap
     spikes, beh, lfp, ripples, T_inds = raw.keep_overlapping_times(spikes, beh, lfp, ripples, T;
@@ -130,33 +140,45 @@ end
 [extrema(x.time) for x in (lfp, spikes, ripples, beh)]
 
 
-# Add ripple phase
+# ------------------------------
+# Separate DECODES by LFP event!
+# TODO Turn this into a function
+# ------------------------------
 lfp = sort(combine(lfp, identity), :time)
 lfp.rip_phase = Float32.(combine(groupby(lfp, :rip_id, sort=false), x->1/nrow(x)*ones(nrow(x))).x1)
 # Theta : Create probability chunks by phase
 dat = Float32.(dat)
-theta, ripple, non = copy(dat), copy(dat), copy(dat)
+theta, ripple, pfcripple, non = copy(dat), copy(dat), copy(dat)
 @time Threads.@threads for (t,time) in collect(enumerate(T))
     I = utils.searchsortednearest(lfp.time, time)
-    θ = theta[:, :, t] 
-    ρ = ripple[:, :, t] 
+    θ, ρ  = theta[:, :, t], ripple[:, :, t] 
     not_a_theta_cycle = lfp.cycle[I] == -1
     is_a_ripple = !(ismissing(lfp.rip_id))
     if not_a_theta_cycle # NOT THETA
         θ .= NaN
         if is_a_ripple # IS RIPPLE?
-            ρ[(!).(isnan.(θ))] .= lfp.rip_phase[I]
+            if lfp.rip_area == "CA1"
+                ρ[(!).(isnan.(θ))] .= lfp.rip_phase[I]
+            elseif lfp.rip_area == "PFC"
+                ρₚ[(!).(isnan.(θ))] .= lfp.rip_phase[I]
+            elseif lfp.rip_area == "CA1PFC"
+                ρₓ[(!).(isnan.(θ))] .= lfp.rip_phase[I]
+            end
             non[:,:,t] .= NaN
         end
     else # THETA CYCLE
         θ[(!).(isnan.(θ))] .= lfp.phase[I]
         ρ .= NaN
+        ρₚ .= NaN
+        ρₓ .= NaN
         non[:,:,t] .= NaN
     end
     theta[:,:,t] = θ
     ripple[:,:,t] = ρ
 end
-
+frac_print(frac) = @sprintf("Fraction non times = %2.2f",frac)
+frac = mean(all(isnan.(theta) .&& isnan.(ripple), dims=(1,2)))
+frac_print(frac)
 utils.pushover("Ready to plot")
 
 if dosweep
@@ -190,8 +212,36 @@ if dosweep
 
 end
 
+# --------------------
+# Preprocess BEHAHVIOR
+# TODO Turn this into a function
+# --------------------
+beh = groupby(beh, [:epoch, :traj])
+for (g,group) in enumerate(beh)
+    if g!=length(beh)
+        group.futureStopWell .= beh[g+1].stopWell[1]
+    end
+    if g!=1
+        group.pastStopWell .= beh[g-1].stopWell[1]
+    end
+end
+replace!(beh.pastStopWell, missing=>-1)
+replace!(beh.futureStopWell, missing=>-1)
+beh = sort(combine(beh, identity),:time)
+if doPrevPast
+    beh.hw = argmax(StatsBase.fit(StatsBase.Histogram, filter(b->b!=-1,beh.stopWell), 1:6).weights)
+    beh = groupby(beh, [:epoch, :block])
+    for (g,group) in enumerate(beh)
+        # TODO
+    end
+    replace!(beh.prevPastStopWell, missing=>-1)
+    beh = sort(combine(beh, identity),:time)
+end
 
 
+# --------------------
+# RUN VIDEO 
+# --------------------
 Δ_bounds = [0.20, 0.20] # seconds
 tr = Dict("beh"=>utils.searchsortednearest(beh.time, T[1]),
           "lfp"=>utils.searchsortednearest(beh.time, T[1]))
@@ -242,15 +292,28 @@ function select_prob(t, prob=dat)
     D = prob[:,:, time]
 end
 
+## ---------------
 ## FIGURE WISHLIST
+## ---------------
 # - Goals
 #   - Glow goal
 #   - Vector to goal?
+#   - Future=F, NextFuture = f₁
+#   - Past = P
 # - Sequences
 #   - Start to end
 #   - Scatter of maxima
 # - Boundaries
 # - Home well
+# - Theta
+#   - Sweeps suck
+# - Ripples
+#   - split by
+#       - ca1 -pfc -ca1pfc
+#   - Speed median instead of midpoint
+#   - Different clouds for pfc/ca1
+# - Histograms for properties of interest
+#   (I.e. best way to test for effects. Example, cosine similarity of animal vec to goal and replay vec)
 
 ## FIGURE SETTINGS
 visualize = :slider
@@ -281,39 +344,55 @@ controls = Fig[1:2, 3]
 @time title_str = @lift "corr=$($behavior.correct[1]), goal=$($behavior.stopWell[1]), vel=$(@sprintf("%2.1f",abs($behavior.velVec[1])))"
 axArena  = Axis(Fig[1,1], xlabel="x", ylabel="y", title=title_str)
 axNeural = Axis(gNeural[1,1], xlabel="time")
+#axLFP = Axis(gNeural[1,1], xlabel="time")
 
 # Neural data AXIS
 sc_sp_events = @lift([Point2f(Tuple(x)) for x in
                       eachrow($spike_events[!,[:time,:unit]])])
 sc = scatter!(axNeural, sc_sp_events, color=:white, markersize=3)
-ln_lfp_events = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_events[!,[:time,:raw]])]) sc = lines!(axNeural, ln_lfp_events, color=:white)
+ln_lfp_events = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_events[!,[:time,:raw]])]) 
+sc = lines!(axNeural, ln_lfp_events, color=:white, linestyle=:dash)
 ln_lfp_phase = @lift([Point2f(Tuple(x)) for x in
-                      eachrow(select($lfp_events, :time, :phase=>x->x.*30))])
+                      eachrow(select($lfp_events, :time, :phase_plot=>x->x.*1))])
 sc = lines!(axNeural, ln_lfp_phase,  color=:gray, linestyle=:dash)
 vlines!(axNeural, [0], color=:red, linestyle=:dash)
 
-# Arena data AXIS
+# Arena data AXIS :: Probabilities
 #hm_prob = @lift select_prob($t)
 #hm = heatmap!(axArena, x,y, hm_prob, colormap=(:bamako,0.8))
-theta_prob = @lift select_prob($t, theta)
-hm_theta = heatmap!(axArena, x,y, theta_prob, colormap=(:buda,0.8), colorrange=(-pi, pi), interpolate=false)
+theta_prob  = @lift select_prob($t, theta)
 ripple_prob = @lift select_prob($t, ripple)
-hm_ripple = heatmap!(axArena, x,y, ripple_prob, colormap=(:diverging_tritanopic_cwr_75_98_c20_n256, 0.8), interpolate=false)
+hm_theta   = heatmap!(axArena, x,y, theta_prob,   colormap=(:romaO,0.8), colorrange=(-pi, pi), interpolate=false)
+hm_ripple  = heatmap!(axArena, x,y, ripple_prob,  colormap=(:linear_ternary_blue_0_44_c57_n256, 0.8), interpolate=false)
+hm_rippleₚ = heatmap!(axArena, x,y, ripple_probₚ, colormap=(:linear_ternary_green_0_46_c42_n256, 0.8), interpolate=false)
+hm_rippleₓ = heatmap!(axArena, x,y, ripple_probₓ, colormap=(:linear_ternary_red_0_50_c52_n256, 0.8), interpolate=false)
 #non_prob = @lift select_prob($t, non)
 #hm_non = heatmap!(axArena, x,y, non_prob, colormap=(:bamako,0.8))
+
+# Arena data AXIS :: Behavior
 now = 1
+
 point_xy = @lift(Point2f($behavior.x[now], $behavior.y[now]))
-line_xy = @lift([Point2f(b.x, b.y) for b in eachrow($behavior)])
-sc_xy = scatter!(axArena, point_xy, color=:white)
+line_xy  = @lift([Point2f(b.x, b.y) for b in eachrow($behavior)])
+sc_xy    = scatter!(axArena, point_xy, color=:white)
 sc_arena = scatter!(axArena, arenaWells.x, arenaWells.y, marker=:star5, markersize=40, color=:gray)
-sc_home = scatter!(axArena, [homeWell.x], [homeWell.y],   marker='𝐇', markersize=25,   color=:gray)
-future = @lift $behavior.stopWell[now]
-future_well_xy = @lift $future == -1 ? Point2f(NaN, NaN) : Point2f(wells.x[$future], wells.y[$future])
-sc_future_well = scatter!(axArena, future_well_xy, marker='𝐅', markersize=25, color=:white, glowwidth=5)
-#past = @lift $behavior.stopWell[now]
-sc_future = scatter!(axArena, [homeWell.x], [homeWell.y], marker='𝐇', markersize=25, color=:white)
+sc_home  = scatter!(axArena, [homeWell.x], [homeWell.y],   marker='𝐇', markersize=25,   color=:gray)
 ln_xy = lines!(axArena, line_xy, color=:white, linestyle=:dash)
 lines!(axArena, boundary.x, boundary.y, color=:grey)
+
+future₁ = @lift($behavior.stopWell[now])
+future₂ = @lift($behavior.futureStopWell[now])
+past₁   = @lift($behavior.pastStopWell[now])
+future₁_well_xy = @lift $future₁ == -1 ? Point2f(NaN, NaN) : Point2f(wells.x[$future₁], wells.y[$future₁])
+future₂_well_xy = @lift (($future₂ == -1) || ($future₂ == $future₁)) ? Point2f(NaN, NaN) : Point2f(wells.x[$future₂], wells.y[$future₂])
+past₁_well_xy    = @lift (($past₁ == -1) || ($past₁ == $future₁)) ? Point2f(NaN, NaN) : Point2f(wells.x[$past₁], wells.y[$past₁])
+sc_future₁_well = scatter!(axArena, future₁_well_xy, alpha=0.5, marker='𝐅', markersize=60, color=:white, glowwidth=29)
+sc_future₂_well = scatter!(axArena, future₂_well_xy, alpha=0.5, marker='𝐟', markersize=60, color=:white, glowwidth=5)
+sc_past_well    = scatter!(axArena, past_well_xy,    alpha=0.5, marker='𝐏', markersize=60, color=:white, glowwidth=5)
+if doPrevPast
+    past₂   = @lift($behavior.pastStopWell[now])
+    past₂_well_xy    = @lift (($past₂ == -1) || ($past₂ == $future₁)) ? Point2f(NaN, NaN) : Point2f(wells.x[$past₂], wells.y[$past₂])
+end
 
 function play()
     framerate = 60

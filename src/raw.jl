@@ -80,9 +80,14 @@ module raw
     end
 
 
-    function behaviorpath(animal::String, day::Int)
+    function behaviorpath(animal::String, day::Int, tag::String)
+        tag = length(tag) ? tag : "_$tag"
         path = datadir("exp_raw", "visualize_raw_neural",
-                         "$(animal)_$(day)_beh")
+                         "$(animal)_$(day)_beh$tag")
+        if occursin(tag,"*")
+            path =  glob(basename(path), dirname(path))
+        end
+        return path
     end
     function load_behavior(animal::String, day::Int)
         function typeFunc(type, name)
@@ -163,11 +168,11 @@ module raw
     function save_cells(cells::DataFrame, pos...; merge_if_exist::Bool=true, kws...)
         #kws = (;kws...) # satellite default is true
         csvFile = cellpath(pos...; kws...)
-        if merge_if_exist && isfile(csvFile)
-            prevcells = load_cells(pos...; kws...)
-            cells = outerjoin(cells, prevcells, makeunique=true)
-            # TODO function to accept left or right dups
-        end
+        #if merge_if_exist && isfile(csvFile)
+        #    prevcells = load_cells(pos...; kws...)
+        #    cells = outerjoin(cells, prevcells, makeunique=true)
+        #    # TODO function to accept left or right dups
+        #end
         println("Saving cell data at $csvFile")
         cells |> CSV.write(csvFile)
     end
@@ -485,8 +490,11 @@ module raw
         source, target, _ = register(source, target, DataFrame(); transfer=transfer, on=on)
         return source, target
     end
-    function registerEvents(events::DataFrame, target::DataFrame;
+    function registerEventsToContinuous(events::DataFrame, target::DataFrame;
             transfer::Union{Vector{String},String}, on::String="time",
+            targetEltype::Dict{String,<:Type}=Dict{String,Any}(),
+            targetCast::Dict{String,<:Function}=Dict{String,Function}(),
+            ifNonMissingAppend::Bool=false,
             eventStart::String="start",
             eventStop::String="stop")::DataFrame 
 
@@ -498,30 +506,44 @@ module raw
         for col ∈ transfer
             if col ∉ names(target)
                 @debug "$col not in target"
-                T = eltype(events[!,col])
+                T = col ∈ keys(targetEltype) ? targetEltype[col] : eltype(events[!,col])
+                @debug "col=$col => type=$T"
                 @debug "creating new cool with type = $T"
                 target[!,col] = Array{Union{Missing,T}}(missing, size(target,1))
+                # Cast to user specified type?
+                if col in keys(targetCast)
+                    target[!,col] = targetCast[col](target[!,col])
+                end
             end
         end
 
         match = target[!, on]
         p = Progress(size(events,1), desc="Registering")
         Threads.@threads for event in eachrow(events)
-
             start = event[eventStart]
             stop  = event[eventStop]
             indices_of_source_samples_in_target = (match .>= start) .&&
                                                   (match .< stop)
-            @debug "sum=$(sum(indices_of_source_samples_in_target))"
+            #@debug "sum=$(sum(indices_of_source_samples_in_target))"
             for col ∈ transfer
                 if col == All()
                     continue
                 end
-                target[indices_of_source_samples_in_target, col] .= event[col]
+                specialStringBehavior = ifNonMissingAppend && 
+                eltype(target[indices_of_source_samples_in_target, col]) isa Vector{Union{Missing,String}} # has to be String, not InlineString
+                if specialStringBehavior
+                    @debug "special behavior"
+                    missingVals    = indices_of_source_samples_in_target && ismissing.(target[!,col])
+                    nonMissingVals = indices_of_source_samples_in_target && (!).(ismissing.(target[!,col]))
+                    existing       = target[nonMissingVals, col]
+                    target[nonMissingVals, col] .= existing .* event[col]
+                    target[missingVals, col]    .= event[col]
+                else
+                    target[indices_of_source_samples_in_target, col] .= event[col]
+                end
             end
             next!(p)
         end
-
         @debug "← ← ← ← ← ← ← ← ← ← ← ← "
         return target
     end
