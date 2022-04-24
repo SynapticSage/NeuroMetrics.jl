@@ -6,6 +6,8 @@ module recon_process
     using DataFrames
     using Infiltrator
     using DataStructures
+    using ThreadSafeDicts
+    using NaNStatistics
 
     si = field.operation.selectind
     sk = field.operation.selectkey
@@ -55,7 +57,7 @@ module recon_process
 
     function perform_reconstructions_marginals_and_error(beh, spikes,
             K::NamedTuple; recon_compare::Union{Dict, Nothing}=nothing,
-            F::Dict=Dict(), recon_summary::DataFrame=DataFrame())
+            F::AbstractDict=Dict(), recon_summary::DataFrame=DataFrame())
 
         if recon_compare == nothing
             throw(ArgumentError("Please pass recon_compare"))
@@ -76,18 +78,21 @@ module recon_process
         # MARGINALS
         # ---------
         # Acquire marginals P(X,Y), P(γ, p, G)
-        @time @showprogress for marginal in marginals_required
+        P = Progress(length(marginals_required), desc="Marginals")
+        @time for marginal in marginals_required
             d̅ =  𝔻̅(marginal, dims)
             println("marginal=>$marginal d̅ = $(d̅)")
             @time F[marginal] = operation.marginalize(X, dims = d̅ );
+            next!(P)
         end
 
         # ---------------
         # Reconstructions
         # ---------------
         # Obtain reconstructions!
-        R̂ = Dict()
-        @time for reconstruction in recon_req
+        R̂ = ThreadSafeDict()
+        P = Progress(length(recon_req), desc="Reconstruction")
+        @time @Threads.threads for reconstruction in recon_req
             if reconstruction == nothing
                 continue
             end
@@ -105,6 +110,7 @@ module recon_process
                                                      );
             @assert ndims(si(R̂[reconstruction]))     == length(split(dimr,","))
             @assert all(size(si(R̂[reconstruction])) .== field_size[𝔻(dimr, dims)])
+            next!(P)
         end
 
         # ---------------
@@ -112,11 +118,13 @@ module recon_process
         # ---------------
         # Get reconstruction model error summary
         E = Vector{DataFrame}([])
+        P = Progress(length(recon_req), desc="Reconstruction error")
         for reconstruction in recon_req
             what, given = split(reconstruction, "|")
             error = recon.reconstruction_error(F[what].Rₕsq, R̂[reconstruction])
             error = table.to_dataframe(error; name="error")
             push!(E, error)
+            next!(P)
         end
         E = vcat(E..., source=:model=>recon_req)
         what,under = [vec(x) for x in eachrow(cat(split.(E.model,"|")...; dims=2))]
@@ -125,5 +133,22 @@ module recon_process
         recon_summary = vcat(recon_summary, E)
         field.utils.pushover("Finished reconstruction summaries")
         return recon_summary
+    end
+
+    # ----------------
+    # Munging
+    # ----------------
+    function create_unstacked_error_table(E, recon_compare)
+        uE = unstack(E[!,Not([:what,:under])], :model,:error)[!,Not([:dim_1, :dim_2])]
+        uE.∑ε = vec(nansum(replace(Matrix(uE[:, get_recon_req(recon_compare)]),missing=>NaN); dims=2))
+        uE = sort(uE, [:area,:∑ε])
+        for (rc, compare) in recon_compare
+            #uE[!,rc*"div"] = uE[!, compare[1]] ./ uE[!, compare[2]]
+            println(rc)
+            uE[!,rc] = (uE[!, compare[1]] .- uE[!, compare[2]])./
+                       (uE[!,compare[1]] .+ uE[!,compare[2]])
+            uE[!,rc] = (uE[!, compare[1]] .- uE[!, compare[2]])
+        end
+        uE
     end
 end

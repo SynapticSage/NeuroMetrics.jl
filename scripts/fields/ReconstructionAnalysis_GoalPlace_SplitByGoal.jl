@@ -6,6 +6,9 @@ using NaNStatistics
 using StatsBase
 using ColorSchemes
 using Printf
+using ThreadSafeDicts
+
+F = ThreadSafeDict(pairs(F)...)
 
 # ---------------------------------------- FUNCTION SPECIFIC SHORTCUTS AND SETTINGS ----------------------------------------
 si,sk = operation.selectind, operation.selectkey
@@ -13,23 +16,8 @@ filters = merge(kws.filters,
                 filt.correct,
                 filt.notnan("currentHeadEgoAngle"), 
                 filt.minmax("currentPathLength", 2, 150))
+overall_compare = Dict()
 
-# ----------------
-# Helper functions
-# ----------------
-
-function create_unstacked_error_table(E, recon_compare)
-    uE = unstack(E[!,Not([:what,:under])], :model,:error)[!,Not([:dim_1, :dim_2])]
-    uE.∑ε = vec(nansum(replace(Matrix(uE[:, get_recon_req(recon_compare)]),missing=>NaN); dims=2))
-    uE = sort(uE, [:area,:∑ε])
-    for (rc, compare) in recon_compare
-        #uE[!,rc*"div"] = uE[!, compare[1]] ./ uE[!, compare[2]]
-        println(rc)
-        uE[!,rc] = (uE[!, compare[1]] .- uE[!, compare[2]])./(uE[!,compare[1]] .+ uE[!,compare[2]])
-        uE[!,rc] = (uE[!, compare[1]] .- uE[!, compare[2]])
-    end
-    uE
-end
 
 # ----------------------------------------
 # PLACE-GOAL JOINT DISTRIBUTION P(x,y, γ,p,G)
@@ -42,6 +30,7 @@ recon_compare = Dict(
       "vs(𝔾ₛ|ℙₛ,ℙₛ|𝔾ₛ)" => ("p,γ,G|x,y,G","x,y,G|p,γ,G"),
       "vs(ℙₛ|ℙ,ℙ|ℙₛ)"   => ("x,y,G|x,y","x,y|x,y,G"),
      )
+overall_compare = merge(overall_compare, recon_compare)
 field_kws = (; kws..., resolution=[40, 40, 40, 40, 5], gaussian=0, 
              props=["x", "y", "currentPathLength",
                     "currentHeadEgoAngle","stopWell"],
@@ -54,13 +43,14 @@ E = recon_process.perform_reconstructions_marginals_and_error(beh, spikes, field
 # PLACE-GOAL-headdir JOINT DISTRIBUTION P(x,y,H,G)
 # ----------------------------------------
 recon_compare = Dict("vs(ℙₕ|ℙₛ,ℙₛ|ℙₕ)" => ("x,y,G|x,y,H","x,y,H|x,y,G"))
+overall_compare = merge(overall_compare, recon_compare)
 headdir_kws = (;field_kws..., props = ["x", "y", "headdir","stopWell"])
-headdir_kws = (;headdir_kws..., resolution = [40,40,6,5])
+headdir_kws = (;headdir_kws..., resolution = [40,40,5,5])
 E = recon_process.perform_reconstructions_marginals_and_error(beh, spikes, headdir_kws; 
                                                 F=F, recon_summary=E, recon_compare);
 
 # Acquire tidy unstacked representation
-uE = create_unstacked_error_table(E, recon_compare)
+uE = recon_process.create_unstacked_error_table(E, recon_compare)
 
                     
 #,---.|         |    
@@ -72,7 +62,7 @@ if ploton
     function r(df)
         df = copy(df)
         reps = merge(Dict(n=>n for n in names(df) if !(occursin("vs",n))),
-                     Dict(n=>replace(get_recon_name(n,"-")," "=>"") for n in names(df) if occursin("vs",n)))
+                     Dict(n=>replace(recon_process.get_recon_name(n,"-")," "=>"") for n in names(df) if occursin("vs",n)))
         println(reps)
         rename(df, reps...)
     end

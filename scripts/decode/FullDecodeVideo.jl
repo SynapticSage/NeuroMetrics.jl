@@ -18,6 +18,8 @@ includet(srcdir("table.jl"))
 includet(srcdir("raster.jl"))
 includet(srcdir("decode.jl"))
 includet(srcdir("utils.jl"))
+import raw, table, raster, decode, utils
+import StatsBase
 ENV["JULIA_DEBUG"] = nothing
 
 # -----------------
@@ -42,6 +44,12 @@ dosweep                       = false
 @time task   = raw.load_task(animal,     day)
 @time ripples= raw.load_ripples(animal,  day)
 wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
+homeWell, arenaWells = begin
+    hw = argmax(StatsBase.fit(StatsBase.Histogram, filter(b->b!=-1,beh.stopWell), 1:6).weights)
+    wells[hw,:], wells[setdiff(1:5,hw),:]
+end
+boundary = task[(task.name.=="boundary") .& (task.epoch .== epoch), :]
+append!(boundary, DataFrame(boundary[1,:]))
 video="/Volumes/Colliculus/RY16_experiment/actualVideos/RY16_69_0$(epoch)_CMt.1.mp4"
 
 # -----------
@@ -87,10 +95,10 @@ ripples = ripples[abs.(ripples.velVec) .< 2, :]
 lfp.raw = Float32.(utils.norm_extrema(lfp.raw, extrema(spikes.unit)))
 
 # (2) Throw away bad Θ cycles
-cycles = raw.lfp.get_cycle_table(lfp, :velVec=>mean)
+cycles = raw.lfp.get_cycle_table(lfp, :velVec => (x->median(abs.(x))) => :velVec_median )
 cycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles)
 cycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), cycles)
-cycles = filter(:velVec_mean => (𝒱  -> abs.(𝒱)  .> 2) , cycles)
+cycles = filter(:velVec_median => (𝒱  -> abs.(𝒱)  .> 2) , cycles)
 # TODO Remove any cycles in side a ripple
 
 # (3) Remove cycle labels in lfp of bad Θ cycles
@@ -121,7 +129,6 @@ if remove_nonoverlap
 end
 [extrema(x.time) for x in (lfp, spikes, ripples, beh)]
 
-utils.pushover("Ready to create cyycle specific probs")
 
 # Add ripple phase
 lfp = sort(combine(lfp, identity), :time)
@@ -150,10 +157,12 @@ theta, ripple, non = copy(dat), copy(dat), copy(dat)
     ripple[:,:,t] = ρ
 end
 
+utils.pushover("Ready to plot")
+
 if dosweep
 
     # Create cumulative theta sweeps
-    sweep = (a,b)->isnan(b) ? a : nanmean(a, b)
+    sweep = (a,b)->isnan(b) ? a : nanmean(cat(a, b, dims=3), dims=3)
     lfp = groupby(lfp,:cycle)
     @time @Threads.threads for group in lfp
         cycStart, cycStop = utils.searchsortednext(T, group.time[1]),
@@ -178,6 +187,7 @@ if dosweep
         ripple[:, :, cycle] = accumulate((a,b)->sweep.(a,b), ripple[:,:,cycle],  dims=3)
     end
     lfp = combine(lfp,identity)
+
 end
 
 
@@ -195,7 +205,7 @@ function select_range(t, data=spikes, Δ_bounds=Δ_bounds)
     time  = T[t]
     data = @subset(data,   (:time .> (time - Δ_bounds[1])) .&&
                            (:time .< (time + Δ_bounds[2])))
-    data.time .-= T[t]
+    data.time = data.time .- T[t]
     data
 end
 function select_est_range(t, tr, Δt, Δi, data=beh, Δ_bounds=Δ_bounds)
@@ -232,6 +242,18 @@ function select_prob(t, prob=dat)
     D = prob[:,:, time]
 end
 
+## FIGURE WISHLIST
+# - Goals
+#   - Glow goal
+#   - Vector to goal?
+# - Sequences
+#   - Start to end
+#   - Scatter of maxima
+# - Boundaries
+# - Home well
+
+## FIGURE SETTINGS
+visualize = :slider
 
 # Figure
 Fig = Figure()
@@ -246,7 +268,7 @@ elseif visualize == :slider
 end
 
 # Data
-@time behavior     = @lift select_range($t, beh, [0.60, 0.01])
+@time behavior     = @lift select_range($t, beh, [-0.01, 0.60])
 #@time behavior     = @lift select_est_range($t, tr["beh"], Δt["beh"], beh, [0.60, 0.01])
 @time spike_events = @lift select_range($t, spikes)
 #@time lfp_events   = @lift select_range($t, lfp)
@@ -264,9 +286,7 @@ axNeural = Axis(gNeural[1,1], xlabel="time")
 sc_sp_events = @lift([Point2f(Tuple(x)) for x in
                       eachrow($spike_events[!,[:time,:unit]])])
 sc = scatter!(axNeural, sc_sp_events, color=:white, markersize=3)
-ln_lfp_events = @lift([Point2f(Tuple(x)) for x in
-                       eachrow($lfp_events[!,[:time,:raw]])])
-sc = lines!(axNeural, ln_lfp_events, color=:white)
+ln_lfp_events = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_events[!,[:time,:raw]])]) sc = lines!(axNeural, ln_lfp_events, color=:white)
 ln_lfp_phase = @lift([Point2f(Tuple(x)) for x in
                       eachrow(select($lfp_events, :time, :phase=>x->x.*30))])
 sc = lines!(axNeural, ln_lfp_phase,  color=:gray, linestyle=:dash)
@@ -281,24 +301,35 @@ ripple_prob = @lift select_prob($t, ripple)
 hm_ripple = heatmap!(axArena, x,y, ripple_prob, colormap=(:diverging_tritanopic_cwr_75_98_c20_n256, 0.8), interpolate=false)
 #non_prob = @lift select_prob($t, non)
 #hm_non = heatmap!(axArena, x,y, non_prob, colormap=(:bamako,0.8))
-point_xy = @lift(Point2f($behavior.x[1], $behavior.y[1]))
-point_xy = @lift(Point2f($behavior.x[1], $behavior.y[1]))
+now = 1
+point_xy = @lift(Point2f($behavior.x[now], $behavior.y[now]))
 line_xy = @lift([Point2f(b.x, b.y) for b in eachrow($behavior)])
 sc_xy = scatter!(axArena, point_xy, color=:white)
-sc_xy = scatter!(axArena, wells.x, wells.y, marker=:star5, markersize=25, color=:white)
+sc_arena = scatter!(axArena, arenaWells.x, arenaWells.y, marker=:star5, markersize=40, color=:gray)
+sc_home = scatter!(axArena, [homeWell.x], [homeWell.y],   marker='𝐇', markersize=25,   color=:gray)
+future = @lift $behavior.stopWell[now]
+future_well_xy = @lift $future == -1 ? Point2f(NaN, NaN) : Point2f(wells.x[$future], wells.y[$future])
+sc_future_well = scatter!(axArena, future_well_xy, marker='𝐅', markersize=25, color=:white, glowwidth=5)
+#past = @lift $behavior.stopWell[now]
+sc_future = scatter!(axArena, [homeWell.x], [homeWell.y], marker='𝐇', markersize=25, color=:white)
 ln_xy = lines!(axArena, line_xy, color=:white, linestyle=:dash)
+lines!(axArena, boundary.x, boundary.y, color=:grey)
+
+function play()
+    framerate = 60
+    timestamps = range(t[], length(T), step=1)
+    #recording = plotsdir("mpp_decode", "withBehVideo=$usevideo", outputVideo)
+    record(Fig, "test.mp4", timestamps; framerate=framerate) do stamp
+        t[] = stamp
+    end
+end
 
 
 # -------------
 # VISUALIZE
 # -------------
 if visualize == :video
-    framerate = 60
-    timestamps = range(t, length(T), step=1)
-    #recording = plotsdir("mpp_decode", "withBehVideo=$usevideo", outputVideo)
-    record(Fig, "test.mp4", timestamps; framerate=framerate) do stamp
-        t[] = stamp
-    end
+    play()
 elseif visualize == :slider
 end
 

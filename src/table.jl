@@ -1,5 +1,4 @@
-module table
-#=
+"""
 Module Contents:
 
 * Time period functionality
@@ -8,7 +7,8 @@ Module Contents:
 ** contrain_range :: contrain data by a start and stop time
 ** binary on time :: return a set of time ranges where a property is a value
 ** select_group :: return a set of samples where a categorical property is  value
-=#
+"""
+module table
 
 using DataFrames
 using ProgressMeter
@@ -19,10 +19,9 @@ using LazyGrids: ndgrid
 using DataStructures
 export to_dataframe
 __revise_mode__ = :eval
-∞ = Inf;
+∞ = Inf
 
 ColumnSelector = Union{Nothing,Vector{String},InvertedIndex,Cols,All,Between}
-
                                               
 # --.--o                             o         |
 #   |  .,-.-.,---.    ,---.,---.,---..,---.,---|
@@ -35,6 +34,7 @@ ColumnSelector = Union{Nothing,Vector{String},InvertedIndex,Cols,All,Between}
 # |    |   ||   ||    |    ||   ||   |,---||    ||    |   |
 # `    `---'`   '`---'`---'``---'`   '`---^`---'``---'`---|
 #                                                     `---'
+#
 function get_periods(df::DataFrame, property::String, pos...; removeMissing=false, kws...)
     if removeMissing
         df = dropmissing(df);
@@ -420,9 +420,9 @@ function clean_duplicate_cols(df::DataFrame)
         check_these = splits[length.(splits) .> 1]
         for check in check_these
             col1, col2 = join(check,detect), check[1]
-            dat1, dat2 = eachcol(dropmissin[!,[col1,col2]]))
+            dat1, dat2 = eachcol(dropmissing(df[!,[col1,col2]]))
             if all(dat1 .== dat2)
-                @info "Removing col=$col1"
+                @info "Removing $col"
                 df = df[!, Not(col1)]
             end
         end
@@ -506,4 +506,3 @@ end
 export group
 
 end # module
-g(df
