@@ -19,6 +19,7 @@ spikes, beh = raw.load("RY16", 36,
 
 # ----------
 # ----------
+# ----------
 # Parameters
 # ----------
 PROPS = ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]

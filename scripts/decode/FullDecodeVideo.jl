@@ -42,6 +42,9 @@ usevideo                      = false
 remove_nonoverlap             = true # set to true if you expect multiple splits in this code
 dosweep                       = false
 doPrevPast                    = false
+splitBehVar                   = ["egoVec_1", "egoVec_2", "egoVec_3", "egoVec_4", "egoVec_5"] # Variables to monitor with splits
+vectorToWells                 = true
+histVectorToWells             = true
 @time beh    = raw.load_behavior(animal, day)
 @time spikes = raw.load_spikes(animal,   day)
 @time cells  = raw.load_cells(animal,    day)
@@ -102,7 +105,8 @@ ripples = ripples[abs.(ripples.velVec) .< 2, :]
 lfp.raw = Float32.(utils.norm_extrema(lfp.raw, extrema(spikes.unit)))
 
 # (2) Throw away bad Θ cycles
-cycles = raw.lfp.get_cycle_table(lfp, :velVec => (x->median(abs.(x))) => :velVec_median )
+cycles = raw.lfp.get_cycle_table(lfp, :velVec => (x->median(abs.(x))) => :velVec_median,
+                                 [:start,:stop] => ((x,y)->mean([x,y])) => :time)
 cycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles)
 cycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), cycles)
 cycles = filter(:velVec_median => (𝒱  -> abs.(𝒱)  .> 2) , cycles)
@@ -123,14 +127,29 @@ lfp.cycle, lfp.phase, lfp.time = Int32.(lfp.cycle), Float32.(lfp.phase),
                                  Float32.(lfp.time)
 ripples.type = ripples.area .* " ripple"
 ripples.rip_id = 1:size(ripples,1)
-lfp = raw.registerEventsToContinuous(ripples, lfp, 
+lfp = raw.registerEventsToContinuous(ripples, lfp[!,Not("area")], 
                          on="time", 
                          eventStart="start", 
                          eventStop="stop", 
                          ifNonMissingAppend=true,
-                         targetCast=Dict("area"=>x->Vector{Union(Missing,String)}.(x)),
+                         targetEltype=Dict("area"=>String),
                          transfer=["rip_id","type","area"])
 lfp.phase_plot = utils.norm_extrema(lfp.phase, extrema(spikes.unit))
+lfp.phase = utils.norm_extrema(lfp.phase, (-pi,pi))
+
+# (5) Annotate cycles with, decode vector, next/previous goal data
+match(time, col) = beh[utils.searchsortednearest(beh.time, time),col]
+function matchdxy(time::Real) 
+    I =  utils.searchsortednearest(T, time)
+    D = replace(dat[:,:,I], NaN=>0)
+    xi = argmax(maximum(D, dims=2), dims=1)
+    yi = argmax(utils.squeeze(maximum(D, dims=1)), dims=1)
+    [x[xi][1], y[yi][1]]
+end
+cycles = transform(cycles, :start=>(t->match(t, what))=>"start_".*what,
+                           :start=>matchdxy=>[:start_x_dec, :start_y_dec],
+                           :end=>matchdxy=>[:end_x_dec, :end_y_dec]
+                          )
 
 if remove_nonoverlap
     spikes, beh, lfp, ripples, T_inds = raw.keep_overlapping_times(spikes, beh, lfp, ripples, T;
@@ -148,37 +167,43 @@ lfp = sort(combine(lfp, identity), :time)
 lfp.rip_phase = Float32.(combine(groupby(lfp, :rip_id, sort=false), x->1/nrow(x)*ones(nrow(x))).x1)
 # Theta : Create probability chunks by phase
 dat = Float32.(dat)
-theta, ripple, pfcripple, non = copy(dat), copy(dat), copy(dat)
+theta, ripple = copy(dat), repeat(copy(dat), outer=(1,1,1,4))
 @time Threads.@threads for (t,time) in collect(enumerate(T))
     I = utils.searchsortednearest(lfp.time, time)
-    θ, ρ  = theta[:, :, t], ripple[:, :, t] 
+    θ, ρ  = view(theta, :, :, t), view(ripple, :, :, t, :)
     not_a_theta_cycle = lfp.cycle[I] == -1
-    is_a_ripple = !(ismissing(lfp.rip_id))
+    is_a_ripple = !(ismissing(lfp.rip_id[I]))
     if not_a_theta_cycle # NOT THETA
         θ .= NaN
         if is_a_ripple # IS RIPPLE?
-            if lfp.rip_area == "CA1"
-                ρ[(!).(isnan.(θ))] .= lfp.rip_phase[I]
-            elseif lfp.rip_area == "PFC"
-                ρₚ[(!).(isnan.(θ))] .= lfp.rip_phase[I]
-            elseif lfp.rip_area == "CA1PFC"
-                ρₓ[(!).(isnan.(θ))] .= lfp.rip_phase[I]
+            if lfp.area[I] == "CA1"
+                ρ[:, :,  [2, 3, 4]] .= NaN
+            elseif lfp.area[I] == "CA1PFC"
+                ρ[:, :,  [1, 3, 4]] .= NaN
+            elseif lfp.area[I] == "PFCCA1"
+                ρ[:, :,  [1, 2, 4]] .= NaN
+            elseif lfp.area[I] == "PFC"
+                ρ[:, :,  [1, 2, 3]] .= NaN
+            else
+                @error "Not a valid type"
             end
-            non[:,:,t] .= NaN
+
+            if doRipplePhase
+                ρ[(!).(isnan.(ρ))]   .= lfp.rip_phase[I]
+            end
+        else
+            ρ .= NaN
         end
     else # THETA CYCLE
-        θ[(!).(isnan.(θ))] .= lfp.phase[I]
+        θ[(!).(isnan.(θ))] .*= lfp.phase[I]
         ρ .= NaN
-        ρₚ .= NaN
-        ρₓ .= NaN
-        non[:,:,t] .= NaN
     end
-    theta[:,:,t] = θ
-    ripple[:,:,t] = ρ
 end
-frac_print(frac) = @sprintf("Fraction non times = %2.2f",frac)
+frac_print(frac) = @sprintf("Fraction times = %2.4f",frac)
 frac = mean(all(isnan.(theta) .&& isnan.(ripple), dims=(1,2)))
 frac_print(frac)
+frac_rip = vec(mean(all(isnan.(ripple),dims=(1,2)), dims=(1,2,3)))
+frac_print.(frac_rip)
 utils.pushover("Ready to plot")
 
 if dosweep
@@ -199,16 +224,18 @@ if dosweep
     lfp = sort!(lfp,:time)
 
     # Cumulative ripple sweeps
-    lfp = groupby(lfp,:rip_id)
-    @time @Threads.threads for group in lfp
-        cycStart, cycStop = utils.searchsortednext(T, group.time[1]), utils.searchsortednext(T, group.time[end])
-        local cycle = cycStart:cycStop
-        if cycle == 1:1 || group.cycle[1] == -1 || ismissing(group.cycle[1])
-            continue
+    if doRipplePhase
+        lfp = groupby(lfp, :rip_id)
+        @time @Threads.threads for group in lfp
+            cycStart, cycStop = utils.searchsortednext(T, group.time[1]), utils.searchsortednext(T, group.time[end])
+            local cycle = cycStart:cycStop
+            if cycle == 1:1 || group.cycle[1] == -1 || ismissing(group.cycle[1])
+                continue
+            end
+            ripple[:, :, cycle] = accumulate((a,b)->sweep.(a,b), ripple[:,:,cycle],  dims=3)
         end
-        ripple[:, :, cycle] = accumulate((a,b)->sweep.(a,b), ripple[:,:,cycle],  dims=3)
+        lfp = combine(lfp,identity)
     end
-    lfp = combine(lfp,identity)
 
 end
 
@@ -287,9 +314,13 @@ function select_time(t, data=spikes, Δ_bounds=Δ_bounds)
     data.time = 0
     data
 end
-function select_prob(t, prob=dat)
+function select_prob(t, prob::Array{<:Real,3}=dat)
     time  = min(max(t, 1), length(T))
     D = prob[:,:, time]
+end
+function select_prob4(t, prob::Array{<:Real,4}=dat)
+    time  = min(max(t, 1), length(T))
+    D = prob[:,:, time, :]
 end
 
 ## ---------------
@@ -361,11 +392,16 @@ vlines!(axNeural, [0], color=:red, linestyle=:dash)
 #hm_prob = @lift select_prob($t)
 #hm = heatmap!(axArena, x,y, hm_prob, colormap=(:bamako,0.8))
 theta_prob  = @lift select_prob($t, theta)
-ripple_prob = @lift select_prob($t, ripple)
+ripple_prob = @lift select_prob4($t, ripple)
+ca1 = @lift($ripple_prob[:,:,1])
+ca1pfc = @lift($ripple_prob[:,:,2])
+pfcca1 = @lift($ripple_prob[:,:,3])
+pfc = @lift($ripple_prob[:,:,4])
 hm_theta   = heatmap!(axArena, x,y, theta_prob,   colormap=(:romaO,0.8), colorrange=(-pi, pi), interpolate=false)
-hm_ripple  = heatmap!(axArena, x,y, ripple_prob,  colormap=(:linear_ternary_blue_0_44_c57_n256, 0.8), interpolate=false)
-hm_rippleₚ = heatmap!(axArena, x,y, ripple_probₚ, colormap=(:linear_ternary_green_0_46_c42_n256, 0.8), interpolate=false)
-hm_rippleₓ = heatmap!(axArena, x,y, ripple_probₓ, colormap=(:linear_ternary_red_0_50_c52_n256, 0.8), interpolate=false)
+hm_ripple  = heatmap!(axArena, x,y, ca1,  colormap=(:linear_ternary_blue_0_44_c57_n256, 0.8), interpolate=false)
+hm_ripple_hp = heatmap!(axArena, x,y, ca1pfc, colormap=(:summer, 0.8), interpolate=false)
+hm_ripple_ph = heatmap!(axArena, x,y, pfcca1, colormap=(:spring, 0.8), interpolate=false)
+hm_ripple_p = heatmap!(axArena, x,y, pfc, colormap=(:linear_ternary_red_0_50_c52_n256, 0.8), interpolate=false)
 #non_prob = @lift select_prob($t, non)
 #hm_non = heatmap!(axArena, x,y, non_prob, colormap=(:bamako,0.8))
 

@@ -74,7 +74,7 @@ module recon_process
     Returns the remaining dimensions not covered by a prop-string
     """
     𝔻̅(dimstr,dims) = setdiff(1:length(dims), 𝔻(dimstr,dims)) # dims inverse
-    const string2numinv
+    const string2numinv = 𝔻̅
 
     """
     𝔻̅ⱼ : string2stringinv

@@ -80,8 +80,8 @@ module raw
     end
 
 
-    function behaviorpath(animal::String, day::Int, tag::String)
-        tag = length(tag) ? tag : "_$tag"
+    function behaviorpath(animal::String, day::Int, tag::String="")
+        tag  = length(tag) ? tag : "_$tag"
         path = datadir("exp_raw", "visualize_raw_neural",
                          "$(animal)_$(day)_beh$tag")
         if occursin(tag,"*")
@@ -530,11 +530,12 @@ module raw
                     continue
                 end
                 specialStringBehavior = ifNonMissingAppend && 
-                eltype(target[indices_of_source_samples_in_target, col]) isa Vector{Union{Missing,String}} # has to be String, not InlineString
+                         eltype(target[!, col]) == Union{Missing,String} # has to be String, not InlineString
+                #@debug "$col is eltype=$(eltype(target[!,col])) and specialStringBehavior=$specialStringBehavior"
                 if specialStringBehavior
-                    @debug "special behavior"
-                    missingVals    = indices_of_source_samples_in_target && ismissing.(target[!,col])
-                    nonMissingVals = indices_of_source_samples_in_target && (!).(ismissing.(target[!,col]))
+                    #@debug "special behavior"
+                    missingVals    = indices_of_source_samples_in_target .&& ismissing.(target[!,col])
+                    nonMissingVals = indices_of_source_samples_in_target .&& (!).(ismissing.(target[!,col]))
                     existing       = target[nonMissingVals, col]
                     target[nonMissingVals, col] .= existing .* event[col]
                     target[missingVals, col]    .= event[col]
