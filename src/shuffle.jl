@@ -8,6 +8,7 @@ module shuffle
     include(srcdir("utils.jl"))
     SplitType = Union{Vector{Symbol}, Symbol, String, Vector{String}}
     defaultFilters = merge(filt.speed_lib)
+    using Infiltrator
 
     # # # # # # # # # # # # # # # # # # # # # # # # 
     # Main shuffle types
@@ -19,7 +20,7 @@ module shuffle
         spikes.time = spikes.time .+ rand(distribution, 1) 
         only_times ? spikes[!,[:time]] : spikes
     end
-    function all(spikes; kws...)
+    function all(spikes::DataFrame; kws...)
         @debug "all where no distribution"
         spikes = copy(spikes)
         distribution = _create_distribution(spikes; kws...)
@@ -27,42 +28,42 @@ module shuffle
     end
 
     function by(spikes::DataFrame, distribution::Distribution; 
-                split::SplitType=:unit, kws...)
+                split::SplitType=:unit, sort::Bool=false, kws...)
         @debug "by() with distribution=$distribution"
         spikes = copy(spikes)
-        spikes = combine(groupby(spikes, split), sp->all(sp, distribution; kws...))
+        spikes = combine(groupby(spikes, split, sort=sort), sp->all(sp, distribution; kws...))
     end
 
-    function by(spikes; split::SplitType=:unit, kws...)
+    function by(spikes::DataFrame; split::SplitType=:unit, kws...)
         @debug "by() with no distribution"
         distribution = _create_distribution(spikes; kws...)
         by(spikes, distribution; split=split, kws...)
     end
 
-    function byspike(spikes, distribution::Distribution)
+    function byspike(spikes::DataFrame; kws...) 
+        distribution = _create_distribution(spikes; kws...)
+        byspike(spikes, distribution)
+    end
+
+    function byspike(spikes::DataFrame, distribution::Distribution)
         spikes = copy(spikes)
-        nSpikes = length(spikes)
-        if distribution isa String
-        end
-        jitter = rand(distribution, nSpikes)
+        jitter = rand(distribution, size(spikes, 1))
         spikes.time .+= jitter
         return spikes
     end
 
-    function byspikes(spikes; kws...) 
-        distribution = _create_distribution(spikes; kws...)
-        byspike(spike, distribution)
-    end
 
     # # # # # # # # # # # # # # # # # # # # # # # # 
     # Internal distribution functions
     # # # # # # # # # # # # # # # # # # # # # # # # 
     function _create_distribution(spikes, distribution::Symbol=:uniform; width=:traj, kws...)
         if :shuffledist_df in keys(kws)
-            @debug "data in keys"
+            @debug ":shuffledist_df in keys"
             data = kws[:shuffledist_df]
+        elseif :data in keys(kws)
+            data = kws[:data]
         else
-            @debug "data NOT in keys"
+            @debug ":shuffledist_df NOT in keys"
             data = spikes
         end
         if width == :traj
@@ -85,13 +86,14 @@ module shuffle
     function _typical_trajtime(data::DataFrame;
                                filters::AbstractDict=defaultFilters, kws...)
         G = try
-            inds    = (!).(isnan.(data.traj)) 
+            r(x)    = replace(x, missing=>NaN)
+            inds    = (!).(isnan.(r(data.traj))) 
             for (col, filtFunc) in filters
-                inds .&= filtFunc(data[!, col])
+                inds .&= filtFunc(r(data[!, col]))
             end
             data = data[inds, :]
-            G = combine(groupby(data, :traj),
-                      :time=> (x->diff([extrema(x)...])) => :range).range;
+            G = combine(groupby(data, :traj, sort=false),
+                              :time=> (x->diff([minimum(x), maximum(x)])) => :range).range;
         catch e
             if e isa ArgumentError
                 @warn "ArugmentError: try using data=beh if keys are missing"
@@ -104,7 +106,7 @@ module shuffle
     end
     
     function _session(data::DataFrame)
-        session_length = utils.dextrema(data.time)
+        session_length = utils.dextrema(data.time)[1]
         @debug "session_length=$session_length"
         return session_length
     end

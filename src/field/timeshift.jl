@@ -7,9 +7,13 @@ module timeshift
     using DataStructures
     using DataFramesMeta
     using ProgressMeter
+    using Distributions
     include("../table.jl")
     include("../shuffle.jl")
     export table
+    using Infiltrator
+    using Distributed
+    using Dagger
 
     # -------------------- SHIFTING TYPES ---------------------------
     shift_func(data, shift) = transform(data, :time => (t->t.+shift) =>:time)
@@ -56,34 +60,68 @@ module timeshift
 
     function get_field_shift_shuffles(beh::DataFrame, data::DataFrame,
             shifts::Union{StepRangeLen,Vector{T}} where T <: Real; 
-            multithread::Bool=true,
-            nShuffle::Int=0, shuffle_pos::Tuple=(), shuffle_kws::NamedTuple=(;), shuffle_func=shuffle.by,
+            multi::Union{Symbol,Bool}=true,
+            nShuffle::Int=100, 
+            shuffle_pos::Union{Tuple,NamedTuple}=(;),
+            shuffle_kws::NamedTuple=(;),
+            shuffle_func=shuffle.by,
             postfunc::Union{Function,Nothing}=nothing,
             kws...)
 
         safe_dict = ThreadSafeDict()
-        sets = collect(product(1:nShuffle, shifts))
-        p = Progress(length(sets), desc="SHUFFLED field shift calculations")
-        if multithread
+        sets = collect(Iterators.product(1:nShuffle, shifts))
+
+        # Generate the distribution functoin for all shuffles (expensive to do for each)
+        if isempty(shuffle_pos) || !(shuffle_pos[1] isa Distribution)
+            shuffle_kws = (; shuffledist_df=beh, shuffle_kws...)
+            distribution = shuffle._create_distribution(data, 
+                                                        shuffle_pos...;
+                                                        shuffle_kws...)
+            shuffle_pos = (;shuffle_pos..., distribution)
+            @info "distribution=$distribution"
+        end
+        
+        if multi isa Bool
+            multi = multi ? :thread : :single
+        end
+
+        @info "Starting multi=$multi"
+        msg = "$multi timeshift-shuffles"
+        if multi == :thread
+            P = Progress(length(sets), desc=msg)
             Threads.@threads for (shuffle,shift) in sets
-                shuffle_kws[:shuffledist_df] = beh
-                spikes = shuffle_func(spikes; shuffle_kws...)
+                data = shuffle_func(data, shuffle_pos...; shuffle_kws...)
                 result = field.get_fields(σ(beh,shift), data; kws...)
                 if postfunc != nothing
                     result = postfunc(result)
                 end
                 push!(safe_dict, shift=>result)
+                next!(P)
             end
-        else
-            @showprogress for (shuffle,shift) in sets
-                shuffle_kws[:shuffledist_df] = beh
-                spikes = shuffle_func(spikes; shuffle_kws...)
+        elseif multi == :distributed
+            @assert nprocs() > 1 msg
+            @showprogress 0.1 msg for (shuffle,shift) in sets
+                data = Dagger.spawn(shuffle_func, data, shuffle_pos...; shuffle_kws...)
+                @debug "Dagger 1"
+                result = Dagger.spawn(field.get_fields, σ(beh,shift), data; kws...)
+                @debug "Dagger 2"
+                if postfunc != nothing
+                    result = Dagger.@spawn postfunc(result)
+                    @debug "Dagger 3"
+                end
+                push!(safe_dict, (shift=shift,shuffle=shuffle)=>result)
+            end
+        elseif multi == :single
+            @showprogress 0.1 msg for (shuffle,shift) in sets
+                data = shuffle_func(data, shuffle_pos...; shuffle_kws...)
                 result = field.get_fields(σ(beh,shift), data; kws...)
                 if postfunc != nothing
                     result = postfunc(result)
                 end
                 push!(safe_dict, (shift=shift,shuffle=shuffle)=>result)
             end
+        else
+            throw(ArgumentError("Unrecognized argument multi=$multi"))
         end
         safe_dict = Dict(safe_dict...)
         out = OrderedDict(key=>pop!(safe_dict, key) 

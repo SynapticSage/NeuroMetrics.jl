@@ -63,7 +63,7 @@ function squeeze(A::AbstractArray)
 end  
 
 function dextrema(A::AbstractArray; kws...)
-    diff([nanextrema(A)...], kws...)
+    diff([nanminima(A), nanmaxima(A)], kws...)
 end
 
 function randomize_int(X)

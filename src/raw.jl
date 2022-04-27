@@ -10,6 +10,7 @@ module raw
     using Printf
     using ProgressMeter
     using Glob
+    using Infiltrator
     include("utils.jl")
     import .utils
     include("table.jl")
@@ -81,15 +82,17 @@ module raw
 
 
     function behaviorpath(animal::String, day::Int, tag::String="")
-        tag  = length(tag) ? tag : "_$tag"
+        tag  = length(tag) == 0 ? tag : "_$tag"
         path = datadir("exp_raw", "visualize_raw_neural",
                          "$(animal)_$(day)_beh$tag")
-        if occursin(tag,"*")
-            path =  glob(basename(path), dirname(path))
+        @debug "path=$path"
+        if occursin("*",tag)
+            path = glob(basename(path), dirname(path))
         end
+        @debug "path=$path"
         return path
     end
-    function load_behavior(animal::String, day::Int)
+    function load_behavior(animal::String, day::Int, tag::String="")
         function typeFunc(type, name)
             if occursin("Vec", string(name))
                 type = ComplexF32;
@@ -100,10 +103,19 @@ module raw
             return type
         end
         typemap = Dict(Int64=>Int16);
-        behCSV = behaviorpath(animal, day) * ".csv"
-        beh = CSV.read(behCSV, DataFrame;
-                 strict=false, missingstring=["NaNNaNi", "NaNNaNi,", ""], 
-                 types=typeFunc, typemap=typemap, csvkws...)
+        @debug "animal=$animal, day=$day, tag=$tag"
+        behCSV = behaviorpath(animal, day, tag) .* ".csv"
+        @info "behCSV=>$behCSV"
+        readFile(file) = CSV.read(file, DataFrame;
+                                  strict=false, 
+                                  missingstring=["NaNNaNi", "NaNNaNi,", ""], 
+                                  types=typeFunc, typemap=typemap, csvkws...)
+        if behCSV isa Vector
+            beh = [readFile(file) for file in behCSV]
+            beh = hcat(beh...)
+        else
+            beh = readFile(behCSV)
+        end
         if beh.time isa Vector{String}
             beh.time = parse.(Float32, beh.time);
         end
