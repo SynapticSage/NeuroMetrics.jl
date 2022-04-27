@@ -1,4 +1,4 @@
-module timeshift
+module 
     using DataFrames
     import ..field
     export get_field_shift
@@ -41,16 +41,16 @@ module timeshift
 
         safe_dict = ThreadSafeDict()
         p = Progress(length(shifts), desc="field shift calculations")
-        if multi
+        if multi == :thread
             Threads.@threads for shift in shifts
-                result = field.get_fields(σ(beh,shift), data; kws...)
+                result = field.get_fields(shift_func(beh,shift), data; kws...)
                 if postfunc != nothing
                     result = postfunc(result)
                 end
                 push!(safe_dict, shift=>result)
                 next!(p)
             end
-        else
+        elseif multi == :single
             @showprogress for shift in shifts
                 result = field.get_fields(σ(beh,shift), data; kws...)
                 if postfunc != nothing
@@ -59,6 +59,8 @@ module timeshift
                 push!(safe_dict, shift=>result)
                 next!(p)
             end
+        elseif multi == :distributed
+            @error "Not implemented"
         end
         safe_dict = Dict(safe_dict...)
         out = as(key=>pop!(safe_dict, key) for key in sort([keys(safe_dict)...]))

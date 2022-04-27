@@ -24,13 +24,15 @@ newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
 shifts = -4:0.2:4
 
 # Single thread
+#
+result = @time timeshift.get_field_shift(beh, spikes, shifts; 
+                         multi=:single, postfunc=info.information, 
+                         newkws...)
+
 shuf_result = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 16 hours
                          multi=:single, postfunc=info.information, 
                          shuffle_func=shuffle.by,
                          exfiltrateAfter=25,
-                         newkws...)
-result = @time timeshift.get_field_shift(beh, spikes, shifts; 
-                         multi=:single, postfunc=info.information, 
                          newkws...)
 
 # Distributed

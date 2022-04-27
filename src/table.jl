@@ -35,13 +35,14 @@ ColumnSelector = Union{Nothing,Vector{String},InvertedIndex,Cols,All,Between}
 # `    `---'`   '`---'`---'``---'`   '`---^`---'``---'`---|
 #                                                     `---'
 #
-function get_periods(df::DataFrame, property::String, pos...; removeMissing=false, kws...)
+function get_periods(df::DataFrame, property::String, pos...;
+        removeMissing=false, end_period=:stop, kws...)
     if removeMissing
         df = dropmissing(df);
     end
     period = groupby(df, property)
     period = combine(period, pos..., :time => (x->minimum(x)) => :start,
-                                     :time => (x->maximum(x)) => :end)
+                                     :time => (x->maximum(x)) => end_period)
     period.δ = period.end .- period.start;
     period.prop .= property
     return period

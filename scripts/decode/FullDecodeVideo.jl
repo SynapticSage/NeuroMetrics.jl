@@ -108,9 +108,10 @@ lfp.raw = Float32.(utils.norm_extrema(lfp.raw, extrema(spikes.unit)))
 lfp.broadraw = Float32.(utils.norm_extrema(lfp.broadraw, extrema(spikes.unit)))
 
 # (2) Throw away bad Θ cycles
-cycles = raw.lfp.get_cycle_table(lfp, :velVec => (x->median(abs.(x))) => :velVec_median)
+cycles = raw.lfp.get_cycle_table(lfp, :velVec => (x->median(abs.(x))) => :velVec_median; end_period=:stop)
 transform!(cycles, [:start,:end] => ((x,y)->mean([x,y])) => :time)
-cycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles) cycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), cycles)
+cycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles)
+cycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.5), cycles) # TODO durations too stringent?
 cycles = filter(:velVec_median => (𝒱  -> abs.(𝒱)  .> 2) , cycles)
 # TODO Remove any cycles in side a ripple
 
@@ -157,9 +158,52 @@ function matchdxy(time::Real)
     [x[xi][1], y[yi][1]]
 end
 
-cycles = transform(cycles, :start=>(t->match.(t, "x"))=> :start_x,
-                   :start=>(x->matchdxy.(x))=>[:start_x_dec, :start_y_dec],
-                   :end=>(x->matchdxy.(x))=>[:end_x_dec, :end_y_dec])
+# Cycles: Match times
+cycles = transform(cycles, :start => (t->match.(t, "x")) => :start_x,
+                           :stop => (t->match.(t, "x")) => :stop_x,
+                           :start => (t->match.(t, "y")) => :start_y,
+                           :stop => (t->match.(t, "y")) => :stop_y,
+                           :start => (x->matchdxy.(x))   => [:start_x_dec, :start_y_dec],
+                           :stop   => (x->matchdxy.(x))   => [:stop_x_dec, :stop_y_dec])
+
+ripples = transform(ripples, :start => (t->match.(t, "x")) => :start_x,
+                             :stop => (t->match.(t, "x")) => :stop_x,
+                             :start => (t->match.(t, "y")) => :start_y,
+                             :stop => (t->match.(t, "y")) => :stop_y,
+                             :start => (x->matchdxy.(x))   => [:start_x_dec, :start_y_dec],
+                             :stop   => (x->matchdxy.(x))   => [:stop_x_dec, :stop_y_dec])
+
+"""
+cosine_similarity_to_well
+gets cosine similarity of a given decode's vector to the vector between
+the animal and a well. This is to observe the evolution of sequence vectors
+between an animal's decodes and his wells
+"""
+function cosine_similarity_to_well(X, well; decode_vec_method=:decode,
+        unit_decode=false)
+    unitvec(x⃗) = x⃗ ./ abs.(x⃗)
+    vector_animaltowell = (well.x .- X.start_x) .- (well.y .- X.start_y)im;
+    vector_animaltowell = unitvec(vector_animaltowell);
+    if decode_vec_method == :decode
+        vector_decode = (X.stop_x_dec .- X.start_x_dec) .+ (X.stop_y_dec .- X.start_y_dec)im
+    elseif decode_vec_method == :animal_to_decode_end
+        vector_decode = (X.stop_x_dec .- X.start_x)     .+ (X.stop_y_dec .- X.start_y)im
+    end
+    if unit_decode
+        vector_decode = unitvec(vector_decode);
+        θ = angle.(vector_decode .- vector_animaltowell)
+    else
+        θ = angle.(unitvec(vector_decode) .- vector_animaltowell)
+    end
+    abs.(vector_decode) .* abs.(vector_animaltowell) .* cos.(θ);
+end
+
+
+# Cosine similarity to future₁, future₂, past₁, past₂ 
+# Split for (home, arena), (correct, incorrect)
+# --------------------------------------------------
+# (Accomplished by getting a table for each of these 4, and averaging a
+# categorical symbolizing the two split tuples)
 
 if remove_nonoverlap
     spikes, beh, lfp, ripples, T_inds = raw.keep_overlapping_times(spikes, beh, lfp, ripples, T;
@@ -464,10 +508,10 @@ pfcca1 = @lift($ripple_prob[:,:,3])
 pfc    = @lift($ripple_prob[:,:,4])
 limits = nanextrema(theta)
 hm_theta     = heatmap!(axArena, x,y, theta_prob, colormap=(:romaO,0.8), colorrange=limits, interpolate=false)
-hm_ripple    = heatmap!(axArena, x,y, ca1,    colormap=(:linear_ternary_blue_0_44_c57_n256, 0.8), interpolate=false)
-hm_ripple_hp = heatmap!(axArena, x,y, ca1pfc, colormap=(:summer, 0.8), interpolate=false)
-hm_ripple_ph = heatmap!(axArena, x,y, pfcca1, colormap=(:spring, 0.8), interpolate=false)
-hm_ripple_p  = heatmap!(axArena, x,y, pfc,    colormap=(:linear_ternary_red_0_50_c52_n256, 0.8), interpolate=false)
+hm_ripple    = heatmap!(axArena, x,y, ca1,        colormap=(:linear_ternary_blue_0_44_c57_n256, 0.8), interpolate=false)
+hm_ripple_hp = heatmap!(axArena, x,y, ca1pfc,     colormap=(:summer, 0.8), interpolate=false)
+hm_ripple_ph = heatmap!(axArena, x,y, pfcca1,     colormap=(:spring, 0.8), interpolate=false)
+hm_ripple_p  = heatmap!(axArena, x,y, pfc,        colormap=(:linear_ternary_red_0_50_c52_n256, 0.8), interpolate=false)
 if plotNon
     non_prob = @lift select_prob($t, non)
     hm_non = heatmap!(axArena, x,y, non_prob, colormap=(:bamako,0.8))
