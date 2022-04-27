@@ -22,8 +22,11 @@ includet(srcdir("table.jl"))
 includet(srcdir("raster.jl"))
 includet(srcdir("decode.jl"))
 includet(srcdir("utils.jl"))
-import raw, table, raster, decode, utils
+import raw, table, raster, utils
 import StatsBase
+using decode
+
+# Debugger?
 ENV["JULIA_DEBUG"] = nothing
 
 # -----------------
@@ -94,117 +97,6 @@ dat = decode.quantile_threshold(dat, thresh[variable])
 D = nothing
 nmint = minimum(beh[beh.epoch.==epoch,:].time)
 
-# -------------------------------------------------
-# PREPROCESS LFP 
-# TODO Turn this into a function
-# -------------------------------------------------
-# (1) Annotate and filter Θ cycles 
-lfp = raw.lfp.annotate_cycles(lfp, method="peak-to-peak")
-lfp.phase = raw.lfp.phase_to_radians(lfp.phase)
-beh, lfp = raw.register(beh, lfp; transfer=["velVec"], on="time")
-beh, ripples = raw.register(beh, ripples; transfer=["velVec"], on="time")
-ripples = ripples[abs.(ripples.velVec) .< 2, :]
-lfp.raw = Float32.(utils.norm_extrema(lfp.raw, extrema(spikes.unit)))
-lfp.broadraw = Float32.(utils.norm_extrema(lfp.broadraw, extrema(spikes.unit)))
-
-# (2) Throw away bad Θ cycles
-cycles = raw.lfp.get_cycle_table(lfp, :velVec => (x->median(abs.(x))) => :velVec_median; end_period=:stop)
-transform!(cycles, [:start,:end] => ((x,y)->mean([x,y])) => :time)
-cycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles)
-cycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.5), cycles) # TODO durations too stringent?
-cycles = filter(:velVec_median => (𝒱  -> abs.(𝒱)  .> 2) , cycles)
-# TODO Remove any cycles in side a ripple
-
-# (3) Remove cycle labels in lfp of bad Θ cycles
-#lfpcyc, cyc = lfp.cycle, cycles.cycle
-lfp.chunks = Int16.(round.(((1:size(lfp,1))./1000000)))
-lfp = groupby(lfp,:chunks)
-@time Threads.@threads for group in lfp
-    LoopVectorization.@avxt goodcycles = in.(group.cycle, [cycles.cycle])
-    group[(!).(goodcycles), :cycle] .= -1
-end
-lfp = combine(lfp, identity)
-
-# (4) Annotate ripples into lfp
-lfp.cycle, lfp.phase = Int32.(lfp.cycle), Float32.(lfp.phase)
-                                 
-ripples.type = ripples.area .* " ripple"
-ripples.rip_id = 1:size(ripples,1)
-lfp = begin
-    if "area" in names(lfp)
-        lfp[!,Not("area")]
-    else
-        lfp
-    end
-end
-lfp = raw.registerEventsToContinuous(ripples, lfp, 
-                         on="time", 
-                         eventStart="start", 
-                         eventStop="stop", 
-                         ifNonMissingAppend=true,
-                         targetEltype=Dict("area"=>String),
-                         transfer=["rip_id","type","area"])
-lfp.phase_plot = utils.norm_extrema(lfp.phase, extrema(spikes.unit))
-lfp.phase = utils.norm_extrema(lfp.phase, (-pi,pi))
-
-# (5) Annotate cycles with, decode vector, next/previous goal data
-match(time, col) = beh[utils.searchsortednearest(beh.time, time),col]
-function matchdxy(time::Real) 
-    #@infiltrate
-    I =  utils.searchsortednearest(T, time)
-    D = replace(dat[:,:,I], NaN=>0)
-    xi = argmax(maximum(D, dims=2), dims=1)
-    yi = argmax(utils.squeeze(maximum(D, dims=1)), dims=1)
-    [x[xi][1], y[yi][1]]
-end
-
-# Cycles: Match times
-cycles = transform(cycles, :start => (t->match.(t, "x")) => :start_x,
-                           :stop => (t->match.(t, "x")) => :stop_x,
-                           :start => (t->match.(t, "y")) => :start_y,
-                           :stop => (t->match.(t, "y")) => :stop_y,
-                           :start => (x->matchdxy.(x))   => [:start_x_dec, :start_y_dec],
-                           :stop   => (x->matchdxy.(x))   => [:stop_x_dec, :stop_y_dec])
-
-ripples = transform(ripples, :start => (t->match.(t, "x")) => :start_x,
-                             :stop => (t->match.(t, "x")) => :stop_x,
-                             :start => (t->match.(t, "y")) => :start_y,
-                             :stop => (t->match.(t, "y")) => :stop_y,
-                             :start => (x->matchdxy.(x))   => [:start_x_dec, :start_y_dec],
-                             :stop   => (x->matchdxy.(x))   => [:stop_x_dec, :stop_y_dec])
-
-"""
-cosine_similarity_to_well
-gets cosine similarity of a given decode's vector to the vector between
-the animal and a well. This is to observe the evolution of sequence vectors
-between an animal's decodes and his wells
-"""
-function cosine_similarity_to_well(X, well; decode_vec_method=:decode,
-        unit_decode=false)
-    unitvec(x⃗) = x⃗ ./ abs.(x⃗)
-    vector_animaltowell = (well.x .- X.start_x) .- (well.y .- X.start_y)im;
-    vector_animaltowell = unitvec(vector_animaltowell);
-    if decode_vec_method == :decode
-        vector_decode = (X.stop_x_dec .- X.start_x_dec) .+ (X.stop_y_dec .- X.start_y_dec)im
-    elseif decode_vec_method == :animal_to_decode_end
-        vector_decode = (X.stop_x_dec .- X.start_x)     .+ (X.stop_y_dec .- X.start_y)im
-    end
-    if unit_decode
-        vector_decode = unitvec(vector_decode);
-        θ = angle.(vector_decode .- vector_animaltowell)
-    else
-        θ = angle.(unitvec(vector_decode) .- vector_animaltowell)
-    end
-    abs.(vector_decode) .* abs.(vector_animaltowell) .* cos.(θ);
-end
-
-
-# Cosine similarity to future₁, future₂, past₁, past₂ 
-# Split for (home, arena), (correct, incorrect)
-# --------------------------------------------------
-# (Accomplished by getting a table for each of these 4, and averaging a
-# categorical symbolizing the two split tuples)
-
 if remove_nonoverlap
     spikes, beh, lfp, ripples, T_inds = raw.keep_overlapping_times(spikes, beh, lfp, ripples, T;
                                                                   returninds=[5])
@@ -212,51 +104,33 @@ if remove_nonoverlap
 end
 [extrema(x.time) for x in (lfp, spikes, ripples, beh)]
 
-
-# ------------------------------
-# Separate DECODES by LFP event!
+# --------------------
+# Preprocess BEHAHVIOR
 # TODO Turn this into a function
-# ------------------------------
-lfp = sort(combine(lfp, identity), :time)
-lfp.rip_phase = Float32.(combine(groupby(lfp, :rip_id, sort=false),
-                                 x->1/nrow(x)*ones(nrow(x))).x1)
-# Theta : Create probability chunks by phase
-dat = Float32.(dat)
-theta, ripple, non = copy(dat), repeat(copy(dat), outer=(1,1,1,4)), copy(dat)
-@time Threads.@threads for (t,time) in collect(enumerate(T))
-    I = utils.searchsortednearest(lfp.time, time)
-    θ, ρ, n  = view(theta, :, :, t), view(ripple, :, :, t, :),
-               view(non, :, :, t)
-    not_a_theta_cycle = lfp.cycle[I] == -1
-    is_a_ripple = !(ismissing(lfp.rip_id[I]))
-    if not_a_theta_cycle # NOT THETA
-        θ .= NaN
-        if is_a_ripple # IS RIPPLE?
-            n .= NaN
-            if lfp.area[I] == "CA1"
-                ρ[:, :,  [2, 3, 4]] .= NaN
-            elseif lfp.area[I] == "CA1PFC"
-                ρ[:, :,  [1, 3, 4]] .= NaN
-            elseif lfp.area[I] == "PFCCA1"
-                ρ[:, :,  [1, 2, 4]] .= NaN
-            elseif lfp.area[I] == "PFC"
-                ρ[:, :,  [1, 2, 3]] .= NaN
-            else
-                @error "Not a valid type"
-            end
+# --------------------
+beh = annotate_pastFutureGoals(beh)
 
-            if doRipplePhase
-                ρ[(!).(isnan.(ρ))]   .= lfp.rip_phase[I]
-            end
-        else
-            ρ .= NaN
-        end
-    else # THETA CYCLE
-        θ[(!).(isnan.(θ))] .= lfp.phase[I]
-        ρ .= NaN
-        n .= NaN
-    end
-end
+# --------------
+# Preprocess LFP
+# --------------
+ripples      = velocity_filter_ripples(beh,ripples)
+lfp, cycles  = get_theta_cycles(lfp)
+lfp          = curate_lfp_theta_cycle_and_phase(lfp, cycles)
+lfp, ripples = annotate_ripples_to_lfp(lfp, ripples)
+ripples, cycles = annotate_vector_info(ripples, cycles)
+
+# Cast to Float32(for makie) and range for plotting
+lfp.phase_plot = utils.norm_extrema(lfp.phase, extrema(spikes.unit))
+lfp.phase = utils.norm_extrema(lfp.phase, (-pi,pi))
+lfp.raw      = Float32.(utils.norm_extrema(lfp.raw,      extrema(spikes.unit)))
+lfp.broadraw = Float32.(utils.norm_extrema(lfp.broadraw, extrema(spikes.unit)))
+lfp.cycle, lfp.phase = Int32.(lfp.cycle), Float32.(lfp.phase)
+
+# ------------------------------
+# Separate DECODES by EVENTS
+# ------------------------------
+theta, ripples, non = separate_theta_ripple_and_non_decodes(dat, lfp;
+                                                            doRipplePhase=doRipplePhase)
 frac_print(frac) = @sprintf("Fraction times = %2.4f",frac)
 frac = mean(all(isnan.(theta) .&& isnan.(ripple), dims=(1,2)))
 frac_print(frac)
@@ -264,91 +138,12 @@ frac_rip = vec(mean(all(isnan.(ripple),dims=(1,2)), dims=(1,2,3)))
 frac_print.(frac_rip)
 
 if dosweep
-
-    # Create cumulative theta sweeps
-    sweep = (a,b)->isnan(b) ? a : nanmean(cat(a, b, dims=3), dims=3)
-    lfp = groupby(lfp,:cycle)
-    @time Threads.@threads for group in lfp
-        cycStart, cycStop = utils.searchsortednext(T, group.time[1]),
-                            utils.searchsortednext(T, group.time[end])
-        cycle = cycStart:cycStop
-        if cycle == 1:1 || group.cycle[1] == -1 || ismissing(group.cycle[1])
-            continue
-        end
-        θ = view(theta, :, :, cycle)
-        θ = accumulate(sweep, theta[:,:,cycle],  dims=3)
-    end
-    lfp = combine(lfp, identity)
-    lfp = sort!(lfp,:time)
-
-    # Cumulative ripple sweeps
-    if doRipplePhase
-        lfp = groupby(lfp, :rip_id)
-        @time @Threads.threads for group in lfp
-            cycStart, cycStop = utils.searchsortednext(T, group.time[1]),
-                                utils.searchsortednext(T, group.time[end])
-            local cycle = cycStart:cycStop
-            if cycle == 1:1 || group.cycle[1] == -1 ||
-               ismissing(group.cycle[1])
-                continue
-            end
-            ripple[:, :, cycle] = accumulate((a,b)->sweep.(a,b),
-                                             ripple[:,:,cycle], dims=3)
-        end
-        lfp = combine(lfp,identity)
-    end
-
-end
-
-# --------------------
-# Preprocess BEHAHVIOR
-# TODO Turn this into a function
-# --------------------
-beh = groupby(beh, [:epoch, :traj])
-for (g,group) in enumerate(beh)
-    if g!=length(beh)
-        group.futureStopWell .= beh[g+1].stopWell[1]
-    end
-    if g!=1
-        group.pastStopWell .= beh[g-1].stopWell[1]
-    end
-end
-beh = sort(combine(beh, identity), :time)
-replace!(beh.pastStopWell, missing=>-1)
-replace!(beh.futureStopWell, missing=>-1)
-if doPrevPast
-    beh.hw = argmax(StatsBase.fit(StatsBase.Histogram,
-                                  filter(b->b!=-1,beh.stopWell), 1:6).weights)
-    beh = groupby(beh, [:epoch, :block])
-    for (g,group) in enumerate(beh)
-        # TODO
-    end
-    replace!(beh.prevPastStopWell, missing=>-1)
-    beh = sort(combine(beh, identity),:time)
+    theta, ripples = convert_to_sweeps(lfp, theta, ripples;
+                                       doRipplePhase=doRipplePhase)
 end
 
 # Checkpoint pre-video data
-cp(x, type="arrow") = joinpath(dirname(decode_file), "$(x).$type")
-using HDF5
-using Arrow
-begin
-    Arrow.write(cp("cells"), cells)
-    Arrow.write(cp("spikes"), spikes)
-    Arrow.write(cp("beh"), beh)
-    Arrow.write(cp("lfp"), lfp)
-    Arrow.write(cp("cycles"), cycles)
-    Arrow.write(cp("ripples"), ripples)
-    h5open(cp("decode","h5"), "w") do file
-        create_group(file, "decode")
-        println(file["decode"])
-        file["decode/dat"] = dat
-        file["decode/x"]   = x
-        file["decode/y"]   = y
-        file["decode/T"]   = T
-    end
-    nothing
-end
-
+save_checkpoint(Main)
 
 # --------------------
 # RUN VIDEO 
@@ -361,52 +156,6 @@ tr = Dict("beh"=>utils.searchsortednearest(beh.time, T[1]),
           "prob"=>median(diff(T)))
 Δi = Dict("beh"=>(Δt["beh"]/Δt["prob"])^-1,
           "lfp"=>(Δt["lfp"]/Δt["prob"])^-1)
-
-function select_range(t, data=spikes, Δ_bounds=Δ_bounds)
-    time  = T[t]
-    data = @subset(data,   (:time .> (time - Δ_bounds[1])) .&&
-                           (:time .< (time + Δ_bounds[2])))
-    data.time = data.time .- T[t]
-    data
-end
-function select_est_range(t, tr, Δt, Δi, data=beh, Δ_bounds=Δ_bounds)
-    tt = tr + (t-1)*Δi
-    Δ = -Int(round(Δ_bounds[1]/Δt)) : Int(round(Δ_bounds[2]/Δt))
-    start, stop = max(1,tt+Δ[1]), min(length(T),tt+Δ[2])
-    center_time = data.time[t]
-    data = data[start:stop,:]
-    data.time .-= center_time
-    data
-end
-function select_est_range(t, tr, Δt, data=beh, Δ_bounds=Δ_bounds)
-    I = utils.searchsortednearest(data.time, T[t])
-    if I != 1 && !(isnan(I))
-        Δ = -Int(round(Δ_bounds[1]/Δt)) : Int(round(Δ_bounds[2]/Δt))
-        center_time = data.time[I]
-        @debug "I=$I, Δ=$Δ"
-        data = data[min.(max.(I.+Δ,1), length(T)),:]
-        data.time .-= center_time
-    else
-        data = DataFrame(lfp[1,:])
-        data.time .= NaN
-    end
-    return data
-end
-function select_time(t, data=spikes, Δ_bounds=Δ_bounds)
-    time  = T[t]
-    I = utils.searchsortednearest(beh.time, time)
-    data = data[I, :]
-    data.time = 0
-    data
-end
-function select_prob(t, prob::Array{<:Real,3}=dat)
-    time  = min(max(t, 1), length(T))
-    D = prob[:,:, time]
-end
-function select_prob4(t, prob::Array{<:Real,4}=dat)
-    time  = min(max(t, 1), length(T))
-    D = prob[:,:, time, :]
-end
 
 ## ---------------
 ## FIGURE WISHLIST

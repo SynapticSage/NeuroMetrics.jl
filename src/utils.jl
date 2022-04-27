@@ -6,9 +6,11 @@ using Gadfly
 using Colors, ColorSchemes
 using Pushover
 using Statistics, NaNStatistics
+
 include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
+import .SearchSortedNearest
 const searchsortednearest = SearchSortedNearest.searchsortednearest
-const searchsortednext = SearchSortedNearest.searchsortednext
+const searchsortednext    = SearchSortedNearest.searchsortednext
 
 
 export skipnan
@@ -111,6 +113,5 @@ end
 function pushover(pos...; kws...)
     send(getPushoverClient(), pos...; kws...)
 end
-
 
 end

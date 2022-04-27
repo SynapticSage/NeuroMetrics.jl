@@ -1,4 +1,5 @@
-module 
+module timeshift
+
     using DataFrames
     import ..field
     export get_field_shift
@@ -16,7 +17,8 @@ module
     using Dagger
 
     # -------------------- SHIFTING TYPES ---------------------------
-    shift_func(data, shift) = transform(data, :time => (t->t.+shift) =>:time, copycols=false)
+    shift_func(data::DataFrame, shift::Real) = 
+             transform(data, :time => (t->t.+shift) =>:time, copycols=false)
     const σ = shift_func
 
     # -------------------- SHIFTED Receptive Fields --------------------------
@@ -43,10 +45,10 @@ module
         p = Progress(length(shifts), desc="field shift calculations")
         if multi == :thread
             Threads.@threads for shift in shifts
-                if (;shift) ∈ keys(safe_dict)
+                if shift ∈ keys(safe_dict)
                     continue
                 end
-                result = field.get_fields(shift_func(beh,shift), data; kws...)
+                result = field.get_fields(σ(beh,shift), data; kws...)
                 if postfunc != nothing
                     result = postfunc(result)
                 end
@@ -55,14 +57,14 @@ module
             end
         elseif multi == :single
             @showprogress for shift in shifts
-                if (;shift) ∈ keys(safe_dict)
+                if shift ∈ keys(safe_dict)
                     continue
                 end
                 result = field.get_fields(σ(beh,shift), data; kws...)
                 if postfunc != nothing
                     result = postfunc(result)
                 end
-                push!(safe_dict, (;shift)=>result)
+                push!(safe_dict, shift=>result)
                 next!(p)
             end
         elseif multi == :distributed
@@ -117,7 +119,8 @@ module
                 end
                 push!(safe_dict, (;shift,shuffle)=>result)
                 next!(P)
-                if mod(i, exfiltrateAfter)
+                if mod(i, exfiltrateAfter) == 0
+                    @info "chechpoint->exfiltrated"
                     @exfiltrate
                 end
             end
@@ -142,7 +145,8 @@ module
                     result = postfunc(result)
                 end
                 push!(safe_dict, (;shift,shuffle)=>result)
-                if mod(i, exfiltrateAfter)
+                if mod(i, exfiltrateAfter) == 0
+                    @info "chechpoint->exfiltrated"
                     @exfiltrate
                 end
             end
@@ -156,11 +160,22 @@ module
     end
 
 
-    function to_dataframe(shifts::AbstractDict; kws...) 
+    function to_dataframe(shifts::AbstractDict{<:Real, <:Any}; kws...) 
         table.to_dataframe(shifts, key_name="shift", kws...)
     end
+    function to_dataframe(
+            shifts::AbstractDict{<:Union{NamedTuple,AbstractDict}, <:Any};
+            kws...)
+        table.to_dataframe(shifts, kws...)
+    end
 
-    function info_to_dataframe(shifts::AbstractDict; kws...) where T <: AbstractArray
+    function info_to_dataframe(shifts::AbstractDict{<:Real,<:Any};
+            kws...)::DataFrame
+        table.to_dataframe(shifts, key_name="shift", name="info", kws...)
+    end
+    function info_to_dataframe(
+            shifts::AbstractDict{<:Union{NamedTuple,AbstractDict},<:Any};
+            kws...)::DataFrame
         table.to_dataframe(shifts, key_name="shift", name="info", kws...)
     end
 
@@ -177,4 +192,3 @@ module
 
 
 end
-export timeshift

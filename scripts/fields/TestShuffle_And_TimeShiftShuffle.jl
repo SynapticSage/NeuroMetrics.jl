@@ -5,6 +5,7 @@ includet(srcdir("field/info.jl"))
 includet(srcdir("field/timeshift.jl"))
 _, spikes = raw.register(beh, spikes; transfer=["velVec"], on="time")
 import Base.Threads: @spawn
+sp = copy(spikes)
 
 # Testing shuffle methods
 # -----------------------
@@ -25,11 +26,13 @@ shifts = -4:0.2:4
 
 # Single thread
 #
-result = @time timeshift.get_field_shift(beh, spikes, shifts; 
+result = @time timeshift.get_field_shift(beh, spikes, shifts;
                          multi=:single, postfunc=info.information, 
-                         newkws...)
+                         newkws...) # 2 minutes, roughly
 
-shuf_result = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 16 hours
+@assert sp.time == spikes.time
+
+shuf_result = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 4-16 hours
                          multi=:single, postfunc=info.information, 
                          shuffle_func=shuffle.by,
                          exfiltrateAfter=25,
