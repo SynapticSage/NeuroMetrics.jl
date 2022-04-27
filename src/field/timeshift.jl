@@ -31,6 +31,7 @@ module
             postfunc::Union{Function,Nothing}=nothing,
             as::Type=OrderedDict,
             multi::Union{Bool, Symbol}=true,
+            safe_dict::AbstractDict=ThreadSafeDict(),
             kws...)
 
         if multi isa Bool
@@ -39,10 +40,12 @@ module
         @info "Starting multi=$multi"
         msg = "$multi timeshift-shuffles"
 
-        safe_dict = ThreadSafeDict()
         p = Progress(length(shifts), desc="field shift calculations")
         if multi == :thread
             Threads.@threads for shift in shifts
+                if (;shift) ∈ keys(safe_dict)
+                    continue
+                end
                 result = field.get_fields(shift_func(beh,shift), data; kws...)
                 if postfunc != nothing
                     result = postfunc(result)
@@ -52,11 +55,14 @@ module
             end
         elseif multi == :single
             @showprogress for shift in shifts
+                if (;shift) ∈ keys(safe_dict)
+                    continue
+                end
                 result = field.get_fields(σ(beh,shift), data; kws...)
                 if postfunc != nothing
                     result = postfunc(result)
                 end
-                push!(safe_dict, shift=>result)
+                push!(safe_dict, (;shift)=>result)
                 next!(p)
             end
         elseif multi == :distributed
@@ -75,10 +81,10 @@ module
             shuffle_kws::NamedTuple=(;),
             shuffle_func=shuffle.by,
             postfunc::Union{Function,Nothing}=nothing,
+            safe_dict::AbstractDict=ThreadSafeDict(),
             exfiltrateAfter::Int=Inf,
             kws...)::AbstractDict
 
-        safe_dict = ThreadSafeDict()
         sets = collect( Iterators.enumerate(Iterators.product(1:nShuffle,
                                                               shifts)))
 
@@ -101,12 +107,15 @@ module
         if multi == :thread
             P = Progress(length(sets), desc=msg)
             Threads.@threads for (i, (shuffle,shift)) in sets
+                if (;shift,shuffle) ∈ keys(safe_dict)
+                    continue
+                end
                 data = shuffle_func(data, shuffle_pos...; shuffle_kws...)
                 result = field.get_fields(σ(beh,shift), data; kws...)
                 if postfunc != nothing
                     result = postfunc(result)
                 end
-                push!(safe_dict, shift=>result)
+                push!(safe_dict, (;shift,shuffle)=>result)
                 next!(P)
                 if mod(i, exfiltrateAfter)
                     @exfiltrate
@@ -123,7 +132,7 @@ module
                     result = Dagger.@spawn postfunc(result)
                     @debug "Dagger 3"
                 end
-                push!(safe_dict, (shift=shift,shuffle=shuffle)=>result)
+                push!(safe_dict, (;shift,shuffle)=>result)
             end
         elseif multi == :single
             @showprogress 0.1 msg for (i,(shuffle,shift)) in sets
@@ -132,7 +141,7 @@ module
                 if postfunc != nothing
                     result = postfunc(result)
                 end
-                push!(safe_dict, (shift=shift,shuffle=shuffle)=>result)
+                push!(safe_dict, (;shift,shuffle)=>result)
                 if mod(i, exfiltrateAfter)
                     @exfiltrate
                 end
