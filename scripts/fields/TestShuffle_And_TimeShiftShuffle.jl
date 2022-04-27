@@ -21,13 +21,15 @@ splitby=["unit", "area"]
 kws=(;splitby, filters=merge(filt.speed_lib, filt.cellcount))
 newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
           filters=merge(kws.filters))
+shifts = -4:0.2:4
 
 # Single thread
-shuf_result = @time timeshift.get_field_shift_shuffles(beh, spikes, -2:0.1:2; # 16 hours
+shuf_result = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 16 hours
                          multi=:single, postfunc=info.information, 
                          shuffle_func=shuffle.by,
+                         exfiltrateAfter=25,
                          newkws...)
-result = @time timeshift.get_field_shift(beh, spikes, -2:0.1:2; 
+result = @time timeshift.get_field_shift(beh, spikes, shifts; 
                          multi=:single, postfunc=info.information, 
                          newkws...)
 
@@ -36,14 +38,15 @@ using Distributed
 using Dagger
 addprocs(8, enable_threaded_blas=true)
 @everywhere include("/home/ryoung/Projects/goal-code/scripts/fields/Include.jl")
-@time shuf_result = timeshift.get_field_shift_shuffles(beh, spikes, -2:0.1:2; # 16 hours
+@time shuf_result = timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 16 hours
                          multi=:distributed, postfunc=info.information, 
                          shuffle_func=shuffle.by,
                          newkws...)
 
 # Threading
 Threads.nthreads() = 8
-@time shuf_result = timeshift.get_field_shift_shuffles(beh, spikes, -2:0.1:2; # 16 hours
+@time shuf_result = timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 16 hours
                          multithread=true, postfunc=info.information, 
                          shuffle_func=shuffle.by,
+                         exfiltrateAfter=25,
                          newkws...)

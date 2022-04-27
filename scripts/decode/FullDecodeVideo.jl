@@ -149,7 +149,7 @@ lfp.phase = utils.norm_extrema(lfp.phase, (-pi,pi))
 # (5) Annotate cycles with, decode vector, next/previous goal data
 match(time, col) = beh[utils.searchsortednearest(beh.time, time),col]
 function matchdxy(time::Real) 
-    @infiltrate
+    #@infiltrate
     I =  utils.searchsortednearest(T, time)
     D = replace(dat[:,:,I], NaN=>0)
     xi = argmax(maximum(D, dims=2), dims=1)
@@ -178,15 +178,17 @@ lfp.rip_phase = Float32.(combine(groupby(lfp, :rip_id, sort=false),
                                  x->1/nrow(x)*ones(nrow(x))).x1)
 # Theta : Create probability chunks by phase
 dat = Float32.(dat)
-theta, ripple = copy(dat), repeat(copy(dat), outer=(1,1,1,4))
+theta, ripple, non = copy(dat), repeat(copy(dat), outer=(1,1,1,4)), copy(dat)
 @time Threads.@threads for (t,time) in collect(enumerate(T))
     I = utils.searchsortednearest(lfp.time, time)
-    θ, ρ  = view(theta, :, :, t), view(ripple, :, :, t, :)
+    θ, ρ, n  = view(theta, :, :, t), view(ripple, :, :, t, :),
+               view(non, :, :, t)
     not_a_theta_cycle = lfp.cycle[I] == -1
     is_a_ripple = !(ismissing(lfp.rip_id[I]))
     if not_a_theta_cycle # NOT THETA
         θ .= NaN
         if is_a_ripple # IS RIPPLE?
+            n .= NaN
             if lfp.area[I] == "CA1"
                 ρ[:, :,  [2, 3, 4]] .= NaN
             elseif lfp.area[I] == "CA1PFC"
@@ -208,6 +210,7 @@ theta, ripple = copy(dat), repeat(copy(dat), outer=(1,1,1,4))
     else # THETA CYCLE
         θ[(!).(isnan.(θ))] .= lfp.phase[I]
         ρ .= NaN
+        n .= NaN
     end
 end
 frac_print(frac) = @sprintf("Fraction times = %2.4f",frac)
@@ -325,8 +328,9 @@ end
 function select_est_range(t, tr, Δt, Δi, data=beh, Δ_bounds=Δ_bounds)
     tt = tr + (t-1)*Δi
     Δ = -Int(round(Δ_bounds[1]/Δt)) : Int(round(Δ_bounds[2]/Δt))
+    start, stop = max(1,tt+Δ[1]), min(length(T),tt+Δ[2])
     center_time = data.time[t]
-    data = data[tt+Δ[1]:tt+Δ[2],:]
+    data = data[start:stop,:]
     data.time .-= center_time
     data
 end
@@ -336,7 +340,7 @@ function select_est_range(t, tr, Δt, data=beh, Δ_bounds=Δ_bounds)
         Δ = -Int(round(Δ_bounds[1]/Δt)) : Int(round(Δ_bounds[2]/Δt))
         center_time = data.time[I]
         @debug "I=$I, Δ=$Δ"
-        data = data[max.(I.+Δ,1),:]
+        data = data[min.(max.(I.+Δ,1), length(T)),:]
         data.time .-= center_time
     else
         data = DataFrame(lfp[1,:])
@@ -393,9 +397,7 @@ end
 
 # Data
 @time behavior     = @lift select_range($t, beh, [-0.01, 0.60])
-#@time behavior     = @lift select_est_range($t, tr["beh"], Δt["beh"], beh, [0.60, 0.01])
 @time spike_events = @lift select_range($t, spikes)
-#@time lfp_events   = @lift select_range($t, lfp)
 @time lfp_events   = @lift select_est_range($t, tr["lfp"], Δt["lfp"], lfp)
 lfp_events = @lift transform($lfp_events, 
                              [:phase,:amp] => ((x,y)->x.*(y.^1.9)) => :phase)
@@ -426,9 +428,24 @@ axLFP.yticks = 100:100
 axLFPsum.yticks = 0:0
 
 # Neural data AXIS
+colorby = nothing
+spike_colors = @lift begin
+    if colorby == nothing
+        :white
+    else
+        $behavior[!, colorby]
+    end
+end
+spike_colorrange = begin
+    if colorby == nothing
+        (-Inf, Inf)
+    else
+        extrema(beh[!, colorby])
+    end
+end
 sc_sp_events = @lift([Point2f(Tuple(x)) for x in
                       eachrow($spike_events[!,[:time,:unit]])])
-sc = scatter!(axNeural, sc_sp_events, color=:white, markersize=3)
+sc = scatter!(axNeural, sc_sp_events, color=spike_colors, markersize=3, colorrange=spike_colorrange)
 #ln_lfp_phase = @lift([Point2f(Tuple(x)) for x in
 #                      eachrow(select($lfp_events, :time, :phase_plot=>x->x.*1))])
 #sc = lines!(axNeural, ln_lfp_phase,  color=:gray, linestyle=:dash)
@@ -446,13 +463,15 @@ ca1pfc = @lift($ripple_prob[:,:,2])
 pfcca1 = @lift($ripple_prob[:,:,3])
 pfc    = @lift($ripple_prob[:,:,4])
 limits = nanextrema(theta)
-hm_theta     = heatmap!(axArena, x,y, theta_prob,   colormap=(:romaO,0.8), colorrange=limits, interpolate=false)
-hm_ripple    = heatmap!(axArena, x,y, ca1,  colormap=(:linear_ternary_blue_0_44_c57_n256, 0.8), interpolate=false)
+hm_theta     = heatmap!(axArena, x,y, theta_prob, colormap=(:romaO,0.8), colorrange=limits, interpolate=false)
+hm_ripple    = heatmap!(axArena, x,y, ca1,    colormap=(:linear_ternary_blue_0_44_c57_n256, 0.8), interpolate=false)
 hm_ripple_hp = heatmap!(axArena, x,y, ca1pfc, colormap=(:summer, 0.8), interpolate=false)
 hm_ripple_ph = heatmap!(axArena, x,y, pfcca1, colormap=(:spring, 0.8), interpolate=false)
-hm_ripple_p  = heatmap!(axArena, x,y, pfc, colormap=(:linear_ternary_red_0_50_c52_n256, 0.8), interpolate=false)
-#non_prob = @lift select_prob($t, non)
-#hm_non = heatmap!(axArena, x,y, non_prob, colormap=(:bamako,0.8))
+hm_ripple_p  = heatmap!(axArena, x,y, pfc,    colormap=(:linear_ternary_red_0_50_c52_n256, 0.8), interpolate=false)
+if plotNon
+    non_prob = @lift select_prob($t, non)
+    hm_non = heatmap!(axArena, x,y, non_prob, colormap=(:bamako,0.8))
+end
 
 # Arena data AXIS :: Behavior
 now = 1
@@ -488,7 +507,7 @@ if doPrevPast
     past₂_well_xy    = @lift (($past₂ == -1) || ($past₂ == $future₁)) ? Point2f(NaN, NaN) : Point2f(wells.x[$past₂], wells.y[$past₂])
 end
 
-function play_graphic(stop=length(T))
+function play_graphic(stop=length(T)-20)
     framerate = 90
     start = t[]
     timestamps = range(start, stop, step=1)
@@ -500,7 +519,6 @@ function play_graphic(stop=length(T))
         next!(P)
     end
 end
-
 
 # -------------
 # VISUALIZE

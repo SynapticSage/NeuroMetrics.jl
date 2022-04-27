@@ -26,7 +26,13 @@ PROPS = ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
 IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
 
 
+"""
+Translate into shorcut names
+"""
 𝕄(items)  = [replace(item, shortcut_names...) for item in items]
+"""
+UnTranslate from shorcut names
+"""
 𝕄̅(items)  = [replace(item, Dict(kv[2]=>kv[1] for kv in shortcut_names)...)
              for item in items]
 sz(items) = [IDEALSIZE(item) for item in items]
