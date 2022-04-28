@@ -26,3 +26,11 @@ function annotate_pastFutureGoals(beh)
     end
 end
 
+function annotate_poke(beh)
+    pn = sort([name for name in names(beh) if occursin("poke_", name)])
+    poke_matrix = replace(Matrix(beh[!, pn]), NaN=>0)
+    poke_matrix = BitMatrix(poke_matrix)
+    pn = replace([findfirst(row) for row in eachrow(poke_matrix)],nothing=>0)
+    beh.poke = pn
+    beh
+end

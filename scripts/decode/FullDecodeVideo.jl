@@ -6,25 +6,22 @@ quickactivate(expanduser("~/Projects/goal-code"))
 using Pushover, Revise, Interact, Blink, Mux, ProgressMeter
 using Statistics, NaNStatistics
 using VideoIO
-using ColorSchemes
 using GLMakie
 using ColorSchemes, Colors
+import ColorSchemeTools 
 using DataFrames, DataFramesMeta
-import ColorSchemeTools, LoopVectorization
 using Printf
 using StatsPlots: @df
+import StatsBase
 using Infiltrate
 set_theme!(theme_dark())
 __revise_mode__ = :eval
-#includet(srcdir("table.jl"))
 includet(srcdir("raw.jl"))
 includet(srcdir("table.jl"))
-includet(srcdir("raster.jl"))
-includet(srcdir("decode.jl"))
 includet(srcdir("utils.jl"))
-import raw, table, raster, utils
-import StatsBase
-using decode
+includet(srcdir("decode.jl"))
+import .raw, .table, .utils
+using .decode
 
 # Debugger?
 ENV["JULIA_DEBUG"] = nothing
@@ -142,6 +139,10 @@ if dosweep
                                        doRipplePhase=doRipplePhase)
 end
 
+no_cycle_happening = utils.squeeze(all(isnan.(theta), dims=(1,2)))
+lfp[!, :color_phase] = RGBA.(get(ColorSchemes.romaO, lfp[!, :phase]))
+lfp[utils.searchsortednearest.([lfp.time], T[no_cycle_happening]), :color_phase] .= RGBA{Float64}(0, 0, 0, 0)
+
 # Checkpoint pre-video data
 save_checkpoint(Main)
 
@@ -163,6 +164,8 @@ tr = Dict("beh"=>utils.searchsortednearest(beh.time, T[1]),
 # - Goals
 #   - Glow goal
 #   - Vector to goal?
+# - Errors
+#   - Show actual poked well that caused the error
 # - Sequences
 #   - Vector: Start to end
 #   - Vector: animal to end
@@ -192,8 +195,9 @@ end
 @time behavior     = @lift select_range($t, beh, [-0.01, 0.60])
 @time spike_events = @lift select_range($t, spikes)
 @time lfp_events   = @lift select_est_range($t, tr["lfp"], Δt["lfp"], lfp)
+lfp_now = @lift Int32(round(size($lfp_events,1)/2))
 lfp_events = @lift transform($lfp_events, 
-                             [:phase,:amp] => ((x,y)->x.*(y.^1.9)) => :phase)
+                             [:phase,:amp] => ((x,y)->x.*(y.^1.9)) => :phaseamp)
 
 # Grids
 # Axes
@@ -209,14 +213,15 @@ axNeural = Axis(gNeural[3:8,1], xlabel="time")
 controls = Fig[1:2, 3]
 
 
-ln_phase_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_events[!,[:time,:phase]])]) 
-ln_theta    = lines!(axLFPsum,   ln_phase_xy, color=:white, linestyle=:dash)
+ln_theta_color = @lift mean($lfp_events.color_phase[-10+$lfp_now:10+$lfp_now])
+ln_phase_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_events[!,[:time,:phaseamp]])]) 
+ln_theta    = lines!(axLFPsum,   ln_phase_xy, color=ln_theta_color, linestyle=:dash)
 
 # LFP Raw data AXIS
 ln_broad_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_events[!,[:time,:broadraw]])]) 
 ln_theta_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_events[!,[:time,:raw]])]) 
-ln_broad    = lines!(axLFP, ln_broad_xy, color=:gray, linestyle=:dash)
-ln_theta    = lines!(axLFP,   ln_theta_xy, color=:white, linestyle=:dash)
+ln_broad    = lines!(axLFP, ln_broad_xy, color=:gray,  linestyle=:dash)
+ln_theta    = lines!(axLFP, ln_theta_xy, color=ln_theta_color, linestyle=:dash)
 axLFP.yticks = 100:100
 axLFPsum.yticks = 0:0
 
@@ -292,23 +297,37 @@ end
 future₁_well_xy = @lift $future₁ == -1 ? Point2f(NaN, NaN) : Point2f(wells.x[$future₁], wells.y[$future₁])
 future₂_well_xy = @lift (($future₂ == -1) || ($future₂ == $future₁)) ? Point2f(NaN, NaN) : Point2f(wells.x[$future₂], wells.y[$future₂])
 past₁_well_xy    = @lift (($past₁ == -1) || ($past₁ == $future₁)) ? Point2f(NaN, NaN) : Point2f(wells.x[$past₁], wells.y[$past₁])
-sc_future₁_well = scatter!(axArena, future₁_well_xy, alpha=0.5, marker='𝐅', markersize=60, color=correctColor, glowwidth=29)
-sc_future₂_well = scatter!(axArena, future₂_well_xy, alpha=0.5, marker='𝐟', markersize=60, color=:white, glowwidth=5)
-sc_past_well    = scatter!(axArena, past₁_well_xy,    alpha=0.5, marker='𝐏', markersize=60, color=:white, glowwidth=5)
+sc_future₁_well = scatter!(axArena, future₁_well_xy,  alpha=0.5, marker='𝐅', markersize=60, color=correctColor, glowwidth=29)
+sc_future₂_well = scatter!(axArena, future₂_well_xy,  alpha=0.5, marker='𝐟', markersize=60, color=:white,       glowwidth=5)
+sc_past_well    = scatter!(axArena, past₁_well_xy,    alpha=0.5, marker='𝐏', markersize=60, color=:white,       glowwidth=5)
 if doPrevPast
     past₂   = @lift($behavior.pastStopWell[now])
     past₂_well_xy    = @lift (($past₂ == -1) || ($past₂ == $future₁)) ? Point2f(NaN, NaN) : Point2f(wells.x[$past₂], wells.y[$past₂])
 end
 
-function play_graphic(stop=length(T)-20)
-    framerate = 90
+# Pokes if error
+poke_1_xy = @lift (!($correct==0) && $behavior.poke_1[now]==1) ? Point2f(wells.x[1], wells.y[1]) : Point2f(NaN, NaN)
+poke_2_xy = @lift (!($correct==0) && $behavior.poke_2[now]==1) ? Point2f(wells.x[2], wells.y[2]) : Point2f(NaN, NaN)
+poke_3_xy = @lift (!($correct==0) && $behavior.poke_3[now]==1) ? Point2f(wells.x[3], wells.y[3]) : Point2f(NaN, NaN)
+poke_4_xy = @lift (!($correct==0) && $behavior.poke_4[now]==1) ? Point2f(wells.x[4], wells.y[4]) : Point2f(NaN, NaN)
+poke_5_xy = @lift (!($correct==0) && $behavior.poke_5[now]==1) ? Point2f(wells.x[5], wells.y[5]) : Point2f(NaN, NaN)
+poke_1_sc = scatter!(axArena, poke_1_xy, marker='↑', markersize=30, color=:white, glow_width=10)
+poke_2_sc = scatter!(axArena, poke_2_xy, marker='↑', markersize=30, color=:white, glow_width=10)
+poke_3_sc = scatter!(axArena, poke_3_xy, marker='↓', markersize=30, color=:white, glow_width=10)
+poke_4_sc = scatter!(axArena, poke_4_xy, marker='↑', markersize=30, color=:white, glow_width=10)
+poke_5_sc = scatter!(axArena, poke_5_xy, marker='←', markersize=30, color=:white, glow_width=10)
+
+function play_graphic(stop=length(T)-2000; framerate = 90)
     start = t[]
     timestamps = range(start, stop, step=1)
     P=Progress(stop-start, desc="Video")
-    #recording = plotsdir("mpp_decode", "withBehVideo=$usevideo", outputVideo)
     path = joinpath(dirname(decode_file), "decode_split=$(split_num)_start=$(start)_stop=$stop.mp4")
     record(Fig, path, timestamps; framerate=framerate, compression=10) do stamp
-        t[] = stamp
+        try
+            t[] = stamp
+        catch
+            @warn "timestamp failed with t=$(t[])"
+        end
         next!(P)
     end
 end

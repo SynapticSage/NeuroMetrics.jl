@@ -89,7 +89,7 @@ function annotate_vector_info(ripples, cycles)
 end
 
 
-function separate_theta_ripple_and_non_decodes(lfp, dat; doRipplePhase::bool=false)
+function separate_theta_ripple_and_non_decodes(lfp, dat; doRipplePhase::Bool=false)
     lfp = sort(combine(lfp, identity), :time)
     # Theta : Create probability chunks by phase
     dat = Float32.(dat)
@@ -131,7 +131,7 @@ function separate_theta_ripple_and_non_decodes(lfp, dat; doRipplePhase::bool=fal
     return theta, ripple, non
 end
 
-function convert_to_sweeps(lfp, theta, ripple; doRipplePhase::bool=false)
+function convert_to_sweeps(lfp, theta, ripple; doRipplePhase::Bool=false)
     # Create cumulative theta sweeps
     sweep = (a,b)->isnan(b) ? a : nanmean(cat(a, b, dims=3), dims=3)
     lfp = groupby(lfp,:cycle)

@@ -2,7 +2,7 @@
 using HDF5
 using Arrow
 
-function save_checkpoint(Module m)
+function save_checkpoint(m::Module)
     cp(x, type="arrow") = joinpath(dirname(decode_file), "$(x).$type")
     @info "Checkpointing decode variables"
     begin

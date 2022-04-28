@@ -1,3 +1,6 @@
+using DataFramesMeta
+export select_range, select_est_range, select_time, 
+       select_prob, select_prob4
 
 function select_range(t, data=spikes, Δ_bounds=Δ_bounds)
     time  = T[t]

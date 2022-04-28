@@ -1,3 +1,5 @@
+using StatsBase
+export cosine_similarity_to_well
 
 """
 cosine_similarity_to_well
@@ -29,3 +31,12 @@ end
 # --------------------------------------------------
 # (Accomplished by getting a table for each of these 4, and averaging a
 # categorical symbolizing the two split tuples)
+
+function cosine_similarity_metric(X::DataFrame, beh::DataFrame,
+        well::DataFrame; kws...)
+    homewell   = fit(Histogram, beh.stopWell)
+    beh.ishome = beh.stopWell == homewell
+    splits = [:ishome, :correct]
+    register(X, beh, )
+    groupby(beh, splits)
+end

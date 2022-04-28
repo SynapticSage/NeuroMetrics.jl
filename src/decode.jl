@@ -1,5 +1,6 @@
 module decode
 using Statistics
+using LoopVectorization
 include("utils.jl")
 using .utils
 

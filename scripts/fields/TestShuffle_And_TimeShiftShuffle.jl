@@ -7,6 +7,7 @@ _, spikes = raw.register(beh, spikes; transfer=["velVec"], on="time")
 import Base.Threads: @spawn
 sp = copy(spikes)
 
+# -----------------------
 # Testing shuffle methods
 # -----------------------
 @time shuffle.by(spikes, distribution=:uniform, width=:traj,    data=beh) # 2.2 seconds
@@ -15,6 +16,7 @@ sp = copy(spikes)
 @time shuffle.byspike(spikes; distribution=:uniform, width=:traj, data=beh) # 0.36 seconds
 @time shuffle.byspike(spikes; distribution=:uniform, width=:session, data=beh) # 0.13 seconds
 
+# -----------------------------
 # Testing time-shifted shuffles
 # -----------------------------
 props = ["x", "y"]
@@ -23,6 +25,7 @@ kws=(;splitby, filters=merge(filt.speed_lib, filt.cellcount))
 newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
           filters=merge(kws.filters))
 shifts = -4:0.2:4
+shifts = shifts./60
 
 # Single thread
 #
