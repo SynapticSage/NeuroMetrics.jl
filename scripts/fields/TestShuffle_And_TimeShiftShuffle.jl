@@ -25,7 +25,10 @@ kws=(;splitby, filters=merge(filt.speed_lib, filt.cellcount))
 newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
           filters=merge(kws.filters))
 shifts = -4:0.2:4
-shifts = shifts./60
+if convertToMinutes
+    @info "Coverting shifts to minutes"
+    shifts = shifts./60
+end
 
 # Single thread
 #
@@ -35,10 +38,13 @@ result = @time timeshift.get_field_shift(beh, spikes, shifts;
 
 @assert sp.time == spikes.time
 
+using Serialization
+safe_dict = deserialize(datadir("safe_dict.serial"))
 shuf_result = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 4-16 hours
                          multi=:single, postfunc=info.information, 
                          shuffle_func=shuffle.by,
                          exfiltrateAfter=25,
+                         safe_dict=safe_dict,
                          newkws...)
 
 # Distributed

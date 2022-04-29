@@ -67,6 +67,7 @@ module raw
         for source ∈ load_order
             data[source] = raw.load_functions[source](args...)
             if "time" ∈ names(data[source])
+                @info "Centering $source and **converting to minutes**"
                 data[source].time = normalize(data, data[source].time);
             end
         end

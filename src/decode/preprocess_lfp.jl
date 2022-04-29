@@ -1,6 +1,10 @@
 export velocity_filter_ripples, get_theta_cycles, 
        curate_lfp_theta_cycle_and_phase, annotate_ripples_to_lfp,
        annotate_vector_info
+export separate_theta_ripple_and_non_decodes
+
+using DataFrames
+using LoopVectorization
 
 
 function velocity_filter_ripples(beh, ripples)
@@ -78,6 +82,10 @@ function annotate_vector_info(ripples, cycles)
                                :stop  => (t->match.(t, "y")) => :stop_y,
                                :start => (x->matchdxy.(x))   => [:start_x_dec, :start_y_dec],
                                :stop  => (x->matchdxy.(x))   => [:stop_x_dec, :stop_y_dec])
+    cycles = transform(cycles, [:start_x,:stop_x]  => diff => :Δx,
+                               [:start_y,:stop_y]  => diff => :Δy,
+                               [:start_x_dec,:stop_x_dec]  => diff => :Δx_dec,
+                               [:start_y_dec,:stop_y_dec]  => diff => :Δy_dec)
 
     ripples = transform(ripples, :start => (t->match.(t, "x")) => :start_x,
                                  :stop  => (t->match.(t, "x")) => :stop_x,
@@ -85,12 +93,20 @@ function annotate_vector_info(ripples, cycles)
                                  :stop  => (t->match.(t, "y")) => :stop_y,
                                  :start => (x->matchdxy.(x))   => [:start_x_dec, :start_y_dec],
                                  :stop  => (x->matchdxy.(x))   => [:stop_x_dec, :stop_y_dec])
+    ripples = transform(ripples, [:start_x_dec,:stop_x_dec]  => diff => :Δx_dec,
+                                 [:start_y_dec,:stop_y_dec]  => diff => :Δy_dec,
+                                 [:start_x_dec,:stop_x_dec]  => diff => :Δx_dec,
+                                 [:start_y_dec,:stop_y_dec]  => diff => :Δy_dec)
+
     ripples, cycles
 end
 
 
-function separate_theta_ripple_and_non_decodes(lfp, dat; doRipplePhase::Bool=false)
-    lfp = sort(combine(lfp, identity), :time)
+function separate_theta_ripple_and_non_decodes(T, lfp, dat; doRipplePhase::Bool=false)
+    if lfp isa GroupedDataFrame
+        lfp = combine(lfp, identity)
+    end
+    lfp = sort(lfp, :time)
     # Theta : Create probability chunks by phase
     dat = Float32.(dat)
     theta, ripple, non = copy(dat), repeat(copy(dat), outer=(1,1,1,4)), copy(dat)

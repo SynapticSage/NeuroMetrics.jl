@@ -1,4 +1,5 @@
 using StatsBase
+using DataFrame
 export cosine_similarity_to_well
 
 """
@@ -37,6 +38,6 @@ function cosine_similarity_metric(X::DataFrame, beh::DataFrame,
     homewell   = fit(Histogram, beh.stopWell)
     beh.ishome = beh.stopWell == homewell
     splits = [:ishome, :correct]
-    register(X, beh, )
+    #register(X, beh, )
     groupby(beh, splits)
 end

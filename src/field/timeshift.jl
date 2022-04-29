@@ -36,6 +36,8 @@ module timeshift
             safe_dict::AbstractDict=ThreadSafeDict(),
             kws...)
 
+        kws = (;dokde=false, kws...)
+
         if multi isa Bool
             multi = multi ? :thread : :single
         end
@@ -48,7 +50,7 @@ module timeshift
                 if shift ∈ keys(safe_dict)
                     continue
                 end
-                result = field.get_fields(σ(beh,shift), data; kws...)
+                result = field.get_fields(σ(beh, shift), data; kws...)
                 if postfunc != nothing
                     result = postfunc(result)
                 end
@@ -87,6 +89,8 @@ module timeshift
             exfiltrateAfter::Int=Inf,
             kws...)::AbstractDict
 
+        kws = (;dokde=false, kws...)
+
         sets = collect( Iterators.enumerate(Iterators.product(1:nShuffle,
                                                               shifts)))
 
@@ -106,10 +110,12 @@ module timeshift
 
         @info "Starting multi=$multi"
         msg = "$multi timeshift-shuffles"
+        skips = 0
+        P = Progress(length(sets), desc=msg)
         if multi == :thread
-            P = Progress(length(sets), desc=msg)
             Threads.@threads for (i, (shuffle,shift)) in sets
                 if (;shift,shuffle) ∈ keys(safe_dict)
+                    skips+=1
                     continue
                 end
                 data = shuffle_func(data, shuffle_pos...; shuffle_kws...)
@@ -119,7 +125,7 @@ module timeshift
                 end
                 push!(safe_dict, (;shift,shuffle)=>result)
                 next!(P)
-                if mod(i, exfiltrateAfter) == 0
+                if mod(i-skips, exfiltrateAfter) == 0
                     @info "chechpoint->exfiltrated"
                     @exfiltrate
                 end
@@ -138,17 +144,25 @@ module timeshift
                 push!(safe_dict, (;shift,shuffle)=>result)
             end
         elseif multi == :single
-            @showprogress 0.1 msg for (i,(shuffle,shift)) in sets
+            for (i,(shuffle,shift)) in sets
+                if (;shift,shuffle) ∈ keys(safe_dict)
+                    skips+=1
+                    next!(P)
+                    continue
+                else
+                    @info (; i,shift,shuffle)
+                end
                 data = shuffle_func(data, shuffle_pos...; shuffle_kws...)
                 result = field.get_fields(σ(beh,shift), data; kws...)
                 if postfunc != nothing
                     result = postfunc(result)
                 end
                 push!(safe_dict, (;shift,shuffle)=>result)
-                if mod(i, exfiltrateAfter) == 0
+                if mod(i-skips, exfiltrateAfter) == 0
                     @info "chechpoint->exfiltrated"
                     @exfiltrate
                 end
+                next!(P)
             end
         else
             throw(ArgumentError("Unrecognized argument multi=$multi"))

@@ -211,17 +211,17 @@ module field
     #Field = NamedTuple{(:hist, :kde, :cgrid, :egrid, :gridh, :gridk, :beh, :behdens), 
     #                   Tuple{Dict, Dict, Tuple, Tuple, Tuple, Vector, Array, Array}}
 
-    function center_to_edge(grid)
+    function center_to_edge(grid::AbstractVector)
         grid = collect(grid)
         Δ = median(diff(grid))
         δ = Δ/2
         grid = minimum(grid)-δ:Δ:maximum(grid)+δ
     end
-    function edge_to_center(grid)
+    function edge_to_center(grid::AbstractArray)
         grid = collect(grid)
         grid = dropdims(mean([vec(grid[1:end-1]) vec(grid[2:end])], dims=2), dims=2)
     end
-    function to_density(field)
+    function to_density(field::AbstractArray)
         field = field./nansum(vec(field))
     end
     function to_density(field, density)
@@ -310,6 +310,7 @@ module field
         using DataFrames
         using StatsBase, KernelDensity
         using KernelDensitySJ
+        #using Infiltrator
         #using DrWatson
         include("utils.jl")
         function KDE(data, props; bandwidth=:silverman)
@@ -398,6 +399,7 @@ module field
             # Grid settings
             grid = getSettings(beh, props, 
                                      resolution=resolution, settingType="kde")
+            #@infiltrate
             grid_hist = getSettings(beh, props, resolution=resolution,
                                     settingType="hist")
             # Behavioral distribution
@@ -416,8 +418,8 @@ module field
                                            by=x->x[2])...))[1]
                 ugroups = 
                 [(;zip(groups.cols,ugroup)...) for ugroup in ugroups]
-                spikeDist = Dict(ugroups[i] => field_of_group(i) 
-                                 for i ∈ 1:length(groups))
+                spikeDist = Dict(ugroups[i] => try field_of_group(i) catch nothing end
+                                 for i ∈ 1:length(groups)) # TODO replace nothing with array of nan
             else
                 if splitby != nothing
                     @warn "splitby not empty, yet not all columns in df"

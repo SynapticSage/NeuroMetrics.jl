@@ -2,14 +2,14 @@ using DataFramesMeta
 export select_range, select_est_range, select_time, 
        select_prob, select_prob4
 
-function select_range(t, data=spikes, Δ_bounds=Δ_bounds)
+function select_range(t, T; data=nothing, Δ_bounds=nothing)
     time  = T[t]
     data = @subset(data,   (:time .> (time - Δ_bounds[1])) .&&
                            (:time .< (time + Δ_bounds[2])))
     data.time = data.time .- T[t]
     data
 end
-function select_est_range(t, tr, Δt, Δi, data=beh, Δ_bounds=Δ_bounds)
+function select_est_range(t, T, tr, Δt, Δi; data=nothing, Δ_bounds=nothing)
     tt = tr + (t-1)*Δi
     Δ = -Int(round(Δ_bounds[1]/Δt)) : Int(round(Δ_bounds[2]/Δt))
     start, stop = max(1,tt+Δ[1]), min(length(T),tt+Δ[2])
@@ -18,7 +18,7 @@ function select_est_range(t, tr, Δt, Δi, data=beh, Δ_bounds=Δ_bounds)
     data.time .-= center_time
     data
 end
-function select_est_range(t, tr, Δt, data=beh, Δ_bounds=Δ_bounds)
+function select_est_range(t, T, tr, Δt; data=nothing, Δ_bounds=nothing)
     I = utils.searchsortednearest(data.time, T[t])
     if I != 1 && !(isnan(I))
         Δ = -Int(round(Δ_bounds[1]/Δt)) : Int(round(Δ_bounds[2]/Δt))
@@ -32,18 +32,18 @@ function select_est_range(t, tr, Δt, data=beh, Δ_bounds=Δ_bounds)
     end
     return data
 end
-function select_time(t, data=spikes, Δ_bounds=Δ_bounds)
+function select_time(t, T; data=nothing, Δ_bounds=nothing)
     time  = T[t]
     I = utils.searchsortednearest(beh.time, time)
     data = data[I, :]
     data.time = 0
     data
 end
-function select_prob(t, prob::Array{<:Real,3}=dat)
+function select_prob(t, T; prob::Array{<:Real,3}=nothing)
     time  = min(max(t, 1), length(T))
     D = prob[:,:, time]
 end
-function select_prob4(t, prob::Array{<:Real,4}=dat)
+function select_prob4(t, T; prob::Array{<:Real,4}=nothing)
     time  = min(max(t, 1), length(T))
     D = prob[:,:, time, :]
 end

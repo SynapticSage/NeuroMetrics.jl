@@ -1,8 +1,13 @@
 module decode
 using Statistics
 using LoopVectorization
+using Revise
+
 include("utils.jl")
 using .utils
+
+searchsortednearest = utils.searchsortednearest
+export searchsortednearest
 
 function movingmean(dat)
     R = [rolling(mean, dat[i,j,:],5) for i in 1:size(dat,1), j in 1:size(dat,2)]
@@ -26,7 +31,7 @@ end
 include("decode/preprocess_lfp.jl")
 include("decode/preprocess_beh.jl")
 include("decode/checkpoint.jl")
-include("decode/wellanalysis.jl")
+#include("decode/wellanalysis.jl")
 include("decode/makie_observable.jl")
 
 end

@@ -13,7 +13,7 @@ using DataFrames, DataFramesMeta
 using Printf
 using StatsPlots: @df
 import StatsBase
-using Infiltrate
+using Infiltrator
 set_theme!(theme_dark())
 __revise_mode__ = :eval
 includet(srcdir("raw.jl"))
@@ -30,10 +30,6 @@ ENV["JULIA_DEBUG"] = nothing
 # HELPER FUNCTIONS 
 # -----------------
 na = [CartesianIndex()]
-
-# -----------
-# DATASETS
-# -----------
 animal, day, epoch, ca1_tetrode = "RY16", 36, 7, 5
 thresh = Dict("likelihood"=>0.1, "acausal_posterior"=>0.97, "causal_posterior"=> 0.97)
 typical_number_of_squares_active = quantile(1:(45*28), 1) - quantile(1:(45*28), 0.97)
@@ -47,24 +43,9 @@ doRipplePhase                 = false
 splitBehVar                   = ["egoVec_1", "egoVec_2", "egoVec_3", "egoVec_4", "egoVec_5"] # Variables to monitor with splits
 vectorToWells                 = true
 histVectorToWells             = true
-@time beh    = raw.load_behavior(animal, day)
-@time spikes = raw.load_spikes(animal,   day)
-@time cells  = raw.load_cells(animal,    day)
-@time lfp    = @subset(raw.load_lfp(animal, day), :tetrode.==ca1_tetrode)[!,[:time, :raw, :phase, :amp, :broadraw]]
-@time task   = raw.load_task(animal,     day)
-@time ripples= raw.load_ripples(animal,  day)
-wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
-homeWell, arenaWells = begin
-    hw = argmax(StatsBase.fit(StatsBase.Histogram, filter(b->b!=-1,beh.stopWell), 1:6).weights)
-    @info "Homewell = $hw"
-    wells[hw,:], wells[setdiff(1:5,hw),:]
-end
-boundary = task[(task.name.=="boundary") .& (task.epoch .== epoch), :]
-append!(boundary, DataFrame(boundary[1,:]))
-video="/Volumes/Colliculus/RY16_experiment/actualVideos/RY16_69_0$(epoch)_CMt.1.mp4"
 
 # -----------
-# PREPROCESS
+# Decode file locations
 # -----------
 dir = plotsdir("mpp_decode", "withBehVideo=$usevideo")
 if !(isdir(dir))
@@ -72,79 +53,102 @@ if !(isdir(dir))
 end
 (split_num, split_type) = collect(Iterators.product([0,1,2], 
                                                 ["test","train"]))[1]
+video="/Volumes/Colliculus/RY16_experiment/actualVideos/RY16_69_0$(epoch)_CMt.1.mp4"
 outputVideo = "animation.$(decoder_type)_$(transition_type)_$(split_type)_$(split_num)_$(variable)_$(basename(video))"
-
-# -----------
-# GET DECODER
-# -----------
 decode_file = raw.decodepath(animal, day, epoch, transition="empirical",
                              method="sortedspike", split=split_num,
                              type=split_type, speedup=20.0)
-D = raw.load_decode(decode_file)
 stream = VideoIO.open(video)
 vid = VideoIO.openvideo(stream)
+if !(load_from_checkpoint)
+    # -----------
+    # DATASETS
+    # -----------
+    @time beh    = raw.load_behavior(animal, day)
+    @time spikes = raw.load_spikes(animal,   day)
+    @time cells  = raw.load_cells(animal,    day)
+    @time lfp    = @subset(raw.load_lfp(animal, day), :tetrode.==ca1_tetrode)[!,[:time, :raw, :phase, :amp, :broadraw]]
+    @time task   = raw.load_task(animal,     day)
+    @time ripples= raw.load_ripples(animal,  day)
+    wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
+    homeWell, arenaWells = begin
+        hw = argmax(StatsBase.fit(StatsBase.Histogram, filter(b->b!=-1,beh.stopWell), 1:6).weights)
+        @info "Homewell = $hw"
+        wells[hw,:], wells[setdiff(1:5,hw),:]
+    end
+    boundary = task[(task.name.=="boundary") .& (task.epoch .== epoch), :]
+    append!(boundary, DataFrame(boundary[1,:]))
+    D = raw.load_decode(decode_file)
 
-# Normalize times
-mint = minimum(beh[beh.epoch.==epoch,:].time)
-beh, spikes, lfp, ripples, D = raw.normalize_time(beh, spikes, lfp, ripples, D; 
-                                                  timefields=Dict(4=>["start", "stop", "time"]));
-x, y, T, dat = D["x_position"], D["y_position"], D["time"], D[variable]
-dat = permutedims(dat, [2,1,3])
-dat = decode.quantile_threshold(dat, thresh[variable])
-D = nothing
-nmint = minimum(beh[beh.epoch.==epoch,:].time)
+    # Normalize times
+    mint = minimum(beh[beh.epoch.==epoch,:].time)
+    beh, spikes, lfp, ripples, D = raw.normalize_time(beh, spikes, lfp, ripples, D; 
+                                                      timefields=Dict(4=>["start", "stop", "time"]));
+    x, y, T, dat = D["x_position"], D["y_position"], D["time"], D[variable]
+    dat = permutedims(dat, [2,1,3])
+    dat = decode.quantile_threshold(dat, thresh[variable])
+    D = nothing
+    nmint = minimum(beh[beh.epoch.==epoch,:].time)
 
-if remove_nonoverlap
-    spikes, beh, lfp, ripples, T_inds = raw.keep_overlapping_times(spikes, beh, lfp, ripples, T;
-                                                                  returninds=[5])
-    dat, T = dat[:,:,T_inds], T[T_inds]
+    if remove_nonoverlap
+        spikes, beh, lfp, ripples, T_inds = raw.keep_overlapping_times(spikes, beh, lfp, ripples, T;
+                                                                      returninds=[5])
+        dat, T = dat[:,:,T_inds], T[T_inds]
+    end
+    [extrema(x.time) for x in (lfp, spikes, ripples, beh)]
+
+    # --------------------
+    # Preprocess BEHAHVIOR
+    # TODO Turn this into a function
+    # --------------------
+    beh = annotate_pastFutureGoals(beh)
+
+    # --------------
+    # Preprocess LFP
+    # --------------
+    ripples      = velocity_filter_ripples(beh,ripples)
+    lfp, cycles  = get_theta_cycles(lfp)
+    lfp          = curate_lfp_theta_cycle_and_phase(lfp, cycles)
+    lfp, ripples = annotate_ripples_to_lfp(lfp, ripples)
+    ripples, cycles = decode.annotate_vector_info(ripples, cycles)
+
+    # Cast to Float32(for makie) and range for plotting
+    lfp.phase_plot = utils.norm_extrema(lfp.phase, extrema(spikes.unit))
+    lfp.phase = utils.norm_extrema(lfp.phase, (-pi,pi))
+    lfp.raw      = Float32.(utils.norm_extrema(lfp.raw,      extrema(spikes.unit)))
+    lfp.broadraw = Float32.(utils.norm_extrema(lfp.broadraw, extrema(spikes.unit)))
+    lfp.cycle, lfp.phase = Int32.(lfp.cycle), Float32.(lfp.phase)
+
+    # Checkpoint pre-video data
+    save_checkpoint(Main)
+else
+    D = decode.load_checkpoint(Main, decode_file)
+    for (key,value) in D
+        eval(Meta.parse("$key = D[:$key]"))
+    end
 end
-[extrema(x.time) for x in (lfp, spikes, ripples, beh)]
 
-# --------------------
-# Preprocess BEHAHVIOR
-# TODO Turn this into a function
-# --------------------
-beh = annotate_pastFutureGoals(beh)
-
-# --------------
-# Preprocess LFP
-# --------------
-ripples      = velocity_filter_ripples(beh,ripples)
-lfp, cycles  = get_theta_cycles(lfp)
-lfp          = curate_lfp_theta_cycle_and_phase(lfp, cycles)
-lfp, ripples = annotate_ripples_to_lfp(lfp, ripples)
-ripples, cycles = annotate_vector_info(ripples, cycles)
-
-# Cast to Float32(for makie) and range for plotting
-lfp.phase_plot = utils.norm_extrema(lfp.phase, extrema(spikes.unit))
-lfp.phase = utils.norm_extrema(lfp.phase, (-pi,pi))
-lfp.raw      = Float32.(utils.norm_extrema(lfp.raw,      extrema(spikes.unit)))
-lfp.broadraw = Float32.(utils.norm_extrema(lfp.broadraw, extrema(spikes.unit)))
-lfp.cycle, lfp.phase = Int32.(lfp.cycle), Float32.(lfp.phase)
-
-# ------------------------------
-# Separate DECODES by EVENTS
-# ------------------------------
-theta, ripples, non = separate_theta_ripple_and_non_decodes(dat, lfp;
-                                                            doRipplePhase=doRipplePhase)
-frac_print(frac) = @sprintf("Fraction times = %2.4f",frac)
-frac = mean(all(isnan.(theta) .&& isnan.(ripple), dims=(1,2)))
-frac_print(frac)
-frac_rip = vec(mean(all(isnan.(ripple),dims=(1,2)), dims=(1,2,3)))
-frac_print.(frac_rip)
-
-if dosweep
-    theta, ripples = convert_to_sweeps(lfp, theta, ripples;
-                                       doRipplePhase=doRipplePhase)
+lfp, theta, ripples, non = begin
+    # ------------------------------
+    # Separate DECODES by EVENTS
+    # ------------------------------
+    theta, ripple, non = separate_theta_ripple_and_non_decodes(T, lfp, dat;
+                                                                doRipplePhase=doRipplePhase)
+    frac_print(frac) = @sprintf("Fraction times = %2.4f",frac)
+    frac = mean(all(isnan.(theta) .&& isnan.(ripple), dims=(1,2)))
+    frac_print(frac)
+    frac_rip = vec(mean(all(isnan.(ripple),dims=(1,2)), dims=(1,2,3)))
+    frac_print.(frac_rip)
+    if dosweep
+        theta, ripples = convert_to_sweeps(lfp, theta, ripples;
+                                           doRipplePhase=doRipplePhase)
+    end
+    no_cycle_happening = utils.squeeze(all(isnan.(theta), dims=(1,2)))
+    lfp[!, :color_phase] = RGBA.(get(ColorSchemes.romaO, lfp[!, :phase]))
+    lfp[utils.searchsortednearest.([lfp.time], T[no_cycle_happening]), :color_phase] .= RGBA{Float64}(0, 0, 0, 0)
+    lfp, theta, ripples, non
 end
 
-no_cycle_happening = utils.squeeze(all(isnan.(theta), dims=(1,2)))
-lfp[!, :color_phase] = RGBA.(get(ColorSchemes.romaO, lfp[!, :phase]))
-lfp[utils.searchsortednearest.([lfp.time], T[no_cycle_happening]), :color_phase] .= RGBA{Float64}(0, 0, 0, 0)
-
-# Checkpoint pre-video data
-save_checkpoint(Main)
 
 # --------------------
 # RUN VIDEO 
@@ -163,15 +167,16 @@ tr = Dict("beh"=>utils.searchsortednearest(beh.time, T[1]),
 ## ---------------
 # - Goals
 #   - Glow goal
-#   - Vector to goal?
+#   - □ Vector to goal?
 # - Errors
-#   - Show actual poked well that caused the error
+#   - ✔ Show actual poked well that caused the error
+#   - □ Pass poke data over trial in seperate column
 # - Sequences
-#   - Vector: Start to end
-#   - Vector: animal to end
-#   - Scatter of maxima
+#   - □ Vector: Start to end
+#   - □ Vector: animal to end
+#   - □ Scatter of maxima
 # - Theta
-#   - Sweeps suck
+#   □ Sweeps suck
 # - Ripples
 # - Histograms for properties of interest
 #   (I.e. best way to test for effects. Example, cosine similarity of animal vec to goal and replay vec)
@@ -192,9 +197,11 @@ elseif visualize == :slider
 end
 
 # Data
-@time behavior     = @lift select_range($t, beh, [-0.01, 0.60])
-@time spike_events = @lift select_range($t, spikes)
-@time lfp_events   = @lift select_est_range($t, tr["lfp"], Δt["lfp"], lfp)
+@time behavior     = @lift select_range($t, T, data=beh, Δ_bounds=[-0.01, 0.60])
+@time spike_events = @lift select_range($t, T, data=spikes, Δ_bounds=Δ_bounds)
+@time lfp_events   = @lift select_est_range($t, T, tr["lfp"], Δt["lfp"], 
+                                            data=lfp, Δ_bounds=Δ_bounds)
+
 lfp_now = @lift Int32(round(size($lfp_events,1)/2))
 lfp_events = @lift transform($lfp_events, 
                              [:phase,:amp] => ((x,y)->x.*(y.^1.9)) => :phaseamp)
@@ -211,7 +218,6 @@ axLFPsum = Axis(gNeural[1,1], ylims=(50,150))
 axLFP = Axis(gNeural[2:3,1])
 axNeural = Axis(gNeural[3:8,1], xlabel="time")
 controls = Fig[1:2, 3]
-
 
 ln_theta_color = @lift mean($lfp_events.color_phase[-10+$lfp_now:10+$lfp_now])
 ln_phase_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_events[!,[:time,:phaseamp]])]) 
@@ -274,6 +280,9 @@ end
 # Arena data AXIS :: Behavior
 now = 1
 
+# ----------------
+# Animal and wells
+# ----------------
 point_xy = @lift(Point2f($behavior.x[now], $behavior.y[now]))
 line_xy  = @lift([Point2f(b.x, b.y) for b in eachrow($behavior)])
 sc_xy    = scatter!(axArena, point_xy, color=:white)
@@ -282,6 +291,18 @@ sc_home  = scatter!(axArena, [homeWell.x], [homeWell.y],   marker='𝐇', marker
 ln_xy = lines!(axArena, line_xy, color=:white, linestyle=:dash)
 lines!(axArena, boundary.x, boundary.y, color=:grey)
 
+# ----------------
+# Goal vectors
+# ----------------
+cycle_start_xy
+cycle_start_uv
+ripple_start_xy
+ripple_start_uv
+
+
+# ---------------
+# goals and pokes
+# ---------------
 future₁ = @lift($behavior.stopWell[now])
 future₂ = @lift($behavior.futureStopWell[now])
 past₁   = @lift($behavior.pastStopWell[now])
