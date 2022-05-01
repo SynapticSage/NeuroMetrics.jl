@@ -71,13 +71,6 @@ if !(load_from_checkpoint)
     @time task   = raw.load_task(animal,     day)
     @time ripples= raw.load_ripples(animal,  day)
     wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
-    homeWell, arenaWells = begin
-        hw = argmax(StatsBase.fit(StatsBase.Histogram, filter(b->b!=-1,beh.stopWell), 1:6).weights)
-        @info "Homewell = $hw"
-        wells[hw,:], wells[setdiff(1:5,hw),:]
-    end
-    boundary = task[(task.name.=="boundary") .& (task.epoch .== epoch), :]
-    append!(boundary, DataFrame(boundary[1,:]))
     D = raw.load_decode(decode_file)
 
     # Normalize times
@@ -110,7 +103,7 @@ if !(load_from_checkpoint)
     lfp, cycles  = get_theta_cycles(lfp)
     lfp          = curate_lfp_theta_cycle_and_phase(lfp, cycles)
     lfp, ripples = annotate_ripples_to_lfp(lfp, ripples)
-    ripples, cycles = decode.annotate_vector_info(ripples, cycles)
+    ripples, cycles = decode.annotate_vector_info(ripples, cycles, beh, dat, x, y, T)
 
     # Cast to Float32(for makie) and range for plotting
     lfp.phase_plot = utils.norm_extrema(lfp.phase, extrema(spikes.unit))
@@ -126,8 +119,13 @@ else
     for (key,value) in D
         eval(Meta.parse("$key = D[:$key]"))
     end
+    fix_complex(x) = x.re + (x.im)im
+    beh.velVec = fix_complex.(beh.velVec)
+    ripples.velVec = fix_complex.(ripples.velVec)
+    cycles.velVec = fix_complex.(cycles.velVec)
 end
 
+cycles = cycles[cycles.cycle.!=-1,:]
 lfp, theta, ripples, non = begin
     # ------------------------------
     # Separate DECODES by EVENTS
@@ -149,6 +147,13 @@ lfp, theta, ripples, non = begin
     lfp, theta, ripples, non
 end
 
+homeWell, arenaWells = begin
+    hw = argmax(StatsBase.fit(StatsBase.Histogram, filter(b->b!=-1,beh.stopWell), 1:6).weights)
+    @info "Homewell = $hw"
+    wells[hw,:], wells[setdiff(1:5,hw),:]
+end
+boundary = task[(task.name.=="boundary") .& (task.epoch .== epoch), :]
+append!(boundary, DataFrame(boundary[1,:]))
 
 # --------------------
 # RUN VIDEO 
@@ -172,11 +177,12 @@ tr = Dict("beh"=>utils.searchsortednearest(beh.time, T[1]),
 #   - ✔ Show actual poked well that caused the error
 #   - □ Pass poke data over trial in seperate column
 # - Sequences
-#   - □ Vector: Start to end
+#   - ✓ Vector: Start to end
 #   - □ Vector: animal to end
 #   - □ Scatter of maxima
 # - Theta
 #   □ Sweeps suck
+#   □ θ sweep arrow : start at trough, end at peak
 # - Ripples
 # - Histograms for properties of interest
 #   (I.e. best way to test for effects. Example, cosine similarity of animal vec to goal and replay vec)
@@ -201,8 +207,12 @@ end
 @time spike_events = @lift select_range($t, T, data=spikes, Δ_bounds=Δ_bounds)
 @time lfp_events   = @lift select_est_range($t, T, tr["lfp"], Δt["lfp"], 
                                             data=lfp, Δ_bounds=Δ_bounds)
+@time ripple_events = @lift decode.select_events($t, T, events=ripples)
+@time cycle_events  = @lift decode.select_events($t, T, events=cycles)
+theta_prob  = @lift select_prob($t, T; prob=theta)
+ripple_prob = @lift select_prob4($t, T; prob=ripple)
 
-lfp_now = @lift Int32(round(size($lfp_events,1)/2))
+lfp_now    = @lift Int32(round(size($lfp_events,1)/2))
 lfp_events = @lift transform($lfp_events, 
                              [:phase,:amp] => ((x,y)->x.*(y.^1.9)) => :phaseamp)
 
@@ -260,8 +270,6 @@ vlines!(axLFPsum, [0], color=:red, linestyle=:dash)
 # Arena data AXIS :: Probabilities
 #hm_prob = @lift select_prob($t)
 #hm = heatmap!(axArena, x,y, hm_prob, colormap=(:bamako,0.8))
-theta_prob  = @lift select_prob($t, theta)
-ripple_prob = @lift select_prob4($t, ripple)
 ca1    = @lift($ripple_prob[:,:,1])
 ca1pfc = @lift($ripple_prob[:,:,2])
 pfcca1 = @lift($ripple_prob[:,:,3])
@@ -273,7 +281,7 @@ hm_ripple_hp = heatmap!(axArena, x,y, ca1pfc,     colormap=(:summer, 0.8), inter
 hm_ripple_ph = heatmap!(axArena, x,y, pfcca1,     colormap=(:spring, 0.8), interpolate=false)
 hm_ripple_p  = heatmap!(axArena, x,y, pfc,        colormap=(:linear_ternary_red_0_50_c52_n256, 0.8), interpolate=false)
 if plotNon
-    non_prob = @lift select_prob($t, non)
+    non_prob = @lift select_prob($t, T, prob=non)
     hm_non = heatmap!(axArena, x,y, non_prob, colormap=(:bamako,0.8))
 end
 
@@ -292,16 +300,30 @@ ln_xy = lines!(axArena, line_xy, color=:white, linestyle=:dash)
 lines!(axArena, boundary.x, boundary.y, color=:grey)
 
 # ----------------
-# Goal vectors
+# Sequence vectors
 # ----------------
-cycle_start_xy
-cycle_start_uv
-ripple_start_xy
-ripple_start_uv
+cycle_start_x  = @lift isempty($cycle_events) ? [NaN]  : $cycle_events.start_x_dec
+cycle_start_y  = @lift isempty($cycle_events) ? [NaN]  : $cycle_events.start_y_dec
+cycle_u        = @lift isempty($cycle_events) ? [NaN]  : $cycle_events.Δx_dec
+cycle_v        = @lift isempty($cycle_events) ? [NaN]  : $cycle_events.Δy_dec
+cycle_arrows = arrows!(axArena, cycle_start_x, cycle_start_y, cycle_u, cycle_v)
 
+ripple_start_x  = @lift isempty($ripple_events) ? [NaN]  : $ripple_events.start_x_dec
+ripple_start_y  = @lift isempty($ripple_events) ? [NaN]  : $ripple_events.start_y_dec
+ripple_u        = @lift isempty($ripple_events) ? [NaN]  : $ripple_events.Δx_dec
+ripple_v        = @lift isempty($ripple_events) ? [NaN]  : $ripple_events.Δy_dec
+ripple_arrows = arrows!(axArena, ripple_start_x, ripple_start_y, ripple_u, ripple_v)
 
 # ---------------
-# goals and pokes
+# Sequence maxima
+# ---------------
+
+# ----------------
+# Goal vectors
+# ----------------
+
+# ---------------
+# Goals and pokes
 # ---------------
 future₁ = @lift($behavior.stopWell[now])
 future₂ = @lift($behavior.futureStopWell[now])

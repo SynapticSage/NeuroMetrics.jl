@@ -5,6 +5,7 @@ export separate_theta_ripple_and_non_decodes
 
 using DataFrames
 using LoopVectorization
+using Infiltrator
 
 
 function velocity_filter_ripples(beh, ripples)
@@ -63,7 +64,7 @@ function annotate_ripples_to_lfp(lfp, ripples)
 end
 
 # (5) Annotate cycles with, decode vector, next/previous goal data
-function annotate_vector_info(ripples, cycles)
+function annotate_vector_info(ripples, cycles, beh, dat, x, y, T)
 
     # Match functions
     match(time, col) = beh[utils.searchsortednearest(beh.time, time),col]
@@ -73,30 +74,45 @@ function annotate_vector_info(ripples, cycles)
         D = replace(dat[:,:,I], NaN=>0)
         xi = argmax(maximum(D, dims=2), dims=1)
         yi = argmax(utils.squeeze(maximum(D, dims=1)), dims=1)
-        [x[xi][1], y[yi][1]]
+        Float32.([x[xi][1], y[yi][1]])
     end
 
-    cycles = transform(cycles, :start => (t->match.(t, "x")) => :start_x,
-                               :stop  => (t->match.(t, "x")) => :stop_x,
-                               :start => (t->match.(t, "y")) => :start_y,
-                               :stop  => (t->match.(t, "y")) => :stop_y,
-                               :start => (x->matchdxy.(x))   => [:start_x_dec, :start_y_dec],
-                               :stop  => (x->matchdxy.(x))   => [:stop_x_dec, :stop_y_dec])
-    cycles = transform(cycles, [:start_x,:stop_x]  => diff => :Δx,
-                               [:start_y,:stop_y]  => diff => :Δy,
-                               [:start_x_dec,:stop_x_dec]  => diff => :Δx_dec,
-                               [:start_y_dec,:stop_y_dec]  => diff => :Δy_dec)
+    function get_phase_range_start_stop(event, lfp)
+        phases = lfp.phases
+    end
+    function meandxy(start::Real, stop::Real)
+        I₁,I₂ = utils.searchsortednearest(T, start),
+                utils.searchsortednearest(T, stop)
 
-    ripples = transform(ripples, :start => (t->match.(t, "x")) => :start_x,
-                                 :stop  => (t->match.(t, "x")) => :stop_x,
-                                 :start => (t->match.(t, "y")) => :start_y,
-                                 :stop  => (t->match.(t, "y")) => :stop_y,
-                                 :start => (x->matchdxy.(x))   => [:start_x_dec, :start_y_dec],
-                                 :stop  => (x->matchdxy.(x))   => [:stop_x_dec, :stop_y_dec])
-    ripples = transform(ripples, [:start_x_dec,:stop_x_dec]  => diff => :Δx_dec,
-                                 [:start_y_dec,:stop_y_dec]  => diff => :Δy_dec,
-                                 [:start_x_dec,:stop_x_dec]  => diff => :Δx_dec,
-                                 [:start_y_dec,:stop_y_dec]  => diff => :Δy_dec)
+    end
+
+    remove = [x for x in [:start_x, :stop_x, :start_x_dec, :stop_x_dec, :Δx, :Δx_dec, :start_y, :stop_y, :start_y_dec, :stop_y_dec, :Δy, :Δy_dec] if x in propertynames(cycles)]
+    @debug remove
+    cylces = cycles[!, Not(remove)]
+    cycles = transform(cycles, :start => (t->(match.(t, "x"))) => :start_x,
+                               :stop  => (t->(match.(t, "x"))) => :stop_x,
+                               :start => (t->(match.(t, "y"))) => :start_y,
+                               :stop  => (t->(match.(t, "y"))) => :stop_y,
+                               :start => (x->(matchdxy.(x)))   => [:start_x_dec, :start_y_dec],
+                               :stop  => (x->(matchdxy.(x)))   => [:stop_x_dec, :stop_y_dec])
+    cycles = transform(cycles, [:start_x,:stop_x]  => ((a,b) -> b .- a) => :Δx,
+                               [:start_y,:stop_y]  => ((a,b) -> b .- a) => :Δy,
+                               [:start_x_dec,:stop_x_dec]  => ((a,b) -> b .- a) => :Δx_dec,
+                               [:start_y_dec,:stop_y_dec]  => ((a,b) -> b .- a) => :Δy_dec)
+
+    remove = [x for x in [:start_x, :stop_x, :start_x_dec, :stop_x_dec, :Δx, :Δx_dec, :start_y, :stop_y, :start_y_dec, :stop_y_dec, :Δy, :Δy_dec] if x in propertynames(ripples)]
+    @debug remove
+    ripples = ripples[!, Not(remove)]
+    ripples = transform(ripples, :start => (t->(match.(t, "x"))) => :start_x,
+                                 :stop  => (t->(match.(t, "x"))) => :stop_x,
+                                 :start => (t->(match.(t, "y"))) => :start_y,
+                                 :stop  => (t->(match.(t, "y"))) => :stop_y,
+                                 :start => (x->(matchdxy.(x)))   => [:start_x_dec, :start_y_dec],
+                                 :stop  => (x->(matchdxy.(x)))   => [:stop_x_dec, :stop_y_dec])
+    ripples = transform(ripples, [:start_x,:stop_x]  => ((a,b) -> b .- a) => :Δx,
+                                 [:start_y,:stop_y]  => ((a,b) -> b .- a) => :Δy,
+                                 [:start_x_dec,:stop_x_dec]  => ((a,b) -> b .- a) => :Δx_dec,
+                                 [:start_y_dec,:stop_y_dec]  => ((a,b) -> b .- a) => :Δy_dec)
 
     ripples, cycles
 end

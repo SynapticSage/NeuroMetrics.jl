@@ -11,10 +11,18 @@ module timeshift
     using Distributions
     include("../table.jl")
     include("../shuffle.jl")
-    export table
+    import .table: to_dataframe
     using Infiltrator
     using Distributed
     using Dagger
+    using Serialization
+    using DrWatson
+
+    export get_field_shift_shuffles, get_field_shift
+    export to_dataframe, info_to_dataframe
+    export fetch_best_fields
+    export fetch_best_fields
+    export shuffle_correct
 
     # -------------------- SHIFTING TYPES ---------------------------
     shift_func(data::DataFrame, shift::Real) = 
@@ -86,7 +94,7 @@ module timeshift
             shuffle_func=shuffle.by,
             postfunc::Union{Function,Nothing}=nothing,
             safe_dict::AbstractDict=ThreadSafeDict(),
-            exfiltrateAfter::Int=Inf,
+            exfiltrateAfter::Real=Inf,
             kws...)::AbstractDict
 
         kws = (;dokde=false, kws...)
@@ -150,7 +158,7 @@ module timeshift
                     next!(P)
                     continue
                 else
-                    @info (; i,shift,shuffle)
+                    #@info (; i,shift,shuffle)
                 end
                 data = shuffle_func(data, shuffle_pos...; shuffle_kws...)
                 result = field.get_fields(σ(beh,shift), data; kws...)
@@ -190,7 +198,7 @@ module timeshift
     function info_to_dataframe(
             shifts::AbstractDict{<:Union{NamedTuple,AbstractDict},<:Any};
             kws...)::DataFrame
-        table.to_dataframe(shifts, key_name="shift", name="info", kws...)
+        table.to_dataframe(shifts, name="info", kws...)
     end
 
     function fetch_best_fields(fieldInfo::DataFrame, pos...; kws...)
@@ -202,6 +210,45 @@ module timeshift
             push!(X,x)
         end
         return X
+    end
+
+    function shuffle_correct(main, shuffle)
+    end
+
+    function saveshifts(main, shuffle=nothing; metric=nothing, shifts=nothing,
+                       fieldkws, tag="", kws...)
+
+        parent_folder = datadir("exp_pro", "timeshift")
+        if !(isdir(parent_folder))
+            mkdir(parent_folder)
+        end
+
+        tag = isempty(tag) ? tag : "_$tag"
+        if shifts != nothing
+            start, stop = round(shifts[begin],digits=3),
+                          round(shifts[end],  digits=3)
+            N = length(shifts)
+            shifts = "_Nstartstop=($N,$start:$stop)"
+        else
+            @error "No shifts name provided"
+        end
+        if metric == nothing
+            @warn "No metric name provided, assuming metric='field'"
+            metric = "field"
+        end
+        jf(x) = join(x,'-')
+        props   = "props=$(jf(fieldkws.props))"
+        splitby = "_splitby=$(jf(fieldkws.splitby))"
+
+        name = joinpath(parent_folder, "$props$splitby$shifts$tag.serial")
+
+        D = Dict(:main     => main,
+                 :shuffle  => shuffle,
+                 :shifts   => shifts,
+                 :fieldkws => fieldkws)
+        
+        serialize(name, D)
+        
     end
 
 
