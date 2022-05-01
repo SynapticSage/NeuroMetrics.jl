@@ -1,5 +1,6 @@
 module timeshift
 
+    __revise_mode__ = :evalassign
     using DataFrames
     import ..field
     export get_field_shift
@@ -9,9 +10,9 @@ module timeshift
     using DataFramesMeta
     using ProgressMeter
     using Distributions
+    using Revise
     include("../table.jl")
     include("../shuffle.jl")
-    import .table: to_dataframe
     using Infiltrator
     using Distributed
     using Dagger
@@ -183,22 +184,22 @@ module timeshift
 
 
     function to_dataframe(shifts::AbstractDict{<:Real, <:Any}; kws...) 
-        table.to_dataframe(shifts, key_name="shift", kws...)
+        table.to_dataframe(shifts; key_name="shift", kws...)
     end
-    function to_dataframe(
-            shifts::AbstractDict{<:Union{NamedTuple,AbstractDict}, <:Any};
+    function to_dataframe(shifts::AbstractDict{<:NamedTuple, <:Any};
             kws...)
-        table.to_dataframe(shifts, kws...)
+        @debug "to_dataframe"
+        table.to_dataframe(shifts; kws...)
     end
 
     function info_to_dataframe(shifts::AbstractDict{<:Real,<:Any};
             kws...)::DataFrame
-        table.to_dataframe(shifts, key_name="shift", name="info", kws...)
+        table.to_dataframe(shifts; key_name="shift", name="info", kws...)
     end
     function info_to_dataframe(
             shifts::AbstractDict{<:Union{NamedTuple,AbstractDict},<:Any};
             kws...)::DataFrame
-        table.to_dataframe(shifts, name="info", kws...)
+        table.to_dataframe(shifts; name="info", kws...)
     end
 
     function fetch_best_fields(fieldInfo::DataFrame, pos...; kws...)
@@ -215,9 +216,7 @@ module timeshift
     function shuffle_correct(main, shuffle)
     end
 
-    function saveshifts(main, shuffle=nothing; metric=nothing, shifts=nothing,
-                       fieldkws, tag="", kws...)
-
+    function _pathshiftdat(;fieldkws, metric=nothing, shifts=nothing, tag="", kws...)
         parent_folder = datadir("exp_pro", "timeshift")
         if !(isdir(parent_folder))
             mkdir(parent_folder)
@@ -239,17 +238,24 @@ module timeshift
         jf(x) = join(x,'-')
         props   = "props=$(jf(fieldkws.props))"
         splitby = "_splitby=$(jf(fieldkws.splitby))"
-
         name = joinpath(parent_folder, "$props$splitby$shifts$tag.serial")
+    end
+
+    function saveshifts(main, shuffle=nothing; kws...)
 
         D = Dict(:main     => main,
                  :shuffle  => shuffle,
                  :shifts   => shifts,
                  :fieldkws => fieldkws)
-        
+
+        name = _pathshiftdat(;kws...)
         serialize(name, D)
         
     end
 
+    function loadshifts(;kws...)::Dict
+        name = _pathshiftdat(;kws...)
+        D = deserialize(name)
+    end
 
 end

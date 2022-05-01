@@ -1,4 +1,5 @@
 quickactivate("/home/ryoung/Projects/goal-code/")
+@time include(scriptsdir("fields", "Include.jl"))
 @time include(scriptsdir("fields", "Initialize.jl"))
 includet(srcdir("shuffle.jl"))
 includet(srcdir("field/info.jl"))
@@ -6,6 +7,7 @@ includet(srcdir("field/timeshift.jl"))
 _, spikes = raw.register(beh, spikes; transfer=["velVec"], on="time")
 import Base.Threads: @spawn
 using ThreadSafeDicts
+using .timeshift
 sp = copy(spikes)
 convertToMinutes = false
 
@@ -27,11 +29,12 @@ kws=(;splitby, filters=merge(filt.speed_lib, filt.cellcount))
 newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props,
           filters=merge(kws.filters))
 shifts = -4:0.2:4
+
 if convertToMinutes
     @info "Coverting shifts to minutes"
     shifts = shifts./60
-    using Serialization
-    safe_dict = deserialize(datadir("safe_dict.serial"))
+    #using Serialization
+    #safe_dict = deserialize(datadir("safe_dict.serial"))
 else
     safe_dict = ThreadSafeDict()
 end
@@ -52,6 +55,7 @@ shuf_result = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 4-
                          newkws...)
 
 timeshift.saveshifts(result, shuf_result, shifts=shifts, metric="info", fieldkws=newkws)
+D = timeshift.loadshifts(shifts=shifts, metric="info", fieldkws=newkws)
 
 
 # Distributed

@@ -17,8 +17,9 @@ using Blink
 using TableView
 using LazyGrids: ndgrid
 using DataStructures
+using Infiltrator
 export to_dataframe
-__revise_mode__ = :eval
+__revise_mode__ = :evalassign
 ∞ = Inf
 
 ColumnSelector = Union{Nothing,Vector{String},InvertedIndex,Cols,All,Between}
@@ -446,15 +447,18 @@ converts a field dictionary (multiple units) into a field dataframe
 #function to_dataframe(fields::AbstractDict; kws...)
 #    fields = Dict(key=>fields[key] for key in keys(fields))
 #end
-function to_dataframe(fields::Dict; other_labels=Dict(), 
+function to_dataframe(fields::AbstractDict; other_labels=Dict(), 
         key_name::Union{Nothing,String}=nothing, kws...)
     D = DataFrame()
     for (key, field) in fields
+        @debug "key=$key"
         if key_name != nothing #&& (key isa NamedTuple || key isa Dict)
             other_labels[key_name] = key
         elseif (key isa NamedTuple) || (key isa Dict)
             key_dict = Dict(string(k)=>v for (k, v) in pairs(key))
             other_labels = merge(other_labels, key_dict)
+        else
+            @warn "unhandled"
         end
         if fields[key] != nothing
             append!(D, to_dataframe(fields[key]; other_labels=other_labels,
