@@ -54,7 +54,8 @@ shuf_result = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 4-
                          safe_dict=safe_dict,
                          newkws...)
 
-timeshift.saveshifts(result, shuf_result, shifts=shifts, metric="info", fieldkws=newkws)
+timeshift.saveshifts(result, shuf_result, shifts=shifts, metric="info", 
+                     fieldkws=newkws)
 D = timeshift.loadshifts(shifts=shifts, metric="info", fieldkws=newkws)
 
 

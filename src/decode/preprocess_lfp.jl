@@ -76,17 +76,28 @@ function annotate_vector_info(ripples, cycles, beh, dat, x, y, T)
         yi = argmax(utils.squeeze(maximum(D, dims=1)), dims=1)
         Float32.([x[xi][1], y[yi][1]])
     end
-
-    function get_phase_range_start_stop(event, lfp)
-        phases = lfp.phases
+    function get_phase_range_start_stop(event, lfp, ϕ₀, ϕ₁)
+        inds = lfp.time .>= event.start .&& lfp.time .< event.stop
+        lfp = lfp[inds,:]
+        start = lfp[findfirst(lfp.phase .>= ϕ₀), :time]
+        stop = lfp[findfirst(lfp.phase .< ϕ₁), :time]
+        start, stop
     end
+    X, Y = ndgrid(x, y)
     function meandxy(start::Real, stop::Real)
         I₁,I₂ = utils.searchsortednearest(T, start),
                 utils.searchsortednearest(T, stop)
-
+        D = replace(dat[:,:,I], NaN=>0)
+        sD = mean(D)
+        x = mean(X.*D)/sD
+        y = mean(Y.*D)/sD
+        Float32.([x, y])
     end
 
-    remove = [x for x in [:start_x, :stop_x, :start_x_dec, :stop_x_dec, :Δx, :Δx_dec, :start_y, :stop_y, :start_y_dec, :stop_y_dec, :Δy, :Δy_dec] if x in propertynames(cycles)]
+    removal_list = [:start_x, :stop_x, :start_x_dec, :stop_x_dec, :Δx, :Δx_dec,
+                    :start_y, :stop_y, :start_y_dec, :stop_y_dec, :Δy, :Δy_dec
+                   ]
+    remove = [x for x in removal_list if x in propertynames(cycles)]
     @debug remove
     cylces = cycles[!, Not(remove)]
     cycles = transform(cycles, :start => (t->(match.(t, "x"))) => :start_x,
@@ -99,8 +110,9 @@ function annotate_vector_info(ripples, cycles, beh, dat, x, y, T)
                                [:start_y,:stop_y]  => ((a,b) -> b .- a) => :Δy,
                                [:start_x_dec,:stop_x_dec]  => ((a,b) -> b .- a) => :Δx_dec,
                                [:start_y_dec,:stop_y_dec]  => ((a,b) -> b .- a) => :Δy_dec)
+    # Get range of 
 
-    remove = [x for x in [:start_x, :stop_x, :start_x_dec, :stop_x_dec, :Δx, :Δx_dec, :start_y, :stop_y, :start_y_dec, :stop_y_dec, :Δy, :Δy_dec] if x in propertynames(ripples)]
+    remove = [x for x in removal_list if x in propertynames(ripples)]
     @debug remove
     ripples = ripples[!, Not(remove)]
     ripples = transform(ripples, :start => (t->(match.(t, "x"))) => :start_x,

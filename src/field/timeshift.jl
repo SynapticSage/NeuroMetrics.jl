@@ -24,6 +24,7 @@ module timeshift
     export fetch_best_fields
     export fetch_best_fields
     export shuffle_correct
+    export ts_plotdir
 
     # -------------------- SHIFTING TYPES ---------------------------
     shift_func(data::DataFrame, shift::Real) = 
@@ -213,10 +214,31 @@ module timeshift
         return X
     end
 
-    function shuffle_correct(main, shuffle)
+    function func(main, shuffle, outer=[], by=[:shuffle,:unit], 
+            metric=:info, stat=:median, op=.-)
+        shuffle = combine(groubpy(shuffle, by), metric => stat => main)
+        by = [b for b in by if b in names(main)]
+        by = [by..., outer...]
+        main, shuffle = groupby(main, by), groupby(shuffle, by)
+        for (m, s) in zip(main, shuffle)
+            
+        end
+    end
+    function significant()
+    end
+    function correction()
     end
 
-    function _pathshiftdat(;fieldkws, metric=nothing, shifts=nothing, tag="", kws...)
+    function _pathshiftdat(;metric=nothing, shifts=nothing, 
+            tag="", props=nothing, splitby=nothing, kws...)
+
+        if props isa Nothing
+            @error "field keyword props must be given"
+        end
+        if splitby isa Nothing
+            @error "field keyword splitby must be given"
+        end
+
         parent_folder = datadir("exp_pro", "timeshift")
         if !(isdir(parent_folder))
             mkdir(parent_folder)
@@ -236,16 +258,30 @@ module timeshift
             metric = "field"
         end
         jf(x) = join(x,'-')
-        props   = "props=$(jf(fieldkws.props))"
-        splitby = "_splitby=$(jf(fieldkws.splitby))"
+        props   = "props=$(jf(props))"
+        splitby = "_splitby=$(jf(splitby))"
         name = joinpath(parent_folder, "$props$splitby$shifts$tag.serial")
+    end
+
+    function ts_plotdir(;file="", kws...)
+        parent_folder = plotsdir("timeshift")
+        if !(isdir(parent_folder))
+            mkdir(parent_folder)
+        end
+        name = replace(basename(_pathshiftdat(;kws...)), ".serial"=>"")
+        name = joinpath(parent_folder, name)
+        if !(isdir(name))
+            mkdir(name)
+        end
+        joinpath(name,file)
     end
 
     function saveshifts(main, shuffle=nothing; kws...)
 
         D = Dict(:main     => main,
                  :shuffle  => shuffle,
-                 :shifts   => shifts,
+                 :shifts   => kws.shifts,
+                 :metric   => kws.metric,
                  :fieldkws => fieldkws)
 
         name = _pathshiftdat(;kws...)
