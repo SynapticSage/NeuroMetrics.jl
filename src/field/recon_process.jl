@@ -15,6 +15,7 @@ module recon_process
     export get_recon_name
     export get_recon_req
     export perform_reconstructions_marginals_and_error
+    export var_shortcut_names
     
 
     # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # #
@@ -29,6 +30,7 @@ module recon_process
                                  "currentHeadEgoAngle" => "γ",
                                  "currentPathLength"   => "p",
                                  "stopWell"            => "G")
+    const var_shortcut_names = shortcut_names
 
     """
     𝕀

@@ -93,10 +93,12 @@ function annotate_vector_info(ripples, cycles, beh, dat, x, y, T)
         y = mean(Y.*D)/sD
         Float32.([x, y])
     end
+    function get_mean_prss(event, lfp, ϕ₀, ϕ₁)
+        meandxy(get_phase_range_start_stop(event,lfp,ϕ₁,ϕ₂)...)
+    end
 
     removal_list = [:start_x, :stop_x, :start_x_dec, :stop_x_dec, :Δx, :Δx_dec,
-                    :start_y, :stop_y, :start_y_dec, :stop_y_dec, :Δy, :Δy_dec
-                   ]
+                    :start_y, :stop_y, :start_y_dec, :stop_y_dec, :Δy, :Δy_dec ]
     remove = [x for x in removal_list if x in propertynames(cycles)]
     @debug remove
     cylces = cycles[!, Not(remove)]
@@ -110,7 +112,9 @@ function annotate_vector_info(ripples, cycles, beh, dat, x, y, T)
                                [:start_y,:stop_y]  => ((a,b) -> b .- a) => :Δy,
                                [:start_x_dec,:stop_x_dec]  => ((a,b) -> b .- a) => :Δx_dec,
                                [:start_y_dec,:stop_y_dec]  => ((a,b) -> b .- a) => :Δy_dec)
-    # Get range of 
+    for row in eachrow(cycles)
+    end
+
 
     remove = [x for x in removal_list if x in propertynames(ripples)]
     @debug remove

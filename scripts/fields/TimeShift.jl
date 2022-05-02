@@ -1,21 +1,17 @@
 quickactivate("/home/ryoung/Projects/goal-code/")
-using Base.Threads: @spawn
-using DataFrames
-using StatsPlots
-using Statistics
-using StatsPlots
-using DataFrames
-includet(srcdir("field.jl"))
-includet(srcdir("filt.jl"))
-includet(srcdir("raw.jl"))
-includet(srcdir("field/timeshift.jl"))
+@time include(scriptsdir("fields", "Include.jl"))
+@time include(scriptsdir("fields", "Initialize.jl"))
+includet(srcdir("shuffle.jl"))
 includet(srcdir("field/info.jl"))
-includet(srcdir("utils.jl"))
-includet(srcdir("table.jl"))
-includet(srcdir("field/recon_process.jl"))
-import recon_process: shortcut_names
-spikes, beh = raw.load("RY16", 36, 
-                       data_source=["spikes","behavior"])
+includet(srcdir("field/timeshift.jl"))
+include(scriptsdir("fields", "TimeShift_setsOfInterest.jl"))
+_, spikes = raw.register(beh, spikes; transfer=["velVec"], on="time")
+import Base.Threads: @spawn
+using ThreadSafeDicts
+using .timeshift
+using Combinatorics: powerset
+sp = copy(spikes)
+convertToMinutes = false
 
 # ----------
 # ----------
@@ -26,18 +22,20 @@ PROPS = ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
 IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
 
 
+#-------------------------------------------------------
 """
 Translate into shorcut names
 """
-𝕄(items)  = [replace(item, shortcut_names...) for item in items]
+𝕄(items)  = [replace(item, var_shortcut_names...) for item in items]
 """
 UnTranslate from shorcut names
 """
 𝕄̅(items)  = [replace(item, Dict(kv[2]=>kv[1] for kv in shortcut_names)...)
              for item in items]
-sz(items) = [IDEALSIZE(item) for item in items]
+sz(items) = [IDEALSIZE[item] for item in items]
+#-------------------------------------------------------
+
 splitby=["unit", "area"]
-#filt.correct,
 filters = merge(filt.notnan("currentAngle"), 
                 filt.minmax("currentPathLength", 2, 150),
                 filt.speed_lib, filt.cellcount)
@@ -45,16 +43,20 @@ gaussian=2.3*0.5
 
 # COMPUTE INFORMATION @ DELAYS
 I = Dict()
-for props ∈ collect(powerset(PROPS, 1))[1:2]
+S = Dict()
+for props ∈ marginals_highprior
     marginal = 𝕄(props)
-    newkws = (; kws..., filters, splitby, gaussian, props, resolution=40,
-              multithread=false, postfunc=info.information)
-    I[marginal] = @spawn @time timeshift.get_field_shift(beh, spikes, -2:0.1:2; newkws...)
-    timeshift.get_field_shift(beh, spikes, -2:0.1:2; newkws...)
+    newkws = (; kws..., filters, splitby, gaussian, props,
+              resolution=sz(props), multi=:single, postfunc=info.information)
+    I[marginal] = @spawn @time timeshift.get_field_shift(beh, spikes, -2:0.1:2; 
+                                                         newkws...)
+    S[marginal] = @spawn @time timeshift.get_field_shift_shufflesfield_shift(beh, spikes, -2:0.1:2; 
+                                                         newkws...)
 end
 for (key, value) in I
     I[key] = fetch(I[key])
 end
+
 # GET FIELDS AT BEST-(𝛕)
 F = Dict()
 for (key, value) in I

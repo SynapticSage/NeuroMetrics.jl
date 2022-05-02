@@ -4,7 +4,7 @@ module GoalFetchAnalysis
     include("raw.jl")   # Loading/saving/manipulating raw data
     include("table.jl") # Manipulating tables
     include("utils.jl") # General utilites
-    incldue("filt.jl")
+    include("filt.jl")
     include("shuffle.jl") # General receptive field codes
     import .raw
     import .table
@@ -20,10 +20,14 @@ module GoalFetchAnalysis
     include("statistic.jl")
     import .statistic
 
+    # Deode Related
+    include("decode.jl") # General receptive field codes
+    import .decode
 
     export raw
     export table 
     export raster 
     export field
+    export decode
 
 end

@@ -60,6 +60,7 @@ decode_file = raw.decodepath(animal, day, epoch, transition="empirical",
                              type=split_type, speedup=20.0)
 stream = VideoIO.open(video)
 vid = VideoIO.openvideo(stream)
+
 if !(load_from_checkpoint)
     # -----------
     # DATASETS

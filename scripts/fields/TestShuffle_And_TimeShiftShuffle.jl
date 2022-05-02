@@ -1,6 +1,7 @@
 quickactivate("/home/ryoung/Projects/goal-code/")
 @time include(scriptsdir("fields", "Include.jl"))
 @time include(scriptsdir("fields", "Initialize.jl"))
+@time include(scriptsdir("fields", "TimeShift_setsOfInterest.jl"))
 includet(srcdir("shuffle.jl"))
 includet(srcdir("field/info.jl"))
 includet(srcdir("field/timeshift.jl"))
