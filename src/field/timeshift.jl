@@ -19,6 +19,7 @@ module timeshift
     using Serialization
     using DrWatson
     using StatsPlots: @df
+    using Plots
 
     export get_field_shift_shuffles, get_field_shift
     export to_dataframe, info_to_dataframe
@@ -26,6 +27,7 @@ module timeshift
     export fetch_best_fields
     export shuffle_correct
     export ts_plotdir
+    export plot_shifts
 
     # -------------------- SHIFTING TYPES ---------------------------
     shift_func(data::DataFrame, shift::Real) = 
@@ -308,7 +310,7 @@ module timeshift
     # PLOTTING
     # --------
 
-    function plot_shifts(place; desc="")
+    function plot_shifts(place; desc="", xlabel="minutes")
 
         descSave = replace(desc, ":"=>"", " "=>"-")
 
@@ -323,20 +325,20 @@ module timeshift
         df_imax = df_imax[df_imax.bestTau.!=taus[1],:] # Excluding samples with the first tau, because that's the null condition for no variation
 
         @df df_imax density(:bestTau, group=:area, 
-                     title="$desc BestTau(Information)", xlabel="Seconds", ylabel="Density")
-        savefig(plotsdir("fields", "shifts", "$(descSave)_density_x=seconds,y=densBestTau_by=area.svg"))
-        savefig(plotsdir("fields", "shifts", "$(descSave)_density_x=seconds,y=densBestTau_by=area.png"))
-        savefig(plotsdir("fields", "shifts", "$(descSave)_density_x=seconds,y=densBestTau_by=area.pdf"))
+                     title="$desc BestTau(Information)", xlabel=xlabel, ylabel="Density")
+        savefig(plotsdir("fields", "shifts", "$(descSave)_density_x=$xlabel,y=densBestTau_by=area.svg"))
+        savefig(plotsdir("fields", "shifts", "$(descSave)_density_x=$xlabel,y=densBestTau_by=area.png"))
+        savefig(plotsdir("fields", "shifts", "$(descSave)_density_x=$xlabel,y=densBestTau_by=area.pdf"))
         @df df_imax histogram(:bestTau, group=:area, 
-                     title="$desc BestTau(Information)", xlabel="Seconds", ylabel="Density")
-        savefig(plotsdir("fields", "shifts", "$(descSave)_histogram_x=seconds,y=densBestTau_by=area.svg"))
-        savefig(plotsdir("fields", "shifts", "$(descSave)_histogram_x=seconds,y=densBestTau_by=area.png"))
-        savefig(plotsdir("fields", "shifts", "$(descSave)_histogram_x=seconds,y=densBestTau_by=area.pdf"))
+                     title="$desc BestTau(Information)", xlabel=xlabel, ylabel="Density")
+        savefig(plotsdir("fields", "shifts", "$(descSave)_histogram_x=$xlabel,y=densBestTau_by=area.svg"))
+        savefig(plotsdir("fields", "shifts", "$(descSave)_histogram_x=$xlabel,y=densBestTau_by=area.png"))
+        savefig(plotsdir("fields", "shifts", "$(descSave)_histogram_x=$xlabel,y=densBestTau_by=area.pdf"))
 
         # HISTOGRAM ALL CELLS
         df_m = combine(groupby(df, [:area, :shift]), :info=>mean)
         @df df_m bar(:shift, :info_mean, group=:area, 
-                     title="$desc Median(Information)", xlabel="Seconds", ylabel="Shannon MI Bits")
+                     title="$desc Median(Information)", xlabel=xlabel, ylabel="Shannon MI Bits")
         savefig(plotsdir("fields", "shifts", "$(descSave)_histogram_x=shift,y=medianinfo_by=area.svg"))
         savefig(plotsdir("fields", "shifts", "$(descSave)_histogram_x=shift,y=medianinfo_by=area.png"))
         savefig(plotsdir("fields", "shifts", "$(descSave)_histogram_x=shift,y=medianinfo_by=area.pdf"))

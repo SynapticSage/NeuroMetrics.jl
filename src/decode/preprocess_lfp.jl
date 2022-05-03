@@ -79,8 +79,10 @@ function annotate_vector_info(ripples, cycles, beh, dat, x, y, T)
     function get_phase_range_start_stop(event, lfp, ϕ₀, ϕ₁)
         inds = lfp.time .>= event.start .&& lfp.time .< event.stop
         lfp = lfp[inds,:]
-        start = lfp[findfirst(lfp.phase .>= ϕ₀), :time]
-        stop = lfp[findfirst(lfp.phase .< ϕ₁), :time]
+        start = findfirst(lfp.phase .>= ϕ₀)
+        stop = findfirst(lfp.phase .< ϕ₁)
+        start = lfp[start, :time]
+        stop = lfp[stop, :time]
         start, stop
     end
     X, Y = ndgrid(x, y)
@@ -93,7 +95,7 @@ function annotate_vector_info(ripples, cycles, beh, dat, x, y, T)
         y = mean(Y.*D)/sD
         Float32.([x, y])
     end
-    function get_mean_prss(event, lfp, ϕ₀, ϕ₁)
+    function get_mean_prss(event, lfp, ϕ₁, ϕ₂)
         meandxy(get_phase_range_start_stop(event,lfp,ϕ₁,ϕ₂)...)
     end
 
@@ -112,7 +114,11 @@ function annotate_vector_info(ripples, cycles, beh, dat, x, y, T)
                                [:start_y,:stop_y]  => ((a,b) -> b .- a) => :Δy,
                                [:start_x_dec,:stop_x_dec]  => ((a,b) -> b .- a) => :Δx_dec,
                                [:start_y_dec,:stop_y_dec]  => ((a,b) -> b .- a) => :Δy_dec)
-    for row in eachrow(cycles)
+
+    current_phase = (-pi, 0)
+    final_phase = (pi-pi/10, pi)
+    for cycle in cycles
+        get_mean_prss(cycle, lfp, current_phase...)
     end
 
 
