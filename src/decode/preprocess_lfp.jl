@@ -8,13 +8,13 @@ using LoopVectorization
 using Infiltrator
 
 
-function velocity_filter_ripples(beh, ripples)
+function velocity_filter_ripples(beh::DataFrame, ripples::DataFrame)
     beh, lfp = raw.register(beh, lfp; transfer=["velVec"], on="time")
     beh, ripples = raw.register(beh, ripples; transfer=["velVec"], on="time")
     ripples = ripples[abs.(ripples.velVec) .< 2, :]
 end
 
-function get_theta_cycles(lfp)
+function get_theta_cycles(lfp::DataFrame)
     lfp = raw.lfp.annotate_cycles(lfp, method="peak-to-peak")
     lfp.phase = raw.lfp.phase_to_radians(lfp.phase)
     cycles = raw.lfp.get_cycle_table(lfp,
@@ -27,7 +27,7 @@ function get_theta_cycles(lfp)
     lfp, cycles
 end
 
-function curate_lfp_theta_cycle_and_phase(lfp, cycles)
+function curate_lfp_theta_cycle_and_phase(lfp::DataFrame, cycles::DataFrame)
     # TODO Remove any cycles in side a ripple
     # Remove cycle labels in lfp of bad Θ cycles
     #lfpcyc, cyc = lfp.cycle, cycles.cycle
@@ -41,7 +41,7 @@ function curate_lfp_theta_cycle_and_phase(lfp, cycles)
 end
 
 # (4) Annotate ripples into lfp
-function annotate_ripples_to_lfp(lfp, ripples)
+function annotate_ripples_to_lfp(lfp::DataFrame, ripples::DataFrame)
     ripples.type = ripples.area .* " ripple"
     ripples.rip_id = 1:size(ripples,1)
     lfp = begin
@@ -64,9 +64,10 @@ function annotate_ripples_to_lfp(lfp, ripples)
 end
 
 # (5) Annotate cycles with, decode vector, next/previous goal data
-function annotate_vector_info(ripples, cycles, beh, dat, x, y, T)
+function annotate_vector_info(ripples::DataFrame, cycles::DataFrame, beh::DataFrame, 
+                              dat::AbstractArray, x::Vector, y::Vector, T::Vector)
 
-    # Match functions
+    # Cycle time based decode values
     match(time, col) = beh[utils.searchsortednearest(beh.time, time),col]
     function matchdxy(time::Real) 
         #@infiltrate
@@ -76,23 +77,24 @@ function annotate_vector_info(ripples, cycles, beh, dat, x, y, T)
         yi = argmax(utils.squeeze(maximum(D, dims=1)), dims=1)
         Float32.([x[xi][1], y[yi][1]])
     end
+    # Phase based decode values
     function get_phase_range_start_stop(event, lfp, ϕ₀, ϕ₁)
         inds = lfp.time .>= event.start .&& lfp.time .< event.stop
         lfp = lfp[inds,:]
-        start = findfirst(lfp.phase .>= ϕ₀)
-        stop = findfirst(lfp.phase .< ϕ₁)
-        start = lfp[start, :time]
-        stop = lfp[stop, :time]
+        start, stop = findfirst(lfp.phase .>= ϕ₀),
+                      findfirst(lfp.phase .< ϕ₁)
+        start, stop = lfp[start, :time],
+                      lfp[stop, :time]
         start, stop
     end
     X, Y = ndgrid(x, y)
     function meandxy(start::Real, stop::Real)
         I₁,I₂ = utils.searchsortednearest(T, start),
                 utils.searchsortednearest(T, stop)
-        D = replace(dat[:,:,I], NaN=>0)
+        D = replace(dat[:,:,I₁:I₂], NaN=>0)
         sD = mean(D)
-        x = mean(X.*D)/sD
-        y = mean(Y.*D)/sD
+        x  = mean(X.*D)/sD
+        y  = mean(Y.*D)/sD
         Float32.([x, y])
     end
     function get_mean_prss(event, lfp, ϕ₁, ϕ₂)
@@ -117,8 +119,19 @@ function annotate_vector_info(ripples, cycles, beh, dat, x, y, T)
 
     current_phase = (-pi, 0)
     final_phase = (pi-pi/10, pi)
-    for cycle in cycles
-        get_mean_prss(cycle, lfp, current_phase...)
+    lfp = groupby(lfp,:cycle)
+    cycles.current_x, cycles.current_y = NaN*ones(Float32, size(cycles,1)),
+                                         NaN*ones(Float32, size(cycles,1))
+    cycles.final_x, cycles.final_y     = NaN*ones(Float32, size(cycles,1)),
+                                         NaN*ones(Float32, size(cycles,1))
+    for (lf, cycle) in zip(lfp, eachrow(cycles))
+        lower, upper = extrema(lf.phase)
+        if !(isapprox(lower,-pi, atol=0.8)) ||
+           !(isapprox(upper, pi, atol=0.8))
+           continue
+       end
+       cycle.current_x , cycle.current_y = get_mean_prss(cycle, lf, current_phase...)
+       cycle.final_x , cycle.final_y = get_mean_prss(cycle, lf, final_phase...)
     end
 
 
@@ -185,7 +198,9 @@ function separate_theta_ripple_and_non_decodes(T, lfp, dat; doRipplePhase::Bool=
     return theta, ripple, non
 end
 
-function convert_to_sweeps(lfp, theta, ripple; doRipplePhase::Bool=false)
+function convert_to_sweeps(lfp::DataFrame, theta::Array, ripple::Array; 
+                           doRipplePhase::Bool=false)
+
     # Create cumulative theta sweeps
     sweep = (a,b)->isnan(b) ? a : nanmean(cat(a, b, dims=3), dims=3)
     lfp = groupby(lfp,:cycle)
@@ -219,4 +234,5 @@ function convert_to_sweeps(lfp, theta, ripple; doRipplePhase::Bool=false)
         lfp = combine(lfp,identity)
     end
     return theta, ripple
+
 end

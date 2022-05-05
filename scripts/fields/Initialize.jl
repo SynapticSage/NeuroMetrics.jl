@@ -20,15 +20,15 @@ R̂ = Dict() # Store reconstructions
 
 # Generalized settings
 splitby=["unit", "area"]
-kws=(;resolution=80, splitby, filters=merge(filt.speed_lib, filt.cellcount))
+kws=(;resolution=80, splitby, filters=filters[:all])
 ploton, dofields, dopoissonmodel, doreconstruction = false, false, false, false
 
 if dofields
-    include(scriptsdir("fields", "PlaceField.jl")) # 1
-    include(scriptsdir("fields", "GoalField.jl")) # 2
+    include(scriptsdir("fields", "PlaceField.jl"))               # 1
+    include(scriptsdir("fields", "GoalField.jl"))                # 2
     include(scriptsdir("fields", "Poisson_CompareGoalPlace.jl")) # 3
-    include(scriptsdir("fields", "PlotGoalPlace.jl")) # 4
-    include(scriptsdir("fields", "SplitGoalPlace.jl")) # 5
+    include(scriptsdir("fields", "PlotGoalPlace.jl"))            # 4
+    include(scriptsdir("fields", "SplitGoalPlace.jl"))           # 5
 end
 
 if doreconstruction

@@ -48,28 +48,30 @@ end
 
 
 jobs = Dict()
+n = 8
 
 # A (( ---- PLACE ---- ))
 props = ["x", "y"]
 splitby=["unit", "area"]
 kws=(;splitby, filters=merge(filt.speed_lib, filt.cellcount), multi=:single, postfunc=info.information)
-newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props, filters=merge(kws.filters))
 
-jobs[:place_broadTimes] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-8:0.1:8); newkws...);
+newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props, filters=merge(kws.filters))
+jobs[:place] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
+
 newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, filt.correct))
-jobs[:place_correctOnly] = @time timeshift.get_field_shift(beh, spikes, c(-4:0.1:4); newkws...);
+jobs[:place_correctOnly] = @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
 newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, filt.incorrect))
-jobs[:place_incorrectOnly] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-4:0.1:4); newkws...);
+jobs[:place_incorrectOnly] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
 newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, filt.nontask))
-jobs[:place_nontaskOnly] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-4:0.1:4); newkws...);
+jobs[:place_nontaskOnly] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
 newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, filt.cue, filt.correct))
-jobs[:place_correctCue] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-4:0.1:4); newkws...);
+jobs[:place_correctCue] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
 newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, filt.mem, filt.correct))
-jobs[:place_correctMem] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-4:0.1:4); newkws...);
+jobs[:place_correctMem] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
 
 # B (( ---- GOAL ---- ))
@@ -77,26 +79,26 @@ filters = merge(kws.filters, filt.correct,
                 filt.notnan("currentAngle"), 
                 filt.minmax("currentPathLength", 4, 150))
 props = ["currentAngle", "currentPathLength"]
-newkws = (; kws..., filters=merge(kws.filters, filters),
-          resolution=40, gaussian=4.3*0.5, props=props)
-jobs[:goal_broadTimes] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-8:0.1:8); newkws...);
+
+newkws = (; kws..., filters=merge(kws.filters, filters), resolution=40, gaussian=4.3*0.5, props=props)
+jobs[:goal] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
 # C (( ---- SPECGOAL ---- ))
 props = ["currentAngle", "currentPathLength", "stopWell"]
 newkws = (; kws..., filters=merge(kws.filters, filters),
-          resolution=[40, 40, 5], gaussian=4.3*0.5, props=props)
-jobs[:specgoal] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-4:0.1:4); newkws...);
+          resolution=[40, 40, 5], gaussian=n.3*0.5, props=props)
+jobs[:specgoal] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 # C (( ---- SPECPLACE ---- ))
 props = ["x", "y", "stopWell"]
 newkws = (; kws..., filters=merge(kws.filters, filters),
-          resolution=[40, 40, 5], gaussian=4.3*0.5, props=props)
-jobs[:specplace] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-4:0.1:4); 
+          resolution=[40, 40, 5], gaussian=n.3*0.5, props=props)
+jobs[:specplace] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); 
                                         newkws...);
 # D (( ---- FULL ---- ))
 props = ["x", "y", "currentAngle", "currentPathLength", "stopWell"]
 newkws = (; kws..., filters=merge(kws.filters, filters),
-          resolution=[40, 40, 40, 40, 5], gaussian=4.3*0.5, props=props)
-jobs[:full] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-4:0.1:4); newkws...);
+          resolution=[40, 40, 40, 40, 5], gaussian=n.3*0.5, props=props)
+jobs[:full] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
 
 # Retrieve
@@ -106,19 +108,9 @@ for (key,job) in jobs
 end
 
 
-plot_shifts(jobs[:place_broadTimes],    desc="PLACE_broadTimes: ")
-plot_shifts(jobs[:place_fineNarrow],    desc="PLACE_HIGHRES")
-plot_shifts(jobs[:place],               desc="PLACE_LOWRES")
-plot_shifts(jobs[:goal_fineNarrow],     desc="GOAL_HIGHRES")
-plot_shifts(jobs[:goal_broadTimes],     desc="GOAL_TRAJ_LEN")
-plot_shifts(jobs[:specgoal],            desc="SPECGOAL")
-plot_shifts(jobs[:full],                desc="FULL")
-plot_shifts(jobs[:specplace],           desc="SPECPLACE")
-plot_shifts(jobs[:place_correctOnly],   desc="PLACE_CORRECTONLY")
-plot_shifts(jobs[:place_incorrectOnly], desc="PLACE_ERRORONLY")
-plot_shifts(jobs[:place_nontaskOnly],   desc="PLACE_NONTASK")
-plot_shifts(jobs[:place_correctCue],    desc="PLACE_CUEcorrect")
-plot_shifts(jobs[:place_correctMem],    desc="PLACE_MEMcorrect")
+for (key,job) in jobs
+    plot_shifts(job; desc=String(key), clim=:cell)
+end
 
 # Shuffle test
 place = @time timeshift.get_field_shift_shufflesfield_shift(beh, spikes, -2:0.1:2; 

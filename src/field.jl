@@ -90,7 +90,7 @@ module field
             tmp, data = raw.filterAndRegister(beh, data; filters=filters,
                                               transfer=augmented_props,
                                               on="time")
-            @assert length(unique(data.velVec)) > 1 "Fuck 2"
+            @assert length(unique(data.velVec)) > 1 "Empty data!"
             if behfilter isa Bool
                 if behfilter
                     @debug "Replacing behavior with filtered behavior"
@@ -104,7 +104,6 @@ module field
                                        lookupcols=nothing)[1]
             end
         end
-        #@assert length(unique(data.velVec)) > 1 "Fuck 3"
         beh, data
     end
 

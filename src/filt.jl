@@ -2,6 +2,8 @@ module filt
 
 using DataFrames
 using DataStructures
+export filters
+using Base: merge
 
 speed     = OrderedDict("velVec"=>x->(abs.(x) .> 4))
 speed_lib = OrderedDict("velVec"=>x->(abs.(x) .> 2))
@@ -9,6 +11,7 @@ still     = OrderedDict("velVec"=>x->(abs.(x) .< 0.5))
 correct   = OrderedDict("correct" => x-> x.==1)
 incorrect = OrderedDict("correct" => x-> x.==0)
 nontask   = OrderedDict("correct" => x-> (x.!=0) .&& (x.!=1))
+task      = OrderedDict("correct" => x-> (x.==0) .|| (x.==1))
 cue       = OrderedDict("cuemem" => x-> x.==0)
 mem       = OrderedDict("cuemem" => x-> x.==1)
 
@@ -16,6 +19,8 @@ notnan(x)       = OrderedDict(x  => x->((!).(isnan).(x)))
 minmax(x, m, M) = OrderedDict(x  => x-> x .>= m .&& x .<= M)
 max(x, M)       = OrderedDict(x  => x-> x .<= M)
 min(x, m)       = OrderedDict(x  => x-> x .>= m)
+# Alias
+error     = incorrect
 
 cellcount       = OrderedDict(All() =>
                               x->groupby_summary_cond(x, :unit,
@@ -50,7 +55,7 @@ Currently matches N filters with matching keys
 ... this could do a lot more, like function as a swapin for the
 actual merge method for Dicts, and search for matching keys
 """
-function merge(D::AbstractDict...)
+function filtmerge(D::AbstractDict...)
     newD = Dict{keytype(D[1])}{Any}()
     K = Tuple(keys(D[1]))[1]
     newD[K] = [d[K] for d in D]
@@ -90,6 +95,22 @@ function groupby_summary_cond(df, splitby, summary_condition, combine_args...)
     end
 end
 
+# Create a set of predefined filter combinations
+function get_filters()
+    filters = OrderedDict(:all => merge(speed_lib, cellcount))
+    filters[:task]        = merge(filters[:all], task)
+    filters[:correct]     = merge(filters[:all], correct)
+    filters[:error]       = merge(filters[:all], error)
+    filters[:nontask]     = merge(filters[:all], nontask)
+    filters[:memory]      = merge(filters[:all], mem)
+    filters[:cue]         = merge(filters[:all], cue)
+    filters[:cue_correct] = merge(filters[:all], cue)
+    filters[:cue_error]   = merge(filters[:all], cue, error)
+    filters[:mem_correct] = merge(filters[:all], mem, correct)
+    filters[:mem_error]   = merge(filters[:all], mem, error)
+    filters
+end
+filters = get_filters()
 
 end
 

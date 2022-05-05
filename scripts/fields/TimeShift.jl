@@ -26,7 +26,8 @@ IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
 """
 Translate into shorcut names
 """
-𝕄(items)  = [replace(item, var_shortcut_names...) for item in items]
+𝕄(items)  = [replace(item, recon_process.var_shortcut_names...) 
+             for item in items]
 """
 UnTranslate from shorcut names
 """
@@ -36,25 +37,70 @@ sz(items) = [IDEALSIZE[item] for item in items]
 #-------------------------------------------------------
 
 splitby=["unit", "area"]
-filters = merge(filt.notnan("currentAngle"), 
-                filt.minmax("currentPathLength", 2, 150),
-                filt.speed_lib, filt.cellcount)
-gaussian=2.3*0.5
+#gaussian=2.3*0.5
+filters = filt.get_filters()
+shifts = -4:0.2:4
+function get_key(;shifts, kws...)
+    (;kws..., first=first(shifts), last=last(shifts), step=Float64(shifts.step)) 
+end
+
+# List of the ways that one might want to vary this analysis
+# 1. filters
+#   all-times
+#       task
+#           correct
+#           error
+#           cue -> correct/error
+#           mem -> correct/error
+#       nontask
+# 2. marginals
+#   ["x", "y"]
+#   ["currentHeadEgoAngle", "currentPathLength"]
+#   ["currentHeadEgoAngle", "currentPathLength", "stopWell"]
+#   ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
+# 3. Resolution
+#   -8 : 8 seconds (trajectory length)
+#   (block length)
+
+I = OrderedDict()
 
 # COMPUTE INFORMATION @ DELAYS
-I = Dict()
-S = Dict()
-for props ∈ marginals_highprior
-    marginal = 𝕄(props)
-    newkws = (; kws..., filters, splitby, gaussian, props,
-              resolution=sz(props), multi=:single, postfunc=info.information)
-    I[marginal] = @spawn @time timeshift.get_field_shift(beh, spikes, -2:0.1:2; 
-                                                         newkws...)
-    S[marginal] = @spawn @time timeshift.get_field_shift_shufflesfield_shift(beh, spikes, -2:0.1:2; 
-                                                         newkws...)
+@showprogress 0.1 "Datacut iteration" for datacut ∈ keys(filters)
+    for props ∈ marginals_highprior
+        marginal = 𝕄(props)
+        key = get_key(;marginal, datacut, shuf=:cDt_t, shifts)
+        if key in keys(I)
+            if I[key] isa Task && !(istaskfailed(I[key]))
+                @info "key=$key already exists, skipping..."
+                continue
+            else
+                @info "key=$key already exists, but failed...redo!"
+            end
+        end
+        newkws = (; kws..., filters=filters[datacut], splitby, props, dokde=false,
+                  resolution=sz(props), multi=:single, postfunc=info.information)
+        I[key] = @spawn @time timeshift.get_field_shift(beh, spikes, shifts; 
+                                                             newkws...)
+    end
+    for (key, value) in I
+        I[key] = fetch(I[key])
+    end
+    @info I
+    utils.pushover("Done fetchging jobs for datacut=$datacut")
+    timeshift.save_mains(I)
 end
-for (key, value) in I
-    I[key] = fetch(I[key])
+
+
+# COMPUTE SHUFFLE INFORMATION @ DELAYS
+S = OrderedDict()
+for (datacut, props) ∈ Iterators.product(keys(filters), marginals_highprior)
+    marginal = 𝕄(props)
+    key = get_key(;marginal, datacut, shifts)
+    newkws = (; kws..., filters=filters[datacut], splitby, gaussian, props,
+              resolution=sz(props), multi=:single, postfunc=info.information)
+    S[key] = @spawn @time timeshift.get_field_shift_shufflesfield_shift(
+                                                         beh, spikes, shifts; 
+                                                         newkws...)
 end
 
 # GET FIELDS AT BEST-(𝛕)
