@@ -6,6 +6,7 @@ module utils
     using Colors, ColorSchemes
     using Pushover
     using Statistics, NaNStatistics
+    using Plots, DrWatson
 
     include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
     import .SearchSortedNearest
@@ -75,6 +76,18 @@ module utils
         final   = Random.shuffle(initial);
         mapping(x) = Dict(initial .=> final)[x]
         map(mapping, X)
+    end
+
+    """
+    savef
+
+    saves in multiple formats
+    """
+    function savef(args...;formats=["png","svg","pdf"])
+        for format in formats
+            @debug "format=$format"
+            Plots.savefig(plotsdir(args[1:end-1]..., args[end]*".$format"))
+        end
     end
 
     guides = Dict(); # shortcut for guides

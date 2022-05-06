@@ -313,16 +313,6 @@ module raw
         "task"     => load_task,
         "ripples"  => load_ripples)
     
-    module behavior
-        function add_next_target(beh)
-
-        end
-        function add_previous_target(beh)
-        end
-        additions = Dict("previous_target" => add_previous_target,
-                         "next_target"=> add_next_target)
-    end
-    export behavior
 
     module task
         function well_locations(task; day=nothing, epoch=nothing)

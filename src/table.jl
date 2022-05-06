@@ -469,7 +469,7 @@ function to_dataframe(fields::AbstractDict; other_labels=Dict(),
 end
 
 """
-    field_to_dataframe(field::AbstractArray; other_labels=Dict())
+field_to_dataframe(field::AbstractArray; other_labels=Dict())
 
 +purpose: converts a single field matrix into a field dataframe
 """
@@ -502,10 +502,14 @@ function to_dataframe(F::Union{AbstractArray,Real};
 end
 
 module group
+    using DataFrames
     coords(groups) = collect(zip(sort(collect(groups.keymap),by=x->x[2])...))[1]
     pairs(groups) = (collect(zip(sort(collect(groups.keymap))))[i][1] 
                      for i in 1:length(G.keymap))
     function named_coords(groups)
+    end
+
+    function equalize_and_order_keymap(args::GroupedDataFrame...)
     end
 end
 export group

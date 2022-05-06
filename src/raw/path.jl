@@ -1,4 +1,3 @@
-module behavior
 module path
 
     using Plots, Measures
@@ -6,7 +5,8 @@ module path
     using Statistics
     using ImageFiltering
     using ColorSchemes
-    include("./raw.jl")
+    include("../raw.jl")
+    import .raw
 
     function get_frame(video,sub)
         frame = raw.video.frameattime(video, median(sub[sub.delta .> 1,:].time))
@@ -104,4 +104,3 @@ module path
     end
 end
 export path
-end

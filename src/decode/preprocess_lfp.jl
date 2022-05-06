@@ -118,7 +118,7 @@ function annotate_vector_info(ripples::DataFrame, cycles::DataFrame, beh::DataFr
                                [:start_y_dec,:stop_y_dec]  => ((a,b) -> b .- a) => :Δy_dec)
 
     current_phase = (-pi, 0)
-    final_phase = (pi-pi/10, pi)
+    final_phase   = (pi-pi/10, pi)
     lfp = groupby(lfp,:cycle)
     cycles.current_x, cycles.current_y = NaN*ones(Float32, size(cycles,1)),
                                          NaN*ones(Float32, size(cycles,1))
@@ -133,6 +133,9 @@ function annotate_vector_info(ripples::DataFrame, cycles::DataFrame, beh::DataFr
        cycle.current_x , cycle.current_y = get_mean_prss(cycle, lf, current_phase...)
        cycle.final_x , cycle.final_y = get_mean_prss(cycle, lf, final_phase...)
     end
+    cycles[!,:curfinal_Δx] = cycles.final_x - cycles.current_x
+    cycles[!,:curfinal_Δy] = cycles.final_y - cycles.current_y
+    cycles[!,:curfinal] = cycles.curfinal_Δx + (cycles.curfinal_Δy)im
 
 
     remove = [x for x in removal_list if x in propertynames(ripples)]
@@ -235,4 +238,34 @@ function convert_to_sweeps(lfp::DataFrame, theta::Array, ripple::Array;
     end
     return theta, ripple
 
+end
+
+function beh_to_cycles(beh, cycles, cycreg=:time, behreg=:time;
+        register=[:stopWell,:futureStopWell,:pastStopWell,:relativetraj])
+    @assert cycreg == behreg "For now these have to be the same...."
+end
+
+
+# (5) Annotate cycles with, decode vector, next/previous goal data
+function annotate_behavior_to_ripples_and_cycles(beh::DataFrame, 
+        events::DataFrame, pertrajlabel=:traj)
+    if :time ∉ propertynames(events)
+        events[!,:time] = vec(mean([events.start events.end],dims=2))
+    end
+    if :cycle ∈ propertynames(events)
+        cycle_unit = :cycle
+    elseif :rip_id ∈ propertynames(events)
+        cycle_unit = :rip_id
+    end
+    transfer = String.([:traj, :correct, :stopWell, :futureStopWell, :pastStopWell,
+                        :stopWell])
+    _, events = raw.register(beh, events, on="time", transfer=transfer)
+    groups = groupby(events, :traj)
+    for group in groups
+        group[!,:cycle_traj] = replace(group[!,cycle_unit],-1=>missing)
+        group[!,:cycle_traj] = group[!,:cycle_traj] .- minimum(group[!,:cycle_traj]) .+ 1
+    end
+    events = combine(groups, identity)
+    x = events[!,:cycle_traj]
+    events[!,:cycle_traj] = convert(Vector{Float32}, coalesce(x, missing=>NaN))
 end

@@ -10,7 +10,7 @@ import Base.Threads: @spawn
 using ThreadSafeDicts
 using .timeshift
 sp = copy(spikes)
-convertToMinutes = false
+convertToMinutes, runshifts = false, false
 
 # -----------------------
 # Testing shuffle methods
@@ -42,22 +42,29 @@ end
 
 # Single thread
 #
-result = @time timeshift.get_field_shift(beh, spikes, shifts;
-                         multi=:single, postfunc=info.information, 
-                         newkws...) # 2 minutes, roughly
+if runshifts
+    result = @time timeshift.get_field_shift(beh, spikes, shifts;
+                             multi=:single, postfunc=info.information, 
+                             newkws...) # 2 minutes, roughly
 
-@assert sp.time == spikes.time
+    @assert sp.time == spikes.time
 
-shuf_result = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 4-16 hours
-                         multi=:single, postfunc=info.information, 
-                         shuffle_func=shuffle.by,
-                         exfiltrateAfter=Inf,
-                         safe_dict=safe_dict,
-                         newkws...)
+    shuf_result = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 4-16 hours
+                             multi=:single, postfunc=info.information, 
+                             shuffle_func=shuffle.by,
+                             exfiltrateAfter=Inf,
+                             safe_dict=safe_dict,
+                             newkws...)
 
-timeshift.saveshifts(result, shuf_result, shifts=shifts, metric="info", 
-                     fieldkws=newkws)
-D = timeshift.loadshifts(shifts=shifts, metric="info", fieldkws=newkws)
+    timeshift.saveshifts(result, shuf_result, shifts=shifts, metric="info", 
+                         fieldkws=newkws)
+end
+
+# TESTING CORRECTION METHODS
+D = timeshift.loadshifts(;shifts=shifts, metric="info", newkws...)
+main, shuf= info_to_dataframe(D[:main]), info_to_dataframe(D[:shuffle])
+
+timeshift.func(main, shuffle, :info => :info_func)
 
 
 # Distributed

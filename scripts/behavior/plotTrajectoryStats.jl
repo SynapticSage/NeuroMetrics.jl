@@ -1,3 +1,6 @@
+includet(srcdir("utils.jl"))
+import .utils
+import Plots
 
 G = combine(groupby(beh, :traj),
           :time=> (x->diff([extrema(x)...])) => :range).range;
@@ -29,3 +32,31 @@ Plots.plot(p1, p2, p3, p4)
 savefig(plotsdir("behavior","trajectory","typical_trajectory_piecharts.png"))
 savefig(plotsdir("behavior","trajectory","typical_trajectory_piecharts.svg"))
 savefig(plotsdir("behavior","trajectory","typical_trajectory_piecharts.pdf"))
+
+# RELATIVE TRAJECTORY TIMES
+Plots.histogram(beh.trajreltime[beh.stopWell.!=-1], label="Relative trajectory
+                time", xlabel="Relative traj\n0:start 1:stop",
+                ylabel="samples")
+utils.savef("behavior","trajectory","histogram_relative_trajectory_times")
+
+beh = groupby(beh, :stopWell)
+edges = 0:0.1:1
+centers = mean([edges[1:end-1] edges[2:end]], dims=2)
+p = []
+for b in beh
+    i = b.stopWell[1]
+    heights = fit(Histogram, b.trajreltime, edges).weights
+    (m,M) = extrema(heights)
+    push!(p,
+          Plots.bar(centers, heights, label="$i", ylim=(m,M),
+                            xlabel="Relative traj\n0:start 1:stop",
+                            ylabel="samples"))
+end
+beh = combine(beh, identity)
+Plots.plot(p...)
+utils.savef("behavior","trajectory","histogram_by_stopWell_relative_trajectory_times")
+
+# DOes this evolve over trajectory
+Plots.histogram2d(beh.trajreltime, beh.traj, label="Relative trajectory time",
+                  xlabel="Relative traj\n0:start 1:stop", ylabel="traj")
+utils.savef("behavior","trajectory","histogram2d_relative_trajectory_times_versus_traj")

@@ -1,11 +1,14 @@
+if :ploton ∉ propertynames(Main)
+    ploton = dopoissonmodel = false
+end
+
 #                                                   
 # ,---.|                       ,---.o     |        |
 # |---'|    ,---.,---.,---.    |__. .,---.|    ,---|
 # |    |    ,---||    |---'    |    ||---'|    |   |
 # `    `---'`---^`---'`---'    `    ``---'`---'`---'
 props = ["x", "y"]
-newkws = (; kws..., resolution=resolution, gaussian=2.3*0.5, props=props,
-          filters=merge(kws.filters))
+newkws = (; kws..., props=props, filters=merge(kws.filters))
 place = field.get_fields(beh, spikes; newkws...);
 F["place"] = place
 
