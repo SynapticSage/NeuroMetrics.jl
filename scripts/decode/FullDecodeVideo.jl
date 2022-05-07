@@ -68,7 +68,8 @@ if !(load_from_checkpoint)
     @time beh    = raw.load_behavior(animal, day)
     @time spikes = raw.load_spikes(animal,   day)
     @time cells  = raw.load_cells(animal,    day)
-    @time lfp    = @subset(raw.load_lfp(animal, day), :tetrode.==ca1_tetrode)[!,[:time, :raw, :phase, :amp, :broadraw]]
+    @time lfp    = @subset(raw.load_lfp(animal, day),
+                           :tetrode.==ca1_tetrode)[!,[:time, :raw, :phase, :amp, :broadraw]]
     @time task   = raw.load_task(animal,     day)
     @time ripples= raw.load_ripples(animal,  day)
     wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
@@ -123,7 +124,7 @@ else
     fix_complex(x) = x.re + (x.im)im
     beh.velVec = fix_complex.(beh.velVec)
     ripples.velVec = fix_complex.(ripples.velVec)
-    cycles.velVec = fix_complex.(cycles.velVec)
+    lfp.velVec = fix_complex.(lfp.velVec)
 end
 
 cycles = cycles[cycles.cycle.!=-1,:]
@@ -303,17 +304,15 @@ lines!(axArena, boundary.x, boundary.y, color=:grey)
 # ----------------
 # Sequence vectors
 # ----------------
-cycle_start_x  = @lift isempty($cycle_events) ? [NaN]  : $cycle_events.start_x_dec
-cycle_start_y  = @lift isempty($cycle_events) ? [NaN]  : $cycle_events.start_y_dec
-cycle_u        = @lift isempty($cycle_events) ? [NaN]  : $cycle_events.Δx_dec
-cycle_v        = @lift isempty($cycle_events) ? [NaN]  : $cycle_events.Δy_dec
-cycle_arrows = arrows!(axArena, cycle_start_x, cycle_start_y, cycle_u, cycle_v)
+cycle_start_xy  = @lift isempty($cycle_events) ? [NaN, NaN]  : $cycle_events.dec₀
+cycle_uv        = @lift isempty($cycle_events) ? [NaN, NaN]  : $cycle_events.dec₀₁
+cycle_arrows = arrows!(axArena, cycle_start_xy[1], cycle_start_xy[2],
+                                cycle_uv[1], cycle_uv[2])
 
-ripple_start_x  = @lift isempty($ripple_events) ? [NaN]  : $ripple_events.start_x_dec
-ripple_start_y  = @lift isempty($ripple_events) ? [NaN]  : $ripple_events.start_y_dec
-ripple_u        = @lift isempty($ripple_events) ? [NaN]  : $ripple_events.Δx_dec
-ripple_v        = @lift isempty($ripple_events) ? [NaN]  : $ripple_events.Δy_dec
-ripple_arrows = arrows!(axArena, ripple_start_x, ripple_start_y, ripple_u, ripple_v)
+ripple_start_xy  = @lift isempty($ripple_events) ? [NaN, NaN]  : $ripple_events.dec₀
+ripple_uv        = @lift isempty($ripple_events) ? [NaN, NaN]  : $ripple_events.dec₀₁
+ripple_arrows = arrows!(axArena, ripple_start_xy[1], ripple_start_xy[2],
+                                 ripple_uv[1], ripple_uv[2])
 
 # ---------------
 # Sequence maxima

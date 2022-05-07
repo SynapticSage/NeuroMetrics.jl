@@ -86,12 +86,12 @@ I = OrderedDict()
         for (key, value) in I
             I[key] = fetch(I[key])
         end
-        @info I
-        utils.pushover("Done fetchging jobs for datacut=$datacut")
-        timeshift.save_mains(I)
     catch
         @warn "potential task failure for props=$props, datacut=$datacut"
     end
+    @info I
+    utils.pushover("Done fetchging jobs for datacut=$datacut")
+    timeshift.save_mains(I)
 end
 
 

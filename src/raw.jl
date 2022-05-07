@@ -458,6 +458,7 @@ module raw
             end
             @debug "columns=$columns_to_transfer from source->target on $on"
 
+            @infiltrate
             match_on_source = data[source][:, on]
             match_on_target = data[target][:, on]
             match_on_target = convert.(Float64, match_on_target)
@@ -490,6 +491,7 @@ module raw
             addressing = (;source=1, target=2)
             transfer = ((addressing, transfer),) # create set of addressed transfer instructions
         end
+        @debug "Got here"
         source, target, _ = register(source, target, DataFrame(); transfer=transfer, on=on)
         return source, target
     end
