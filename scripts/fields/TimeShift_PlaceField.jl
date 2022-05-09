@@ -48,7 +48,7 @@ end
 
 
 jobs = Dict()
-n = 8
+n = 2
 
 # A (( ---- PLACE ---- ))
 props = ["x", "y"]
@@ -86,18 +86,18 @@ jobs[:goal] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); n
 # C (( ---- SPECGOAL ---- ))
 props = ["currentAngle", "currentPathLength", "stopWell"]
 newkws = (; kws..., filters=merge(kws.filters, filters),
-          resolution=[40, 40, 5], gaussian=n.3*0.5, props=props)
+          resolution=[40, 40, 5], props=props)
 jobs[:specgoal] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 # C (( ---- SPECPLACE ---- ))
 props = ["x", "y", "stopWell"]
 newkws = (; kws..., filters=merge(kws.filters, filters),
-          resolution=[40, 40, 5], gaussian=n.3*0.5, props=props)
+          resolution=[40, 40, 5], props=props)
 jobs[:specplace] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); 
                                         newkws...);
 # D (( ---- FULL ---- ))
 props = ["x", "y", "currentAngle", "currentPathLength", "stopWell"]
 newkws = (; kws..., filters=merge(kws.filters, filters),
-          resolution=[40, 40, 40, 40, 5], gaussian=n.3*0.5, props=props)
+          resolution=[40, 40, 40, 40, 5], props=props)
 jobs[:full] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
 
@@ -109,7 +109,7 @@ end
 
 
 for (key,job) in jobs
-    plot_shifts(job; desc=String(key), clim=:cell)
+    plot_shifts(job; desc="shorter_"*String(key), clim=:cell)
 end
 
 # Shuffle test

@@ -15,7 +15,10 @@ module raw
     import .utils
     include("table.jl")
     import .table
+    using .table: get_periods
     const findnearest = utils.searchsortednearest
+    using Infiltrator
+    __revise_mode__ = :evalassign
 
     # Module-wide settings
     animal_dayfactor = Dict("RY16"=>33, "RY22"=>0)
@@ -458,7 +461,7 @@ module raw
             end
             @debug "columns=$columns_to_transfer from source->target on $on"
 
-            @infiltrate
+            #@infiltrate
             match_on_source = data[source][:, on]
             match_on_target = data[target][:, on]
             match_on_target = convert.(Float64, match_on_target)

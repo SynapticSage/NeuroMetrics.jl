@@ -1,6 +1,8 @@
 export annotate_pastFutureGoals
+export annotate_relative_xtime!
+using StatsBase
 
-function annotate_pastFutureGoals(beh::DataFrame)
+function annotate_pastFutureGoals(beh::DataFrame; doPrevPast::Bool=false)
 
     beh = groupby(beh, [:epoch, :traj])
     for (g,group) in enumerate(beh)
@@ -15,7 +17,7 @@ function annotate_pastFutureGoals(beh::DataFrame)
     replace!(beh.pastStopWell, missing=>-1)
     replace!(beh.futureStopWell, missing=>-1)
     if doPrevPast
-        beh.hw = argmax(StatsBase.fit(StatsBase.Histogram,
+        beh.hw .= argmax(StatsBase.fit(StatsBase.Histogram,
                                       filter(b->b!=-1,beh.stopWell), 1:6).weights)
         beh = groupby(beh, [:epoch, :block])
         for (g,group) in enumerate(beh)
@@ -24,6 +26,7 @@ function annotate_pastFutureGoals(beh::DataFrame)
         replace!(beh.prevPastStopWell, missing=>-1)
         beh = sort(combine(beh, identity),:time)
     end
+    beh
 end
 
 function annotate_poke(beh::DataFrame)
@@ -35,7 +38,7 @@ function annotate_poke(beh::DataFrame)
     beh
 end
 
-function add_relative_xtime!(beh::DataFrame, x=:traj, on=:time)
+function annotate_relative_xtime!(beh::DataFrame, x=:traj, on=:time)
     find_relative(t,m,M) = (t.-m)./(M-m)
     beh = groupby(beh, x)
     @showprogress 0.1 "adding rel $x on $on" for group in beh

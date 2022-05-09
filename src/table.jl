@@ -44,7 +44,8 @@ function get_periods(df::DataFrame, property::String, pos...;
     period = groupby(df, property)
     period = combine(period, pos..., :time => (x->minimum(x)) => :start,
                                      :time => (x->maximum(x)) => end_period)
-    period.δ = period.end .- period.start;
+    @debug "got here"
+    period.δ = period[!,end_period] .- period.start;
     period.prop .= property
     return period
 end

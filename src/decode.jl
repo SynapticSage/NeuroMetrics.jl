@@ -2,9 +2,14 @@ module decode
 using Statistics
 using LoopVectorization
 using Revise
+__revise_mode__ = :evalassign
 
 include("utils.jl")
 using .utils
+include("raw.jl")
+import .raw
+include("table.jl")
+import .table
 
 searchsortednearest = utils.searchsortednearest
 export searchsortednearest

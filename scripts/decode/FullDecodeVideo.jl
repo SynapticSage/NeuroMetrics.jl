@@ -35,6 +35,8 @@ thresh = Dict("likelihood"=>0.1, "acausal_posterior"=>0.97, "causal_posterior"=>
 typical_number_of_squares_active = quantile(1:(45*28), 1) - quantile(1:(45*28), 0.97)
 transition_type, decoder_type = "empirical", "sortedspike"
 variable                      = "causal_posterior"
+
+load_from_checkpoint          = true
 usevideo                      = false
 remove_nonoverlap             = true # set to true if you expect multiple splits in this code
 dosweep                       = false
@@ -58,18 +60,24 @@ outputVideo = "animation.$(decoder_type)_$(transition_type)_$(split_type)_$(spli
 decode_file = raw.decodepath(animal, day, epoch, transition="empirical",
                              method="sortedspike", split=split_num,
                              type=split_type, speedup=20.0)
-stream = VideoIO.open(video)
-vid = VideoIO.openvideo(stream)
+if usevideo
+    stream = VideoIO.open(video)
+    vid = VideoIO.openvideo(stream)
+end
 
 if !(load_from_checkpoint)
+
     # -----------
     # DATASETS
     # -----------
     @time beh    = raw.load_behavior(animal, day)
+    be = copy(beh)
     @time spikes = raw.load_spikes(animal,   day)
     @time cells  = raw.load_cells(animal,    day)
     @time lfp    = @subset(raw.load_lfp(animal, day),
-                           :tetrode.==ca1_tetrode)[!,[:time, :raw, :phase, :amp, :broadraw]]
+                           :tetrode.==ca1_tetrode)[!,[:time, :raw, :phase,
+                                                      :amp, :broadraw]]
+    lf = copy(lfp)
     @time task   = raw.load_task(animal,     day)
     @time ripples= raw.load_ripples(animal,  day)
     wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
@@ -86,8 +94,9 @@ if !(load_from_checkpoint)
     nmint = minimum(beh[beh.epoch.==epoch,:].time)
 
     if remove_nonoverlap
-        spikes, beh, lfp, ripples, T_inds = raw.keep_overlapping_times(spikes, beh, lfp, ripples, T;
-                                                                      returninds=[5])
+        spikes, beh, lfp, ripples, T_inds = 
+             raw.keep_overlapping_times(spikes, beh, lfp, ripples, T;
+                                        returninds=[5])
         dat, T = dat[:,:,T_inds], T[T_inds]
     end
     [extrema(x.time) for x in (lfp, spikes, ripples, beh)]
@@ -96,16 +105,16 @@ if !(load_from_checkpoint)
     # Preprocess BEHAHVIOR
     # TODO Turn this into a function
     # --------------------
-    beh = annotate_pastFutureGoals(beh)
+    beh = annotate_pastFutureGoals(beh; doPrevPast=false)
 
     # --------------
     # Preprocess LFP
     # --------------
     ripples      = velocity_filter_ripples(beh,ripples)
-    lfp, cycles  = get_theta_cycles(lfp)
+    lfp, cycles  = get_theta_cycles(lfp, beh)
     lfp          = curate_lfp_theta_cycle_and_phase(lfp, cycles)
     lfp, ripples = annotate_ripples_to_lfp(lfp, ripples)
-    ripples, cycles = decode.annotate_vector_info(ripples, cycles, beh, dat, x, y, T)
+    ripples, cycles = annotate_vector_info(ripples, cycles, beh, lfp, dat, x, y, T)
 
     # Cast to Float32(for makie) and range for plotting
     lfp.phase_plot = utils.norm_extrema(lfp.phase, extrema(spikes.unit))
@@ -113,32 +122,27 @@ if !(load_from_checkpoint)
     lfp.raw      = Float32.(utils.norm_extrema(lfp.raw,      extrema(spikes.unit)))
     lfp.broadraw = Float32.(utils.norm_extrema(lfp.broadraw, extrema(spikes.unit)))
     lfp.cycle, lfp.phase = Int32.(lfp.cycle), Float32.(lfp.phase)
+    cycles = cycles[cycles.cycle.!=-1,:]
 
     # Checkpoint pre-video data
-    save_checkpoint(Main)
+    decode.save_checkpoint(Main, decode_file)
 else
     D = decode.load_checkpoint(Main, decode_file)
     for (key,value) in D
         eval(Meta.parse("$key = D[:$key]"))
     end
     fix_complex(x) = x.re + (x.im)im
-    beh.velVec = fix_complex.(beh.velVec)
+    beh.velVec     = fix_complex.(beh.velVec)
     ripples.velVec = fix_complex.(ripples.velVec)
-    lfp.velVec = fix_complex.(lfp.velVec)
+    lfp.velVec     = fix_complex.(lfp.velVec)
 end
 
-cycles = cycles[cycles.cycle.!=-1,:]
 lfp, theta, ripples, non = begin
     # ------------------------------
     # Separate DECODES by EVENTS
     # ------------------------------
     theta, ripple, non = separate_theta_ripple_and_non_decodes(T, lfp, dat;
                                                                 doRipplePhase=doRipplePhase)
-    frac_print(frac) = @sprintf("Fraction times = %2.4f",frac)
-    frac = mean(all(isnan.(theta) .&& isnan.(ripple), dims=(1,2)))
-    frac_print(frac)
-    frac_rip = vec(mean(all(isnan.(ripple),dims=(1,2)), dims=(1,2,3)))
-    frac_print.(frac_rip)
     if dosweep
         theta, ripples = convert_to_sweeps(lfp, theta, ripples;
                                            doRipplePhase=doRipplePhase)
@@ -149,6 +153,8 @@ lfp, theta, ripples, non = begin
     lfp, theta, ripples, non
 end
 
+@time task   = raw.load_task(animal,     day)
+wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
 homeWell, arenaWells = begin
     hw = argmax(StatsBase.fit(StatsBase.Histogram, filter(b->b!=-1,beh.stopWell), 1:6).weights)
     @info "Homewell = $hw"
@@ -156,6 +162,12 @@ homeWell, arenaWells = begin
 end
 boundary = task[(task.name.=="boundary") .& (task.epoch .== epoch), :]
 append!(boundary, DataFrame(boundary[1,:]))
+
+
+annotate_relative_xtime!(beh)
+cycles  = annotate_explodable_cycle_metrics(beh, cycles, dat, x, y, T)
+ripples = annotate_explodable_cycle_metrics(beh, ripples, dat, x, y, T)
+
 
 # --------------------
 # RUN VIDEO 

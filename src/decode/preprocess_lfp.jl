@@ -1,26 +1,32 @@
 export velocity_filter_ripples, get_theta_cycles, 
-       curate_lfp_theta_cycle_and_phase, annotate_ripples_to_lfp,
+       curate_lfp_theta_cycle_and_phaslfpe, annotate_ripples_to_lfp,
        annotate_vector_info
 export separate_theta_ripple_and_non_decodes
+export velocity_filter_ripples
 
 using DataFrames
 using LoopVectorization
 using Infiltrator
+using ProgressMeter
+using LazyGrids: ndgrid
+import .raw
+import .table
 
 
 function velocity_filter_ripples(beh::DataFrame, ripples::DataFrame)
-    beh, lfp = raw.register(beh, lfp; transfer=["velVec"], on="time")
     beh, ripples = raw.register(beh, ripples; transfer=["velVec"], on="time")
     ripples = ripples[abs.(ripples.velVec) .< 2, :]
 end
 
-function get_theta_cycles(lfp::DataFrame)
+function get_theta_cycles(lfp::DataFrame, beh::DataFrame)
+    beh, lfp = raw.register(beh, lfp; transfer=["velVec"], on="time")
     lfp = raw.lfp.annotate_cycles(lfp, method="peak-to-peak")
     lfp.phase = raw.lfp.phase_to_radians(lfp.phase)
-    cycles = raw.lfp.get_cycle_table(lfp,
-                                     :velVec => (x->median(abs.(x))) => :velVec_median;
-                                     end_period=:stop)
-    transform!(cycles, [:start,:end] => ((x,y)->mean([x,y])) => :time)
+    cycles = table.get_periods(lfp, "cycle", 
+                   :amp=>mean,
+                   :velVec => (x->median(abs.(x))) => :velVec_median; 
+                   end_period=:stop)
+    transform!(cycles, [:start,:stop] => ((x,y)->mean([x,y])) => :time)
     cycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles)
     cycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.5), cycles) 
     cycles = filter(:velVec_median => (𝒱  -> abs.(𝒱)  .> 2) , cycles)
@@ -64,34 +70,36 @@ function annotate_ripples_to_lfp(lfp::DataFrame, ripples::DataFrame)
 end
 
 # (5) Annotate cycles with, decode vector, next/previous goal data
-function annotate_vector_info(ripples::DataFrame, cycles::DataFrame, beh::DataFrame, 
-                              dat::AbstractArray, x::Vector, y::Vector, T::Vector
-                              current_phase::Tuple = (-pi, 0)
-                              final_phase::Tuple   = (pi-pi/10, pi))
+function annotate_vector_info(ripples::DataFrame, cycles::DataFrame,
+        beh::DataFrame, lfp::DataFrame, dat::AbstractArray, x::Vector,
+        y::Vector, T::Vector, current_phase::Tuple = (-pi, 0),
+        final_phase::Tuple   = (pi-pi/10, pi))
 
     # Cycle time based decode values
     #vecOfRow(df) = [d[1] for d in eachcol(DataFrame(df))]
     match(time, col::Vector{Symbol}) = begin
         res = beh[utils.searchsortednearest.([beh.time], time),col]
-        res = [x for x in eachrow(Matrix(res))]
+        res = [ComplexF64(x[1]+x[2]im) for x in eachrow(Matrix(res))]
     end
     function matchdxy(time::Real) 
-        #@infiltrate
         I =  utils.searchsortednearest(T, time)
         D = replace(dat[:,:,I], NaN=>0)
         xi = argmax(maximum(D, dims=2), dims=1)
         yi = argmax(utils.squeeze(maximum(D, dims=1)), dims=1)
-        Float32.([x[xi][1], y[yi][1]])
+        ComplexF64(x[xi][1] + y[yi][1]im)
     end
     # Phase based decode values
     function get_phase_range_start_stop(event, lfp, ϕ₀, ϕ₁)
         inds = lfp.time .>= event.start .&& lfp.time .< event.stop
-        lfp = lfp[inds,:]
+        lfp  = lfp[inds,:]
         start, stop = findfirst(lfp.phase .>= ϕ₀),
                       findfirst(lfp.phase .< ϕ₁)
-        start, stop = lfp[start, :time],
-                      lfp[stop, :time]
-        start, stop
+        if start == nothing || stop == nothing
+            start, stop = nothing, nothing
+        else
+            start, stop = lfp[start, :time],
+                          lfp[stop, :time]
+        end
     end
     X, Y = ndgrid(x, y)
     function meandxy(start::Real, stop::Real)
@@ -99,16 +107,21 @@ function annotate_vector_info(ripples::DataFrame, cycles::DataFrame, beh::DataFr
                 utils.searchsortednearest(T, stop)
         D = replace(dat[:,:,I₁:I₂], NaN=>0)
         sD = mean(D)
-        x  = mean(X.*D)/sD
-        y  = mean(Y.*D)/sD
-        Float32.([x, y])
+        xm  = mean(X.*D)/sD
+        ym  = mean(Y.*D)/sD
+        ComplexF64(xm .+ (ym)im)
     end
     function get_mean_prss(event, lfp, ϕ₁, ϕ₂)
-        meandxy(get_phase_range_start_stop(event,lfp,ϕ₁,ϕ₂)...)
+        start, stop = get_phase_range_start_stop(event,lfp,ϕ₁,ϕ₂)
+        if (start,stop) == (nothing, nothing)
+            ComplexF64(NaN + (NaN)im)
+        else
+            meandxy(start, stop)
+        end
     end
 
     removal_list = [:act₀, :act₁, :dec₀, :dec₁, :act₀₁, :dec₀₁]
-    remove = [x for x in removal_list if x in propertynames(cycles)]
+    remove = [elem for elem in removal_list if elem in propertynames(cycles)]
     @debug remove
     cylces = cycles[!, Not(remove)]
     cycles = transform(cycles, :start => (t->(match(t, [:x,:y]))) => :act₀,
@@ -120,7 +133,7 @@ function annotate_vector_info(ripples::DataFrame, cycles::DataFrame, beh::DataFr
                                [:dec₀, :dec₁]  => ((a,b) -> b .- a) => :dec₀₁)
 
     lfp = groupby(lfp,:cycle)
-    cycles[!,:dec_ϕu]   = [Float32.([NaN, NaN]) for i in 1:size(cycles,1)]
+    cycles[!,:dec_ϕu]   = [ComplexF64(NaN + (NaN)im) for i in 1:size(cycles,1)]
     cycles[!,:dec_ϕd]   = cycles[:, :dec_ϕu]
     for (lf, cycle) in zip(lfp, eachrow(cycles))
         lower, upper = extrema(lf.phase)
@@ -128,24 +141,24 @@ function annotate_vector_info(ripples::DataFrame, cycles::DataFrame, beh::DataFr
            !(isapprox(upper, pi, atol=0.8))
            continue
        end
-       cycle.dec_ϕd = get_mean_prss(cycle, lf, current_phase...)
+       cycle.dec_ϕd  = get_mean_prss(cycle, lf, current_phase...)
        cycle.dec_ϕu  = get_mean_prss(cycle, lf, final_phase...)
     end
     cycles[!,:dec_ϕdu] = cycles.dec_ϕu - cycles.dec_ϕd
-    #cycles[!,:curfinal] = cycles.curfinal_Δx + (cycles.curfinal_Δy)im
 
 
     removal_list = [:act₀, :act₁, :dec₀, :dec₁, :act₀₁, :dec₀₁]
-    remove = [x for x in removal_list if x in propertynames(ripples)]
+    remove = [elem for elem in removal_list if elem in propertynames(ripples)]
     @debug remove
     cylces = ripples[!, Not(remove)]
     ripples = transform(ripples, :start => (t->(match(t, [:x,:y]))) => :act₀,
-                               :stop  => (t->(match(t, [:x,:y]))) => :act₁,
-                               :start => (x->(matchdxy.(x)))   => :dec₀,
-                               :stop  => (x->(matchdxy.(x)))   => :dec₁)
+                                 :stop  => (t->(match(t, [:x,:y]))) => :act₁)
+    ripples = transform(ripples, 
+                                 :start => (x->(matchdxy.(x)))   => :dec₀,
+                                 :stop  => (x->(matchdxy.(x)))   => :dec₁)
 
     ripples = transform(ripples, [:act₀,:act₁]   => ((a,b) -> b .- a) => :act₀₁,
-                               [:dec₀, :dec₁]  => ((a,b) -> b .- a) => :dec₀₁)
+                                 [:dec₀, :dec₁]  => ((a,b) -> b .- a) => :dec₀₁)
 
 
     ripples, cycles
@@ -242,76 +255,97 @@ function beh_to_cycles(beh, cycles, cycreg=:time, behreg=:time;
 end
 
 function annotate_behavior_to_cycles(beh::DataFrame, 
-        events::DataFrame, pertrajlabel=:traj)
-    if :time ∉ propertynames(events)
-        events[!,:time] = vec(mean([events.start events.end],dims=2))
+        E::DataFrame, pertrajlabel=:traj)
+    if :time ∉ propertynames(E)
+        E[!,:time] = vec(mean([E.start E.end],dims=2))
     end
-    if :cycle ∈ propertynames(events)
+    if :cycle ∈ propertynames(E)
         cycle_unit = :cycle
-    elseif :rip_id ∈ propertynames(events)
+    elseif :rip_id ∈ propertynames(E)
         cycle_unit = :rip_id
     end
     transfer = String.([:traj, :correct, :stopWell, :futureStopWell, :pastStopWell,
                         :stopWell])
-    _, events = raw.register(beh, events, on="time", transfer=transfer)
-    groups = groupby(events, :traj)
+    _, E = raw.register(beh, E, on="time", transfer=transfer)
+    groups = groupby(E, :traj)
     for group in groups
         group[!,:cycle_traj] = replace(group[!,cycle_unit],-1=>missing)
         group[!,:cycle_traj] = group[!,:cycle_traj] .- minimum(group[!,:cycle_traj]) .+ 1
     end
-    events = combine(groups, identity)
-    x = events[!,:cycle_traj]
-    events[!,:cycle_traj] = convert(Vector{Float32}, coalesce(x, missing=>NaN))
+    E = combine(groups, identity)
+    x = E[!,:cycle_traj]
+    E[!,:cycle_traj] = convert(Vector{Float32}, coalesce(x, missing=>NaN))
 end
 
+to_complex(x) = ComplexF64(x...)
+
 function annotate_explodable_cycle_metrics(beh::DataFrame, 
-        events::DataFrame, dat::AbstractArray,
+        E::DataFrame, dat::AbstractArray,
         x::Vector{<:Real}, y::Vector{<:Real}, T::Vector{<:Real}
     )
 
+    if :cycle in propertynames(E)
+        cycle_field = :cycle
+    else
+        cycle_field = :rip_id
+    end
+
+
     # Cycle time based decode values
     function imatchdxy(I::Real) 
-        #@infiltrate
         D = replace(dat[:,:,I], NaN=>0)
         xi = argmax(maximum(D, dims=2), dims=1)
         yi = argmax(utils.squeeze(maximum(D, dims=1)), dims=1)
         Float32.([x[xi][1], y[yi][1]])
     end
 
-    events.midpoint = vec(mean([events.start events.stop],dims=2))
-    events.time     = events.midpoint
-    _, events = raw.register(beh,events,on="time",transfer=["traj"])
+    E.midpoint = vec(mean([E.start E.stop],dims=2))
+    E.time     = E.midpoint
+    _, E = raw.register(beh,E,on="time",transfer=["traj"])
 
     #c⃗ ᵢⱼ, trajreltime, time
-    events.cij         = Vector{Vector}(undef,size(events,1))
-    events.trajreltime = Vector{Vector}(undef,size(events,1))
-    events.time        = Vector{Vector}(undef,size(events,1))
-    events.trajtime    = Vector{Vector}(undef,size(events,1))
-    P = Progress(size(events,1), dt=0.1, 
-                 desc="Adding explodable fields to events")
-    Threads.@threads for row in eachrow(events)
-        if row.cycle == -1
-            row.cij         = []
+    E.decᵢ        = Vector{Vector}(undef,size(E,1))
+    E.decᵢᵢ       = Vector{Vector}(undef,size(E,1))
+    E.trajreltime = Vector{Vector}(undef,size(E,1))
+    E.time        = Vector{Vector}(undef,size(E,1))
+    E.trajtime    = Vector{Vector}(undef,size(E,1))
+    P = Progress(size(E,1), dt=0.1, 
+                 desc="Adding explodable fields to E")
+    Threads.@threads for row in eachrow(E)
+        if row[cycle_field] == -1
+            row.decᵢ        = []
+            row.decᵢᵢ       = []
             row.time        = []
             row.trajreltime = []
         end
         Tind = findall(T .>= row.start .&& T .< row.stop)
-        row.cij = imatchdxy.(Tind)
-        #row.cij_x, row.cij_y = tmp1, tmp2
+        row.decᵢ  = imatchdxy.(Tind) # looks up vector at each time
+        row.decᵢᵢ = row.decᵢ[2:end] .- row.decᵢ[1:end-1] # looks up vector at each time
+        row.decᵢᵢ = cat(NaN + (NaN)im, row.decᵢᵢ; dims=1)
         row.time = T[Tind]
         row.trajtime = T[Tind] .- minimum(T[Tind])
         row.trajreltime = utils.searchsortednearest.([beh.time], T[Tind])
         row.trajreltime = beh[row.trajreltime, :trajreltime]
         cumchange = mean(cumsum(diff(row.trajreltime)))
         if cumchange > 0
-            row.trajreltime = row.trajreltime[begin]:cumchange:row.trajreltime[end]
+            row.trajreltime = LinRange(row.trajreltime[begin],
+                                       row.trajreltime[end],
+                                       length(row.trajreltime))
+            #TODO this may not be 100% accurate for sequences
+            # that have a situation as follows. Suppose
+            # [1,1,1,1,2,2,2,2,3,3,3] where when you translate these into
+            # their respective fraciontions
+            # [1,1.25,1.5,...,3,3.25,3.5] the top number is not equal to
+            # the [end] number of the sequence, as above.
+            # Hence there's a tiny fudge factor in its current form
         end
         next!(P)
     end
+
     # trajcycletime
-    events = events[events.cycle .!=-1,:]
-    events = groupby(events, :traj)
-    for event in events
+    E = E[E[!,cycle_field] .!=-1,:]
+    E = groupby(E, :traj)
+    for event in E
         global prevEnd
         event.trajcycletime = event.trajtime
         prevEnd = NaN
@@ -325,18 +359,91 @@ function annotate_explodable_cycle_metrics(beh::DataFrame,
             prevEnd = item[end]
         end
     end
-    events = combine(events, identity)
+    E = combine(E, identity)
 
 end
 
-explode_cols = [:cij, :trajreltime, :time, :trajtime, :trajcycletime]
+explode_cols = [:decᵢ, :decᵢᵢ, :trajreltime, :time, :trajtime, :trajcycletime]
+reference_point = Dict(
+    :dec₀₁=>:dec₀,
+    :dec₀ᵢ=>:dec₀,
+    :decᵢᵢ=>:decᵢ)
+reference_time = Dict(
+    :dec₀₁=>:start,
+    :dec₀ᵢ=>:start,
+    :decᵢᵢ=>:time)
 
 
 """
 Remaps a pair of dataframe columns (the vector) to the coordinates of
 an upcoming goal
 """
-function annotate_vector_relative_to_goal()
-    # Get best goal
-    # Get angle relative to F₁, F₂, P₁
+# Get best goal
+# Get angle relative to F₁, F₂, P₁
+function annotate_vector_relative_to_goal(beh::DataFrame, E::DataFrame,
+    wells::DataFrame, vector=:dec₀₁, to_which=:stopWell)
+
+    if to_which isa Real
+        to_which = to_which * ones(size(beh,1))
+    else
+        to_which = beh[!,to_which]
+    end
+
+    function get_well_record(i)
+        cols = [:x, :y]
+        if i > 0
+            w=wells[i, cols]
+        else
+            w = wells[1,cols]
+            w .= NaN
+        end
+        w=DataFrame(w)
+        #w[!,to_which] = [i]
+        w
+    end
+    wellrecord      = vcat(get_well_record.(to_which)...)
+    wellrecord.time = beh.time
+
+    # Do we need to explode fields?
+    vecofvec = typeof.(eachcol(E[!,explode_cols])) .<: 
+        Vector{T} where T <: Union{Vector, Union{Missing, Vector}}
+    if vector ∈ explode_cols && any(vecofvec)
+        E = flatten(E, explode_cols[vecofvec])
+    end
+
+
+    # Start of the decode change vector, the reference point
+    reference_vectors = cat(E[!, reference_point[vector]]...,dims=2)'
+    # Well record registered to the decode time
+    registration = utils.searchsortednearest.([wellrecord.time],
+                                             E[!,reference_time[vector]]);
+    wellrec =  Matrix(wellrecord[registration,[:x,:y]])
+    # Vector from the well to the reference point
+    point_to_well_vectors = wellrec - reference_vectors
+
+    # Decode vectors
+    decode_vectors = cat(E[!, vector]...,dims=2)'
+    unitvec(x) = x./abs(x)
+    decode_to_well = unitvec(decode_vectors).-unitvec(point_to_well_vectors)
+
+    # And now we measure consistency of our decode vector to it
+    abs.(decode_vectors) * angle.(decode_to_well)
+end
+
+function clean_vec_fields(events::DataFrame)
+    fields = [field for field in names(events)
+              if occursin("_x",field) || occursin("_y",field)]
+    events = events[!, Not(fields)]
+end
+
+"""
+
+Params
+------
+handle_multiple_tets = :and  | :or
+:and sums correlation of all pairs, and uses that as a metric
+:or sums correlation of all pairs and takes the highest correlation
+"""
+function add_correlation_coordination(lfp::DataFrame, lfp_other::DataFrame;
+        handle_multiple_tets=:and, shifts=[0])
 end
