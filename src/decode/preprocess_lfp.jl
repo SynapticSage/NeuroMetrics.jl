@@ -1,5 +1,5 @@
 export velocity_filter_ripples, get_theta_cycles, 
-       curate_lfp_theta_cycle_and_phaslfpe, annotate_ripples_to_lfp,
+       curate_lfp_theta_cycle_and_phase, annotate_ripples_to_lfp,
        annotate_vector_info
 export separate_theta_ripple_and_non_decodes
 export velocity_filter_ripples

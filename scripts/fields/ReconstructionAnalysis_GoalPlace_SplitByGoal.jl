@@ -9,10 +9,12 @@ using Printf
 using ThreadSafeDicts
 
 F = ThreadSafeDict(pairs(F)...)
+R̂ = ThreadSafeDict()
+E = Dict()
 
 # ---------------------------------------- FUNCTION SPECIFIC SHORTCUTS AND SETTINGS ----------------------------------------
 si,sk = operation.selectind, operation.selectkey
-filters = merge(kws.filters,
+filts = merge(kws.filters,
                 filt.correct,
                 filt.notnan("currentHeadEgoAngle"), 
                 filt.minmax("currentPathLength", 2, 150))
@@ -20,10 +22,23 @@ overall_compare = Dict()
 
 
 # ----------------------------------------
+# PLACE-GOAL-headdir JOINT DISTRIBUTION P(x,y,H,G)
+# ----------------------------------------
+recon_compare = Dict("vs(ℙₕ|ℙₛ,ℙₛ|ℙₕ)" => ("x,y,G|x,y,H","x,y,H|x,y,G"))
+overall_compare = merge(overall_compare, recon_compare)
+headdir_kws = (;field_kws..., props = ["x", "y", "headdir","stopWell"])
+headdir_kws = (;headdir_kws..., resolution = [40,40,5,5])
+E = recon_process.perform_reconstructions_marginals_and_error(beh, spikes, headdir_kws; 
+                                                F=F, recon_summary=E, R̂=R̂,
+                                                recon_compare);
+
+
+# ----------------------------------------
 # PLACE-GOAL JOINT DISTRIBUTION P(x,y, γ,p,G)
 # ----------------------------------------
 recon_compare = Dict( 
       "vs(γ|ℙ,ℙ|γ)"     => ("γ|x,y","x,y|γ"),
+      "vs(p|ℙ,ℙ|γ)"     => ("p|x,y","x,y|p"),
       "vs(γₛ|ℙ,ℙ|γₛ)"   => ("γ,G|x,y","x,y|γ,G"),
       "vs(𝔾|ℙ,ℙ|𝔾)"     => ("p,γ|x,y","x,y|p,γ"),
       "vs(𝔾ₛ|ℙ,ℙ|𝔾ₛ)"   => ("p,γ,G|x,y","x,y|p,γ,G"),
@@ -34,21 +49,11 @@ overall_compare = merge(overall_compare, recon_compare)
 field_kws = (; kws..., resolution=[40, 40, 40, 40, 5], gaussian=0, 
              props=["x", "y", "currentPathLength",
                     "currentHeadEgoAngle","stopWell"],
-          filters=merge(kws.filters, filters))
+          filters=merge(kws.filters, filts))
 E = recon_process.perform_reconstructions_marginals_and_error(beh, spikes, field_kws; 
-                                                              F=F,
+                                                              F=F, R̂=R̂,
+                                                              recon_summary=E,
                                                recon_compare=recon_compare)
-
-# ----------------------------------------
-# PLACE-GOAL-headdir JOINT DISTRIBUTION P(x,y,H,G)
-# ----------------------------------------
-recon_compare = Dict("vs(ℙₕ|ℙₛ,ℙₛ|ℙₕ)" => ("x,y,G|x,y,H","x,y,H|x,y,G"))
-overall_compare = merge(overall_compare, recon_compare)
-headdir_kws = (;field_kws..., props = ["x", "y", "headdir","stopWell"])
-headdir_kws = (;headdir_kws..., resolution = [40,40,5,5])
-E = recon_process.perform_reconstructions_marginals_and_error(beh, spikes, headdir_kws; 
-                                                F=F, recon_summary=E, recon_compare);
-
 # Acquire tidy unstacked representation
 uE = recon_process.create_unstacked_error_table(E, overall_compare)
 
@@ -79,7 +84,7 @@ if ploton
     #           SUMMARY ..... TYPICAL ERROR VALUES ....    #
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
     histogram(vec(Matrix(uE[:,3:end])), bins=100, xticks=(0:0.2:0.8), yscale=:log10, label="typical errors")
-    savefig(plotsdir("fields","reconstruction","hist_typical_errors.png"))
+    utils.savef("fields","reconstruction","hist_typical_errors")
 
 
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
@@ -112,7 +117,8 @@ if ploton
         Plots.annotate!(quantile(vals,0.5), 0.5*1.2, text("auc=$(@sprintf("%2.2f",auc))", :black, 3))
         push!(P, p)
     end
-    p1 = Plots.plot(P[sortperm(AUC)]...; K(total,false)..., margin=-1mm, legendposition=:bottomright)
+    p1 = Plots.plot(P[sortperm(AUC)]...; K(total,false)..., margin=-1mm, legendposition=:topleft)
+    utils.savef("fields","reconstruction", "AUC")
 
     P, AUC = [], []
     total = length(_com(ruE))
@@ -125,14 +131,15 @@ if ploton
         auc = cumsum(x(vals))[end]*Δx.*sign.(x(vals))
         push!(AUC,auc)
         p = Plots.plot(vals, x(vals), fillrange=0, label=col, link=:x, c=color, color=color)
-        Plots.vline!([0], c=:black, linestyle=:dash, label="no difference", legendposition=:left)
+        Plots.vline!([0], c=:black, linestyle=:dash, label="no difference", legendposition=:topleft)
         #Plots.annotate!(quantile(vals,0.5), 0.5*1.2, text("auc=$(@sprintf("%2.2f",auc))", :black, 3))
         push!(P, p)
     end
     p2= Plots.plot(P[sortperm(AUC)]...; K(total, true)..., link=:x, margin=-1mm)
+    utils.savef("fields","reconstruction", "err_comparison_all")
 
     Plots.plot(p1, p2)
-
+    utils.savef("fields","reconstruction", "auc_and_err_comparison_all")
 
     # Plot out errors and differences per cell
     layout = @layout [[a; b] c]
@@ -142,6 +149,7 @@ if ploton
     heatmap(_com(ruE), 1:size(ruE,1), Matrix(COM(ruE)), clims=smM(COM(ruE)), xrotation=20, c=:vik),
     #heatmap(com(ruE), com(ruE), cor(Matrix(COM(ruE))), clims=(-1,1), xrotation=45, c=:vik),
     layout=layout)
+    utils.savef("fields","reconstruction","recon_correlations")
 
 
     ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ## -- ##
@@ -151,28 +159,35 @@ if ploton
     # 1D or 2D
     # Pick a model
     using Interact, Blink
+    using Mux,WebIO
     W = []
-    for i in [1,2,4]
+    w = Dict()
+    meth = :a
+    for i in [6]
         C = _com(uE)[i]
         best = sort(uE[!, ["unit", "area", C]], C, rev=true)
         recon₁, recon₂ = recon_compare[C]
         marg₁, marg₂ = split(recon₁,"|")[1], split(recon₂,"|")[1]
         sk = operation.sk
-        ski(f::Dict, p::Pair...) = si(sk(f, p...))
+        ski(f::Dict, p::Pair...) = si(sk(f, p...)) 
         ui = @manipulate for neuron in best.unit
             println("neuron=$neuron")
             f₁, f₂ = ski(F[marg₁].Rₕsq, "unit"=>neuron), ski(F[marg₂].Rₕsq, "unit"=>neuron)
             r₁, r₂ = ski(R̂[recon₁], "unit"=>neuron), ski(R̂[recon₂], "unit"=>neuron)
             Plots.plot(
-                       field.plot.show_field(f₁, key=(;n=neuron, m=marg₁), textcolor=:black, fontsize=10),
-                       field.plot.show_field(f₂, key=(;n=neuron, m=marg₂), textcolor=:black, fontsize=10),
-                       field.plot.show_field(r₁, key=(;n=neuron, m=recon₁),textcolor=:black, fontsize=10),
-                       field.plot.show_field(r₂, key=(;n=neuron, m=recon₂),textcolor=:black, fontsize=10),
+                       field.plot.show_field(f₁, key=(;n=neuron, m=marg₁), textcolor=:black, c=:berlin, fontsize=10),
+                       field.plot.show_field(f₂, key=(;n=neuron, m=marg₂), textcolor=:black, c=:berlin, fontsize=10),
+                       field.plot.show_field(r₁, key=(;n=neuron, m=recon₁),textcolor=:black, c=:bamako, fontsize=10),
+                       field.plot.show_field(r₂, key=(;n=neuron, m=recon₂),textcolor=:black, c=:bamako, fontsize=10),
                       )
         end
-        w = Window()
-        body!(w,ui)
-        push!(W,w)
+        if meth == :blink
+            w = Window()
+            body!(w,ui)
+            push!(W,w)
+        else
+            w[8000+i] = webio_serve(page("/", ui), 8000+i) # this will serve at http://localhost:8000/
+        end
     end
 
 

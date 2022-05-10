@@ -125,7 +125,7 @@ if !(load_from_checkpoint)
     cycles = cycles[cycles.cycle.!=-1,:]
 
     # Checkpoint pre-video data
-    decode.save_checkpoint(Main, decode_file)
+    decode.save_checkpoint(Main, decode_file; split=split_num)
 else
     D = decode.load_checkpoint(Main, decode_file)
     for (key,value) in D

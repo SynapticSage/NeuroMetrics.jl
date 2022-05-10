@@ -26,12 +26,12 @@ module timeshift
     export to_dataframe, info_to_dataframe
     export fetch_best_fields
     export fetch_best_fields
-    export shuffle_correct
+    export func, correct, significant
+    export crossval
     export ts_plotdir
     export plot_shifts
     export info_dataframe_and_cell_dataframe
     export save_mains, save_shuffles
-
     # -------------------- SHIFTING TYPES ---------------------------
     shift_func(data::DataFrame, shift::Real) = 
              transform(data, :time => (t->t.+shift) =>:time, copycols=false)
@@ -394,7 +394,6 @@ module timeshift
     # --------
     # PLOTTING
     # --------
-
     function plot_shifts(place; desc="", shift_scale=:minutes, clim=:cell)
 
         # List of desirables
@@ -483,9 +482,9 @@ module timeshift
         end
         p = Plots.plot(
                    heatmap(shifts, 1:size(get_area("CA1"),1), ca1, 
-                    clims=ca1_clim, colorbar_title="MI (bits)", colorbar_titlefontrotation=0),
+                    clims=ca1_clim, colorbar_title="Spatial-firing mutual information", colorbar_titlefontrotation=0),
                    heatmap(shifts, 1:size(get_area("PFC"),1), pfc, 
-                    clims=pfc_clim, colorbar_title="MI (bits)", colorbar_titlefontrotation=0),
+                    clims=pfc_clim, colorbar_title="Spatial-firing mutual information", colorbar_titlefontrotation=0),
                    title="$desc\nMI", xlabel=xlabel, ylabel="cell"
         )
         vline!(p[1], [0], c=:white, linestyle=:dash, label="Zero lag")

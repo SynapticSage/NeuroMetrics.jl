@@ -1,5 +1,6 @@
 quickactivate("/home/ryoung/Projects/goal-code/")
 include(scriptsdir("fields", "Initialize.jl"))
+
 using StatsPlots
 
 # PLACE-GOAL JOINT DISTRIBUTION P(X,Y,γ,p)

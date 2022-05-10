@@ -94,6 +94,7 @@ module recon_process
 
     function perform_reconstructions_marginals_and_error(beh, spikes,
             K::NamedTuple; recon_compare::Union{Dict, Nothing}=nothing,
+            R̂::AbstractDict=ThreadSafeDict(),
             F::AbstractDict=Dict(), recon_summary::DataFrame=DataFrame())
 
         if recon_compare == nothing
@@ -127,7 +128,6 @@ module recon_process
         # Reconstructions
         # ---------------
         # Obtain reconstructions!
-        R̂ = ThreadSafeDict()
         P = Progress(length(recon_req), desc="Reconstruction")
         @time @Threads.threads for reconstruction in recon_req
             if reconstruction == nothing

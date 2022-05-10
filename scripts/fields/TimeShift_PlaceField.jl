@@ -13,6 +13,7 @@ includet(srcdir("field/info.jl"))
 includet(srcdir("utils.jl"))
 includet(srcdir("table.jl"))
 @time spikes, beh = raw.load("RY16", 36, data_source=["spikes","behavior"])
+using .timeshift
 
 correctToMinutes = true
 if correctToMinutes
@@ -113,6 +114,6 @@ for (key,job) in jobs
 end
 
 # Shuffle test
-place = @time timeshift.get_field_shift_shufflesfield_shift(beh, spikes, -2:0.1:2; 
-                                        multithread=true, 
-                                        postfunc=info.information, newkws...);
+#place = @time timeshift.get_field_shift_shufflesfield_shift(beh, spikes, -2:0.1:2; 
+#                                        multithread=true, 
+#                                        postfunc=info.information, newkws...);
