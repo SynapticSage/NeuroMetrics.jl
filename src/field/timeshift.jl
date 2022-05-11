@@ -32,6 +32,7 @@ module timeshift
     export plot_shifts
     export info_dataframe_and_cell_dataframe
     export save_mains, save_shuffles
+
     # -------------------- SHIFTING TYPES ---------------------------
     shift_func(data::DataFrame, shift::Real) = 
              transform(data, :time => (t->t.+shift) =>:time, copycols=false)

@@ -1,97 +1,10 @@
 # TODO: Add points ahead of and behind animal
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
-using Pushover, Revise, Interact, Blink, Mux, ProgressMeter
-using Statistics
-using VideoIO
-using ColorSchemes, Colors
-import ColorSchemeTools
-import DSP
-using StatsPlots
-savestuff = true
-if savestuff
-    using CairoMakie
-    using CairoMakie: heatmap!, scatter!, lines!
-    using Makie
-else
-    using GLMakie
-    using GLMakie: heatmap!, scatter!, lines!
-end
-using Makie
-using DataFrames
-import Plots
+include(scriptsdir("decode","Initialize.jl"))
 
-set_theme!(theme_dark())
-__revise_mode__ = :eval
-#includet(srcdir("table.jl"))
-includet(srcdir("raw.jl"))
-includet(srcdir("utils.jl"))
-includet(srcdir("table.jl"))
-includet(srcdir("raster.jl"))
-includet(srcdir("decode.jl"))
-includet("/home/ryoung/Code/projects/goal-code/src/utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
-
-# -----------
-# DATASETS
-# -----------
-animal, day, epoch = "RY16", 36, 7
-@time beh    = raw.load_behavior(animal, day)
-@time spikes = raw.load_spikes(animal,   day)
-@time cells = raw.load_cells(animal,   day)
-@time lfp  = raw.load_lfp(animal,      day)
-@time task   = raw.load_task(animal,     day)
-
-# -----------
-# SETTINGS
-# -----------
-usevideo=false
-transition_type ="empirical"
-decoder_type ="sortedspike"
-variable = "causal_posterior"
-video="/Volumes/Colliculus/RY16_experiment/actualVideos/$(animal)_69_0$(epoch)_CMt.1.mp4"
-(split, split_type) = collect(Iterators.product([0,1,2], ["test","train"]))[1]
-thresh_var = Dict("likelihood"=>0.1,
-                  "acausal_posterior"=>0.985,
-                  "causal_posterior"=>0.985)
-outputVideo = "animation.$(decoder_type)_$(transition_type)_$(split_type)_$(split)_$(variable)_$(basename(video))"
-utils.mkifne(plotsdir("theta","mpp_decode", "withBehVideo=$usevideo", outputVideo))
-utils.mkifne(plotsdir("theta","mpp_decode"))
-utils.mkifne(plotsdir("theta","mpp_decode","withBehVideo=$usevideo"))
-wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
-
-# -----------
-# GET DECODER
-# -----------
-decode_file = raw.decodepath(animal, day, epoch, transition="empirical",
-                             method="sortedspike", split=split,
-                             type=split_type, speedup=20.0)
-@assert isfile(decode_file) "File=$decode_file doesn't exist"
-D = raw.load_decode(decode_file)
-x = D["x_position"]
-y = D["y_position"]
-T = D["time"]
-if usevideo
-    stream = VideoIO.open(video); vid = VideoIO.openvideo(stream);
-end
-dat = permutedims(D[variable], [2,1,3])
-#mint = minimum(beh[beh.epoch.==epoch,:].time)
-
-beh, spikes, lfp, D = raw.normalize_time(beh, spikes, lfp, D);
-
-tetrode = 5
-load_cycles = false
-lfp = raw.lfp.annotate_cycles(raw.lfp.getTet(lfp,5), method="peak-to-peak")
-lfp.phase = raw.lfp.phase_to_radians(lfp.phase)
-beh, lfp = raw.register(beh, lfp; transfer=["velVec"], on="time")
-if load_cycles
-    cycles = raw.load_cycles(animal, day, tetrode)
-else
-    cycles = raw.lfp.get_cycle_table(lfp, :velVec=>mean)
-    cycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles)
-    cycles = filter(:δ => dur->(dur .> 0.025) .& (dur .< 0.4), cycles)
-    cycles = filter(:velVec_mean => 𝒱  -> abs.(𝒱)  .> 2 , cycles)
-    raw.save_cycles(cycles, animal, day, tetrode)
-end
+# Load data
+include(scriptsdir("decode","LoadData.jl"))
 
 utils.pushover("Loaded and preprocessed thetaseqplots.jl...initializing theta sequences")
 

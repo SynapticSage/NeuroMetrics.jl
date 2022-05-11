@@ -10,19 +10,19 @@ export load_checkpoints
 
 function save_checkpoint(m::Module, decode_file; split, overwrite=true)
     @info "Checkpointing decode variables"
-    pn(x) = pathname(x, decode_file)
+    pn(x)  = pathname(x, decode_file)
     h5file = pathname("split=$(split)_decode",decode_file, "h5")
     if overwrite == false && isfile(h5file)
         @info "File exists and returning"
         return nothing
     end
     begin
-        Arrow.write(pn( "split=$(split)_cells"),   m.cells)
-        Arrow.write(pn( "split=$(split)_spikes"),  m.spikes)
-        Arrow.write(pn( "split=$(split)_beh"),     m.beh)
-        Arrow.write(pn( "split=$(split)_lfp"),     m.lfp)
-        Arrow.write(pn( "split=$(split)_cycles"),  m.cycles)
-        Arrow.write(pn( "split=$(split)_ripples"), m.ripples)
+        Arrow.write(pn("split=$(split)_cells"),   m.cells)
+        Arrow.write(pn("split=$(split)_spikes"),  m.spikes)
+        Arrow.write(pn("split=$(split)_beh"),     m.beh)
+        Arrow.write(pn("split=$(split)_lfp"),     m.lfp)
+        Arrow.write(pn("split=$(split)_cycles"),  m.cycles)
+        Arrow.write(pn("split=$(split)_ripples"), m.ripples)
         @info "Saving $h5file"
         h5open(h5file, "w") do file
             create_group(file, "decode")
@@ -55,7 +55,6 @@ end
 
 
 function load_checkpoint(decode_file::String; vars=nothing)
-    @infiltrate
     pn(x) = pathname(x, decode_file) 
     D = Dict()
     arrow_vars  = get_arrow_vars()
@@ -107,23 +106,35 @@ function load_checkpoints(decode_file::String; vars::Union{Nothing, Vector{Symbo
     base = basename(path)
     @debug "dir=$dir, base=$base"
 
-    for (i,file) in enumerate(glob(base.*"=*.nc", dir))
+    D = Dict()
+    L = Vector{Dict}()
+    @showprogress for (i,file) in enumerate(glob(base.*"=*.nc", dir))
         @debug "file=$file"
+        try
+            @assert length(split(basename(file), "split=")) < 3
+        catch
+            @infiltrate
+        end
         tmp = load_checkpoint(file, vars=vars)
         if i == 1
-            D = tmp
+            D = merge(D,tmp)
         else
-            for field in keys(tmp)
-                if field ∈ noncatvars
-                    D[x] = tmp[x]
-                elseif field ∈ get_arrow_vars() || ndims(tmp[x]) == 1
-                    D[x] = cat(D[x], tmp[x], dims=1)
-                elseif field ∈ get_h5_vars()
-                    D[x] = cat(D[x], tmp[x], dims=3)
-                end
-            end
+            push!(L, tmp)
         end
-        D
+        tmp = nothing
+        
+        GC.gc(true)
+    end
+    for field in keys(D)
+        if field ∈ noncatvars
+        elseif field ∈ get_arrow_vars() || ndims(D[field]) == 1
+            D[field] = cat(D[field], [l[field] for l in L]..., dims=1)
+        elseif field ∈ get_h5_vars()
+            D[field] = cat(D[field], [l[field] for l in L]..., dims=3)
+        end
+        [delete!(l,field) for l in L]
+        nothing
     end
 
+    D
 end
