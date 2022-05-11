@@ -1,4 +1,8 @@
+include(scriptsdir("decode","Initialize.jl"))
 import Plots
+
+
+D = decode.load_checkpoints(decode_file, vars=["ripple"])
 
 ca1, ca1pfc, pfcca1, pfc = ripple[:,:,:,1], 
                            ripple[:,:,:,2], 

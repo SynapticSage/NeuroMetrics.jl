@@ -3,8 +3,10 @@ using HDF5
 using Arrow
 export HDF5
 export Arrow
+using Glob
 
-pathname(x, decode_file, type="arrow") = joinpath(dirname(decode_file), "$(x).$type")
+pathname(x, decode_file, type="arrow") = joinpath(dirname(decode_file), "split=$(extract_splitnum(decode_file))_$(x).$type")
+export load_checkpoints
 
 function save_checkpoint(m::Module, decode_file; split, overwrite=true)
     @info "Checkpointing decode variables"
@@ -38,25 +40,46 @@ function save_checkpoint(m::Module, decode_file; split, overwrite=true)
 end
 
 
-function load_checkpoint(m::Module, decode_file)
+function get_arrow_vars()
+    arrow_vars  = [:cells, :spikes, :beh, :lfp, :cycles, :ripples]
+end
+function get_h5_vars()
+    h5_vars     = [:dat, :theta, :ripple, :non, :x, :y, :T]
+end
+
+function extract_splitnum(file::String)
+    file = basename(file)
+    file = split(file, ".")[begin]
+    num = parse(Int, split(file, "split=")[end])
+end
+
+
+function load_checkpoint(decode_file::String; vars=nothing)
+    @infiltrate
     pn(x) = pathname(x, decode_file) 
     D = Dict()
-    D[:cells]    = DataFrame(Arrow.Table(pn("cells")))
-    D[:spikes]   = DataFrame(Arrow.Table(pn("spikes")))
-    D[:beh]      = DataFrame(Arrow.Table(pn("beh")))
-    D[:lfp]      = DataFrame(Arrow.Table(pn("lfp")))
-    D[:cycles]   = DataFrame(Arrow.Table(pn("cycles")))
-    D[:ripples]  = DataFrame(Arrow.Table(pn("ripples")))
+    arrow_vars  = get_arrow_vars()
+    h5_vars     = get_h5_vars()
+    if vars != nothing
+        arrow_vars = filter(x->x∈vars, arrow_vars)
+        h5_vars    = filter(x->x∈vars, h5_vars)
+    end
+
+    for var in arrow_vars
+        D[var]    = DataFrame(Arrow.Table(pn(String(var))))
+    end
     h5open(pathname("decode", decode_file, "h5"), "r") do file
-        D[:dat]    = read(file, "decode/dat")
-        D[:theta]  = read(file, "decode/theta")
-        D[:ripple] = read(file, "decode/ripple")
-        D[:non] = read(file, "decode/non")
-        D[:x]   = read(file, "decode/x")
-        D[:y]   = read(file, "decode/y") 
-        D[:T]   = read(file, "decode/T")
+        for var in h5_vars
+            D[var]    = read(file, "decode/$(String(var))")
+        end
     end
     return D
+end
+
+function load_checkpoint(m::Module, decode_file::String; vars=nothing)
+    D = load_checkpoint(decode_file; vars=vars)
+    @error "Not implemented here"
+    nothing
 end
 
 """
@@ -64,10 +87,43 @@ variables not to be concatonated when multiple checkpoint files
 """
 noncatvars = [:x, :y]
 
+
+function generalize_path(decode_file)
+    dir = dirname(decode_file)
+    base = split(basename(decode_file),".")[1]
+    base = split(base, "=")[1]
+    path = joinpath(dir, base)
+end
+
 """
 load_checkpoints
 
 way to load multiple checkpoints concatonated along an axis
 """
-function load_checkpoints(m::Module, decode_file, vars=nothing)
+function load_checkpoints(decode_file::String; vars::Union{Nothing, Vector{Symbol}}=nothing)
+
+    path = generalize_path(decode_file)
+    dir  = dirname(path)
+    base = basename(path)
+    @debug "dir=$dir, base=$base"
+
+    for (i,file) in enumerate(glob(base.*"=*.nc", dir))
+        @debug "file=$file"
+        tmp = load_checkpoint(file, vars=vars)
+        if i == 1
+            D = tmp
+        else
+            for field in keys(tmp)
+                if field ∈ noncatvars
+                    D[x] = tmp[x]
+                elseif field ∈ get_arrow_vars() || ndims(tmp[x]) == 1
+                    D[x] = cat(D[x], tmp[x], dims=1)
+                elseif field ∈ get_h5_vars()
+                    D[x] = cat(D[x], tmp[x], dims=3)
+                end
+            end
+        end
+        D
+    end
+
 end
