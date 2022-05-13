@@ -794,9 +794,9 @@ version = "0.4.2"
 
 [[deps.ForwardDiff]]
 deps = ["CommonSubexpressions", "DiffResults", "DiffRules", "LinearAlgebra", "LogExpFunctions", "NaNMath", "Preferences", "Printf", "Random", "SpecialFunctions", "StaticArrays"]
-git-tree-sha1 = "7a380de46b0a1db85c59ebbce5788412a39e4cb7"
+git-tree-sha1 = "89cc49bf5819f0a10a7a3c38885e7c7ee048de57"
 uuid = "f6369f11-7733-5829-9624-2563aa707210"
-version = "0.10.28"
+version = "0.10.29"
 
 [[deps.FreeType]]
 deps = ["CEnum", "FreeType2_jll"]
@@ -997,9 +997,9 @@ version = "0.1.0"
 
 [[deps.HDF5]]
 deps = ["Compat", "HDF5_jll", "Libdl", "Mmap", "Random", "Requires"]
-git-tree-sha1 = "b08f67f3c14aa7b2156a8e89f04020ceb70f6eab"
+git-tree-sha1 = "e6b1bd8339b2af5a4c2e3103f9dda65de355127e"
 uuid = "f67ccb44-e63f-5c2f-98bd-6dc0ccc4ba2f"
-version = "0.16.8"
+version = "0.16.9"
 
 [[deps.HDF5_jll]]
 deps = ["Artifacts", "JLLWrappers", "LibCURL_jll", "Libdl", "OpenSSL_jll", "Pkg", "Zlib_jll"]
@@ -2488,9 +2488,9 @@ uuid = "f269a46b-ccf7-5d73-abea-4c690281aa53"
 version = "1.7.3"
 
 [[deps.Tokenize]]
-git-tree-sha1 = "1f426012d5656a6ac74d18805f46e2a955c1ceb0"
+git-tree-sha1 = "2b3af135d85d7e70b863540160208fa612e736b9"
 uuid = "0796e94c-ce3b-5d07-9a54-7f471281c624"
-version = "0.5.23"
+version = "0.5.24"
 
 [[deps.TranscodingStreams]]
 deps = ["Random", "Test"]
@@ -2605,9 +2605,9 @@ version = "1.5.9"
 
 [[deps.Widgets]]
 deps = ["Colors", "Dates", "Observables", "OrderedCollections"]
-git-tree-sha1 = "505c31f585405fc375d99d02588f6ceaba791241"
+git-tree-sha1 = "fcdae142c1cfc7d89de2d11e08721d0f2f86c98a"
 uuid = "cc8bc4a8-27d6-5769-a93b-9d913e69aa62"
-version = "0.6.5"
+version = "0.6.6"
 
 [[deps.WoodburyMatrices]]
 deps = ["LinearAlgebra", "SparseArrays"]

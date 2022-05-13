@@ -1,5 +1,6 @@
 quickactivate("/home/ryoung/Projects/goal-code")
 include(scriptsdir("decode","Initialize.jl"))
+include(scriptsdir("decode","LoadData.jl"))
 import Plots
 
 # TODO list
