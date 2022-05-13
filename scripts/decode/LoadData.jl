@@ -1,6 +1,9 @@
 # -----------
 # DATASETS
 # -----------
+if :dothresh ∉ propertynames(Main)
+    dothresh = true
+end
 global beh, cells, spikes, lfp, ripples, cycles, wells, x, y, T, dat
 lfp = beh = ripples = spikes = dat = non = ripple = theta = nothing
 beh    = raw.load_behavior(animal, day)
@@ -21,7 +24,10 @@ beh, spikes, lfp, ripples, D = raw.normalize_time(beh, spikes, lfp, ripples, D;
                                                   timefields=Dict(4=>["start", "stop", "time"]));
 x, y, T, dat = D["x_position"], D["y_position"], D["time"], D[variable]
 dat = permutedims(dat, [2,1,3])
-dat = decode.quantile_threshold(dat, thresh[variable])
+if dothresh
+    @info thresh
+    dat = decode.quantile_threshold(dat, thresh[variable])
+end
 D = nothing
 nmint = minimum(beh[beh.epoch.==epoch,:].time)
 @info "Initial munge"
