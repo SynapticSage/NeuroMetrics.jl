@@ -1,6 +1,9 @@
-# goal-code
+# fetch-maze-analysis-julia
 
-This code base is using the Julia Language and [DrWatson](https://juliadynamics.github.io/DrWatson.jl/stable/)
+## What's here?
+64-tetrode fetch maze analysis. Anything I do with the julia language to analyze my high-denisty recordings. Separate from the matlab repo for the same dataset as of now.
+
+This code base uses [DrWatson](https://juliadynamics.github.io/DrWatson.jl/stable/)
 to make a reproducible scientific project named
 > goal-code
 
