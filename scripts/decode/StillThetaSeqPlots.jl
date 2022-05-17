@@ -63,20 +63,24 @@ for (splitfig, split_num) in Iterators.product([true,false], 0:3)
         if !(any(filt_cyc)) || isempty(dat_sub)
             continue
         end
+    sp_filt = (spikes.time .>= (start-padding[1])) .&
+              (spikes.time .<  (stop+padding[2]))
+    sp = copy(spikes[sp_filt,:])
+    sp.reltime = max.(min.((sp.time .- start)./(stop-start), 1), 0)
+    sp.ranreltime = (sp.time .- start)./(stop-start)
+    #TODO splpit by cell andd do this onlly when no spikes in ripple
+    sp.ranreltime[sp.ranreltime .< 0 .||  sp.ranreltime .> 1] = Random.shuffle(sp.ranreltime[sp.ranreltime .< 0 .||  sp.ranreltime .> 1])
+
+    future₁ = B.stopWell[1]
+    future₂ = B.futureStopWell[1]
+    past₁   = B.pastStopWell[1]
+
 
         B = beh[(beh.time.>=start) .& (beh.time.<=stop),:]
         if isempty(B)
             @warn "Empty behavior for cycle $cyc"
             continue
         end
-        sp_filt = (spikes.time .>= (start-padding[1])) .&
-                  (spikes.time .<  (stop+padding[2]))
-        sp = copy(spikes[sp_filt,:])
-        sp.reltime = max.(min.((sp.time .- start)./(stop-start), 1), 0)
-
-        future₁ = B.stopWell[1]
-        future₂ = B.futureStopWell[1]
-        past₁   = B.pastStopWell[1]
         area = "CA1"
 
         if !(splitfig)

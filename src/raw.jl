@@ -217,22 +217,28 @@ module raw
                                              "$(animal)_$(day)_rhythm_$tet.nc")
         end
     end
-    function load_lfp(pos...; vars=nothing)
-        lfpPath = lfppath(pos...)
-        @info lfpPath
-        v = NetCDF.open(lfpPath)
-        if "Var1" in keys(v.vars)
-            v.vars["time"] = v.vars["Var1"]
-            pop!(v.vars, "Var1")
+    function load_lfp(pos...; tet=nothing, vars=nothing)
+        if tet isa Vector
+            lfp = [load_lfp(pos...; tet=t, vars=vars)
+                   for t in tet]
+            lfp = vcat(lfp...)
+        else
+            lfpPath = lfppath(pos...; tet=tet)
+            @info lfpPath
+            v = NetCDF.open(lfpPath)
+            if "Var1" in keys(v.vars)
+                v.vars["time"] = v.vars["Var1"]
+                pop!(v.vars, "Var1")
+            end
+            keyset = keys(v.vars)
+            if vars != nothing
+                keyset = String.(vars)
+            end
+            lfp = Dict(var => Array(v.vars[var]) 
+                       for var in keyset)
+            lfp = DataFrame(Dict(var => vec(lfp[var]) 
+                                 for var in keyset))
         end
-        keyset = keys(v.vars)
-        if vars != nothing
-            keyset = vars
-        end
-        lfp = Dict(var => Array(v.vars[var]) 
-                   for var in keyset)
-        lfp = DataFrame(Dict(var => vec(lfp[var]) 
-                             for var in keyset))
         return lfp
     end
     function split_lfp_by_tet(pos...; vars=nothing)

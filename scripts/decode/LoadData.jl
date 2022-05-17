@@ -37,6 +37,9 @@ boundary = task[(task.name.=="boundary") .& (task.epoch .== epoch), :]
 append!(boundary, DataFrame(boundary[1,:]))
 
 # Normalize times
+if lfp == nothing
+	@error "fuck"
+end
 mint = minimum(beh[beh.epoch.==epoch,:].time)
 beh, spikes, lfp, pfc_lfp, ripples, D = raw.normalize_time(beh, spikes, lfp, pfc_lfp, ripples, D; 
                                                   timefields=Dict(5=>["start", "stop", "time"]));
@@ -54,13 +57,26 @@ ripples      = velocity_filter_ripples(beh,ripples)
 lfp, cycles  = get_theta_cycles(lfp, beh)
 lfp          = curate_lfp_theta_cycle_and_phase(lfp, cycles)
 lfp, ripples = annotate_ripples_to_lfp(lfp, ripples)
+if lfp == nothing
+	@error "fuck"
+end
+if cycles == nothing
+	@error "fuck"
+end
+
 
 ripples_copy = copy(ripples)
 if remove_nonoverlap
-    spikes, beh, lfp, pfc_lfp, ripples, T_inds = 
-         raw.keep_overlapping_times(spikes, beh, lfp, pfc_lfp, ripples, T;
+    spikes, beh, lfp, pfc_lfp, ripples, T_inds, cycles = 
+         raw.keep_overlapping_times(spikes, beh, lfp, pfc_lfp, ripples, T, cycles;
                                     returninds=[6])
     dat, T = dat[:,:,T_inds], T[T_inds]
     @info "Removed overlap"
 end
 [extrema(x.time) for x in (lfp, spikes, ripples, beh)]
+if lfp == nothing
+	@error "fuck"
+end
+if cycles == nothing
+	@error "fuck"
+end
