@@ -29,6 +29,7 @@ module raw
 
     Loads up the datasets we plan to use to plot out the raw raster data
 
+    =====
     Input
     =====
     animal : String
@@ -37,6 +38,7 @@ module raw
         Integer of the day
 
 
+    ======
     Output
     ======
     (raster, behavior)
@@ -109,7 +111,7 @@ module raw
         typemap = Dict(Int64=>Int16);
         @debug "animal=$animal, day=$day, tag=$tag"
         behCSV = behaviorpath(animal, day, tag) .* ".csv"
-        @info "behCSV=>$behCSV"
+        @info behCSV
         readFile(file) = CSV.read(file, DataFrame;
                                   strict=false, 
                                   missingstring=["NaNNaNi", "NaNNaNi,", ""], 
@@ -139,6 +141,7 @@ module raw
                                          "visualize_raw_neural",
                                          "$(animal)_$(day)_labeled_spiking.csv"
                                         )
+        @info rawSpikingCSV
         raster = CSV.read(rawSpikingCSV, DataFrame;
                  strict=false, missingstring=["NaN", "", "NaNNaNi"],
                  csvkws...)
@@ -195,34 +198,73 @@ module raw
 
     function load_ripples(animal, day)
         typemap = Dict(Int64=>Int16);
-        csvFile = DrWatson.datadir("exp_raw",
+        rippleFile = DrWatson.datadir("exp_raw",
                                    "visualize_raw_neural",
                                    "$(animal)_$(day)_ripple.csv")
-        ripples = CSV.read(csvFile, DataFrame; strict=false,
+        @info rippleFile
+        ripples = CSV.read(rippleFile, DataFrame; strict=false,
                  typemap=typemap,
                  missingstring=["NaN", "NaNNaNi", "NaNNaNi,", ""],
                  csvkws...)
     end
 
-    function lfppath(animal::String, day::Int)
-        netcdf = DrWatson.datadir("exp_raw", "visualize_raw_neural",
-                                         "$(animal)_$(day)_rhythm.nc")
+    function lfppath(animal::String, day::Int; tet=nothing)
+        if tet == nothing
+            netcdf = DrWatson.datadir("exp_raw", "visualize_raw_neural",
+                                             "$(animal)_$(day)_rhythm.nc")
+        else
+            netcdf = DrWatson.datadir("exp_raw", "visualize_raw_neural",
+                                             "$(animal)_$(day)_rhythm_$tet.nc")
+        end
     end
     function load_lfp(pos...; vars=nothing)
-        v = NetCDF.open(lfppath(pos...))
+        lfpPath = lfppath(pos...)
+        @info lfpPath
+        v = NetCDF.open(lfpPath)
         if "Var1" in keys(v.vars)
             v.vars["time"] = v.vars["Var1"]
             pop!(v.vars, "Var1")
         end
         keyset = keys(v.vars)
         if vars != nothing
-            throw(InvalidStateException("Not impllemented yet"))
+            keyset = vars
         end
         lfp = Dict(var => Array(v.vars[var]) 
                    for var in keyset)
         lfp = DataFrame(Dict(var => vec(lfp[var]) 
                              for var in keyset))
         return lfp
+    end
+    function split_lfp_by_tet(pos...; vars=nothing)
+        lfp = load_lfp(pos...; vars=vars)
+        lfp = groupby(lfp, :tetrode)
+        getkeys(lfpPath) = keys(NetCDF.open(lfpPath).vars)
+        @showprogress for l in lfp
+            @infiltrate
+            lfpPath = lfppath(pos...; tet=l.tetrode[1])
+            l = Dict(k=>v for (k,v) in zip(names(l),eachcol(l)) )
+            key, value = first(l)
+            if isfile(lfpPath)
+                rm(lfpPath)
+            end
+            for (i,(key,value)) in enumerate(l)
+                if isfile(lfpPath)
+                    keys = getkeys(lfpPath)
+                else
+                    keys = []
+                end
+                if isfile(lfpPath) && key ∈ keys
+                    NetCDF.ncwrite(Array(value), lfpPath, key)
+                else
+                    try
+                        NetCDF.nccreate(lfpPath, key, "t", value)
+                    catch
+                        @infiltrate
+                    end
+                end
+            end
+            #close(v)
+        end
     end
     function cyclepath(animal::String, day::Int, tetrode::Union{String,Int})
         csv = DrWatson.datadir("exp_raw", "visualize_raw_neural",
@@ -241,6 +283,7 @@ module raw
         csvFile = DrWatson.datadir("exp_raw",
                                    "visualize_raw_neural",
                                    "$(animal)_$(day)_task.csv")
+        @info csvFile
         task = CSV.read(csvFile, DataFrame; strict=false, typemap=typemap,
                  missingstring=["NaN", "NaNNaNi", "NaNNaNi,", ""], csvkws...)
         transform!(task, :x => pxtocm => :x, :y => pxtocm => :y)
@@ -264,6 +307,7 @@ module raw
     end
 
     function load_decode(filename)
+        @info "Loading $filename"
         v = NetCDF.open(filename)
         if "Var1" in keys(v.vars)
             v.vars["time"] = v.vars["Var1"]

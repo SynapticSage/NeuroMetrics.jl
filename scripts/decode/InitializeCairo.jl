@@ -3,8 +3,10 @@ using Statistics, NaNStatistics
 using VideoIO
 using CairoMakie
 using CairoMakie: heatmap!, scatter!, lines!
+CairoMakie.activate!(type = "svg")
 using Makie
 using ColorSchemes, Colors
+import Random
 import ColorSchemeTools 
 using DataFrames, DataFramesMeta
 using Printf

@@ -1,88 +1,165 @@
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
-#include(scriptsdir("decode","Initialize.jl"))
 include(scriptsdir("decode","InitializeCairo.jl"))
-thresh = Dict("likelihood"=>0.1, "acausal_posterior"=>0.9875, 
-              "causal_posterior"=> 0.9875)
-dothresh=false
-dodisplay=false
-splitfig=true
 
-# Load data
-include(scriptsdir("decode","LoadData.jl"))
-@time task   = raw.load_task(animal,     day)
-wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
-homeWell, arenaWells = begin
-    hw = argmax(StatsBase.fit(StatsBase.Histogram, filter(b->b!=-1,beh.stopWell), 1:6).weights)
-    @info "Homewell = $hw"
-    wells[hw,:], wells[setdiff(1:5,hw),:]
-end
-boundary = task[(task.name.=="boundary") .& (task.epoch .== epoch), :]
-append!(boundary, DataFrame(boundary[1,:]))
-include(scriptsdir("decode", "PreprocessLFP.jl"))
-beh = annotate_pastFutureGoals(beh; doPrevPast=false)
-savestuff = true
-tetrode   = 5
+for (splitfig, split_num) in Iterators.product([true,false], 1:2)
 
-validripples = ripples[ripples.epoch.==epoch,:]
-(rip,ripple) = collect(enumerate(eachrow(validripples)))[122]
-utils.pushover("Loaded for stillrippleplots.jl...initializing ripple sequences")
+    thresh = Dict("likelihood"=>0.1, "acausal_posterior"=>0.99, 
+              "causal_posterior"=> 0.99)
 
-@showprogress for (rip,ripple) in enumerate(eachrow(validripples))
+    dothresh  = false # DO THRESH IN LOADDATA.jl ... this should be false, I'm doing it below
+    dodisplay = false
+    spikecolorby = :time # :celltime | :time
+    sortby = :ranreltime # :celltime | :time
+    padding = [.15, .15]
+    @info split_num
+    global decode_file
+    global beh, spikes, cycles, dat, T, x, y
+    function get_color(x,cmap,nan_color,alpha_all=1)
+        if isnan(x)
+            nan_color
+        else
+            col=get(cgrad(cmap), x)
+            RGBA(col.r, col.g, col.b, alpha_all)
+        end
+    end
 
-    @info rip
+
+    # Load data
+    #include(scriptsdir("decode","Initialize.jl"))
+    include(scriptsdir("decode","InitializeCairo.jl"))
+    decode_file=replace(decode_file, "split=0"=>"split=$split_num")
+    @info decode_file
+    @time include(scriptsdir("decode", "LoadData.jl"))
+    @time include(scriptsdir("decode", "PreprocessLFP.jl"))
+    beh = annotate_pastFutureGoals(beh; doPrevPast=false)
+    savestuff = true
+    tetrode   = 5
+
+    validripples = ripples[ripples.epoch.==epoch,:]
+    (rip,ripple) = collect(enumerate(eachrow(validripples)))[306]
+    utils.pushover("WINDOW 1")
+
+pfcripples = @subset(validripples, :area.=="PFC")
+for ripple in eachrow(pfcripples)
+
+    rip  = ripple.rip_id
+    area = ripple.area
+
+    #@info "rip=$rip, area=$area"
+    if rip in [3903, 3914, 3918, 3946, 3947]
+		continue
+	end
+    if area != "PFC"
+        continue
+    end
 
     start, stop = ripple.start, ripple.stop
     dat_sub = dat[:,:,(T.>=start) .& (T.<=stop)]
     B  = beh[(beh.time.>=start) .& (beh.time.<=stop),:]
 
-    if size(dat_sub,3) == 0
+    # Select lfp based on brain area
+    lfp_filt, lfp_sub, lfp_sub_filt = if area == "CA1"
+        lfp_filt = (lfp[!,"time"].>=(start-padding[1])) .&
+                   (lfp[!,"time"].<=(stop+padding[2]))
+        lfp_sub = lfp[lfp_filt, :]
+        lfp_sub_filt = (lfp_sub[!,"time"].>=start) .&
+                       (lfp_sub[!,"time"].<=stop)
+        lfp_filt, lfp_sub, lfp_sub_filt
+    else
+         lfp_filt = (pfc_lfp[!,"time"].>=(start-padding[1])) .&
+                    (pfc_lfp[!,"time"].<=(stop+padding[2]))
+         lfp_sub = pfc_lfp[lfp_filt, :]
+         lfp_sub_filt = (lfp_sub[!,"time"].>=start) .&
+                        (lfp_sub[!,"time"].<=stop)
+         lfp_filt, lfp_sub, lfp_sub_filt
+    end
+
+    if isempty(lfp_filt) || isempty(dat_sub)
+        @warn "Empy lfp or dat"
         continue
     end
     if isempty(B)
+        @warn "Empy behavior"
         continue
     end
+    println("GOT HERE")
+
+    sp_filt = (spikes.time .>= (start-padding[1])) .&
+              (spikes.time .<  (stop+padding[2]))
+    sp = copy(spikes[sp_filt,:])
+    sp.reltime = max.(min.((sp.time .- start)./(stop-start), 1), 0)
+    sp.ranreltime = (sp.time .- start)./(stop-start)
+    #TODO splpit by cell andd do this onlly when no spikes in ripple
+    sp.ranreltime[sp.ranreltime .< 0 .||  sp.ranreltime .> 1] = Random.shuffle(sp.ranreltime[sp.ranreltime .< 0 .||  sp.ranreltime .> 1])
 
     future₁ = B.stopWell[1]
     future₂ = B.futureStopWell[1]
     past₁   = B.pastStopWell[1]
-    area    = ripple.area
 
     if !(splitfig)
         fig = Figure(resolution=Tuple(0.8*[1200,1600]))
         axArena = Axis(fig[2:3,1], xlabel="centimeter", ylabel="centimeter",
-                       title="area=$(area), amp=$(round(cycle.amp_mean,digits=2))\nfuture₁=$future₁, future₂=$future₂,past₁=$past₁", aspect=1.7)
+                       title="area=$(ripple.area), amp=$(round(ripple.amp,digits=2))\nfuture₁=$future₁, future₂=$future₂,past₁=$past₁", aspect=1.7)
         axSpikes = Axis(fig[4,1])
+        axLFP = axSpikes
         Colorbar(fig[1, 1], limits = (0, stop-start), colormap=:hawaii,
                  label = "Time", flipaxis = false, vertical=false)
+        bc = fig.scene.backgroundcolor[]
     else
-        figSpikes = Figure(resolution=Tuple(0.8*[1200,800]))
-        figArena  = Figure(resolution=Tuple(0.8*[1200,800]))
-        axArena = Axis(fig[2:3,1], xlabel="centimeter", ylabel="centimeter", 
+        figSpikes  = Figure(resolution=Tuple(0.8*[400,1200]))
+        figArena = Figure(resolution=Tuple(0.8*[1200,800]))
+        axArena = Axis(figArena[2:3,1], xlabel="centimeter", ylabel="centimeter", 
                        title="area=$(ripple.area), amp=$(round(ripple.amp,digits=2))\nfuture₁=$future₁, future₂=$future₂,past₁=$past₁")
-        axSpikes = Axis(figSpikes[1,1])
+        axSpikes = Axis(figSpikes[3:6,1])
+        axLFP = Axis(figSpikes[1:2,1])
         Colorbar(figArena[1, 1], limits = (0, stop-start), colormap=:hawaii,
                  label = "Time", flipaxis = false, vertical=false)
+        bc = figSpikes.scene.backgroundcolor[]
     end
 
-    sp = copy(spikes[(spikes.time.>start) .& (spikes.time .<stop),:])
+    yfactor=4
+    lfp_sub.broadraw = utils.norm_extrema(lfp_sub.broadraw, [0, length(unique(sp.unit))*yfactor])
     sp = groupby(sp, :unit)
     sp = [sp...]
-    sp = sort(sp, by=x->median(x.time))
+    if sortby == :median
+        sp = sort(sp, by=x->median(x.time)) # TODO interesting view that potentially implies the sequence bbefore and after ripple interresting
+    elseif sortby == :reltime
+        sp = sort(sp, by=x->median(x.reltime))
+    elseif sortby == :ranreltime
+        sp = sort(sp, by=x->median(x.ranreltime))
+    end
     α = 0.1
     for (i,unit) in enumerate(sp)
-        cmap = get(ColorSchemes.hawaii, ((unit.time.-start)./(stop-start)))
-        cmap = parse.(Colorant, cmap)
-        try
-            scatter!(axArena, unit.time, i*ones(size(unit.time))*4,
-                     color=cmap, strokewidth=1, markersize=6)
-        catch
+        inside_range = .&(unit.time .>= start,
+                          unit.time .<  stop)
+        if spikecolorby == :celltime
+            med_utime = (median(unit.time).-start)./(stop-start)
+            reltime = max.(min.(med_utime, 1),0)
+            color = get(ColorSchemes.hawaii, reltime)
+            color = repeat([color], length(unit.time))
+        elseif spikecolorby == :time
+            med_utime = (unit.time.-start)./(stop-start)
+            reltime   = max.(min.(med_utime, 1),0)
+            color = get(ColorSchemes.hawaii, reltime)
         end
-        #if i == 1
-        #    Plots.scatter(unit.time, i*ones(size(unit.time))*4)
-        #else
-        #    Plots.scatter!(unit.time, i*ones(size(unit.time))*4)
-        #end
+        #color = parse.(Colorant, color)
+        nan_color = RGBA(1,1,1,1)
+        color[(!).(inside_range)] .= nan_color
+        try
+            scatter!(axSpikes, unit.time, i*ones(size(unit.time))*yfactor,
+                     color=color, strokewidth=1, markersize=7)
+        catch
+            @warn "$i failed"
+        end
+    end
+    nan_color = RGBA(1,1,1,1)
+    lfp_sub.zerod_phase = ((lfp_sub.time .-start))./(stop-start)
+    lfp_sub.zerod_phase[(lfp_sub.zerod_phase .> 1) .| (lfp_sub.zerod_phase .< 0)] .= NaN
+    lfp_sub.zerod_phase = get_color.(lfp_sub.zerod_phase, :hawaii, nan_color, 0.5)
+    for (i,tet) in enumerate(groupby(lfp_sub, :tetrode))
+        lines!(axLFP, tet.time, tet.broadraw .+ (i-1)*60, colormap=:hawaii,
+               color=tet.zerod_phase, linewidth=2)
     end
 
     # -----------------
@@ -115,18 +192,9 @@ utils.pushover("Loaded for stillrippleplots.jl...initializing ripple sequences")
     thr= thresh[variable]
     ds = decode.quantile_threshold(copy(dat_sub), thr)
 
-    bc = fig.scene.backgroundcolor[]
     backgroundcolor = RGBA(bc.r, bc.g, bc.b, bc.alpha)
     nan_color = RGBA(bc.r, bc.g, bc.b, 0)
-    function get_color(x,cmap)
-        if isnan(x)
-            nan_color
-        else
-            get(cgrad(cmap), x)
-        end
-    end
-
-    DS = cat([get_color.(ds[:,:,t], [cmaps[t]]) for t in 1:size(ds,3)]...;
+    DS = cat([get_color.(ds[:,:,t], [cmaps[t]], nan_color, 0.45) for t in 1:size(ds,3)]...;
              dims=3)
 
     [heatmap!(axArena, x, y, DS[:,:,t], transparency=true, overdraw=false, depth_shift=0+(t*0.00001)) for t in 1:size(DS,3)]
@@ -171,13 +239,11 @@ utils.pushover("Loaded for stillrippleplots.jl...initializing ripple sequences")
     if savestuff
         for e in ["pdf"]
             if splitfig
-                spikesFile = plotsdir("theta","mpp_decode", "withBehVideo=$usevideo", outputVideo,
-                                     "spikes=$cyc.$area.$tetrode.amp=$(round(cycle.amp_mean,digits=2))" *
-                                     ".$e")
+                spikesFile = plotsdir("ripples","mpp_decode", "withBehVideo=$usevideo", outputVideo,
+                                     "spikes=$rip.$area.amp=$(round(ripple.amp,digits=2))" * ".$e")
                 save(spikesFile, figSpikes, pt_per_unit=1)
-                arenaFile = plotsdir("theta","mpp_decode", "withBehVideo=$usevideo", outputVideo,
-                                     "arena=$cyc.$area.$tetrode.amp=$(round(cycle.amp_mean,digits=2))" *
-                                     ".$e")
+                arenaFile = plotsdir("ripples","mpp_decode", "withBehVideo=$usevideo", outputVideo,
+                                     "arena=$rip.$area.amp=$(round(ripple.amp,digits=2))" * ".$e")
                 save(arenaFile, figArena, pt_per_unit=1)
             else
                 savefile = plotsdir("ripples","mpp_decode", "withBehVideo=$usevideo", outputVideo,
@@ -186,14 +252,6 @@ utils.pushover("Loaded for stillrippleplots.jl...initializing ripple sequences")
             end
         end
     end
-
 end
 
-# Old ways
-# thresh = thresh_var[variable]
-# for t in timestamps
-#     ds = decode.quantile_threshold(copy(dat_sub), thresh=thresh)
-#     DS = ds[:,:,t]
-#     hm_=heatmap!(axArena, x, y, DS, overdraw=false, transparency=true, depth_shift=0+(t*0.00001),
-#                  colormap=cgrad(cmaps[t], alpha=0.1))
-# end
+end

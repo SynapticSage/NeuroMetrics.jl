@@ -1,7 +1,3 @@
-ripples      = velocity_filter_ripples(beh,ripples)
-lfp, cycles  = get_theta_cycles(lfp, beh)
-lfp          = curate_lfp_theta_cycle_and_phase(lfp, cycles)
-lfp, ripples = annotate_ripples_to_lfp(lfp, ripples)
 ripples, cycles = annotate_vector_info(ripples, cycles, beh, lfp, dat, x, y, T)
 
 # Cast to Float32(for makie) and range for plotting

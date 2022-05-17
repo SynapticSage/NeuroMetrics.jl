@@ -4,7 +4,7 @@ export velocity_filter_ripples, get_theta_cycles,
 export separate_theta_ripple_and_non_decodes
 export velocity_filter_ripples
 
-using DataFrames
+using DataFrames, DataFramesMeta
 using LoopVectorization
 using Infiltrator
 using ProgressMeter
@@ -444,6 +444,11 @@ handle_multiple_tets = :and  | :or
 :and sums correlation of all pairs, and uses that as a metric
 :or sums correlation of all pairs and takes the highest correlation
 """
-function add_correlation_coordination(lfp::DataFrame, lfp_other::DataFrame;
-        handle_multiple_tets=:and, shifts=[0])
+function add_correlation_coordination(lfp::DataFrame;
+        area1=[], area2=[], shifts=[0])
+    
+    lfp = @subset(lfp, :tetrode ∈ area1 .| :tetrode ∈ area2)
+    ulfp = unstack(lfp, :tetrode, :raw)
+    
+
 end

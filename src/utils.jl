@@ -10,8 +10,8 @@ module utils
 
     include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
     import .SearchSortedNearest
-    const searchsortednearest = SearchSortedNearest.searchsortednearest
-    const searchsortednext    = SearchSortedNearest.searchsortednext
+    searchsortednearest = SearchSortedNearest.searchsortednearest
+    searchsortednext    = SearchSortedNearest.searchsortednext
 
 
     export skipnan
