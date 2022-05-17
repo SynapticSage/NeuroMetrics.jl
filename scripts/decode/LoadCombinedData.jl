@@ -1,8 +1,5 @@
 
 
-if :dothresh ∉ propertynames(Main)
-    dothresh = true
-end
 global beh, cells, spikes, lfp, ripples, cycles, wells, x, y, T, dat
 lfp = beh = ripples = spikes = dat = non = ripple = theta = nothing
 beh    = raw.load_behavior(animal, day)
@@ -39,5 +36,3 @@ if remove_nonoverlap
     @info "Removed overlap"
 end
 [extrema(x.time) for x in (lfp, spikes, ripples, beh)]
-
-

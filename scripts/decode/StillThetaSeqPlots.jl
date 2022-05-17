@@ -51,6 +51,11 @@ for (splitfig, split_num) in Iterators.product([true,false], 0:3)
         cyc = cycle.cycle
         @info cyc
 
+        sp_filt = (spikes.time .>= (start-padding[1])) .& (spikes.time .<  (stop+padding[2]))
+        sp = copy(spikes[sp_filt,:])
+        sp.reltime = max.(min.((sp.time .- start)./(stop-start), 1), 0)
+
+
         start, stop = cycle.start, cycle.stop
         filt_cyc = (T.>=start) .& (T.<=stop)
         dat_sub = dat[:,:, filt_cyc]
@@ -63,17 +68,17 @@ for (splitfig, split_num) in Iterators.product([true,false], 0:3)
         if !(any(filt_cyc)) || isempty(dat_sub)
             continue
         end
-    sp_filt = (spikes.time .>= (start-padding[1])) .&
-              (spikes.time .<  (stop+padding[2]))
-    sp = copy(spikes[sp_filt,:])
-    sp.reltime = max.(min.((sp.time .- start)./(stop-start), 1), 0)
-    sp.ranreltime = (sp.time .- start)./(stop-start)
-    #TODO splpit by cell andd do this onlly when no spikes in ripple
-    sp.ranreltime[sp.ranreltime .< 0 .||  sp.ranreltime .> 1] = Random.shuffle(sp.ranreltime[sp.ranreltime .< 0 .||  sp.ranreltime .> 1])
+		sp_filt = (spikes.time .>= (start-padding[1])) .&
+				  (spikes.time .<  (stop+padding[2]))
+		sp = copy(spikes[sp_filt,:])
+		sp.reltime = max.(min.((sp.time .- start)./(stop-start), 1), 0)
+		sp.ranreltime = (sp.time .- start)./(stop-start)
+		#TODO splpit by cell andd do this onlly when no spikes in ripple
+		sp.ranreltime[sp.ranreltime .< 0 .||  sp.ranreltime .> 1] = Random.shuffle(sp.ranreltime[sp.ranreltime .< 0 .||  sp.ranreltime .> 1])
 
-    future₁ = B.stopWell[1]
-    future₂ = B.futureStopWell[1]
-    past₁   = B.pastStopWell[1]
+		future₁ = B.stopWell[1]
+		future₂ = B.futureStopWell[1]
+		past₁   = B.pastStopWell[1]
 
 
         B = beh[(beh.time.>=start) .& (beh.time.<=stop),:]
@@ -81,6 +86,7 @@ for (splitfig, split_num) in Iterators.product([true,false], 0:3)
             @warn "Empty behavior for cycle $cyc"
             continue
         end
+
         area = "CA1"
 
         if !(splitfig)
@@ -167,7 +173,8 @@ for (splitfig, split_num) in Iterators.product([true,false], 0:3)
         cmaps = decode.heatmap.static_colormap_per_sample(:hawaii, timestamps)
         cmaps = Vector{Any}([cmaps...])
         thr= thresh[variable]
-        ds = decode.quantile_threshold(copy(dat_sub), thr)
+        #ds = decode.quantile_threshold(copy(dat_sub), thr)
+		ds = dat_sub
 
         backgroundcolor = RGBA(bc.r, bc.g, bc.b, bc.alpha)
         nan_color = RGBA(bc.r, bc.g, bc.b, 0)
@@ -206,10 +213,10 @@ for (splitfig, split_num) in Iterators.product([true,false], 0:3)
         end
 
         if dodisplay && !(splitfig)
-           electrondisplay(fig)
+           electrondisplay(fig, focus=false)
         elseif dodisplay && splitfig
-           electrondisplay(figSpikes)
-           electrondisplay(figArena)
+           electrondisplay(figSpikes, focus=false)
+           electrondisplay(figArena, focus=false)
         end
 
         if savestuff
@@ -230,6 +237,5 @@ for (splitfig, split_num) in Iterators.product([true,false], 0:3)
                 end
             end
         end
-
     end
 end

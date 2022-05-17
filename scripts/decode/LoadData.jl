@@ -1,12 +1,9 @@
 # -----------
 # DATASETS
 # -----------
-if :dothresh ∉ propertynames(Main)
-    dothresh = true
-end
-
 global beh, cells, spikes, lfp, ripples, cycles, wells, x, y, T, dat
 lfp = beh = ripples = spikes = dat = non = ripple = theta = nothing
+pfc_tetrodes = reshape([36, 39, 40, 47, 48], 1, 5)
 
 @time beh    = raw.load_behavior(animal, day)
 @time spikes = raw.load_spikes(animal,   day)
@@ -14,12 +11,13 @@ lfp = beh = ripples = spikes = dat = non = ripple = theta = nothing
 @time task   = raw.load_task(animal,     day)
 @time ripples= raw.load_ripples(animal,  day)
 @time D      = raw.load_decode(decode_file)
-@time lfp    = raw.load_lfp(animal, day; vars=[:time, :raw, :phase, :amp, :broadraw, :tetrode])
+@time lfp    = raw.load_lfp(animal, day;
+							tet=[ca1_tetrode, pfc_tetrodes...],
+							vars=[:time, :raw, :phase, :amp, :broadraw, :tetrode])
 #beh, spikes, cells ,task, ripples, D = fetch(beh), fetch(spikes), fetch(cells), 
 #                                fetch(task), fetch(ripples), fetch(D)
 
 
-pfc_tetrodes = reshape([36, 39, 40, 47, 48], 1, 5)
 pfc_lfp = @subset(lfp, utils.squeeze(any(:tetrode .== pfc_tetrodes, dims=2)))
 lfp = @subset(lfp, :tetrode.==ca1_tetrode)
 GC.gc()
