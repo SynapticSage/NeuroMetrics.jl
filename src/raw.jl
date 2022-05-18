@@ -1,6 +1,7 @@
 module raw
     
     #Imports
+    using Revise
     using DrWatson
     using DataFrames
     import CSV, Arrow
@@ -20,13 +21,22 @@ module raw
     findnearest = utils.searchsortednearest
     __revise_mode__ = :eval
 
-    include("./raw/behavior.jl")
-    include("./raw/lfp.jl")
-    include("./raw/task.jl")
-    include("./raw/decode.jl")
-    include("./raw/celltet.jl")
-    include("./raw/spikes.jl")
-    include("./raw/ripples.jl")
+    load_default="arrow"
+
+    components = [
+        "./raw/behavior.jl",
+         "./raw/lfp.jl",
+         "./raw/task.jl",
+         "./raw/decode.jl",
+         "./raw/celltet.jl",
+         "./raw/spikes.jl",
+         "./raw/ripples.jl"
+    ]
+    for comp in components
+        comp = replace(comp,"./"=>"$(srcdir())/")
+        println("$comp")
+        include(comp)
+    end
 
     load_functions = Dict(
         "behavior" => load_behavior,
@@ -125,29 +135,61 @@ module raw
         
     end
 
+    function load_table(animal::String, day::Int, pos...; tablepath=nothing, load_kws::NamedTuple=(;), kws...)
+        if tablepath == nothing
+            throw(ArgumentError("Must provide tablepath symbol... see path_functions dict in this module"))
+        end
+        tablepath = String(tablepath)
+        path = path_functions[tablepath](animal, day, pos...; kws...)
+        if :type in keys(kws)
+            type = kws[:type]
+        else
+            type = load_default
+        end
+        if type == "csv"
+            data = CSV.read(path, DataFrame; load_kws...)
+        elseif type == "arrow"
+            data = DataFrame(Arrow.Table(path; load_kws...))
+        end
+    end
+
     function save_table(data::AbstractDataFrame, pos...; tablepath=nothing, kws...)
         if tablepath == nothing
             throw(ArgumentError("Must provide tablepath symbol... see path_functions dict in this module"))
         end
+        tablepath = String(tablepath)
         path = path_functions[tablepath](pos...; kws...)
-        println("Saving $(String(tablepath)) data at $path")
+        println("Saving $(tablepath) data at $path")
+        @infiltrate
         if :type in keys(kws)
             type = kws[:type]
         else
             type = "csv"
         end
         if type == "csv"
-            cells |> CSV.write(path)
+            data |> CSV.write(path)
         elseif type == "arrow"
             Arrow.write(path, data)
         end
     end
 
-    function tables_csv_to_arrow(animal::String, day::Int)
-        for type in keys(save_functions)
-            loadfunc, savefunc = load_functions[type], save_functions[type]
+    function tables_to_type(animal::String, day::Int; 
+            exclusion=[:lfp], from::String="csv", to::String="arrow",
+            delete_prev::Bool=false)
+        exclusion = String.(exclusion)
+        @showprogress for key in keys(save_functions)
+            key = String(key)
+            if key ∈ exclusion
+                continue
+            end
+            loadfunc, savefunc = load_functions[key], save_functions[key]
             data = loadfunc(animal, day)
-            savefunc(data, animal, day; type="arrow")
+            savefunc(data, animal, day; type=to)
+            if delete_prev
+                pathfunc = path_functions[key]
+                path = pathfunc(animal, day; type=type)
+                if isfile(path); rm(path); end
+            end
         end
     end
     

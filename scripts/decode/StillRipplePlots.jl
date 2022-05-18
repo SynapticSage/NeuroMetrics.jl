@@ -31,6 +31,7 @@ for (splitfig, split_num) in Iterators.product([true,false], 1:2)
     decode_file=replace(decode_file, "split=0"=>"split=$split_num")
     @info decode_file
     @time include(scriptsdir("decode", "LoadData.jl"))
+
     @time include(scriptsdir("decode", "PreprocessLFP.jl"))
     beh = annotate_pastFutureGoals(beh; doPrevPast=false)
     savestuff = true
