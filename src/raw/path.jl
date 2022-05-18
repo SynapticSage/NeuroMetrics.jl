@@ -1,3 +1,17 @@
+function load_pathtable(animal, day)
+    f=CSV.read(datadir("paths.csv"), DataFrame; csvkws...)
+    init = Dates.Time("00:00:00")
+    function s(x)
+        x = Second.(x .- init)
+        x = [e.value for e in x]
+    end
+    transform!(f, 
+               :start=>(x->s(x))=>:start, 
+               :end=>(x->s(x))=>:end, 
+               [:end,:start]=>((e,s)->Dates.Second.(e.-s))=>:duration)
+    return f
+end
+
 module path
 
     using Plots, Measures

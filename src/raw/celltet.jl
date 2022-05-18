@@ -39,3 +39,21 @@ function save_cells(cells::DataFrame, pos...; merge_if_exist::Bool=true, kws...)
 end
 
 
+function load_tetrode(animal,day)
+    cells = load_cells(animal,day)
+    groups = groupby(cells,"tetrode")
+    tetrodes = DataFrame()
+    for group = groups
+        n_cells = size(group,1)
+        row = DataFrame(group[1,:])
+        row[!, :n_cells] .= n_cells;
+        append!(tetrodes, row);
+    end
+    out = if "cell" in names(tetrodes)
+            tetrodes[!, Not(:cell)]
+        else
+            tetrodes
+        end
+    return out
+end
+

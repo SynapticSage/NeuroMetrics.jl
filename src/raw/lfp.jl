@@ -44,12 +44,13 @@ function split_lfp_by_tet(pos...; lfp=nothing, vars=nothing)
         ncFile = NetCDF.open(lfpPath)
         K = keys(ncFile.vars)
         ncclose(ncFile.ncid)
+        K
     end
     @showprogress for l in lfp
         @infiltrate
         lfpPath = lfppath(pos...; tet=l.tetrode[1])
         l = Dict(k=>v for (k,v) in zip(names(l),eachcol(l)) )
-        key, value = first(l)
+        #key, value = first(l)
         if isfile(lfpPath)
             rm(lfpPath)
         end
@@ -91,7 +92,7 @@ module lfp
     using Statistics
     using DirectionalStatistics
     using ImageFiltering
-    include("table.jl")
+    include("../table.jl")
     function phase_to_radians(phase)
         phase = Float32.(phase)
         phase = 2*π*(phase .- minimum(phase))./diff([extrema(phase)...]) .- π
