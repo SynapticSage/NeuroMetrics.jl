@@ -1,11 +1,12 @@
 
-function cellpath(animal::String, day::Int, tag::String=""; kws...)
+function cellpath(animal::String, day::Int, tag::String=""; type="csv", kws...)
     if tag != "" && tag != "*"
         tag = "_$tag"
     end
     csvFile = DrWatson.datadir("exp_raw", "visualize_raw_neural",
-                               "$(animal)_$(day)_cell$tag.csv")
+                               "$(animal)_$(day)_cell$tag.$type")
 end
+
 function load_cells(pos...; kws...)
     path = cellpath(pos...; kws...)
     if occursin("*", path)
@@ -26,20 +27,12 @@ function load_cells(pos...; kws...)
     end
     return cells
 end
-function save_cells(cells::DataFrame, pos...; merge_if_exist::Bool=true, kws...)
-    #kws = (;kws...) # satellite default is true
-    csvFile = cellpath(pos...; kws...)
-    #if merge_if_exist && isfile(csvFile)
-    #    prevcells = load_cells(pos...; kws...)
-    #    cells = outerjoin(cells, prevcells, makeunique=true)
-    #    # TODO function to accept left or right dups
-    #end
-    println("Saving cell data at $csvFile")
-    cells |> CSV.write(csvFile)
+
+function save_cells(cells::AbstractDataFrame, pos...; kws...)
+    save_table(cells, pos...; tablepath=:cells, kws...)
 end
 
-
-function load_tetrode(animal,day)
+function load_tetrode(animal, day)
     cells = load_cells(animal,day)
     groups = groupby(cells,"tetrode")
     tetrodes = DataFrame()

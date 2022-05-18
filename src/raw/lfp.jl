@@ -1,3 +1,4 @@
+using NetCDF
 
 function lfppath(animal::String, day::Int; tet=nothing)
     if tet == nothing
@@ -32,49 +33,7 @@ function load_lfp(pos...; tet=nothing, vars=nothing)
     end
     return lfp
 end
-function split_lfp_by_tet(pos...; lfp=nothing, vars=nothing)
-    if lfp == nothing
-        lfp = load_lfp(pos...; vars=vars)
-    end
-    if vars == nothing
-        vars = names(lfp)
-    end
-    lfp = groupby(lfp, :tetrode)
-    getkeys(lfpPath) = begin 
-        ncFile = NetCDF.open(lfpPath)
-        K = keys(ncFile.vars)
-        ncclose(ncFile.ncid)
-        K
-    end
-    @showprogress for l in lfp
-        @infiltrate
-        lfpPath = lfppath(pos...; tet=l.tetrode[1])
-        l = Dict(k=>v for (k,v) in zip(names(l),eachcol(l)) )
-        #key, value = first(l)
-        if isfile(lfpPath)
-            rm(lfpPath)
-        end
-        for (i,(key,value)) in enumerate(l)
-            if isfile(lfpPath)
-                keys = getkeys(lfpPath)
-            else
-                keys = []
-            end
-            if isfile(lfpPath) && key ∉ keys
-                @debug "file=$lfpPath ∃, but key=$key ∉ keys"
-                NetCDF.ncwrite(Array(value), lfpPath, key)
-            elseif key ∉ keys
-                try
-                    @debug "file=$lfpPath ∄, key=$key ∉ keys"
-                    NetCDF.nccreate(lfpPath, key, "t", value)
-                catch
-                    @infiltrate
-                end
-            end
-        end
-        #close(v)
-    end
-end
+
 function cyclepath(animal::String, day::Int, tetrode::Union{String,Int})
     csv = DrWatson.datadir("exp_raw", "visualize_raw_neural",
                               "$(animal)_$(day)_tet=$(tetrode)_cycles.csv")
@@ -173,3 +132,45 @@ module lfp
 
 end
 export lfp
+
+function split_lfp_by_tet(pos...; lfp=nothing, vars=nothing)
+    if lfp == nothing
+        lfp = load_lfp(pos...; vars=vars)
+    end
+    if vars == nothing
+        vars = names(lfp)
+    end
+    original_nc = NetCDF.open(lfppath(pos...))
+    lfp = groupby(lfp, :tetrode)
+    function getkeys(lfpPath::String)
+        ncFile = NetCDF.open(lfpPath)
+        K = keys(ncFile.vars)
+        NetCDF.close(ncFile) # id of the ncfile handle itself, may not be needed in new version
+        K
+    end
+    @showprogress for l in lfp
+        lfpPath = lfppath(pos...; tet=l.tetrode[1])
+        @debug "path=$lfpPath"
+        #key, value = first(l)
+        if isfile(lfpPath)
+            rm(lfpPath)
+        end
+        d=NcDim("sample", size(l,1))
+        @infiltrate
+        varlist = Vector{NcVar}([])
+        for k in names(l)
+            var = NetCDF.NcVar(k, d)
+            var.nctype=NetCDF.getNCType(eltype(original_nc[k]))
+            push!(varlist,var)
+        end
+        NetCDF.create(lfpPath, varlist)
+        ncFile = NetCDF.open(lfpPath; mode=NC_WRITE)
+        for (i,(key,value)) in enumerate(zip(names(l),eachcol(l)))
+            #keys = getkeys(lfpPath)
+            @debug "file=$lfpPath ∃, but key=$key ∉ keys"
+            NetCDF.putvar(ncFile[key], Array(value))
+            #NetCDF.sync(ncFile)
+        end
+        #close(v)
+    end
+end

@@ -3,22 +3,22 @@ module raw
     #Imports
     using DrWatson
     using DataFrames
-    using NetCDF
-    using CSV
+    import CSV, Arrow
     using Statistics
     using Dates
     using Printf
     using ProgressMeter
     using Glob
     using Infiltrator
+
+    # Fetch maze internal imports
     include("utils.jl")
     import .utils
     include("table.jl")
     import .table
     using .table: get_periods
-    const findnearest = utils.searchsortednearest
-    using Infiltrator
-    __revise_mode__ = :evalassign
+    findnearest = utils.searchsortednearest
+    __revise_mode__ = :eval
 
     include("./raw/behavior.jl")
     include("./raw/lfp.jl")
@@ -36,7 +36,26 @@ module raw
         "tetrode"  => load_tetrode,
         "decode"   => load_decode,
         "task"     => load_task,
-        "ripples"  => load_ripples)
+        "ripples"  => load_ripples
+       )
+
+    save_functions = Dict(
+        "behavior" => save_behavior,
+        "spikes"   => save_spikes,
+        "lfp"      => save_lfp,
+        "cells"    => save_cells,
+        "task"     => save_task,
+        "ripples"  => save_ripples
+       )
+
+    path_functions = Dict(
+        "behavior" => behaviorpath,
+        "spikes"   => spikespath,
+        "lfp"      => lfppath,
+        "cells"    => cellpath,
+        "task"     => taskpath,
+        "ripples"  => ripplespath,
+    )
 
     # Module-wide settings
     animal_dayfactor = Dict("RY16"=>33, "RY22"=>0)
@@ -104,6 +123,32 @@ module raw
             return data
         end
         
+    end
+
+    function save_table(data::AbstractDataFrame, pos...; tablepath=nothing, kws...)
+        if tablepath == nothing
+            throw(ArgumentError("Must provide tablepath symbol... see path_functions dict in this module"))
+        end
+        path = path_functions[tablepath](pos...; kws...)
+        println("Saving $(String(tablepath)) data at $path")
+        if :type in keys(kws)
+            type = kws[:type]
+        else
+            type = "csv"
+        end
+        if type == "csv"
+            cells |> CSV.write(path)
+        elseif type == "arrow"
+            Arrow.write(path, data)
+        end
+    end
+
+    function tables_csv_to_arrow(animal::String, day::Int)
+        for type in keys(save_functions)
+            loadfunc, savefunc = load_functions[type], save_functions[type]
+            data = loadfunc(animal, day)
+            savefunc(data, animal, day; type="arrow")
+        end
     end
     
     # ----------

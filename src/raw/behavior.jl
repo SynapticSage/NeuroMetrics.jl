@@ -1,3 +1,4 @@
+
 function behaviorpath(animal::String, day::Int, tag::String="")
     tag  = length(tag) == 0 ? tag : "_$tag"
     path = datadir("exp_raw", "visualize_raw_neural",
@@ -9,6 +10,7 @@ function behaviorpath(animal::String, day::Int, tag::String="")
     @debug "path=$path"
     return path
 end
+
 function load_behavior(animal::String, day::Int, tag::String="")
     function typeFunc(type, name)
         if occursin("Vec", string(name))
@@ -44,7 +46,9 @@ function load_behavior(animal::String, day::Int, tag::String="")
     @assert ("x" ∈ names(beh)) "Fuck"
     return beh
 end
-function save_behavior(animal::String, day::Int)
+
+function save_behavior(behavior::AbstractDataFrame, pos...; kws...)
+    save_table(behavior, pos...; tablepath=:behavior, kws...)
 end
 
 module behavior
