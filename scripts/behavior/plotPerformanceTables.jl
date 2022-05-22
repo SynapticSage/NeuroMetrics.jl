@@ -1,4 +1,4 @@
-sing DrWatson
+using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
 
 using Measures
@@ -307,7 +307,7 @@ scat = vstack(state, cue, mem)
 tab.id  = Vector{Float64}(tab.id)
 ctab.id = Vector{Float64}(ctab.id)
 wtab.id = Vector{Float64}(wtab.id)
-state  = Gadfly.plot(tab[tab.animal.!="RY9", :],x=:id, y=:sate,    color=:animal, Guide.xlabel("trial"), Guide.ylabel("Performance", orientation=:vertical), Guide.title("Overall"),       Stat.binmean(n=20), Geom.point, Geom.line)
+state  = Gadfly.plot(tab[tab.animal.!="RY9", :],x=:id, y=:state,    color=:animal, Guide.xlabel("trial"), Guide.ylabel("Performance", orientation=:vertical), Guide.title("Overall"),       Stat.binmean(n=20), Geom.point, Geom.line)
 cue    = Gadfly.plot(ctab,                      x=:id, y=:cuestate, color=:animal, Guide.xlabel("trial"), Guide.ylabel("Performance", orientation=:vertical), Guide.title("Cue-Guided"),    Stat.binmean(n=20), Geom.point, Geom.line);
 mem    = Gadfly.plot(wtab,                      x=:id, y=:wmstate,  color=:animal, Guide.xlabel("trial"), Guide.ylabel("Performance", orientation=:vertical), Guide.title("Memory-Guided"), Stat.binmean(n=20), Geom.point, Geom.line);
 bmean_sum = vstack(state, cue, mem)

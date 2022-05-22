@@ -30,7 +30,8 @@ module raw
          "./raw/decode.jl",
          "./raw/celltet.jl",
          "./raw/spikes.jl",
-         "./raw/ripples.jl"
+         "./raw/ripples.jl",
+         "./raw/utils.jl"
     ]
     for comp in components
         comp = replace(comp,"./"=>"$(srcdir())/")
@@ -39,6 +40,7 @@ module raw
     end
 
     load_functions = Dict(
+        "cycles"   => load_cycles,
         "behavior" => load_behavior,
         "spikes"   => load_spikes,
         "lfp"      => load_lfp,
@@ -59,6 +61,7 @@ module raw
        )
 
     path_functions = Dict(
+        "cycles"   => cyclepath,
         "behavior" => behaviorpath,
         "spikes"   => spikespath,
         "lfp"      => lfppath,
@@ -120,6 +123,7 @@ module raw
         data = Dict{String,Any}()
         for source ∈ load_order
             data[source] = raw.load_functions[source](args...)
+            @assert typeof(data[source]) != Nothing
             if "time" ∈ names(data[source])
                 @info "Centering $source and **converting to minutes**"
                 data[source].time = normalize(data, data[source].time);
@@ -135,22 +139,36 @@ module raw
         
     end
 
-    function load_table(animal::String, day::Int, pos...; tablepath=nothing, load_kws::NamedTuple=(;), kws...)
+    function load_table(animal::String, day::Int, pos...; 
+            tablepath=nothing, 
+            load_kws::NamedTuple=(;), kws...)
         if tablepath == nothing
             throw(ArgumentError("Must provide tablepath symbol... see path_functions dict in this module"))
         end
+
         tablepath = String(tablepath)
         path = path_functions[tablepath](animal, day, pos...; kws...)
+
         if :type in keys(kws)
             type = kws[:type]
         else
             type = load_default
         end
+
+
         if type == "csv"
             data = CSV.read(path, DataFrame; load_kws...)
         elseif type == "arrow"
             data = DataFrame(Arrow.Table(path; load_kws...))
         end
+
+        detect_complex_format_wrong = eltype.(eachcol(data)) .<: NamedTuple
+        for i in findall(detect_complex_format_wrong)
+            data[!,i] = getproperty.(data[!,i], :re) + 
+                        getproperty.(data[!,i], :im)im
+        end
+
+        data
     end
 
     function save_table(data::AbstractDataFrame, pos...; tablepath=nothing, kws...)

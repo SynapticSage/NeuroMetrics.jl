@@ -85,16 +85,16 @@ end
 # Oscillation cycles
 # # # # # # # # # # # # # # # # # # # # # # # # # # # # # # 
 
-function cyclepath(animal::String, day::Int, tetrode::Union{String,Int})
+function cyclepath(animal::String, day::Int, tetrode::Union{String,Int}; ext::String="csv")
     csv = DrWatson.datadir("exp_raw", "visualize_raw_neural",
-                              "$(animal)_$(day)_tet=$(tetrode)_cycles.csv")
+                              "$(animal)_$(day)_tet=$(tetrode)_cycles.$ext")
 end
 function save_cycles(cycles, pos...)
     cycles |> CSV.write(cyclepath(pos...))
 end
 function load_cycles(pos...)
-    cycles = CSV.read(cyclepath(pos...), DataFrame; strict=false,
-             missingstring=["NaN", "NaNNaNi", "NaNNaNi,", ""], csvkws...)
+    cycles = load_table(pos...; tablepath=:cycles, type=type, 
+                        load_kws=load_kws, kws...)
 end
 
 module lfp

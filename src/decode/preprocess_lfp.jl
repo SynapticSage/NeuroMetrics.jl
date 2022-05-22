@@ -449,6 +449,5 @@ function add_correlation_coordination(lfp::DataFrame;
     
     lfp = @subset(lfp, :tetrode ∈ area1 .| :tetrode ∈ area2)
     ulfp = unstack(lfp, :tetrode, :raw)
-    
 
 end

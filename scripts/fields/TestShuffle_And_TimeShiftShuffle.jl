@@ -1,5 +1,4 @@
 quickactivate("/home/ryoung/Projects/goal-code/")
-@time include(scriptsdir("fields", "Include.jl"))
 @time include(scriptsdir("fields", "Initialize.jl"))
 @time include(scriptsdir("fields", "TimeShift_setsOfInterest.jl"))
 includet(srcdir("shuffle.jl"))
@@ -10,7 +9,7 @@ import Base.Threads: @spawn
 using ThreadSafeDicts
 using .timeshift
 sp = copy(spikes)
-convertToMinutes, runshifts = false, false
+convertToMinutes, runshifts = true, false
 
 # -----------------------
 # Testing shuffle methods

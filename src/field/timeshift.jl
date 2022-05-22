@@ -21,6 +21,7 @@ module timeshift
     using StatsPlots: @df
     using Plots
     using NaNStatistics
+    using LoopVectorization
 
     export get_field_shift_shuffles, get_field_shift
     export to_dataframe, info_to_dataframe
@@ -130,7 +131,7 @@ module timeshift
         skips = 0
         P = Progress(length(sets), desc=msg)
         if multi == :thread
-            Threads.@threads for (i, (shuffle,shift)) in sets
+            Threads.@threads @inbounds for (i, (shuffle,shift)) in sets
                 if (;shift,shuffle) ∈ keys(safe_dict)
                     skips+=1
                     continue
@@ -149,7 +150,7 @@ module timeshift
             end
         elseif multi == :distributed
             @assert nprocs() > 1 msg
-            @showprogress 0.1 msg for (i,(shuffle,shift)) in sets
+            @showprogress 0.1 msg for @inbounds (i,(shuffle,shift)) in sets
                 data = Dagger.spawn(shuffle_func, data, shuffle_pos...; shuffle_kws...)
                 @debug "Dagger 1"
                 result = Dagger.spawn(field.get_fields, σ(beh,shift), data; kws...)
@@ -161,7 +162,7 @@ module timeshift
                 push!(safe_dict, (;shift,shuffle)=>result)
             end
         elseif multi == :single
-            for (i,(shuffle,shift)) in sets
+            @inbounds for (i,(shuffle,shift)) in sets
                 if (;shift,shuffle) ∈ keys(safe_dict)
                     skips+=1
                     next!(P)
@@ -384,11 +385,20 @@ module timeshift
     end
     function save_shuffles(S::AbstractDict)
         parent_folder = datadir("exp_pro", "timeshift")
-        serialize(joinpath(parent_folder, "mains"), S)
+        name = joinpath(parent_folder, "shuffles")
+        @info "saving $name"
+        if isfile(name)
+            D = deserialize(name)
+        else
+            D = Dict()
+        end
+        D = merge(D, M)
+        serialize(name, D)
     end
 
     function loadshifts(;kws...)::Dict
         name = _pathshiftdat(;kws...)
+        println(name)
         D = deserialize(name)
     end
 

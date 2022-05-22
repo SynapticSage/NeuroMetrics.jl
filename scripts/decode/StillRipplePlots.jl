@@ -24,11 +24,11 @@ for (splitfig, split_num) in Iterators.product([true,false], 1:2)
         end
     end
 
-
-    # Load data
-    #include(scriptsdir("decode","Initialize.jl"))
-    include(scriptsdir("decode","InitializeCairo.jl"))
-    decode_file=replace(decode_file, "split=0"=>"split=$split_num")
+@time 
+@time     # Load data
+@time     #include(scriptsdir("decode","Initialize.jl"))
+@time     include(scriptsdir("decode","InitializeCairo.jl"))
+@time     decode_file=replace(decode_file, "split=0"=>"split=$split_num")
     @info decode_file
     @time include(scriptsdir("decode", "LoadData.jl"))
 

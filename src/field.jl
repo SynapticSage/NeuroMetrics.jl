@@ -273,7 +273,7 @@ module field
                 #spikeDist = Dict(ugroups[i] => field_of_group(i) 
                 #                 for i ∈ 1:length(groups))
                 spikeDist = Dict{typeof(ugroups[1]),Any}();
-                for i ∈ 1:length(groups)
+                @inbounds for i ∈ 1:length(groups)
                     if savemem
                         spikeDist[ugroups[i]] = Float32.(field_of_group(i).weights)
                     else
@@ -374,7 +374,7 @@ module field
                 area_kde  = sum(utils.skipnan(kde))
                 kde = (area_hist/area_kde) .* kde;
             elseif kde isa Dict
-                for key in keys(kde)
+                @inbounds for key in keys(kde)
                     try
                         kde[key] = norm_kde_by_histcount(kde[key], hist[key])
                     catch KeyError
@@ -438,7 +438,7 @@ module field
             # Spike count
             if spikeDist isa Dict
                 dist = Dict{typeof(ugroups[1]),Any}();
-                for i ∈ keys(spikeDist)
+                @inbounds for i ∈ keys(spikeDist)
                     if spikeDist[i] == nothing
                         dist[i] = nothing
                     else
