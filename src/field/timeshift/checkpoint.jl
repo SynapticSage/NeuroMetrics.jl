@@ -74,10 +74,18 @@
         D = overwrite ? merge(D, d) : merge(d, D)
         serialize(name, D)
     end
+    function loadshifts(;kws...)::Dict
+        name = _pathshiftdat(;kws...)
+        println(name)
+        D = deserialize(name)
+    end
 
-    function save_mains(M::AbstractDict)
+    function mainspath()
         parent_folder = datadir("exp_pro", "timeshift")
         name = joinpath(parent_folder, "mains")
+    end
+    function save_mains(M::AbstractDict)
+        name = mainspath()
         if isfile(name)
             D = deserialize(name)
         else
@@ -87,23 +95,27 @@
 
         serialize(name, D)
     end
-    function save_shuffles(S::AbstractDict)
+
+
+    function shufflespath()
         parent_folder = datadir("exp_pro", "timeshift")
         name = joinpath(parent_folder, "shuffles")
+    end
+    function save_shuffles(S::AbstractDict)
+        name = shufflespath()
         @info "saving $name"
         if isfile(name)
             D = deserialize(name)
         else
             D = Dict()
         end
-        D = merge(D, M)
+        D = merge(D, S)
         serialize(name, D)
     end
-
-    function loadshifts(;kws...)::Dict
-        name = _pathshiftdat(;kws...)
-        println(name)
+    function load_shuffles()
+        name = shufflespath()
         D = deserialize(name)
     end
+
 
 

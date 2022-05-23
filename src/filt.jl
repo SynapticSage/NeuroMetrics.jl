@@ -5,22 +5,51 @@ using DataStructures
 export filters
 using Base: merge
 
-speed     = OrderedDict("velVec"=>x->(abs.(x) .> 4))
-speed_lib = OrderedDict("velVec"=>x->(abs.(x) .> 2))
-still     = OrderedDict("velVec"=>x->(abs.(x) .< 0.5))
-correct   = OrderedDict("correct" => x-> x.==1)
-incorrect = OrderedDict("correct" => x-> x.==0)
-nontask   = OrderedDict("correct" => x-> (x.!=0) .&& (x.!=1))
-task      = OrderedDict("correct" => x-> (x.==0) .|| (x.==1))
-cue       = OrderedDict("cuemem" => x-> x.==0)
-mem       = OrderedDict("cuemem" => x-> x.==1)
+function SPEED(x)
+    abs.(x) .> 4
+end
+function SPEED_LIB(x)
+    abs.(x) .> 2
+end
+function STILL(x)
+    abs.(x) .> 2
+end
+speed     = OrderedDict("velVec"=>SPEED)
+speed_lib = OrderedDict("velVec"=>SPEED_LIB)
+still     = OrderedDict("velVec"=>STILL)
+
+function CORRECT(x)
+    x.==1
+end
+function INCORRECT(x)
+    x.==0
+end
+function NONTASK(x)
+    (x.!=0) .&& (x.!=1)
+end
+function TASK(x)
+    (x.==0) .|| (x.==1)
+end
+correct   = OrderedDict("correct" => CORRECT)
+incorrect = OrderedDict("correct" => INCORRECT)
+nontask   = OrderedDict("correct" => NONTASK)
+task      = OrderedDict("correct" => TASK)
+# Alias
+error     = incorrect
+
+function MEM(x)
+    x.==1
+end
+function CUE(x)
+    x.==0
+end
+cue       = OrderedDict("cuemem" => CUE)
+mem       = OrderedDict("cuemem" => MEM)
 
 notnan(x)       = OrderedDict(x  => x->((!).(isnan).(x)))
 minmax(x, m, M) = OrderedDict(x  => x-> x .>= m .&& x .<= M)
 max(x, M)       = OrderedDict(x  => x-> x .<= M)
 min(x, m)       = OrderedDict(x  => x-> x .>= m)
-# Alias
-error     = incorrect
 
 cellcount       = OrderedDict(All() =>
                               x->groupby_summary_cond(x, :unit,
@@ -110,7 +139,6 @@ function get_filters()
     filters[:mem_error]   = merge(filters[:all], mem, error)
     filters
 end
-filters = get_filters()
 
 end
 

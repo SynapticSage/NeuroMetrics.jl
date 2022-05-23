@@ -95,11 +95,10 @@ module timeshift
         return out
     end
 
-    
-
-    include("timeshift/checkpoint.jl")
-    include("timeshift/dataframe.jl")
-    include("timeshift/operation.jl")
-    include("timeshift/plot.jl")
+    include("./timeshift/checkpoint.jl")
+    include("./timeshift/dataframe.jl")
+    include("./timeshift/operation.jl")
+    include("./timeshift/plot.jl")
+    include("./timeshift/shuffle.jl")
 
 end

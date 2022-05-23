@@ -96,26 +96,34 @@ end
 
 
 # COMPUTE SHUFFLE INFORMATION @ DELAYS
-S = OrderedDict()
+if isfile(timeshift.shufflespath())
+    S = timeshift.load_shuffles()
+else
+    S = OrderedDict()
+end
 
 @showprogress 0.1 "Datacut shuffle iteration" for datacut ∈ keys(filts)
     for props ∈ marginals_highprior
         marginal = 𝕄(props)
         key = get_key(;marginal, datacut, shifts, shuffle_type="σ(traj)")
         if key in keys(S)
-            if S[key] isa Task && !(istaskfailed(S[key]))
+            @infiltrate
+            if (S[key] isa Task && !(istaskfailed(S[key]))) ||
+                !(S[key] isa Task)
                 @info "key=$key already exists, skipping..."
                 continue
             else
                 @info "key=$key already exists, but failed...redo!"
             end
+        else
+                @info "key=$key"
         end
         newkws = (; kws..., filters=filts[datacut], splitby, props,
                   resolution=sz(props), multi=:single,
-                  exfiltrateAfter=20,
+                  exfiltrateAfter=100,
                   postfunc=info.information)
-        S[key] = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; 
-                                                         newkws...)
+        @infiltrate
+        S[key] = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; newkws...)
     end
 
     try
@@ -129,7 +137,6 @@ S = OrderedDict()
         @warn "potential task failure for props=$props, datacut=$datacut"
     end
     timeshift.save_shuffles(S)
-
 end
 
 # GET FIELDS AT BEST-(𝛕)
