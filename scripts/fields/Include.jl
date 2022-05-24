@@ -12,13 +12,14 @@ using DataStructures: OrderedDict
 using Revise
 using Distributions
 
+using GoalFetchAnalysis
+filt = GoalFetchAnalysis.filt
+utils = GoalFetchAnalysis.utils
+
 includet(srcdir("raw.jl"))
 includet(srcdir("field.jl"))
-includet(srcdir("field/operation.jl"))
-includet(srcdir("field/model.jl"))
-includet(srcdir("field/recon_process.jl"))
 includet(srcdir("filt.jl"))
-using .filt
-includet(srcdir("table.jl"))
-includet(srcdir("utils.jl"))
-includet(srcdir("shuffle.jl"))
+
+operation = field.operation
+model = field.model
+recon_process = field.recon_process

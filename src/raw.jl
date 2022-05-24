@@ -79,15 +79,17 @@ module raw
     cmtopx(x) = x / 0.1487 
 
 
-    function normalize(data, time, data_source)
+    function normalize(data, time, data_source, mintime=nothing)
         # Determine a time normalizing function
-        if "behavior" ∈ data_source
-            normalizing_time = minimum(data["behavior"].time)
-        else
-            normalizing_time = 0
+        if mintime == nothing
+            if "behavior" ∈ data_source
+                mintime = minimum(data["behavior"].time)
+            else
+                mintime = 0
+            end
         end
 
-        (time .- normalizing_time)./60
+        (time .- mintime)./60, mintime
     end
 
 
@@ -128,12 +130,13 @@ module raw
 
         # Load each data source
         data = Dict{String,Any}()
+        m = nothing
         for source ∈ load_order
             data[source] = raw.load_functions[source](args...)
             @assert typeof(data[source]) != Nothing
             if "time" ∈ names(data[source])
                 @info "Centering $source and **converting to minutes**"
-                data[source].time = normalize(data, data[source].time, data_source);
+                data[source].time, m = normalize(data, data[source].time, data_source, m);
             end
         end
 

@@ -1,8 +1,7 @@
 quickactivate("/home/ryoung/Projects/goal-code/")
 @time include(scriptsdir("fields", "Initialize.jl"))
 includet(srcdir("shuffle.jl"))
-includet(srcdir("field/info.jl"))
-includet(srcdir("field/timeshift.jl"))
+info, timeshift = field.info, field.timeshift
 include(scriptsdir("fields", "TimeShift_setsOfInterest.jl"))
 _, spikes = raw.register(beh, spikes; transfer=["velVec"], on="time")
 import Base.Threads: @spawn
@@ -63,6 +62,7 @@ end
 #   (block length)
 
 I = Dict()
+
 # COMPUTE INFORMATION @ DELAYS
 @showprogress 0.1 "Datacut iteration" for datacut ∈ keys(filts)
     for props ∈ marginals_highprior
@@ -78,7 +78,7 @@ I = Dict()
         end
         newkws = (; kws..., filters=filts[datacut], splitby, props, dokde=false,
                   resolution=sz(props), multi=:single, postfunc=info.information)
-        I[key] = @spawn @time timeshift.get_field_shift(beh, spikes, shifts; 
+        I[key] = @time timeshift.get_field_shift(beh, spikes, shifts; 
                                                              newkws...)
     end
     try
@@ -89,6 +89,7 @@ I = Dict()
         @info I
         utils.pushover("Done fetchging jobs for datacut=$datacut")
         timeshift.save_mains(I)
+        @infiltrate
     catch
         @warn "potential task failure for props=$props, datacut=$datacut"
     end

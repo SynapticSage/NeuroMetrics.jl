@@ -11,12 +11,8 @@ import StatsBase
 using Infiltrator
 set_theme!(theme_dark())
 __revise_mode__ = :eval
-includet(srcdir("raw.jl"))
-includet(srcdir("table.jl"))
-includet(srcdir("utils.jl"))
-includet(srcdir("decode.jl"))
-import .raw, .table, .utils
-using .decode
+
+using GoalFetchAnalysis
 
 # Debugger?
 ENV["JULIA_DEBUG"] = nothing
