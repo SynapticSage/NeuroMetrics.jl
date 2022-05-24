@@ -62,7 +62,7 @@ end
 #   -8 : 8 seconds (trajectory length)
 #   (block length)
 
-I = OrderedDict()
+I = Dict()
 # COMPUTE INFORMATION @ DELAYS
 @showprogress 0.1 "Datacut iteration" for datacut ∈ keys(filts)
     for props ∈ marginals_highprior
@@ -107,7 +107,6 @@ end
         marginal = 𝕄(props)
         key = get_key(;marginal, datacut, shifts, shuffle_type="σ(traj)")
         if key in keys(S)
-            @infiltrate
             if (S[key] isa Task && !(istaskfailed(S[key]))) ||
                 !(S[key] isa Task)
                 @info "key=$key already exists, skipping..."
@@ -122,7 +121,6 @@ end
                   resolution=sz(props), multi=:single,
                   exfiltrateAfter=100,
                   postfunc=info.information)
-        @infiltrate
         S[key] = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; newkws...)
     end
 

@@ -4,8 +4,7 @@ include(scriptsdir("decode","InitializeCairo.jl"))
 
 for (splitfig, split_num) in Iterators.product([true,false], 1:2)
 
-    thresh = Dict("likelihood"=>0.1, "acausal_posterior"=>0.99, 
-              "causal_posterior"=> 0.99)
+    thresh = Dict("likelihood"=>0.1, "acausal_posterior"=>0.99, "causal_posterior"=> 0.99)
 
     dothresh  = false # DO THRESH IN LOADDATA.jl ... this should be false, I'm doing it below
     dodisplay = false
@@ -24,11 +23,11 @@ for (splitfig, split_num) in Iterators.product([true,false], 1:2)
         end
     end
 
-@time 
-@time     # Load data
-@time     #include(scriptsdir("decode","Initialize.jl"))
-@time     include(scriptsdir("decode","InitializeCairo.jl"))
-@time     decode_file=replace(decode_file, "split=0"=>"split=$split_num")
+ 
+    # Load data
+    #include(scriptsdir("decode","Initialize.jl"))
+    include(scriptsdir("decode","InitializeCairo.jl"))
+    decode_file=replace(decode_file, "split=0"=>"split=$split_num")
     @info decode_file
     @time include(scriptsdir("decode", "LoadData.jl"))
 

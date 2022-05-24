@@ -72,9 +72,24 @@ module raw
 
     # Module-wide settings
     animal_dayfactor = Dict("RY16"=>33, "RY22"=>0)
-    csvkws=(; silencewarnings=true, buffer_in_memory=true, ntasks=1)
+    csvkws=(; silencewarnings=true, buffer_in_memory=true, ntasks=1, 
+            strict=false, missingstring=["NaN", "", "NaNNaNi"])
+    arrowkws = (;)
     pxtocm(x) = 0.1487 * x
     cmtopx(x) = x / 0.1487 
+
+
+    function normalize(data, time, data_source)
+        # Determine a time normalizing function
+        if "behavior" ∈ data_source
+            normalizing_time = minimum(data["behavior"].time)
+        else
+            normalizing_time = 0
+        end
+
+        (time .- normalizing_time)./60
+    end
+
 
     """
         load(animal, day)
@@ -110,14 +125,6 @@ module raw
             throw(ArgumentError("as cannot be $as"))
         end
         
-        # Determine a time normalizing function
-        if "behavior" ∈ data_source
-            normalizing_time(data) = minimum(data["behavior"].time)
-        else
-            normalizing_time(data) = 0
-        end
-
-        normalize(data, time) = (time .- normalizing_time(data))./60;
 
         # Load each data source
         data = Dict{String,Any}()
@@ -126,7 +133,7 @@ module raw
             @assert typeof(data[source]) != Nothing
             if "time" ∈ names(data[source])
                 @info "Centering $source and **converting to minutes**"
-                data[source].time = normalize(data, data[source].time);
+                data[source].time = normalize(data, data[source].time, data_source);
             end
         end
 
@@ -139,9 +146,24 @@ module raw
         
     end
 
+    function get_load_kws(type::String; load_kws...)
+        if type == "csv"
+            kws = (csvkws..., load_kws...)
+        elseif type == "arrow"
+            kws = (arrowkws..., load_kws...)
+        end
+    end
+    function load_table_at_path(path::String, type::String; load_kws...)
+        if type == "csv"
+            data = CSV.read(path, DataFrame; load_kws...)
+        elseif type == "arrow"
+            data = DataFrame(Arrow.Table(path))
+        end
+    end
     function load_table(animal::String, day::Int, pos...; 
             tablepath=nothing, 
-            load_kws::NamedTuple=(;), kws...)
+            load_kws::Union{Nothing,NamedTuple}=(;),
+            kws...)
         if tablepath == nothing
             throw(ArgumentError("Must provide tablepath symbol... see path_functions dict in this module"))
         end
@@ -155,12 +177,7 @@ module raw
             type = load_default
         end
 
-
-        if type == "csv"
-            data = CSV.read(path, DataFrame; load_kws...)
-        elseif type == "arrow"
-            data = DataFrame(Arrow.Table(path; load_kws...))
-        end
+        data = load_table_at_path(path, type; load_kws)
 
         detect_complex_format_wrong = eltype.(eachcol(data)) .<: NamedTuple
         for i in findall(detect_complex_format_wrong)
@@ -171,6 +188,14 @@ module raw
         data
     end
 
+    function save_table_at_path(data::AbstractDataFrame, path::String, type::String;
+            save_kws...)
+        if type == "csv"
+            data |> CSV.write(path)
+        elseif type == "arrow"
+            Arrow.write(path, data)
+        end
+    end
     function save_table(data::AbstractDataFrame, pos...; tablepath=nothing, kws...)
         if tablepath == nothing
             throw(ArgumentError("Must provide tablepath symbol... see path_functions dict in this module"))
@@ -184,18 +209,14 @@ module raw
         else
             type = "csv"
         end
-        if type == "csv"
-            data |> CSV.write(path)
-        elseif type == "arrow"
-            Arrow.write(path, data)
-        end
     end
 
     function tables_to_type(animal::String, day::Int; 
+            inclusion=keys(save_functions),
             exclusion=[:lfp], from::String="csv", to::String="arrow",
             delete_prev::Bool=false)
         exclusion = String.(exclusion)
-        @showprogress for key in keys(save_functions)
+        @showprogress for key in inclusion
             key = String(key)
             if key ∈ exclusion
                 continue

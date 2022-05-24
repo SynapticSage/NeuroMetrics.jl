@@ -55,14 +55,6 @@ cellcount       = OrderedDict(All() =>
                               x->groupby_summary_cond(x, :unit,
                                                       x->x.count.>50,
                                                       nrow=>:count))
-
-"""
-fieldcount
-
-filter by count of a sample in a field
-"""
-function fieldcount(x, pos...; kws...)
-end
 """
 fieldrate
 

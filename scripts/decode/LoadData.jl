@@ -78,3 +78,4 @@ end
 if cycles == nothing
 	@error "fuck"
 end
+@assert !(isempty(beh))

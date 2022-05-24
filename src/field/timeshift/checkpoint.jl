@@ -66,11 +66,28 @@
             D = Dict()
         end
 
+        kws = Dict(zip(keys(kws), values(kws)))
+
+        # Remove parts that will break serialization
+        if :filters ∈ propertynames(kws)
+            pop!(kws, :filters)
+        end
+        if :metric ∈ kws
+            metric = pop!(kws, :metric)
+        else
+            metric = nothing
+        end
+        if :shifts ∈ kws
+            shifts = pop!(kws, :shifts)
+        else
+            @error "Provide shifts"
+        end
+
         d = Dict(:main     => main,
                  :shuffle  => shuffle,
-                 :shifts   => kws.shifts,
-                 :metric   => kws.metric,
-                 :fieldkws => fieldkws)
+                 :shifts   => shifts,
+                 :metric   => metric,
+                 :fieldkws => kws)
         D = overwrite ? merge(D, d) : merge(d, D)
         serialize(name, D)
     end
@@ -95,6 +112,11 @@
 
         serialize(name, D)
     end
+    function load_mains()
+        name = mainspath()
+        D = deserialize(name)
+    end
+
 
 
     function shufflespath()
@@ -116,6 +138,8 @@
         name = shufflespath()
         D = deserialize(name)
     end
+
+    
 
 
 

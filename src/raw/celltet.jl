@@ -7,8 +7,8 @@ function cellpath(animal::String, day::Int, tag::String=""; type="csv", kws...)
                                "$(animal)_$(day)_cell$tag.$type")
 end
 
-function load_cells(pos...; kws...)
-    path = cellpath(pos...; kws...)
+function cellpaths(animal::String, day::Int, tag::String=""; type="csv", kws...)
+    path = cellpath(animal, day, tag; kws...)
     if occursin("*", path)
         base, dir = basename(path), dirname(path)
         @debug "base=$base, dir=$dir"
@@ -16,12 +16,15 @@ function load_cells(pos...; kws...)
     else
         paths = [path]
     end
+    return paths
+end
 
+
+function load_cells(pos...; kws...)
+    paths  = cellpaths(pos...; kws...)
     cells = DataFrame()
     @showprogress 0.1 "loading cell files" for path in paths
-        cell = CSV.read(path, DataFrame;
-                 strict=false, missingstring=["NaN", "", "NaNNaNi"],
-                 csvkws...)
+        cell = CSV.read(path, DataFrame; csvkws...)
         cells = isempty(cells) ? cell : outerjoin(cells, cell, on=:unit, makeunique=true)
         table.clean_duplicate_cols(cells)
     end
@@ -31,6 +34,22 @@ end
 function save_cells(cells::AbstractDataFrame, pos...; kws...)
     save_table(cells, pos...; tablepath=:cells, kws...)
 end
+function save_cell_taginfo(cells::AbstractDataFrame, animal::String, day::Int, tag::String; kws...)
+    save_table(cells, animal, day, tag; tablepath=:cells, kws...)
+end
+
+function cells_to_type(animal::String, day::Int, tag::String="*", 
+        from::String="csv", to::String="arrow")
+    paths = cellpaths(animal, day, tag)
+    for path in paths
+        data = load_table_at_path(path, from; load_kws...)
+        path = replace(path, "."*from=>"."*to)
+        savekws=(;)
+        save_table_at_path(data, path, type; save_kws...)
+    end
+
+end
+
 
 function load_tetrode(animal, day)
     cells = load_cells(animal,day)

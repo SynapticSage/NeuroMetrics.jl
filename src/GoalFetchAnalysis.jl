@@ -15,6 +15,7 @@ module GoalFetchAnalysis
     # Field related
     include("field.jl") # General receptive field codes
     import .field
+    timeshift = field.timeshift
 
     # Goal vector measures
     include("statistic.jl")
@@ -26,8 +27,7 @@ module GoalFetchAnalysis
 
     export raw
     export table 
-    export raster 
-    export field
+    export field, timeshift
     export decode
 
 end

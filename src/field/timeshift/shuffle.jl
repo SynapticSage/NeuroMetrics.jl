@@ -38,7 +38,7 @@ function get_field_shift_shuffles(beh::DataFrame, data::DataFrame,
     skips = 0
     P = Progress(length(sets), desc=msg)
     if multi == :thread
-        Threads.@threads @inbounds for (i, (shuffle,shift)) in sets
+        Threads.@threads for (i, (shuffle,shift)) in sets
             if (;shift,shuffle) ∈ keys(safe_dict)
                 skips+=1
                 continue
@@ -54,10 +54,11 @@ function get_field_shift_shuffles(beh::DataFrame, data::DataFrame,
                 @info "chechpoint->exfiltrated"
                 @exfiltrate
             end
+            next!(P)
         end
     elseif multi == :distributed
         @assert nprocs() > 1 msg
-        @showprogress 0.1 msg for @inbounds (i,(shuffle,shift)) in sets
+        @inbounds for (i,(shuffle,shift)) in sets
             data = Dagger.spawn(shuffle_func, data, shuffle_pos...; shuffle_kws...)
             @debug "Dagger 1"
             result = Dagger.spawn(field.get_fields, σ(beh,shift), data; kws...)
@@ -67,6 +68,7 @@ function get_field_shift_shuffles(beh::DataFrame, data::DataFrame,
                 @debug "Dagger 3"
             end
             push!(safe_dict, (;shift,shuffle)=>result)
+            next!(P)
         end
     elseif multi == :single
         @inbounds for (i,(shuffle,shift)) in sets

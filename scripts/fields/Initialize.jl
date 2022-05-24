@@ -20,7 +20,7 @@ R̂ = Dict() # Store reconstructions
 
 # Generalized settings
 splitby=["unit", "area"]
-kws=(;resolution=80, splitby, filters=filters[:all])
+kws=(;resolution=80, splitby, filters=filt.get_filters()[:all])
 ploton, dofields, dopoissonmodel, doreconstruction = false, false, false, false
 
 if dofields

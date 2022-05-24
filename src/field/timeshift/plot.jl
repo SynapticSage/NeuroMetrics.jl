@@ -3,7 +3,7 @@
     # --------
     # PLOTTING
     # --------
-    function plot_shifts(place; desc="", shift_scale=:minutes, clim=:cell)
+    function plot_shifts(place::AbstractDict; desc="", shift_scale=:minutes, clim=:cell, dosave::Bool=false)
 
         # List of desirables
         # ------------------
@@ -20,9 +20,11 @@
 
         descSave = replace(desc, ":"=>"", " "=>"-")
         function saveplotshift(args...)
-            savefig(plotsdir(args[1:end-1]..., args[end] * ".png"))
-            savefig(plotsdir(args[1:end-1]..., args[end] * ".svg"))
-            savefig(plotsdir(args[1:end-1]..., args[end] * ".pdf"))
+            if dosave
+                savefig(plotsdir(args[1:end-1]..., args[end] * ".png"))
+                savefig(plotsdir(args[1:end-1]..., args[end] * ".svg"))
+                savefig(plotsdir(args[1:end-1]..., args[end] * ".pdf"))
+            end
         end
 
         # DENSITY ALL CELLS
@@ -52,6 +54,7 @@
         # PER CELL
         df = sort(df, [:shift,:area,:unit])
         df_u = sort(unstack(df, :shift, :info), [:area, :unit])
+        @infiltrate
         shifts = parse.(Float32,names(df_u)[3:end])
         units = df_u.unit
         areas = df_u.area
