@@ -45,5 +45,6 @@ end
     export table 
     export field, timeshift
     export decode
+    export utils
 
 end

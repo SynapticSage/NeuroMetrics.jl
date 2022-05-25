@@ -31,21 +31,17 @@ include(scriptsdir("decode","InitializeCairo.jl"))
 decode_file=replace(decode_file, "split=0"=>"split=$split_num")
 @info decode_file
 @time include(scriptsdir("decode", "LoadData.jl"))
-
 @time include(scriptsdir("decode", "PreprocessLFP.jl"))
+
+ripples, cycles = annotate_vector_info(ripples, cycles, beh, lfp, dat, x, y, T)
+lfp.phase_plot = utils.norm_extrema(lfp.phase, extrema(spikes.unit))
+lfp.phase = utils.norm_extrema(lfp.phase, (-pi,pi))
+lfp.raw      = Float32.(utils.norm_extrema(lfp.raw,      extrema(spikes.unit)))
+lfp.broadraw = Float32.(utils.norm_extrema(lfp.broadraw, extrema(spikes.unit)))
+lfp.cycle, lfp.phase = Int32.(lfp.cycle), Float32.(lfp.phase)
+cycles = cycles[cycles.cycle.!=-1,:]
+
 beh = annotate_pastFutureGoals(beh; doPrevPast=false)
-savestuff = true
-tetrode   = 5
 
-validripples = ripples[ripples.epoch.==epoch,:]
-(rip,ripple) = collect(enumerate(eachrow(validripples)))[306]
 
-include(scriptsdir("decode","InitializeCairo.jl"))
-decode_file=replace(decode_file, "split=0"=>"split=$split_num")
-@info decode_file
-@time include(scriptsdir("decode", "LoadData.jl"))
 
-@time include(scriptsdir("decode", "PreprocessLFP.jl"))
-beh = annotate_pastFutureGoals(beh; doPrevPast=false)
-savestuff = true
-tetrode   = 5

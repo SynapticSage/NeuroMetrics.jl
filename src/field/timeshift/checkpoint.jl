@@ -104,11 +104,13 @@
     function save_mains(M::AbstractDict)
         name = mainspath()
         if isfile(name)
+            @info "Preloading existing $name"
             D = deserialize(name)
         else
             D = Dict()
         end
         D = merge(D, M)
+        @info "Saving $name"
         serialize(name, D)
     end
     function load_mains()
@@ -124,13 +126,14 @@
     end
     function save_shuffles(S::AbstractDict)
         name = shufflespath()
-        @info "saving $name"
         if isfile(name)
+            @info "Preloading existing $name"
             D = deserialize(name)
         else
             D = Dict()
         end
         D = merge(D, S)
+        @info "Saving $name"
         serialize(name, D)
     end
     function load_shuffles()

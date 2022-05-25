@@ -13,6 +13,7 @@ set_theme!(theme_dark())
 __revise_mode__ = :eval
 
 using GoalFetchAnalysis
+using .decode
 
 # Debugger?
 ENV["JULIA_DEBUG"] = nothing

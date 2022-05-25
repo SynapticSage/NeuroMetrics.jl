@@ -1,5 +1,4 @@
 ripples, cycles = annotate_vector_info(ripples, cycles, beh, lfp, dat, x, y, T)
-
 # Cast to Float32(for makie) and range for plotting
 lfp.phase_plot = utils.norm_extrema(lfp.phase, extrema(spikes.unit))
 @assert lfp != nothing
