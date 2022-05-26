@@ -11,6 +11,7 @@ module field
     using DataStructures
     using Statistics
     using NaNStatistics
+    using Infiltrator
 
     # Goal Vector Libraries
     #using DrWatson
@@ -232,6 +233,7 @@ module field
         import ..utils
         using DataFrames
         using StatsBase
+        using Infiltrator
 
         function h2d(thing::DataFrame, props::Vector{String}; grid=(),
                 hist2dkws=Dict())

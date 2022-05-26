@@ -445,7 +445,7 @@ handle_multiple_tets = :and  | :or
 :or sums correlation of all pairs and takes the highest correlation
 """
 function add_correlation_coordination(L::DataFrame;
-        area1=[], area2=[], shifts=[0], deltaB=0.3 )
+        area1=[], area2=[], shifts=[0], deltaB=0.3, metrics=[:summary, :each])
 
 	L = sort(L[:, [:time,:tetrode,:raw]], [:time, :tetrode])
 	inds = utils.squeeze(any(Int64.(L.tetrode) .∈ [area1... area2...], dims=2))
@@ -456,13 +456,18 @@ function add_correlation_coordination(L::DataFrame;
 	w = Int(round(deltaB/dT))
 
 	M = Matrix(ulfp[!,2:end])
+	M = convert.(eltype(M), M)
 	area1_locs = 1:length(area1)
 	area2_locs = maximum(area1_locs)+1:maximum(area1_locs)+length(area2)
-	shifts = -50:10:50
-	C = zeros(length(shifts), size(M,1), length(area1_locs) * length(area2_locs))
+	shifts = -50:10:50 # tidbit more than 1/4 second before and after
 
+	C = zeros(length(shifts), size(M,1), length(area1_locs) * length(area2_locs))
 	@time Threads.@threads for i in 1:size(ulfp,1)
 		for (s,shift) in enumerate(shifts)
+			if shift == 0
+				 # We're removing zero phase lag effects here
+				continue
+			end
 			iL1, iH1 = max(i-w, 1), min(i+w, size(ulfp,1))
 			iL2, iH2 = max(i-w+shift, 1), min(i+w+shift, size(ulfp,1))
 			M1 = view(M, iL1:iH1,:)
@@ -472,18 +477,29 @@ function add_correlation_coordination(L::DataFrame;
 			if size(m1,1) != size(m2,1)
 				continue
 			end
-			c = m1' * m2
-			c = vec(c)
+			c  = m1' * m2
+			c  = vec(c)
 			cc = view(C,s,i,:)
-			cc = c
+			cc[:] = c
 		end
 	end
 
-	ulfp.binning = LinRange(0, T, length(ulfp))
+	C_shiftOpt = utils.squeeze(maximum(C, dims=1))
+	C_shiftOpt = utils.squeeze(argmax(C, dims=1))
 
-	M = Matrix(ulfp[!,2:end])
-	M = convert.(eltype(M), M)
+	for metric in metrics
+		if metric == :summary
+		elseif metric == :each
+			for col in eachcol(C)
+			end
+		end
+	end
 
-	cor(M)
-
+end
+function add_correlation_coordination(L1::DataFrame, L2::DataFrame;
+        kws...)
+	L = vcat(L1, L2, cols=:intersect)	
+	area1, area2 = unique(L1.tetrode), unique(L2.tetrode)
+	add_correlation_coordination(L; area1=area1, area2=area2,
+								 kws...)
 end

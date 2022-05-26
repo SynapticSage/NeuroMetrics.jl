@@ -63,6 +63,7 @@ module timeshift
         msg = "$multi timeshift-shuffles"
 
         p = Progress(length(shifts), desc="field shift calculations")
+        @infiltrate
         if multi == :thread
             Threads.@threads for shift in shifts
                 if shift ∈ keys(safe_dict)
@@ -76,7 +77,7 @@ module timeshift
                 next!(p)
             end
         elseif multi == :single
-            @showprogress for shift in shifts
+            @showprogress 0.1 "shifts=$shifts" for shift in shifts
                 if shift ∈ keys(safe_dict)
                     continue
                 end

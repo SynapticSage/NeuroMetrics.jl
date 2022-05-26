@@ -12,8 +12,6 @@ sp = copy(spikes)
 convertToMinutes = true
 
 # ----------
-# ----------
-# ----------
 # Parameters
 # ----------
 PROPS = ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
@@ -65,33 +63,51 @@ I = Dict()
 
 # COMPUTE INFORMATION @ DELAYS
 @showprogress 0.1 "Datacut iteration" for datacut ∈ keys(filts)
+    running = false
+    @info "Datacut = $datacut"
     for props ∈ marginals_highprior
+        @info "Props = $props"
         marginal = 𝕄(props)
         key = get_key(;marginal, datacut, shuf=:cDt_t, shifts)
-        if key in keys(I)
+        if key ∈ keys(I)
             if I[key] isa Task && !(istaskfailed(I[key]))
-                @info "key=$key already exists, skipping..."
+                @info "task key=$key already exists"
+                printstyled("SKIPPING...\n", blink=true)
                 continue
+            elseif I[key] isa Task && istaskfailed(I[key])
+                "key=$key already exists, but failed...redo!"
             else
-                @info "key=$key already exists, but failed...redo!"
+                @info "key=$key already exists"
+                printstyled("SKIPPING...\n", blink=true)
+                continue
             end
+        end
+        if key ∉ keys(I)
+            @info "key=$key ∉ keys, ...creating..."
         end
         newkws = (; kws..., filters=filts[datacut], splitby, props, dokde=false,
                   resolution=sz(props), multi=:single, postfunc=info.information)
-        I[key] = @time timeshift.get_field_shift(beh, spikes, shifts; 
-                                                             newkws...)
-    end
-    try
-        for (key, value) in I
-            @info I
-            I[key] = fetch(I[key])
+        try
+            I[key] = @time timeshift.get_field_shift(beh, spikes, shifts; 
+                                                                 newkws...)
+        catch
+            @warn "key=$key does not run, possibly an edge case where your filters are too stringent for the behavioral property measured"
         end
-        @info I
-        utils.pushover("Done fetchging jobs for datacut=$datacut")
-        timeshift.save_mains(I)
-        @infiltrate
-    catch
-        @warn "potential task failure for props=$props, datacut=$datacut"
+        running = true
+    end
+    if running
+        try
+            for (key, value) in I
+                @info I
+                I[key] = fetch(I[key])
+            end
+            @info I
+            utils.pushover("Done fetchging jobs for datacut=$datacut")
+            timeshift.save_mains(I)
+            @infiltrate
+        catch
+            @warn "potential task failure for props=$props, datacut=$datacut"
+        end
     end
 end
 
@@ -124,7 +140,6 @@ end
                   postfunc=info.information)
         S[key] = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; newkws...)
     end
-
     try
         for (key, value) in S
             @info S
