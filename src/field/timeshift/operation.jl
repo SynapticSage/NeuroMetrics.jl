@@ -1,3 +1,19 @@
+function cellpath(animal::String, day::Int, tag::String=""; type="csv", kws...)
+    if tag != "" && tag != "*"
+        tag = "_$tag"
+    end
+    path = DrWatson.datadir("exp_raw", "visualize_raw_neural",
+                               "$(animal)_$(day)_cell$tag.$type")
+    path = cellpath(pos...; kws...)
+    if occursin("*", path)
+        base, dir = basename(path), dirname(path)
+        @debug "base=$base, dir=$dir"
+        paths = glob(base, dir)
+    else
+        paths = [path]
+    end
+end
+
 
     """
     func

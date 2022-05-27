@@ -1,4 +1,23 @@
 
+    function _xlim(df::DataFrame)
+        if :shift in getproperty(df)
+            xlim = (nanminimum(df.shift), nanmaximum(df.shift))
+        elseif :bestTau in getproperty(df)
+            xlim = (nanminimum(df.bestTau), nanmaximum(df.bestTau))
+        else
+            throw(KeyError("Missing valid column for auto-xlim in dataframe")
+        end
+    end
+    _xlabel = "shift\n(seconds)"
+
+
+    function density_bestTauEst(df_imax::DataFrame; desc="", kws...)
+        xlim = get(kws, :xlim, _xlim(df))
+        @df df_imax density(:bestTau, group=:area, 
+                            title="$desc BestTau(Information)", 
+                            xlim=xlim, xlabel=_xlabel, ylabel="Density")
+    end
+
 
     # --------
     # PLOTTING
@@ -27,16 +46,20 @@
             end
         end
 
-        # DENSITY ALL CELLS
-        df, df_imax = info_dataframe_and_cell_dataframe(place; shift_scale)
-        xlabel = "shift\n(seconds)"
-        xlim = (nanminimum(df.shift), nanmaximum(df.shift))
+        # Setup our datatypes
+        df = info_to_dataframe(place; shift_scale)
+        df_imax  = imax(df)
 
+        # Some settings across everything
+        density_bestTauEst(df_imax; desc)
+
+        # Density of bestTau point estimates per cell
         @df df_imax density(:bestTau, group=:area, 
-                     title="$desc BestTau(Information)", xlim=xlim,
-                     xlabel=xlabel, ylabel="Density")
+                            title="$desc BestTau(Information)", 
+                            xlim=xlim, xlabel=xlabel, ylabel="Density")
         saveplotshift("fields", "shifts",
              "$(descSave)_density_x=shift,y=densBestTau_by=area")
+
         @df df_imax histogram(:bestTau; group=:area,  xlim,
                      title="$desc BestTau(Information)", 
                      xlabel=xlabel, ylabel="Density")

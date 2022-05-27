@@ -12,6 +12,16 @@ using LazyGrids: ndgrid
 import .raw
 import .table
 
+to_complex(x) = ComplexF64(x...)
+explode_cols = [:decᵢ, :decᵢᵢ, :trajreltime, :time, :trajtime, :trajcycletime]
+reference_point = Dict(
+    :dec₀₁=>:dec₀,
+    :dec₀ᵢ=>:dec₀,
+    :decᵢᵢ=>:decᵢ)
+reference_time = Dict(
+    :dec₀₁=>:start,
+    :dec₀ᵢ=>:start,
+    :decᵢᵢ=>:time)
 
 function velocity_filter_ripples(beh::DataFrame, ripples::DataFrame)
     beh, ripples = raw.register(beh, ripples; transfer=["velVec"], on="time")
@@ -164,7 +174,6 @@ function annotate_vector_info(ripples::DataFrame, cycles::DataFrame,
     ripples, cycles
 end
 
-
 function separate_theta_ripple_and_non_decodes(T, lfp, dat; doRipplePhase::Bool=false)
     if lfp isa GroupedDataFrame
         lfp = combine(lfp, identity)
@@ -277,8 +286,6 @@ function annotate_behavior_to_cycles(beh::DataFrame,
     E[!,:cycle_traj] = convert(Vector{Float32}, coalesce(x, missing=>NaN))
 end
 
-to_complex(x) = ComplexF64(x...)
-
 function annotate_explodable_cycle_metrics(beh::DataFrame, 
         E::DataFrame, dat::AbstractArray,
         x::Vector{<:Real}, y::Vector{<:Real}, T::Vector{<:Real}
@@ -363,16 +370,6 @@ function annotate_explodable_cycle_metrics(beh::DataFrame,
 
 end
 
-explode_cols = [:decᵢ, :decᵢᵢ, :trajreltime, :time, :trajtime, :trajcycletime]
-reference_point = Dict(
-    :dec₀₁=>:dec₀,
-    :dec₀ᵢ=>:dec₀,
-    :decᵢᵢ=>:decᵢ)
-reference_time = Dict(
-    :dec₀₁=>:start,
-    :dec₀ᵢ=>:start,
-    :decᵢᵢ=>:time)
-
 
 """
 Remaps a pair of dataframe columns (the vector) to the coordinates of
@@ -445,12 +442,14 @@ handle_multiple_tets = :and  | :or
 :or sums correlation of all pairs and takes the highest correlation
 """
 function add_correlation_coordination(L::DataFrame;
-        area1=[], area2=[], shifts=[0], deltaB=0.3, metrics=[:summary, :each])
+        area1=[], area2=[], shifts=[0], deltaB=0.3, 
+		metrics=[:summary, :each])::DataFrame
 
-	L = sort(L[:, [:time,:tetrode,:raw]], [:time, :tetrode])
+	L = sort(L[:, [:time,:tetrode,:raw,:cycle]], [:time, :tetrode])
 	inds = utils.squeeze(any(Int64.(L.tetrode) .∈ [area1... area2...], dims=2))
     L = L[inds, :]
-    ulfp = unstack(L, :tetrode, :raw)
+    ulfp = unstack(L, :time, :tetrode, :raw)
+	ulfp.cycle = @subset(lfp, :tetrode .== 5).cycle
 
 	dT = median(diff(ulfp.time))
 	w = Int(round(deltaB/dT))
@@ -459,7 +458,9 @@ function add_correlation_coordination(L::DataFrame;
 	M = convert.(eltype(M), M)
 	area1_locs = 1:length(area1)
 	area2_locs = maximum(area1_locs)+1:maximum(area1_locs)+length(area2)
-	shifts = -50:10:50 # tidbit more than 1/4 second before and after
+	shifts = -100:5:100 # tidbit more than 0.05 second before and after
+	shifts = -200:5:200 # tidbit more than 0.1 second before and after
+	shifts_num = shifts .* (median(diff(ulfp.time)))
 
 	C = zeros(length(shifts), size(M,1), length(area1_locs) * length(area2_locs))
 	@time Threads.@threads for i in 1:size(ulfp,1)
@@ -484,9 +485,27 @@ function add_correlation_coordination(L::DataFrame;
 		end
 	end
 
-	C_shiftOpt = utils.squeeze(maximum(C, dims=1))
-	C_shiftOpt = utils.squeeze(argmax(C, dims=1))
+	# Get dynamic measurements (best shift at each time)
+	# --------------------------------------------------
+	dynamic_C_shiftOpt = utils.squeeze(maximum(C, dims=1))
+	dynamic_S_shiftOpt = utils.squeeze(argmax(C, dims=1))
+	dynamic_S_shiftOpt = [S_shiftOpt[i,j].I[1] 
+								for i in 1:size(S_shiftOpt,1), 
+									j in 1:size(S_shiftOpt,2)]
+	dynamic_S_shiftOpt = shifts_num[S_shiftOpt]
 
+	# Get static measurements (best shift at each time)
+	# --------------------------------------------------
+	indcycle = [1:size(ulfp,1) ulfp.cycle]
+	for cyc in unique(indcycle[:,2])
+		inds = indcycle[indcycle[:,2] .== cyc, 1]
+		#Slice
+		c = view(C, :, inds, :)
+		#get best shift	
+		# TODO
+	end
+	
+	results = DataFrame()
 	for metric in metrics
 		if metric == :summary
 		elseif metric == :each
@@ -495,9 +514,10 @@ function add_correlation_coordination(L::DataFrame;
 		end
 	end
 
+	return results
 end
 function add_correlation_coordination(L1::DataFrame, L2::DataFrame;
-        kws...)
+        kws...)::DataFrame
 	L = vcat(L1, L2, cols=:intersect)	
 	area1, area2 = unique(L1.tetrode), unique(L2.tetrode)
 	add_correlation_coordination(L; area1=area1, area2=area2,

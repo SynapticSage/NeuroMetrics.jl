@@ -432,6 +432,12 @@ git-tree-sha1 = "6e47d11ea2776bc5627421d59cdcc1296c058071"
 uuid = "8f4d0f93-b110-5947-807f-2305c1781a2d"
 version = "1.7.0"
 
+[[deps.CondaPkg]]
+deps = ["JSON3", "Markdown", "MicroMamba", "Pkg", "TOML"]
+git-tree-sha1 = "75ec3b585578d855204e6671dedbb75347d57465"
+uuid = "992eb4ea-22a4-4c89-a5bb-47a3300528ab"
+version = "0.2.10"
+
 [[deps.Configurations]]
 deps = ["Crayons", "ExproniconLite", "OrderedCollections", "TOML"]
 git-tree-sha1 = "b8486a417456d2fbbe2af13e24cef459c9f42429"
@@ -1342,6 +1348,12 @@ git-tree-sha1 = "3c837543ddb02250ef42f4738347454f95079d4e"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 version = "0.21.3"
 
+[[deps.JSON3]]
+deps = ["Dates", "Mmap", "Parsers", "StructTypes", "UUIDs"]
+git-tree-sha1 = "fd6f0cae36f42525567108a42c1c674af2ac620d"
+uuid = "0f8b85d8-7281-11e9-16c2-39a750bddbf1"
+version = "1.9.5"
+
 [[deps.JSONRPC]]
 deps = ["JSON", "UUIDs"]
 git-tree-sha1 = "28f19147ccfcb02e29bd96a14110e032d00be30a"
@@ -1794,6 +1806,12 @@ deps = ["BangBang", "InitialValues", "Setfield"]
 git-tree-sha1 = "6bb7786e4f24d44b4e29df03c69add1b63d88f01"
 uuid = "128add7d-3638-4c79-886c-908ea0c25c34"
 version = "0.1.2"
+
+[[deps.MicroMamba]]
+deps = ["Pkg", "Scratch"]
+git-tree-sha1 = "26f51439b8bef967fa60a7f00465e487c0f49e7d"
+uuid = "0b3b1443-0f03-428d-bdfb-f27f9c1191ea"
+version = "0.1.7"
 
 [[deps.Missings]]
 deps = ["DataAPI"]
@@ -2563,6 +2581,12 @@ deps = ["Adapt", "DataAPI", "StaticArrays", "Tables"]
 git-tree-sha1 = "9abba8f8fb8458e9adf07c8a2377a070674a24f1"
 uuid = "09ab397b-f2b6-538f-b94a-2f83cf4a842a"
 version = "0.6.8"
+
+[[deps.StructTypes]]
+deps = ["Dates", "UUIDs"]
+git-tree-sha1 = "d24a825a95a6d98c385001212dc9020d609f2d4f"
+uuid = "856f2bd8-1eba-4b0a-8007-ebc267875bd4"
+version = "1.8.1"
 
 [[deps.SuiteSparse]]
 deps = ["Libdl", "LinearAlgebra", "Serialization", "SparseArrays"]

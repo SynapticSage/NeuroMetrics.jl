@@ -119,10 +119,11 @@ module shuffle
     end
 
     # Prepackaged description of shuffles
-    standard_shuffles = Dict(:cDt_t => (;name="σ(cellᵢ,Δtraj)|trajⱼ",
-                                        desc=s"""randomly uniform shift a cell 
-                                              on the timescale of a trajectory
-                                              length""")
+    standard_shuffles = Dict(
+        :cDt_t => (;name="σ(cellᵢ,Δtraj)|trajⱼ",
+                    desc=s"""randomly uniform shift a cell on the timescale of
+                    a trajectory length"""
+                   )
         )
 
 end

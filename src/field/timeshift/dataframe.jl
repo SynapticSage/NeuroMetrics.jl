@@ -1,40 +1,52 @@
 
 
-    function to_dataframe(shifts::AbstractDict{<:Real, <:Any}; kws...) 
-        table.to_dataframe(shifts; key_name="shift", kws...)
-    end
-    function to_dataframe(shifts::AbstractDict{<:NamedTuple, <:Any};
-            kws...)
-        @debug "to_dataframe"
-        table.to_dataframe(shifts; kws...)
-    end
-
-    function info_to_dataframe(shifts::AbstractDict{<:Real,<:Any};
-            kws...)::DataFrame
-        table.to_dataframe(shifts; key_name="shift", name="info", kws...)
-    end
-    function info_to_dataframe(
-            shifts::AbstractDict{<:Union{NamedTuple,AbstractDict},<:Any};
-            kws...)::DataFrame
-        table.to_dataframe(shifts; name="info", kws...)
-    end
-    function info_dataframe_and_cell_dataframe(place; save_cell_table="", shift_scale=:seconds, kws...)
-        if typeof(first(keys(place))) <: Real
-            df = table.to_dataframe(place, key_name="shift", name="info", kws...)
-        else
-            df = table.to_dataframe(place, name="info", kws...)
+    """
+    defined set of preprocessing steps. will change if I move the sign
+    inversion to the actual shifting code (someday)
+    """
+    function _preproc(df::DataFrame; shift_scale=nothing)::DataFrame
+        if shift_scale == nothing
+            throw(ArgumentError("Must provide shift_scale, for now"))
         end
-        @assert eltype(df.shift) <: Real
         df.shift = df.shift .* -1; # beh.time-shift... negative shift is future, so correcting this
         df = if shift_scale == :minutes
             @info "minutes"
             df = transform(df, :shift => (x-> x*60) => :shift)
         elseif shift_scale != :seconds
-            @error "Must be seconds or minutes"
-        else
             df
+        else
+            @error "Must be seconds or minutes"
         end
-        df   = sort(df, [:area,:unit,:shift])
+        sortset = setdiff([:area,:unit,:shift], propertynames(df))
+        df   = sort(df, sortset)
+    end
+
+    function to_dataframe(measurements::AbstractDict{<:Real, <:Any}; kws...) 
+        _preproc(table.to_dataframe(shifts; key_name="shift", kws...))
+    end
+    function to_dataframe(measurements::AbstractDict{<:NamedTuple, <:Any};
+            kws...)
+        @debug "to_dataframe"
+        _preproc(table.to_dataframe(measurements; kws...))
+    end
+
+    function info_to_dataframe(measurements::AbstractDict{<:Real,<:Any};
+            shift_scale=nothing,
+            kws...)::DataFrame
+        _preproc(
+                 table.to_dataframe(measurements; 
+                                    key_name="shift", name="info", kws...);
+                 shift_scale=shift_scale)
+    end
+    function info_to_dataframe(
+            measurements::AbstractDict{<:Union{NamedTuple,AbstractDict},<:Any};
+            shift_scale=nothing,
+            kws...)::DataFrame
+        _preproc(table.to_dataframe(measurements; name="info", kws...);
+                shift_scale=shift_scale)
+    end
+
+    function imax(df::DataFrame)
         taus = unique(sort(df.shift))
         if :shuffle in propertynames(df)
             groups = [:unit, :area, :shuffle]
@@ -45,9 +57,16 @@
                           :info=>argmax, 
                           :info=>(x->taus[argmax(x)])=>:bestTau)
         df_imax = df_imax[df_imax.bestTau.!=taus[1],:] # Excluding samples with the first tau, because that's the null condition for no variation
-        return df, df_imax
+    end
+    function imax(dict::Dict)
+        df = info_to_dataframe(measurements)
+        df_imax(df)
     end
 
+    function info_dataframe_and_cell_dataframe(measurements; save_cell_table="", shift_scale=:seconds, kws...)
+        df = info_to_dataframe(measurements)
+        return df, df_imax
+    end
 
     function fetch_best_fields(fieldInfo::DataFrame, pos...; kws...)
         beh, data = pos
