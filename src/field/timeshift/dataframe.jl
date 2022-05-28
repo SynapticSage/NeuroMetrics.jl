@@ -1,4 +1,7 @@
 
+    #include("../../table.jl")
+    #import .table: to_dataframe
+
 
     """
     defined set of preprocessing steps. will change if I move the sign
@@ -46,6 +49,9 @@
                 shift_scale=shift_scale)
     end
 
+    function info_mean(df::DataFrame)
+        combine(groupby(df, [:area, :shift]), :info=>mean)
+    end
     function imax(df::DataFrame)
         taus = unique(sort(df.shift))
         if :shuffle in propertynames(df)
@@ -61,6 +67,10 @@
     function imax(dict::Dict)
         df = info_to_dataframe(measurements)
         df_imax(df)
+    end
+
+    function unstack(df::DataFrame, what=:shift, measure=:info)
+        DataFrames.unstack(df, what, measure)
     end
 
     function info_dataframe_and_cell_dataframe(measurements; save_cell_table="", shift_scale=:seconds, kws...)

@@ -7,6 +7,8 @@ module utils
     using Pushover
     using Statistics, NaNStatistics
     using Plots, DrWatson
+    using ProgressMeter
+    using Infiltrator
 
     include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
     import .SearchSortedNearest
@@ -18,8 +20,10 @@ module utils
     export itsizeof, piso
     export squeeze
     export searchsortednext, searchsortednearest
+    export remove_key_item
 
     skipnan(x) = Iterators.filter(!isnan, x)
+    na = [CartesianIndex()]
 
     """
     mkdifne
@@ -59,6 +63,10 @@ module utils
         end
     end
 
+    function in_range(X::AbstractArray, range::Union{Tuple, Vector})
+        X .≥ range[1] .&& X .< range[2]
+    end
+
     function squeeze(A::AbstractArray)  
         s = size(A)
         A = dropdims(A, dims = tuple(findall(size(A) .== 1)...))
@@ -68,6 +76,7 @@ module utils
     function dextrema(A::AbstractArray; kws...)
         diff([nanminima(A), nanmaxima(A)], kws...)
     end
+    range_extrema = dextrema
 
     function randomize_int(X)
         Xmin = minimum(X);
@@ -125,6 +134,45 @@ module utils
 
     function pushover(pos...; kws...)
         send(getPushoverClient(), pos...; kws...)
+    end
+
+    function remove_key_item(k::NamedTuple, item)
+        k = Dict(zip(keys(k), values(k)))
+        k = remove_key_item(k, item)
+        NamedTuple(k)
+    end
+    function remove_key_item(k::Dict, item)
+        if item ∈ keys(k)
+            pop!(k, item)
+        end
+        k
+    end
+    function lambda_keys(d::Dict, lambda::Function)
+        d = copy(d)
+        lambda_keys!(d, lambda)
+    end
+    function lambda_keys!(d::Dict, lambda::Function)
+        for key ∈ keys(d)
+            v = pop!(d, key)
+            key = lambda(key)
+            d[key] = v
+        end
+        return d
+    end
+
+    function findgroups(pos...)
+        X = Matrix(hcat(pos...))
+        uX = unique(X, dims=1)
+        g = zeros(Int,size(X,1))
+        #P = Progress(size(X,1))
+        for (i,row) in enumerate(eachrow(X))
+            answer = findfirst(utils.squeeze(all(uX .== row[na, :], dims=2)))
+            if answer != nothing
+                g[i] = answer
+            end
+            #next!(P)
+        end
+        g
     end
 
 end

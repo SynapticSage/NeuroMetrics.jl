@@ -22,13 +22,11 @@ IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
 """
 Translate into shorcut names
 """
-𝕄(items)  = [replace(item, recon_process.var_shortcut_names...) 
-             for item in items]
+𝕄(items)  = [replace(item, recon_process.var_shortcut_names...) for item in items]
 """
 UnTranslate from shorcut names
 """
-𝕄̅(items)  = [replace(item, Dict(kv[2]=>kv[1] for kv in shortcut_names)...)
-             for item in items]
+𝕄̅(items)  = [replace(item, Dict(kv[2]=>kv[1] for kv in shortcut_names)...) for item in items]
 sz(items) = [IDEALSIZE[item] for item in items]
 #-------------------------------------------------------
 
@@ -68,7 +66,7 @@ I = Dict()
     for props ∈ marginals_highprior
         @info "Props = $props"
         marginal = 𝕄(props)
-        key = get_key(;marginal, datacut, shuf=:cDt_t, shifts)
+        key = get_key(;marginal, datacut, shifts)
         if key ∈ keys(I)
             if I[key] isa Task && !(istaskfailed(I[key]))
                 @info "task key=$key already exists"
@@ -122,7 +120,7 @@ end
 @showprogress 0.1 "Datacut shuffle iteration" for datacut ∈ keys(filts)
     for props ∈ marginals_highprior
         marginal = 𝕄(props)
-        key = get_key(;marginal, datacut, shifts, shuffle_type="σ(traj)")
+        key = get_key(;marginal, datacut, shifts, shuffle_type=:cDt_t)
         if key in keys(S)
             if (S[key] isa Task && !(istaskfailed(S[key]))) ||
                 !(S[key] isa Task)

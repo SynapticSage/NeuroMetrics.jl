@@ -1,102 +1,117 @@
 
+    import Shuffle
+
+    dosave = true
+
     function _xlim(df::DataFrame)
-        if :shift in getproperty(df)
-            xlim = (nanminimum(df.shift), nanmaximum(df.shift))
-        elseif :bestTau in getproperty(df)
+        if :shift ∈ propertynames(df)
+            xlim = (nanminimum(df.shift),   nanmaximum(df.shift))
+        elseif :bestTau ∈ propertynames(df)
             xlim = (nanminimum(df.bestTau), nanmaximum(df.bestTau))
         else
-            throw(KeyError("Missing valid column for auto-xlim in dataframe")
+            throw(KeyError("Missing valid column for auto-xlim in dataframe"))
         end
+        return xlim
     end
-    _xlabel = "shift\n(seconds)"
+    xlabel = "shift\n(seconds)"
 
+    #function _plot(df::DataFrame, pos::Symbol...; kws...)
+    #    xlim = get(kws, :xlim, _xlim(df_imax))
+    #    seriestype = get(kws, :seriestype, :density)
+    #    @df df plot(pos...; 
+    #end
 
-    function density_bestTauEst(df_imax::DataFrame; desc="", kws...)
-        xlim = get(kws, :xlim, _xlim(df))
-        @df df_imax density(:bestTau, group=:area, 
-                            title="$desc BestTau(Information)", 
-                            xlim=xlim, xlabel=_xlabel, ylabel="Density")
-    end
+    function plot_shuffle(df::DataFrame, method; shuffle=true, takefirst=10, display=:rows, kws...)
+        if method isa Symbol
+            method = eval(method)
+        end
+        df = collect(groupby(df, :shuffle))
+        if shuffle
+            Shuffle.shuffle!(df)
+        end
+        plots = []
+        for d in Iterators.take(df, takefirst)
+            push!(plots,method(DataFrame(d); kws...))
+        end
 
+        @assert length(plots) == takefirst
 
-    # --------
-    # PLOTTING
-    # --------
-    function plot_shifts(place::AbstractDict; desc="", shift_scale=:minutes, clim=:cell, dosave::Bool=false)
-
-        # List of desirables
-        # ------------------
-        # - shuffle plots
-        #   - all of the below plots with shuffle
-        #       - correction
-        #       - probability
-        # - unify time annotations across plots
-        # - normalized version of plots :: where information is [0:lowest for neuron,
-        #                                                       1:highest for neuron]
-        # - quantile based clims
-        #   currently clipping may be changing my gut feeling about the data
-        # - save the imax dataframe
-
-        descSave = replace(desc, ":"=>"", " "=>"-")
-        function saveplotshift(args...)
-            if dosave
-                savefig(plotsdir(args[1:end-1]..., args[end] * ".png"))
-                savefig(plotsdir(args[1:end-1]..., args[end] * ".svg"))
-                savefig(plotsdir(args[1:end-1]..., args[end] * ".pdf"))
+        if display==:overlay
+            P = Plots.plot(pop!(plots))
+            for p in plots
+                Plots.plot!(p)
             end
+            P
+        elseif display==:rows
+            Plots.plot(plots...; grid=grid(takefirst,1))
+        elseif display==:cols
+            Plots.plot(plots...; grid=grid(takefirst,1))
+        else
+            throw(ArgumentError("Unrecognized display=$display"))
         end
+    end
 
-        # Setup our datatypes
-        df = info_to_dataframe(place; shift_scale)
-        df_imax  = imax(df)
-
-        # Some settings across everything
-        density_bestTauEst(df_imax; desc)
-
-        # Density of bestTau point estimates per cell
-        @df df_imax density(:bestTau, group=:area, 
+    function plot_bestTauEst(df_imax::DataFrame; desc::String="", kws...)
+        xlim = get(kws, :xlim, _xlim(df_imax))
+        seriestype = get(kws, :seriestype, :density)
+        group=get(kws, :group, df_imax.area)
+        @df df_imax plot(:bestTau; 
+                            seriestype=seriestype,
                             title="$desc BestTau(Information)", 
-                            xlim=xlim, xlabel=xlabel, ylabel="Density")
-        saveplotshift("fields", "shifts",
-             "$(descSave)_density_x=shift,y=densBestTau_by=area")
+                            xlim, xlabel, ylabel="Density", kws...)
+    end
 
-        @df df_imax histogram(:bestTau; group=:area,  xlim,
-                     title="$desc BestTau(Information)", 
-                     xlabel=xlabel, ylabel="Density")
-        saveplotshift("fields", "shifts",
-             "$(descSave)_histogram_x=shift,y=densBestTau_by=area")
+    function plot_infoMean(df::DataFrame; desc::String="", kws...)
+        xlim = get(kws, :xlim, _xlim(df))
+        seriestype = get(kws, :seriestype, :density)
+        if :info_mean ∉ propertynames(df)
+            @info "mean-ing"
+            df = info_mean(df)
+        end
+        group=get(kws, :group, df.area)
+        @df df plot(:shift, :info_mean; group, xlim, 
+                    title="$desc Median(Information)", xlabel, 
+                    ylabel="Shannon MI Bits", kws...)
+    end
 
-        # HISTOGRAM ALL CELLS
-        df_m = combine(groupby(df, [:area, :shift]), :info=>mean)
-        @df df_m bar(:shift, :info_mean; group=:area, xlim,
-                     title="$desc Median(Information)", 
-                     xlabel=xlabel, ylabel="Shannon MI Bits")
-        saveplotshift("fields", "shifts",
-             "$(descSave)_histogram_x=shift,y=medianinfo_by=area.svg")
-
-        # PER CELL
+    function plot_distributionPerCell(df::DataFrame; measure=:info, 
+            statistic=mean,
+            clim=:cell, desc::String="")
         df = sort(df, [:shift,:area,:unit])
-        df_u = sort(unstack(df, :shift, :info), [:area, :unit])
+        if :shuffle in propertynames(df) && length(unique(df.shuffle))>1
+            start = 4
+            DF = combine(groupby(df, [:unit,:shift]), 
+                         Not([:unit,:shift,measure]) .=> first .=> Not([:unit,:shift,measure]), 
+                         measure => statistic => measure)
+        else
+            DF = df
+            start = 3
+        end
         @infiltrate
-        shifts = parse.(Float32,names(df_u)[3:end])
+        df_u = sort(unstack(DF, :shift, measure), [:area, :unit])
         units = df_u.unit
         areas = df_u.area
         area_divide = findfirst([diff(areas .== "PFC"); 0].==1)
-        exclude = Not([x for x in [:area,:unit,:taus]
-                       if String(x) in names(df_u)])
-        df_u.taus = vec([x[2] for x in argmax(Matrix(df_u[!,exclude]),dims=2)])
+        valcols = [x for x in names(df_u) if Symbol(x) ∉ [:area,:unit,:taus, :shuffle]]
+        df_u.taus = vec([x[2] for x in argmax(Matrix(df_u[!,valcols]),dims=2)])
         df_u = sort(df_u, [:area, :taus])
+        shifts = parse.(Float32, valcols)
+
         function get_area(area) 
             # cells x shifts
-            M = Matrix(df_u[df_u.area.==area, Not([:area,:unit, :taus])])
+            M = Matrix(df_u[df_u.area.==area, valcols])
             M = replace(M, missing=>NaN)
             M[findall(vec([x[1] for x in any(M.!=0,dims=2)])),:]
         end
+
         norm₁(x, m, M) = begin
             #@infiltrate nanmaximum(x) > 0
             (max.(min.(x,M),m) .- m)./(M-m)
         end
+
         ca1, pfc = get_area("CA1"), get_area("PFC")
+
+        @assert length(shifts) == size(ca1,2)
         if clim == :area
             ca1_clim = nanquantile.(vec(ca1), [0.01, 0.95])
             pfc_clim = nanquantile.(vec(pfc), [0.01, 0.95])
@@ -115,6 +130,7 @@
             pfc_clim = (0,1)
         else
         end
+
         p = Plots.plot(
                    heatmap(shifts, 1:size(get_area("CA1"),1), ca1, 
                     clims=ca1_clim, colorbar_title="Spatial-firing mutual information", colorbar_titlefontrotation=0),
@@ -124,5 +140,51 @@
         )
         vline!(p[1], [0], c=:white, linestyle=:dash, label="Zero lag")
         vline!(p[2], [0], c=:white, linestyle=:dash, legendposition=:none)
+    end
+    
+    function saveplotshift(args...; formats=["png","svg","pdf"])
+        args = ["fields", "shifts", args...]
+        if dosave
+            for format in formats
+                savefig(plotsdir(args[1:end-1]..., args[end] * ".$format"))
+            end
+        end
+    end
+
+    # --------
+    # PLOTTING
+    # --------
+    function plot_shifts(place::AbstractDict; desc::String="", shift_scale=:minutes, clim=:cell)
+
+        # List of desirables
+        # ------------------
+        # - shuffle plots
+        #   - all of the below plots with shuffle
+        #       - correction
+        #       - probability
+        # - unify time annotations across plots
+        # - normalized version of plots :: where information is [0:lowest for neuron,
+        #                                                       1:highest for neuron]
+        # - quantile based clims
+        #   currently clipping may be changing my gut feeling about the data
+        # - save the imax dataframe
+
+        descSave = replace(desc, ":"=>"", " "=>"-")
+
+        # Setup our datatypes
+        df = info_to_dataframe(place; shift_scale)
+        df_imax  = imax(df)
+
+        # Some settings across everything
+
+        # Density of bestTau point estimates per cell
+        density_bestTauEst(df_imax; desc)
+        saveplotshift("$(descSave)_density_x=shift,y=densBestTau_by=area")
+
+        # HISTOGRAM ALL CELLS
+        df_m = info_mean(df)
+        saveplotshift("$(descSave)_histogram_x=shift,y=medianinfo_by=area")
+
+        # PER CELL
         saveplotshift("fields", "shifts", "$(descSave)_heatmap_x=shift,y=cellsort_by=area.pdf")
     end
