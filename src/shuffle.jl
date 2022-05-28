@@ -10,33 +10,63 @@ module shuffle
     defaultFilters = merge(filt.speed_lib)
     using Infiltrator
 
+    # ===================================
+    # Prepackaged description of shuffles
+    # ===================================
+    standard_shuffles = Dict(
+        :cDt_t => (;name="σ(cellᵢ,Δtraj)|trajⱼ",
+                    desc=s"""randomly uniform shift a cell on the timescale of
+                    a trajectory length"""
+                    by=nothing, # a grouping that the distribution applied within
+                    distribution=nothing,  # a distribution we sampled from an added to the prop or permutation of the prop,
+                    prop=:time # the property that is jittered or permuted)
+        )
+
     # # # # # # # # # # # # # # # # # # # # # # # # 
-    # Main shuffle types
+    # Atomic shuffle operations
     # # # # # # # # # # # # # # # # # # # # # # # # 
-    function all(spikes::DataFrame, distribution::Distribution;
-            only_times::Bool=false, kws...)::DataFrame
-        @debug "all where distribution::Distribution=$distribution"
+    
+
+    # ---- Add a sampled value from a distribution to a property ----- 
+
+    function addSampleOfDist(spikes::DataFrame, distribution::Distribution;
+            only_prop::Bool=false, prop::Symbol=:time, kws...)::DataFrame
+        @debug "addSampleOfDist where distribution::Distribution=$distribution"
         #spikes = copy(spikes)
-        spikes = transform(spikes, :time => identity => :time, copycols=false)
+        spikes = transform(spikes, prop => identity => prop copycols=false)
         spikes.time .+= rand(distribution, 1) 
-        only_times ? spikes[!,[:time]] : spikes
+        only_prop ? spikes[!,[prop]] : spikes
     end
-    function all(spikes::SubDataFrame, distribution::Distribution; kws...)::SubDataFrame
-        @debug "all where distribution::Distribution=$distribution"
-        spikes.time .+= rand(distribution, 1) 
+    function addSampleOfDist(spikes::SubDataFrame, distribution::Distribution; 
+            prop::Symbol=:time, kws...)::SubDataFrame
+        @debug "addSampleOfDist where distribution::Distribution=$distribution"
+        spikes[!,prop] .+= rand(distribution, 1) 
         spikes
     end
-    function all(spikes::DataFrame; kws...)::DataFrame
-        @debug "all where no distribution"
+    function addSampleOfDist(spikes::DataFrame; kws...)::DataFrame
+        @debug "addSampleOfDist where no distribution"
         distribution = _create_distribution(spikes; kws...)
-        spikes = all(spikes, distribution)
+        spikes = addSampleOfDist(spikes, distribution)
+    end
+    
+    # ---- Permute samples of a property -----
+
+    function permuteSamples()
     end
 
+
+    # # # # # # # # # # # # # # # # # # # # # # # # 
+    # How to apply shuffles over groups
+    # # # # # # # # # # # # # # # # # # # # # # # # 
+
+    # By methods shuffle within a group, preserving that grouping property (could within traj, or a bin# of relative trial time, etc)
+    
     function by(spikes::DataFrame, distribution::Distribution; 
                 split::SplitType=:unit, sort::Bool=false, kws...)::DataFrame
         @debug "by() with distribution=$distribution"
         spikes = transform(spikes, :time => identity => :time, copycols=false)
-        spikes = combine(groupby(spikes, split, sort=sort), sp->all(sp, distribution; kws...))
+        spikes = combine(groupby(spikes, split, sort=sort),
+                         sp->addSampleOfDist(sp, distribution; kws...))
     end
 
     function by(spikes::DataFrame; split::SplitType=[:unit,:traj], kws...)::DataFrame
@@ -76,6 +106,8 @@ module shuffle
             width = _typical_trajtime(data; kws...)
         elseif width == :session
             width = _session(data)
+        elseif width == :extrema
+            width = _extrema(data; kws...)
         end
         if distribution == :uniform
             return Uniform(-width/2, width/2)
@@ -118,13 +150,9 @@ module shuffle
         return session_length
     end
 
-    # Prepackaged description of shuffles
-    standard_shuffles = Dict(
-        :cDt_t => (;name="σ(cellᵢ,Δtraj)|trajⱼ",
-                    desc=s"""randomly uniform shift a cell on the timescale of
-                    a trajectory length"""
-                   )
-        )
+    function _extrema(data::DataFrame; col=:time)
+        extrema(data[!,col])
+    end
 
 end
 export shuffle
