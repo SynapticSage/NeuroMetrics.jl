@@ -35,6 +35,9 @@ deps/src/
 docs/build/
 docs/site/
 
+# Precompilation trace files (for speeding up loads)
+*_precompile.jl
+
 ################################################################################
 #                               Jupyter Notebook                               #
 ################################################################################

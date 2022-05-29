@@ -57,6 +57,11 @@ end
 #   -8 : 8 seconds (trajectory length)
 #   (block length)
 
+
+# ========
+# MAINS
+# ========
+
 I = Dict()
 
 # COMPUTE INFORMATION @ DELAYS
@@ -110,6 +115,11 @@ I = Dict()
 end
 
 
+# ========
+# SHUFFLE
+# ========
+
+
 # COMPUTE SHUFFLE INFORMATION @ DELAYS
 if isfile(timeshift.shufflespath())
     S = timeshift.load_shuffles()
@@ -118,7 +128,7 @@ else
 end
 
 @showprogress 0.1 "Datacut shuffle iteration" for datacut ∈ keys(filts)
-    for props ∈ marginals_highprior
+    for props ∈ marginals_highprior_shuffle
         marginal = 𝕄(props)
         key = get_key(;marginal, datacut, shifts, shuffle_type=:cDt_t)
         if key in keys(S)

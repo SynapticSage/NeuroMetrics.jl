@@ -9,18 +9,25 @@ module shuffle
     SplitType = Union{Vector{Symbol}, Symbol, String, Vector{String}}
     defaultFilters = merge(filt.speed_lib)
     using Infiltrator
+    import Shuffle: shuffle!
 
     # ===================================
     # Prepackaged description of shuffles
     # ===================================
     standard_shuffles = Dict(
-        :cDt_t => (;name="σ(cellᵢ,Δtraj)|trajⱼ",
+        :cDt_t => (;name="spiketime += x ~ σ(cellᵢ,Δtraj)|trajⱼ",
                     desc=s"""randomly uniform shift a cell on the timescale of
-                    a trajectory length"""
-                    by=nothing, # a grouping that the distribution applied within
-                    distribution=nothing,  # a distribution we sampled from an added to the prop or permutation of the prop,
-                    prop=:time # the property that is jittered or permuted)
-        )
+                    a trajectory length""",
+                    by=nothing, 
+                    distribution=nothing,  
+                    prop=:time)
+       )
+    # by: a grouping that the distribution applied within
+    # distribution: a distribution we sampled from an added to the prop or permutation of the prop,
+    # prop: the property that is jittered or permuted)
+
+    #function applyStandardShuffle()
+    #end
 
     # # # # # # # # # # # # # # # # # # # # # # # # 
     # Atomic shuffle operations
@@ -33,7 +40,7 @@ module shuffle
             only_prop::Bool=false, prop::Symbol=:time, kws...)::DataFrame
         @debug "addSampleOfDist where distribution::Distribution=$distribution"
         #spikes = copy(spikes)
-        spikes = transform(spikes, prop => identity => prop copycols=false)
+        spikes = transform(spikes, prop => identity => prop, copycols=false)
         spikes.time .+= rand(distribution, 1) 
         only_prop ? spikes[!,[prop]] : spikes
     end
@@ -51,7 +58,34 @@ module shuffle
     
     # ---- Permute samples of a property -----
 
-    function permuteSamples()
+    function permuteSamples(spikes::DataFrame; prop::Symbol=:time, kws...)
+        spikes = transform(spikes, prop => identity => prop, copycols=false)
+        shuffle!(spikes[!, prop])
+    end
+
+    function permuteSamples(spikes::SubDataFrame; prop::Symbol=:time, kws...)
+        shuffle!(spikes[!, prop])
+    end
+
+    # ----- Jitter per spike elelemnt -----
+
+    """
+    non-split distributino readout
+
+    how is this different from all above
+    """
+    function jitterAllSpikes(spikes::DataFrame, distribution::Distribution)::DataFrame
+        spikes = transform(spikes, :time => identity => :time, copycols=false)
+        jitter = rand(distribution, size(spikes, 1))
+        spikes.time .+= jitter
+        return spikes
+    end
+    """
+    undefined dist, no split
+    """
+    function jitterAllSpikes(spikes::DataFrame; kws...)::DataFrame
+        distribution = _create_distribution(spikes; kws...)
+        byspike(spikes, distribution)
     end
 
 
@@ -61,7 +95,10 @@ module shuffle
 
     # By methods shuffle within a group, preserving that grouping property (could within traj, or a bin# of relative trial time, etc)
     
-    function by(spikes::DataFrame, distribution::Distribution; 
+    """
+    DEFINED distribution, split by something 
+    """
+    function jitterBy(spikes::DataFrame, distribution::Distribution; 
                 split::SplitType=:unit, sort::Bool=false, kws...)::DataFrame
         @debug "by() with distribution=$distribution"
         spikes = transform(spikes, :time => identity => :time, copycols=false)
@@ -69,22 +106,22 @@ module shuffle
                          sp->addSampleOfDist(sp, distribution; kws...))
     end
 
-    function by(spikes::DataFrame; split::SplitType=[:unit,:traj], kws...)::DataFrame
+    """
+    UNDEFINED dist, split by something
+    """
+    function jitterBy(spikes::DataFrame; split::SplitType=[:unit,:traj], kws...)::DataFrame
         @debug "by() with no distribution"
         distribution = _create_distribution(spikes; kws...)
         by(spikes, distribution; split=split, kws...)
     end
-
-    function byspike(spikes::DataFrame; kws...)::DataFrame
-        distribution = _create_distribution(spikes; kws...)
-        byspike(spikes, distribution)
-    end
-
-    function byspike(spikes::DataFrame, distribution::Distribution)::DataFrame
+    """
+    UNDEFINED dist, split by something
+    """
+    function permuteBy(spikes::DataFrame; split::SplitType=[:unit,:traj], kws...)::DataFrame
+        @debug "by() with distribution=$distribution"
         spikes = transform(spikes, :time => identity => :time, copycols=false)
-        jitter = rand(distribution, size(spikes, 1))
-        spikes.time .+= jitter
-        return spikes
+        spikes = combine(groupby(spikes, split, sort=sort),
+                         sp->permuteSamples(sp; kws...))
     end
 
 
