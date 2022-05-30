@@ -36,7 +36,8 @@ docs/build/
 docs/site/
 
 # Precompilation trace files (for speeding up loads)
-*_precompile.jl
+*_precompile.jl # julia precompile commands run to create a system image
+*.so # system-image
 
 ################################################################################
 #                               Jupyter Notebook                               #
