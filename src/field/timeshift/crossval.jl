@@ -7,6 +7,10 @@ using CategoricalArrays
 
 in_range = utils.in_range
 
+function _tk(type::String, fold::Int)
+    (;type, fold)
+end
+
 function get_field_crossval_jl(beh::DataFrame, data::DataFrame, 
         shifts::Union{StepRangeLen,Vector{<:Real}};
         cv::T=StatifiedCV(nfolds=2), 
@@ -81,11 +85,11 @@ function get_field_crossval_sk(beh::DataFrame, data::DataFrame,
         strain = in_range(data.time, extrema(B_train.time))
         stest  = in_range(data.time, extrema(B_test.time))
         D_train, D_test = data[strain,:], data[stest,:]
-        results[(;type = "train", fold=f)] = timeshift.get_field_shift(B_train,
+        results[_tf("train", f)] = timeshift.get_field_shift(B_train,
                                                                        D_train,
                                                                        shifts; 
                                                                        kws...)
-        results[(;type = "test",  fold=f)] = timeshift.get_field_shift(B_test, 
+        results[_tk("test",  f)] = timeshift.get_field_shift(B_test, 
                                                                        D_test,
                                                                        shifts;
                                                                        kws...)
@@ -95,6 +99,24 @@ function get_field_crossval_sk(beh::DataFrame, data::DataFrame,
         return results, cv
     else
         return results
+    end
+end
+
+using Metrics
+"""
+since we don't have ground truth, we compare the distribution
+or point estimate found in train-indices to those in test-indices
+"""
+function apply_metric_to_traintest(cvresult, metric=mae)
+    K = keys(cvresult)
+    df_k = utils.namedtupkeys_to_df(K)
+    n_folds = maximum(df_k.fold)
+    result = []
+    for fold in n_folds
+        train = cvresult[_tk("train", f)]
+        test  = cvresult[_tk("test", f)]
+        R = field.operation.binary(train, test, op=metric)
+        push!(result, R)
     end
 end
 

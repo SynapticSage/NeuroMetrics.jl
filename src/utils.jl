@@ -159,6 +159,20 @@ module utils
         return d
     end
 
+    function namedtupkeys_to_df(K::Base.KeySet)
+        df = DataFrame()
+        for k in K
+            k = Dict(zip(keys(k), values(k)))
+            k = DataFrame(k)
+            append!(df, k)
+        end
+        df
+    end
+    function namedtupkeys_to_df(D::AbstractDict)
+        K = keys(D)
+        namedtupkeys_to_df(K)
+    end
+
     function findgroups(pos...)
         X = Matrix(hcat(pos...))
         uX = unique(X, dims=1)

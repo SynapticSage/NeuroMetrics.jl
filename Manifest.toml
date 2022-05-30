@@ -1807,6 +1807,12 @@ git-tree-sha1 = "81e123ea81d6081fe8b733dbe79e1291d55cfb0f"
 uuid = "85b6ec6f-f7df-4429-9514-a64bcd9ee824"
 version = "0.4.6"
 
+[[deps.Metrics]]
+deps = ["DataFrames", "DataStructures", "Random", "StatsBase"]
+git-tree-sha1 = "6e9e77751dd230b360c29e23a10f6e6d2f4fafaf"
+uuid = "cb9f3049-315b-4f05-b90c-a8adaec4da78"
+version = "0.1.2"
+
 [[deps.MicroCollections]]
 deps = ["BangBang", "InitialValues", "Setfield"]
 git-tree-sha1 = "6bb7786e4f24d44b4e29df03c69add1b63d88f01"
