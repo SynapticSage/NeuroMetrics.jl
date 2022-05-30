@@ -5,6 +5,8 @@ import MLJBase: StratifiedCV, ResamplingStrategy, train_test_pairs
 using ScientificTypes
 using CategoricalArrays
 
+in_range = utils.in_range
+
 function get_field_crossval_jl(beh::DataFrame, data::DataFrame, 
         shifts::Union{StepRangeLen,Vector{<:Real}};
         cv::T=StatifiedCV(nfolds=2), 
@@ -70,13 +72,14 @@ function get_field_crossval_sk(beh::DataFrame, data::DataFrame,
         end
     else
         @info "K-fold"
-        cv = cv(1:size(beh,1); n_folds)
+        cv = cv(size(beh,1); n_folds)
     end
 
-    for (train, test) in cv
+    results = Dict()
+    for (f,(train, test)) in enumerate(cv)
         B_train, B_test = beh[train,:], beh[test,:]
-        strain = utils.in_range(spikes.time, extrema(B_train.time))
-        stest  = utils.in_range(spikes.time, extrema(B_test.time))
+        strain = in_range(data.time, extrema(B_train.time))
+        stest  = in_range(data.time, extrema(B_test.time))
         D_train, D_test = data[strain,:], data[stest,:]
         results[(;type = "train", fold=f)] = timeshift.get_field_shift(B_train,
                                                                        D_train,

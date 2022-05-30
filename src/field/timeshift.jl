@@ -13,6 +13,8 @@ module timeshift
     using Revise
     include("../table.jl")
     include("../shuffle.jl")
+    include("../utils.jl")
+    import .utils
     using Infiltrator
     using Distributed
     using Dagger
