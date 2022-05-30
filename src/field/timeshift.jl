@@ -24,6 +24,7 @@ module timeshift
     using LoopVectorization
 
     export get_field_shift_shuffles, get_field_shift
+    export get_field_crossval_sk, get_field_crossval_jl
     export to_dataframe, info_to_dataframe
     export fetch_best_fields
     export fetch_best_fields
@@ -101,7 +102,6 @@ module timeshift
     include("./timeshift/operation.jl")
     include("./timeshift/plot.jl")
     include("./timeshift/shuffle.jl")
-
-
+    include("./timeshift/crossval.jl")
 
 end

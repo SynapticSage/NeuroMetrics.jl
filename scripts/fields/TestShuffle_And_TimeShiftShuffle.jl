@@ -4,7 +4,9 @@ quickactivate("/home/ryoung/Projects/goal-code/")
 includet(srcdir("shuffle.jl"))
 includet(srcdir("field/info.jl"))
 includet(srcdir("field/timeshift.jl"))
+
 _, spikes = raw.register(beh, spikes; transfer=["velVec"], on="time")
+
 import Base.Threads: @spawn
 using ThreadSafeDicts
 using .timeshift
@@ -14,11 +16,11 @@ convertToMinutes, runshifts = true, false
 # -----------------------
 # Testing shuffle methods
 # -----------------------
-@time shuffle.by(spikes, distribution=:uniform, width=:traj,    data=beh) # 2.2 seconds
-@time shuffle.by(spikes, distribution=:uniform, width=:session, data=beh) # 2.9 seconds
+@time shuffle.jitterBy(spikes, distribution=:uniform, width=:traj,    data=beh) # 2.2 seconds
+@time shuffle.jitterBy(spikes, distribution=:uniform, width=:session, data=beh) # 5 seconds
 
-@time shuffle.byspike(spikes; distribution=:uniform, width=:traj, data=beh) # 0.36 seconds
-@time shuffle.byspike(spikes; distribution=:uniform, width=:session, data=beh) # 0.13 seconds
+@time shuffle.jitterAllSpikes(spikes; distribution=:uniform, width=:traj, data=beh) # 0.36 seconds
+@time shuffle.jitterAllSpikes(spikes; distribution=:uniform, width=:session, data=beh) # 0.13 seconds
 
 # -----------------------------
 # Testing time-shifted shuffles
@@ -58,6 +60,10 @@ if runshifts
     timeshift.saveshifts(result, shuf_result, shifts=shifts, metric="info", 
                          fieldkws=newkws)
 end
+
+out, cv = timeshift.get_field_crossval_sk(beh, spikes, shifts; n_folds=2, 
+                             multi=:single, postfunc=info.information, 
+                             newkws...)
 
 # TESTING CORRECTION METHODS
 D = timeshift.loadshifts(;shifts=shifts, metric="info", newkws...)

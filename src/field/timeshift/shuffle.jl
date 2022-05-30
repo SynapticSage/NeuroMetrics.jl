@@ -20,17 +20,33 @@ function get_field_shift_shuffles(beh::DataFrame, data::DataFrame,
                                                           shifts)))
 
     # Generate the distribution functoin for all shuffles (expensive to do for each)
-    if isempty(shuffle_pos) || !(shuffle_pos[1] isa Distribution)
-        shuffle_kws = (; shuffledist_df=beh, shuffle_kws...)
-        distribution = shuffle._create_distribution(data, 
-                                                    shuffle_pos...;
-                                                    shuffle_kws...)
-        shuffle_pos = (;shuffle_pos..., distribution)
-        @info "distribution=$distribution"
+    if shuffle.isaDistributionShuffle(shuffle_func)
+        if isempty(shuffle_pos) || !(shuffle_pos[1] isa Distribution)
+            shuffle_kws = (; shuffledist_df=beh, shuffle_kws...)
+            distribution = shuffle._create_distribution(data, 
+                                                        shuffle_pos...;
+                                                        shuffle_kws...)
+            shuffle_pos = (;shuffle_pos..., distribution)
+            @info "distribution=$distribution"
+        end
     end
     
     if multi isa Bool
         multi = multi ? :thread : :single
+    end
+
+    function core_shuffle(shuffle::Int, Shift::Real, P::Progress, i::Int)
+        data = shuffle_func(data, shuffle_pos...; shuffle_kws...)
+        result = field.get_fields(σ(beh,shift), data; kws...)
+        if postfunc != nothing
+            result = postfunc(result)
+        end
+        push!(safe_dict, (;shift,shuffle)=>result)
+        if mod(i-skips, exfiltrateAfter) == 0
+            @info "chechpoint->exfiltrated"
+            @exfiltrate
+        end
+        next!(P)
     end
 
     @info "Starting multi=$multi"
@@ -41,20 +57,10 @@ function get_field_shift_shuffles(beh::DataFrame, data::DataFrame,
         Threads.@threads for (i, (shuffle,shift)) in sets
             if (;shift,shuffle) ∈ keys(safe_dict)
                 skips+=1
+                next!(P)
                 continue
             end
-            data = shuffle_func(data, shuffle_pos...; shuffle_kws...)
-            result = field.get_fields(σ(beh,shift), data; kws...)
-            if postfunc != nothing
-                result = postfunc(result)
-            end
-            push!(safe_dict, (;shift,shuffle)=>result)
-            next!(P)
-            if mod(i-skips, exfiltrateAfter) == 0
-                @info "chechpoint->exfiltrated"
-                @exfiltrate
-            end
-            next!(P)
+            core_shuffle(shuffle, shift, P, i)
         end
     elseif multi == :distributed
         @assert nprocs() > 1 msg
@@ -76,20 +82,8 @@ function get_field_shift_shuffles(beh::DataFrame, data::DataFrame,
                 skips+=1
                 next!(P)
                 continue
-            else
-                #@info (; i,shift,shuffle)
             end
-            data = shuffle_func(data, shuffle_pos...; shuffle_kws...)
-            result = field.get_fields(σ(beh,shift), data; kws...)
-            if postfunc != nothing
-                result = postfunc(result)
-            end
-            push!(safe_dict, (;shift,shuffle)=>result)
-            if mod(i-skips, exfiltrateAfter) == 0
-                @info "chechpoint->exfiltrated"
-                @exfiltrate
-            end
-            next!(P)
+            core_shuffle(shuffle, shift, P, i)
         end
     else
         throw(ArgumentError("Unrecognized argument multi=$multi"))

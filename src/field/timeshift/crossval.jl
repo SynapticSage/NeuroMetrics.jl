@@ -6,10 +6,10 @@ using ScientificTypes
 using CategoricalArrays
 
 function get_field_crossval_jl(beh::DataFrame, data::DataFrame, 
-        shifts::Union{StepRangeLen,Vector{T}} where T <: Real;
-        cv::T=StatifiedCV(nfolds=2) where T <: ResamplingStrategy, 
+        shifts::Union{StepRangeLen,Vector{<:Real}};
+        cv::T=StatifiedCV(nfolds=2), 
         stratify_cols::Union{Nothing,Union{String},String}=nothing,
-        kws...)
+        kws...) where T <: ResamplingStrategy
 
     equalize = beh[!, stratify_cols]
     equalize = convert.(eltype(equalize), equalize)
@@ -23,15 +23,11 @@ function get_field_crossval_jl(beh::DataFrame, data::DataFrame,
     gen = train_test_pairs(cv, 1:size(beh,1), equalize)
 end
 
-import MLJBase: StratifiedCV, ResamplingStrategy, train_test_pairs
-using ScientificTypes
-using CategoricalArrays
-
 function get_field_crossval_jl(beh::DataFrame, data::DataFrame, 
-        shifts::Union{StepRangeLen,Vector{T}} where T <: Real;
-        cv::T=StatifiedCV(nfolds=2) where T <: ResamplingStrategy, 
+        shifts::Union{StepRangeLen,Vector{<:Real}};
+        cv::T=StatifiedCV(nfolds=2), 
         stratify_cols::Union{Nothing,Union{String},String}=nothing,
-        kws...)
+        kws...) where T <: ResamplingStrategy
 
     equalize = beh[!, stratify_cols]
     equalize = convert.(eltype(equalize), equalize)
@@ -41,7 +37,7 @@ function get_field_crossval_jl(beh::DataFrame, data::DataFrame,
         @error "not implemented yet"
     end
     equalize = categorical(equalize)
-    gen = train_test_pairs(cv, 1:size(beh,1), equalize)
+    gen = train_test_pairs(cv, 1:size(beh,1, kws...), equalize)
 end
 
 # ScikitLearn based
@@ -55,11 +51,12 @@ end
 # contains an equal fraction of each label (split labels apart!)
 
 import ScikitLearn: CrossValidation
+using .CrossValidation: KFold
 function get_field_crossval_sk(beh::DataFrame, data::DataFrame, 
-        shifts::Union{StepRangeLen,Vector{T}} where T <: Real;
+        shifts::Union{StepRangeLen,Vector{<:Real}};
         n_folds::Int=2, cv::Function=KFold, 
         stratify_cols::Union{Nothing,Union{String},String}=nothing,
-        return_cv::Bool,
+        return_cv::Bool=true,
         kws...)
 
     if cv !== CrossValidation.KFold
@@ -73,7 +70,7 @@ function get_field_crossval_sk(beh::DataFrame, data::DataFrame,
         end
     else
         @info "K-fold"
-        cv = cv(1:size(beh,1), n_folds)
+        cv = cv(1:size(beh,1); n_folds)
     end
 
     for (train, test) in cv
@@ -82,7 +79,7 @@ function get_field_crossval_sk(beh::DataFrame, data::DataFrame,
         stest  = utils.in_range(spikes.time, extrema(B_test.time))
         D_train, D_test = data[strain,:], data[stest,:]
         results[(;type = "train", fold=f)] = timeshift.get_field_shift(B_train,
-                                                                       D_train
+                                                                       D_train,
                                                                        shifts; 
                                                                        kws...)
         results[(;type = "test",  fold=f)] = timeshift.get_field_shift(B_test, 

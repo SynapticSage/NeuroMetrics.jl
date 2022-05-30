@@ -11,16 +11,25 @@ module shuffle
     using Infiltrator
     import Shuffle: shuffle!
 
+    distribution_based = [:addSampleOfDist, :jitterBy, :jitterAllSpikes]
+    function isaDistributionShuffle(shuffle_func::Symbol)
+        any([shuffle_func === func for func in distribution_based])
+    end
+    function isaDistributionShuffle(shuffle_func::Function)
+        isaDistributionShuffle(Symbol(shuffle_func))
+    end
+
     # ===================================
     # Prepackaged description of shuffles
     # ===================================
     standard_shuffles = Dict(
-        :cDt_t => (;name="spiketime += x ~ σ(cellᵢ,Δtraj)|trajⱼ",
+        :cDt_t => (;name="+=x~σ(cellᵢ,Δtraj)|trajⱼ",
                     desc=s"""randomly uniform shift a cell on the timescale of
                     a trajectory length""",
-                    by=nothing, 
-                    distribution=nothing,  
-                    prop=:time)
+                    by           = nothing,
+                    distribution = nothing,
+                    prop         = :time),
+        :dotson => (;name="split by trajreltime_bin and permute traj")
        )
     # by: a grouping that the distribution applied within
     # distribution: a distribution we sampled from an added to the prop or permutation of the prop,
@@ -36,17 +45,16 @@ module shuffle
 
     # ---- Add a sampled value from a distribution to a property ----- 
     function addSampleOfDist(spikes::DataFrame, distribution::Distribution;
-            only_prop::Bool=false, prop::Symbol=:time, kws...)::DataFrame
+            only_prop::Bool=false, kws...)::DataFrame
         @debug "addSampleOfDist where distribution::Distribution=$distribution"
         #spikes = copy(spikes)
-        spikes = transform(spikes, prop => identity => prop, copycols=false)
+        spikes = transform(spikes, :time => identity => :time, copycols=false)
         spikes.time .+= rand(distribution, 1) 
-        only_prop ? spikes[!,[prop]] : spikes
+        only_prop ? spikes[!,:time] : spikes
     end
     function addSampleOfDist(spikes::SubDataFrame, distribution::Distribution; 
-            prop::Symbol=:time, kws...)::SubDataFrame
-        @debug "addSampleOfDist where distribution::Distribution=$distribution"
-        spikes[!,prop] .+= rand(distribution, 1) 
+            kws...)::SubDataFrame
+        spikes.time .+= rand(distribution, 1) 
         spikes
     end
     function addSampleOfDist(spikes::DataFrame; kws...)::DataFrame
@@ -82,7 +90,7 @@ module shuffle
     """
     function jitterAllSpikes(spikes::DataFrame; kws...)::DataFrame
         distribution = _create_distribution(spikes; kws...)
-        byspike(spikes, distribution)
+        jitterAllSpikes(spikes, distribution)
     end
 
 
@@ -98,6 +106,7 @@ module shuffle
     function jitterBy(spikes::DataFrame, distribution::Distribution; 
                 split::SplitType=:unit, sort::Bool=false, kws...)::DataFrame
         @debug "by() with distribution=$distribution"
+        @info "jitterBy split=$split"
         spikes = transform(spikes, :time => identity => :time, copycols=false)
         spikes = combine(groupby(spikes, split, sort=sort),
                          sp->addSampleOfDist(sp, distribution; kws...))
@@ -106,15 +115,18 @@ module shuffle
     """
     UNDEFINED dist, split by something
     """
-    function jitterBy(spikes::DataFrame; split::SplitType=[:unit,:traj], kws...)::DataFrame
+    function jitterBy(spikes::DataFrame;
+            split::SplitType=[:unit,:traj], kws...)::DataFrame
         @debug "by() with no distribution"
         distribution = _create_distribution(spikes; kws...)
-        by(spikes, distribution; split=split, kws...)
+        jitterBy(spikes, distribution; split=split, kws...)
     end
+
     """
     UNDEFINED dist, split by something
     """
-    function permuteBy(spikes::DataFrame; split::SplitType=[:unit,:traj], kws...)::DataFrame
+    function permuteBy(spikes::DataFrame;
+            split::SplitType=[:unit,:traj], kws...)::DataFrame
         @debug "by() with distribution=$distribution"
         spikes = transform(spikes, :time => identity => :time, copycols=false)
         spikes = combine(groupby(spikes, split, sort=sort),

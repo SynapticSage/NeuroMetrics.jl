@@ -15,7 +15,6 @@ module utils
     searchsortednearest = SearchSortedNearest.searchsortednearest
     searchsortednext    = SearchSortedNearest.searchsortednext
 
-
     export skipnan
     export itsizeof, piso
     export squeeze
@@ -74,7 +73,7 @@ module utils
     end  
 
     function dextrema(A::AbstractArray; kws...)
-        diff([nanminima(A), nanmaxima(A)], kws...)
+        diff([nanminimum(A), nanmaximum(A)], kws...)
     end
     range_extrema = dextrema
 
