@@ -35,7 +35,6 @@ module shuffle
     
 
     # ---- Add a sampled value from a distribution to a property ----- 
-
     function addSampleOfDist(spikes::DataFrame, distribution::Distribution;
             only_prop::Bool=false, prop::Symbol=:time, kws...)::DataFrame
         @debug "addSampleOfDist where distribution::Distribution=$distribution"
@@ -57,7 +56,6 @@ module shuffle
     end
     
     # ---- Permute samples of a property -----
-
     function permuteSamples(spikes::DataFrame; prop::Symbol=:time, kws...)
         spikes = transform(spikes, prop => identity => prop, copycols=false)
         shuffle!(spikes[!, prop])
@@ -68,7 +66,6 @@ module shuffle
     end
 
     # ----- Jitter per spike elelemnt -----
-
     """
     non-split distributino readout
 

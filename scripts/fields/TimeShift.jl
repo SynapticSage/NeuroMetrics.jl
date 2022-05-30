@@ -161,6 +161,10 @@ end
     timeshift.save_shuffles(S)
 end
 
+# ================
+# Examine best TAU
+# ================
+
 # GET FIELDS AT BEST-(𝛕)
 F = Dict()
 for (key, value) in I
@@ -168,4 +172,8 @@ for (key, value) in I
     F      = timeshift.fetch_best_fields(I[key], beh, spikes; newkws...)
 end
 
+
+# ==============
+# Cross-validate
+# ==============
 

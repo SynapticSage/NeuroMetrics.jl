@@ -41,6 +41,8 @@ end
     include("decode.jl") # General receptive field codes
     import .decode
 
+    using OhMyREPL
+
     export raw
     export table 
     export field, timeshift
