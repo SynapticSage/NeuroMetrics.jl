@@ -23,6 +23,7 @@ __revise_mode__ = :evalassign
 ∞ = Inf
 
 ColumnSelector = Union{Nothing,Vector{String},InvertedIndex,Cols,All,Between}
+DFColVars = Union{DataFrames.ColumnIndex, DataFrames.MultiColumnIndex}
                                               
 # --.--o                             o         |
 #   |  .,-.-.,---.    ,---.,---.,---..,---.,---|

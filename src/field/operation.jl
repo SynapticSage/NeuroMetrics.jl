@@ -27,15 +27,21 @@ field_operation
 
 used to do an operation between fields
 """
+
 function binary(fieldA, fieldB, operation::Function=(./); kws...)
     if typeof(fieldA) <: AbstractArray
+        @info operation
         field = operation(fieldA, fieldB; kws...)
-    elseif fieldA isa Dict
+    elseif typeof(fieldA) <: Real
+        @info operation
+        field = operation(fieldA, fieldB; kws...)
+        @info field
+    elseif typeof(fieldA) <: AbstractDict
+        K = intersect(keys(fieldA), keys(fieldB))
         field = Dict(namesA=>binary(fieldA[namesA], fieldB[namesA],
-                                  operation; kws...) for namesA in
-                     keys(fieldA))
+                                  operation; kws...) for namesA in K)
     else
-        throw(TypeError("fielld is wrong type $(typeof(fieldA))"))
+        throw(TypeError("operation::binary", Union{AbstractArray, AbstractDict}, typeof(fieldA)))
     end
     return field
 end

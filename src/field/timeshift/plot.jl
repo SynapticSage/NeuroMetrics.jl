@@ -75,8 +75,10 @@
     end
 
     function plot_distributionPerCell(df::DataFrame; measure=:info, 
-            statistic=mean,
+            statistic=mean, sortorder=nothing,
             clim=:cell, desc::String="")
+
+        @infiltrate
         df = sort(df, [:shift,:area,:unit])
         if :shuffle in propertynames(df) && length(unique(df.shuffle))>1
             start = 4
@@ -87,14 +89,17 @@
             DF = df
             start = 3
         end
-        @infiltrate
         df_u = sort(unstack(DF, :shift, measure), [:area, :unit])
         units = df_u.unit
         areas = df_u.area
         area_divide = findfirst([diff(areas .== "PFC"); 0].==1)
         valcols = [x for x in names(df_u) if Symbol(x) ∉ [:area,:unit,:taus, :shuffle]]
         df_u.taus = vec([x[2] for x in argmax(Matrix(df_u[!,valcols]),dims=2)])
-        df_u = sort(df_u, [:area, :taus])
+        if sortorder != nothing
+            df_u = sort(df_u, [:area, :taus, :unit])
+        else
+            df_u = sort(df_u, [:area, :taus, :unit])
+        end
         shifts = parse.(Float32, valcols)
 
         function get_area(area) 

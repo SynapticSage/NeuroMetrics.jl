@@ -2,6 +2,11 @@
     #include("../../table.jl")
     #import .table: to_dataframe
 
+    default_shiftscale = :minutes #what is output by raw.load() if behavior included in output
+
+    # ===========================
+    # Dataframe preprocessing
+    # ==========================
 
     """
     defined set of preprocessing steps. will change if I move the sign
@@ -24,6 +29,9 @@
         df   = sort(df, sortset)
     end
 
+    #  ====================
+    #  Types of dataframes
+    #  ====================
     function to_dataframe(measurements::AbstractDict{<:Real, <:Any}; kws...) 
         _preproc(table.to_dataframe(shifts; key_name="shift", kws...))
     end
@@ -52,6 +60,7 @@
     function info_mean(df::DataFrame)
         combine(groupby(df, [:area, :shift]), :info=>mean)
     end
+
     function imax(df::DataFrame)
         taus = unique(sort(df.shift))
         if :shuffle in propertynames(df)
@@ -69,15 +78,10 @@
         df_imax(df)
     end
 
-    function unstack(df::DataFrame, what=:shift, measure=:info)
-        DataFrames.unstack(df, what, measure)
-    end
-
-    function info_dataframe_and_cell_dataframe(measurements; save_cell_table="", shift_scale=:seconds, kws...)
-        df = info_to_dataframe(measurements)
-        return df, df_imax
-    end
-
+    # ===========================
+    # Getting fields at best tau
+    # ===========================
+    
     function fetch_best_fields(fieldInfo::DataFrame, pos...; kws...)
         beh, data = pos
         X = Dict()
@@ -89,3 +93,18 @@
         return X
     end
 
+    # ===================
+    # SHorcut methods
+    # ==================
+    """
+    shortcut method
+    """
+    function info_dataframe_and_cell_dataframe(measurements; save_cell_table="", shift_scale=:seconds, kws...)
+        df = info_to_dataframe(measurements)
+        df_imax = imax(df)
+        return df, df_imax
+    end
+
+    function unstack(df::DataFrame, what=:shift, measure=:info)
+        DataFrames.unstack(df, what, measure)
+    end

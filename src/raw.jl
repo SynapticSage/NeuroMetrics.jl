@@ -206,12 +206,12 @@ module raw
         tablepath = String(tablepath)
         path = path_functions[tablepath](pos...; kws...)
         println("Saving $(tablepath) data at $path")
-        @infiltrate
         if :type in keys(kws)
             type = kws[:type]
         else
             type = "csv"
         end
+        save_table_at_path(data, path, type)
     end
 
     function tables_to_type(animal::String, day::Int; 

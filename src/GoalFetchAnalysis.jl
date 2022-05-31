@@ -27,6 +27,7 @@ end
     import .field
     import .utils
     import .filt
+    import .shuffle
 
     # Field related
     include("field.jl") # General receptive field codes

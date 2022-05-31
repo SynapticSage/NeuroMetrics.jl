@@ -9,6 +9,7 @@ module utils
     using Plots, DrWatson
     using ProgressMeter
     using Infiltrator
+    using ThreadsX
 
     include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
     import .SearchSortedNearest
@@ -186,6 +187,11 @@ module utils
             #next!(P)
         end
         g
+    end
+
+    function ismember(X::AbstractVector, Y::AbstractVector)
+        Z = ThreadsX.collect(any(Y .== x) for x in eachrow(X))
+        replace(Z .!= nothing, missing=>false)
     end
 
 end

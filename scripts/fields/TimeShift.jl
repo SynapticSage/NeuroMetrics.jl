@@ -17,7 +17,6 @@ convertToMinutes = true
 PROPS = ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
 IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
 
-
 #-------------------------------------------------------
 """
 Translate into shorcut names
@@ -62,58 +61,65 @@ end
 # MAINS
 # ========
 
-I = Dict()
-
-# COMPUTE INFORMATION @ DELAYS
-@showprogress 0.1 "Datacut iteration" for datacut ∈ keys(filts)
-    running = false
-    @info "Datacut = $datacut"
-    for props ∈ marginals_highprior
-        @info "Props = $props"
-        marginal = 𝕄(props)
-        key = get_key(;marginal, datacut, shifts)
-        if key ∈ keys(I)
-            if I[key] isa Task && !(istaskfailed(I[key]))
-                @info "task key=$key already exists"
-                printstyled("SKIPPING...\n", blink=true)
-                continue
-            elseif I[key] isa Task && istaskfailed(I[key])
-                "key=$key already exists, but failed...redo!"
-            else
-                @info "key=$key already exists"
-                printstyled("SKIPPING...\n", blink=true)
-                continue
-            end
-        end
-        if key ∉ keys(I)
-            @info "key=$key ∉ keys, ...creating..."
-        end
-        newkws = (; kws..., filters=filts[datacut], splitby, props, dokde=false,
-                  resolution=sz(props), multi=:single, postfunc=info.information)
-        try
-            I[key] = @time timeshift.get_field_shift(beh, spikes, shifts; 
-                                                                 newkws...)
-        catch
-            @warn "key=$key does not run, possibly an edge case where your filters are too stringent for the behavioral property measured"
-        end
-        running = true
-    end
-    if running
-        try
-            for (key, value) in I
-                @info I
-                I[key] = fetch(I[key])
-            end
-            @info I
-            utils.pushover("Done fetchging jobs for datacut=$datacut")
-            timeshift.save_mains(I)
-            @infiltrate
-        catch
-            @warn "potential task failure for props=$props, datacut=$datacut"
-        end
-    end
+# Main, non-shuffles
+if isfile(timeshift.mainspath())
+    I = timeshift.load_mains()
+else
+    I = OrderedDict()
 end
 
+I = begin
+    # COMPUTE INFORMATION @ DELAYS
+    @showprogress 0.1 "Datacut iteration" for datacut ∈ keys(filts)
+        running = false
+        @info "Datacut = $datacut"
+        for props ∈ marginals_highprior
+            @info "Props = $props"
+            marginal = 𝕄(props)
+            key = get_key(;marginal, datacut, shifts)
+            if key ∈ keys(I)
+                if I[key] isa Task && !(istaskfailed(I[key]))
+                    @info "task key=$key already exists"
+                    printstyled("SKIPPING...\n", blink=true)
+                    continue
+                elseif I[key] isa Task && istaskfailed(I[key])
+                    "key=$key already exists, but failed...redo!"
+                else
+                    @info "key=$key already exists"
+                    printstyled("SKIPPING...\n", blink=true)
+                    continue
+                end
+            end
+            if key ∉ keys(I)
+                @info "key=$key ∉ keys, ...creating..."
+            end
+            newkws = (; kws..., filters=filts[datacut], splitby, props, dokde=false,
+                      resolution=sz(props), multi=:single, postfunc=info.information)
+            try
+                I[key] = @time timeshift.get_field_shift(beh, spikes, shifts; 
+                                                                     newkws...)
+            catch
+                @warn "key=$key does not run, possibly an edge case where your filters are too stringent for the behavioral property measured"
+            end
+            running = true
+        end
+        if running
+            try
+                for (key, value) in I
+                    @info I
+                    I[key] = fetch(I[key])
+                end
+                @info I
+                utils.pushover("Done fetchging jobs for datacut=$datacut")
+                timeshift.save_mains(I)
+                @infiltrate
+            catch
+                @warn "potential task failure for props=$props, datacut=$datacut"
+            end
+        end
+    end
+    I
+end
 
 # ========
 # SHUFFLE
@@ -164,6 +170,12 @@ end
 # ================
 # Examine best TAU
 # ================
+
+# Place best tau into cell.csv storage
+key = (marginal = ["x", "y"], datacut = :all, shuf = :cDt_t, first = -0.06666666666666667, last = 0.06666666666666667, step = 0.0033333333333333335)
+cellTaus = sort(timeshift.imax(info_to_dataframe(I[key], shift_scale=:minuntes)),:unit)[:,[:unit,:area,:bestTau]]
+raw.save_cell_taginfo(cellTaus, animal, day, timeshift.keytostring(key))
+
 
 # GET FIELDS AT BEST-(𝛕)
 F = Dict()

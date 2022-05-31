@@ -1,7 +1,17 @@
 
+export cellpath
+export load_cells
+export save_cells
+export save_cell_taginfo
+
+"""
+how to construct the path for a single cell/unit table
+"""
 function cellpath(animal::String, day::Int, tag::String=""; type="csv", kws...)
     if tag != "" && tag != "*"
-        tag = "_$tag"
+        if !(startswith(tag,"_"))
+            tag = "_$tag"
+        end
     end
     csvFile = DrWatson.datadir("exp_raw", "visualize_raw_neural",
                                "$(animal)_$(day)_cell$tag.$type")
@@ -34,6 +44,10 @@ end
 function save_cells(cells::AbstractDataFrame, pos...; kws...)
     save_table(cells, pos...; tablepath=:cells, kws...)
 end
+"""
+convenience wrapper to save_cells, ensuring you don't forget to tag the data
+if you meant to
+"""
 function save_cell_taginfo(cells::AbstractDataFrame, animal::String, day::Int, tag::String; kws...)
     save_table(cells, animal, day, tag; tablepath=:cells, kws...)
 end
@@ -49,7 +63,6 @@ function cells_to_type(animal::String, day::Int, tag::String="*",
     end
 
 end
-
 
 function load_tetrode(animal, day)
     cells = load_cells(animal,day)
@@ -68,4 +81,3 @@ function load_tetrode(animal, day)
         end
     return out
 end
-

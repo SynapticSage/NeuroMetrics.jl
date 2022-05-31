@@ -2,8 +2,8 @@ quickactivate("/home/ryoung/Projects/goal-code/")
 @time include(scriptsdir("fields", "Initialize.jl"))
 @time include(scriptsdir("fields", "TimeShift_setsOfInterest.jl"))
 includet(srcdir("shuffle.jl"))
-includet(srcdir("field/info.jl"))
-includet(srcdir("field/timeshift.jl"))
+info      = field.info
+timeshift = field.timeshift
 
 _, spikes = raw.register(beh, spikes; transfer=["velVec"], on="time")
 
@@ -16,12 +16,12 @@ convertToMinutes, runshifts = true, false
 # -----------------------
 # Testing shuffle methods
 # -----------------------
-@time shuffle.jitterBy(spikes, distribution=:uniform, width=:traj,    data=beh) # 2.2 seconds
-@time shuffle.jitterBy(spikes, distribution=:uniform, width=:session, data=beh) # 5 seconds
-
-@time shuffle.jitterAllSpikes(spikes; distribution=:uniform, width=:traj, data=beh) # 0.36 seconds
-@time shuffle.jitterAllSpikes(spikes; distribution=:uniform, width=:session, data=beh) # 0.13 seconds
-
+# @time shuffle.jitterBy(spikes, distribution=:uniform, width=:traj,    data=beh) # 2.2 seconds
+# @time shuffle.jitterBy(spikes, distribution=:uniform, width=:session, data=beh) # 5 seconds
+# 
+# @time shuffle.jitterAllSpikes(spikes; distribution=:uniform, width=:traj, data=beh) # 0.36 second
+# @time shuffle.jitterAllSpikes(spikes; distribution=:uniform, width=:session, data=beh) # 0.13 seconds
+# 
 # -----------------------------
 # Testing time-shifted shuffles
 # -----------------------------
@@ -41,51 +41,27 @@ else
     safe_dict = ThreadSafeDict()
 end
 
-# Single thread
-#
-if runshifts
-    result = @time timeshift.get_field_shift(beh, spikes, shifts;
-                             multi=:single, postfunc=info.information, 
-                             newkws...) # 2 minutes, roughly
+result = @time timeshift.get_field_shift(beh, spikes, shifts;
+                         multi=:single, postfunc=info.information, 
+                         newkws...) # 2 minutes, roughly
 
-    @assert sp.time == spikes.time
+@assert sp.time == spikes.time
 
-    shuf_result = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 4-16 hours
-                             multi=:single, postfunc=info.information, 
-                             shuffle_func=shuffle.by,
-                             exfiltrateAfter=Inf,
-                             safe_dict=safe_dict,
-                             newkws...)
+shuf_result = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 4-16 hours
+                         multi=:single, postfunc=info.information, 
+                         shuffle_func=shuffle.by,
+                         exfiltrateAfter=Inf,
+                         safe_dict=safe_dict,
+                         newkws...)
 
-    timeshift.saveshifts(result, shuf_result, shifts=shifts, metric="info", 
-                         fieldkws=newkws)
-end
+timeshift.saveshifts(result, shuf_result, shifts=shifts, metric="info", 
+                     fieldkws=newkws)
 
 out, cv = timeshift.get_field_crossval_sk(beh, spikes, shifts; n_folds=2, 
-                             multi=:single, postfunc=info.information, 
+                             multi=:single, postfunc=field.info.information, 
                              newkws...)
 
 # TESTING CORRECTION METHODS
 D = timeshift.loadshifts(;shifts=shifts, metric="info", newkws...)
 main, shuf= info_to_dataframe(D[:main]), info_to_dataframe(D[:shuffle])
 
-timeshift.func(main, shuffle, :info => :info_func)
-
-
-# Distributed
-using Distributed
-using Dagger
-addprocs(8, enable_threaded_blas=true)
-@everywhere include("/home/ryoung/Projects/goal-code/scripts/fields/Include.jl")
-@time shuf_result = timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 16 hours
-                         multi=:distributed, postfunc=info.information, 
-                         shuffle_func=shuffle.by,
-                         newkws...)
-
-# Threading
-Threads.nthreads() = 8
-@time shuf_result = timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 16 hours
-                         multithread=true, postfunc=info.information, 
-                         shuffle_func=shuffle.by,
-                         exfiltrateAfter=25,
-                         newkws...)

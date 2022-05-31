@@ -1,20 +1,27 @@
 module timeshift
 
-    __revise_mode__ = :evalassign
-    using DataFrames
+    __revise_mode__ = :eval
+
+    # Parent libary
     import ..field
-    export get_field_shift
-    export field
+
+    # Top-level module imports
+    include("../table.jl")
+    import .table
+    include("../shuffle.jl")
+    import .shuffle
+    include("../utils.jl")
+    import .utils
+    include("../raw.jl")
+    import .raw
+
+    # Julia packages
     using ThreadSafeDicts
     using DataStructures
     using DataFrames, DataFramesMeta
     using ProgressMeter
     using Distributions
     using Revise
-    include("../table.jl")
-    include("../shuffle.jl")
-    include("../utils.jl")
-    import .utils
     using Infiltrator
     using Distributed
     using Dagger
@@ -25,6 +32,9 @@ module timeshift
     using NaNStatistics
     using LoopVectorization
 
+    # Exports
+    export get_field_shift
+    export field
     export get_field_shift_shuffles, get_field_shift
     export get_field_crossval_sk, get_field_crossval_jl
     export to_dataframe, info_to_dataframe
@@ -66,7 +76,6 @@ module timeshift
         msg = "$multi timeshift-shuffles"
 
         p = Progress(length(shifts), desc="field shift calculations")
-        @infiltrate
         if multi == :thread
             Threads.@threads for shift in shifts
                 if shift ∈ keys(safe_dict)
@@ -99,11 +108,11 @@ module timeshift
         return out
     end
 
-    include("./timeshift/checkpoint.jl")
-    include("./timeshift/dataframe.jl")
-    include("./timeshift/operation.jl")
-    include("./timeshift/plot.jl")
-    include("./timeshift/shuffle.jl")
-    include("./timeshift/crossval.jl")
+    include(srcdir("field/timeshift/checkpoint.jl"))
+    include(srcdir("field/timeshift/dataframe.jl"))
+    include(srcdir("field/timeshift/operation.jl"))
+    include(srcdir("field/timeshift/plot.jl"))
+    include(srcdir("field/timeshift/shuffle.jl"))
+    include(srcdir("field/timeshift/crossval.jl"))
 
 end

@@ -14,12 +14,12 @@ using Distributions
 
 using GoalFetchAnalysis
 filt = GoalFetchAnalysis.filt
-utils = GoalFetchAnalysis.utils
+#utils = GoalFetchAnalysis.utils ALREADY EXPORTED IN USING ABOVE
 
-includet(srcdir("raw.jl"))
-includet(srcdir("field.jl"))
-includet(srcdir("filt.jl"))
+#includet(srcdir("raw.jl"))
+#includet(srcdir("field.jl"))
+#includet(srcdir("filt.jl"))
 
-operation = field.operation
-model = field.model
+operation     = field.operation
+model         = field.model
 recon_process = field.recon_process

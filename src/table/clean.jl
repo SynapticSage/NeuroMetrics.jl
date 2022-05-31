@@ -38,7 +38,7 @@ function clean_duplicate_cols(df::DataFrame)
             col1, col2 = join(check,detect), check[1]
             dat1, dat2 = eachcol(dropmissing(df[!,[col1,col2]]))
             if all(dat1 .== dat2)
-                @info "Removing $col"
+                @info "Removing $col1"
                 df = df[!, Not(col1)]
             end
         end
