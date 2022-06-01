@@ -31,7 +31,7 @@ function naninf_to_missing!(df::DataFrame, cols::Union{Vector{String}, Vector{Sy
 end
 
 function clean_duplicate_cols(df::DataFrame)
-    for detect in "_" .* string(1:4)
+    for detect in "_" .* string.(1:4)
         splits = split.(names(df), detect)
         check_these = splits[length.(splits) .> 1]
         for check in check_these

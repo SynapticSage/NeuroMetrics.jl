@@ -172,9 +172,11 @@ end
 # ================
 
 # Place best tau into cell.csv storage
-key = (marginal = ["x", "y"], datacut = :all, shuf = :cDt_t, first = -0.06666666666666667, last = 0.06666666666666667, step = 0.0033333333333333335)
+key = (;first(keys(I))..., datacut=:all)
 cellTaus = sort(timeshift.imax(info_to_dataframe(I[key], shift_scale=:minuntes)),:unit)[:,[:unit,:area,:bestTau]]
-raw.save_cell_taginfo(cellTaus, animal, day, timeshift.keytostring(key))
+keyname = keytostring(key, ", "=>"_"; remove_numerics=true)
+rename!(cellTaus, "bestTau" => "bestTau_$keyname")
+raw.save_cell_taginfo(cellTaus, animal, day, keyname)
 
 
 # GET FIELDS AT BEST-(𝛕)

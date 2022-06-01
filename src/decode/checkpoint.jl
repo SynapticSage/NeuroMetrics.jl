@@ -75,9 +75,19 @@ function load_checkpoint(decode_file::String; vars=nothing)
     return D
 end
 
+"""
+Load into another module
+
+HOw woulld I do this without globals?
+"""
 function load_checkpoint(m::Module, decode_file::String; vars=nothing)
     D = load_checkpoint(decode_file; vars=vars)
-    @error "Not implemented here"
+    global D
+    @eval m global D
+    @eval m global key
+    for (key,value) in D
+        @eval m Meta.parse("$key = D[:$key]")
+    end
     nothing
 end
 
@@ -99,7 +109,8 @@ load_checkpoints
 
 way to load multiple checkpoints concatonated along an axis
 """
-function load_checkpoints(decode_file::String; vars::Union{Nothing, Vector{Symbol}}=nothing)
+function load_checkpoints(decode_file::String;
+        vars::Union{Nothing, Vector{Symbol}}=nothing)
 
     path = generalize_path(decode_file)
     dir  = dirname(path)

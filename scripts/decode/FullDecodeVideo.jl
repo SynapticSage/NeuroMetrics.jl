@@ -56,9 +56,11 @@ append!(boundary, DataFrame(boundary[1,:]))
 
 
 annotate_relative_xtime!(beh)
-cycles  = annotate_explodable_cycle_metrics(beh, cycles, dat, x, y, T)
+cycles  = decode.annotate_explodable_cycle_metrics(beh, cycles, dat, x, y, T)
 ripples = annotate_explodable_cycle_metrics(beh, ripples, dat, x, y, T)
 
+
+GC.gc()
 
 # --------------------
 # RUN VIDEO 

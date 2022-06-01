@@ -7,7 +7,7 @@ _GFA_dependencies=["DataFrames","Plots", "Makie", "GLMakie", "CairoMakie", "OhMy
                      "ProgressMeter", "Glob", "Printf", 
                      "StatsPlots", "StatsBase", "Distributions", "Shuffle",
                      "VideoIO", "DataStructures", "Gadfly", "Blink",
-                     "ElectronDisplay", "TableView", "LazyGrids", "Random",
+                     "TableView", "LazyGrids", "Random",
                      "Colors", "ColorSchemes", "ImageFiltering",
                      "KernelDensity"]   
 
@@ -18,3 +18,13 @@ end
 function precomile_goalmaze()
     PackageCompiler.create_sysimage(["GoalFetchAnalysis"]; sysimage_path="GoalFetchAnalysis-sysimage.so")
 end
+
+# -------------
+# Known issues
+# ------------
+#
+# precompile seems to defeat the normal use of electrondisplay, where once imported it takes over the display of plots and doc files.
+#
+# Things to try
+# - Remove electrondisplay from precompile
+# - Remove plots from precompile

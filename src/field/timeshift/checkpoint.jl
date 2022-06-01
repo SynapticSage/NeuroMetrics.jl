@@ -28,6 +28,7 @@
         tag = "$(tag)_tauMax"
         raw.save_cell_taginfo(df_imax, animal, day, tag)
     end
+
     function mainspath()
         parent_folder = datadir("exp_pro", "timeshift")
         name = joinpath(parent_folder, "mains")

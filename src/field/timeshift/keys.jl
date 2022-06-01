@@ -6,27 +6,71 @@ Keys of these Dict objects tend to contain NamedTuples that describe
 the conditions of the measurement
 =#
 
+#=
+------------------
+------------------
+KEYS TO STRING KEYS
+------------------
+------------------
+=#
+
 """
 For converting a single key
 """
-function keytostring(key::NamedTuple)
+function keytostring(key::NamedTuple, extra_replacements::Pair...; remove_numerics::Bool=false)
     key = Dict(zip(keys(key), values(key)))
     for (k,v) in key
         tv = typeof(v)
-        if tv  <: Vector{AbstractString}
-            v = join(tv, "-")
+        if tv  <: Vector{<:AbstractString}
+            v = join(v, "-")
+            key[k] = v
         elseif tv <: Real
-            v = round(tv; sigdigits=2)
+            if remove_numerics
+                pop!(key, k)
+            else
+                v = round(v; sigdigits=2)
+                key[k] = v
+            end
+        else
+            key[k] = v
         end
-        key[k] = v
     end
-    string(key)
+    replace(string(NamedTuple(key)), " = "=>"=", "\""=>"", ")"=>"", "("=>"",
+           extra_replacements...)
 end
 
 """
 For converting whole dicitionaries containing these keys
 """
-function keytostring(D::Dict{<:NamedTuple, <:Any})
+function keytostring(D::Dict{<:NamedTuple, <:Any}, extra_replacements::Pair...; kws...)
+    Dict(keytostring(k, extra_replacements...; kws...)=>v for (k,v) in D)
+end
+
+"""
+Even shorter than the keytostring method
+"""
+function shortcutstring(key::NamedTuple; remove_numerics::Bool=true)
+    val_list = []
+    key = Dict(zip(keys(key),values(key)))
+    for (k,v) in key
+        tv = typeof(v)
+        if tv  <: Vector{<:AbstractString}
+            v = join(v, "-")
+        elseif tv <: Real
+            if !(remove_numerics)
+                v = round(v; sigdigits=2)
+                v = string(v)
+            else
+                v = ""
+            end
+        elseif tv === Symbol
+            v = ":" * string(v)
+        else
+            v=string(v)
+        end
+        push!(val_list, string(v))
+    end
+    replace(join(val_list,""), " = "=>"=", "\""=>"")
 end
 
 #=
