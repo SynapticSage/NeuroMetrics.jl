@@ -26,7 +26,10 @@ function register(data::DataFrame...; transfer,
         on::String="time")::Vector{DataFrame} 
 """
 function register(data::DataFrame...; transfer,
-        on::String="time")::Vector{DataFrame} 
+        on::String="time", 
+        tolerance::Union{Float64, Nothing}=nothing,
+        tolerance_violation=missing
+    )::Vector{DataFrame} 
     if data isa Tuple
         data = [data...];
     end
@@ -43,16 +46,28 @@ function register(data::DataFrame...; transfer,
         end
         @debug "columns=$columns_to_transfer from source->target on $on"
 
-        #@infiltrate
         match_on_source = data[source][:, on]
         match_on_target = data[target][:, on]
+
         match_on_target = convert.(Float64, match_on_target)
         match_on_source = convert.(Float64, match_on_source)
+
         match_on_source = (match_on_source,)
         indices_of_source_samples_in_target = findnearest.(match_on_source, match_on_target)
+        if tolerance != nothing
+            δ = data[source][indices_of_source_samples_in_target, on] - data[target][:, on]
+            out_of_tolerance = abs.(δ) .> tolerance
+        else
+            out_of_tolerance = zeros(Bool, size(data[target],1))
+        end
+
         for (i, item) ∈ Iterators.enumerate(columns_to_transfer)
             data[target][!, item] =
             data[source][indices_of_source_samples_in_target, item]
+            if any(out_of_tolerance)
+                @info mean(out_of_tolerance)
+                data[target][out_of_tolerance, item] .= tolerance_violation
+            end
         end
     end
     @debug "← ← ← ← ← ← ← ← ← ← ← ← "
@@ -67,19 +82,23 @@ function register(source::DataFrame, target::DataFrame;
 register columns in a `source` to a `target` dataframe `on` a certain
 column
 """
-function register(source::DataFrame, target::DataFrame; 
-        transfer, on::String="time")::Union{Tuple, DataFrame}
-    if transfer isa String
-        transfer = [transfer]
+function register(source::DataFrame, target::DataFrame; kws...)::Union{Tuple, DataFrame}
+
+
+    if :transfer ∈ keys(kws) && kws[:transfer] isa String
+        kws=(;kws...,transfer = [kws[:transfer]])
     end
-    if transfer isa Vector{String}
+
+    if :transfer ∈  keys(kws) && kws[:transfer] isa Vector{String}
         addressing = (;source=1, target=2)
-        transfer = ((addressing, transfer),) # create set of addressed transfer instructions
+        kws = (;kws..., transfer=((addressing, kws[:transfer]),)) # create set of addressed transfer instructions
     end
-    @debug "Got here"
-    source, target, _ = register(source, target, DataFrame(); transfer=transfer, on=on)
+
+    source, target, _ = register(source, target, DataFrame(); kws...)
+
     return source, target
 end
+
 function registerEventsToContinuous(events::DataFrame, target::DataFrame;
         transfer::Union{Vector{String},String}, on::String="time",
         targetEltype::Dict{String,<:Type}=Dict{String,Any}(),

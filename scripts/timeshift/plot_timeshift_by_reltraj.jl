@@ -13,8 +13,10 @@
 
 using StatsBase
 @assert issorted(cells.unit)
-lfp, spikes = raw.register(lfp, spikes, on="time", transfer="phase")
-beh, spikes = raw.register(beh, spikes, on="time", transfer="trajreltime")
+lfp, spikes = raw.register(lfp, spikes, on="time", transfer="phase",
+                           tolerance=1/1000, tolerance_violation=NaN)
+beh, spikes = raw.register(beh, spikes, on="time", transfer="trajreltime",
+                           tolerance_violation=NaN, tolerance=0.04)
 cells, spikes = raw.register(cells, spikes, on="unit", transfer=colorby)
 rename!(spikes, colorby=>:tau)
 
