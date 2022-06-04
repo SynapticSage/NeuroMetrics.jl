@@ -31,6 +31,7 @@ module raw
          "./raw/celltet.jl",
          "./raw/spikes.jl",
          "./raw/ripples.jl",
+         "./raw/dlc.jl",
          "./raw/utils.jl"
     ]
     for comp in components
@@ -240,48 +241,16 @@ module raw
     # ----------
 
 
-    module dlc
-        using Glob, Printf
-        using CSV, DataFrames
-        using ..raw 
-        function get_path(animal, day, epoch; dayfactor=0, 
-                guessdayfactor=true, filtered=false, source="deeplabcut")
-            if guessdayfactor
-                dayfactor = raw.animal_dayfactor[animal]
-            end
-            day += dayfactor
-            if source == "deeplabcut"
-                folder_path = "/Volumes/Colliculus/deeplabcut/" * 
-                             "goalmaze_tape-Ryan-2020-05-28/videos/"
-            end
-            possible_files = 
-                glob("$(animal)_$(@sprintf("%02d",day))_$(@sprintf("%02d",epoch))_*.csv",
-                     folder_path)
-            #print(possible_files)
-            if filtered
-                possible_files = [file for file in possible_files if
-                                  occursin(file,"filtered")]
-            else
-                possible_files = [file for file in possible_files if
-                                  !(occursin(file,"filtered"))]
-            end
-            videopath = possible_files[1]
-            return videopath
-        end
-        function load(pos...; kws...)
-            df = CSV.read(get_path(pos...;kws...), DataFrame; header=3, skipto=4,
-                         csvkws...)
-            transform!(df, :coords=>(x->x*(1/30))=>:time, 
-                          [:x,:x_1]=>((a,b)->(a.+b)./2)=>:X,
-                          [:y,:y_1]=>((a,b)->(a.+b)./2)=>:Y,
-                   )
+    """
+    Takes a set of dataframes and dicts and normalizes time variables of each
+    via the normalize() function. 
 
-            transform!(df, [:X, :Y]=>((X,Y)->sqrt.(X.^2 .+ Y.^2))=>:vec)
-            transform!(df, :vec => (x->[0;diff(x)]) => :delta)
-        end
-    end
-    export dlc
+    Timefields controls which fields to normalize (defaults to "time"), per
+    datatype passed in. Right now each datatype gets a number 1 through N, and
+    timefields is a dict from that number to the correct set of fields.
 
+
+    """
     function normalize_time(data::Union{DataFrame, Dict}...;
             timefields::Dict=Dict(), factor=1, warnifnotime::Bool=false)
         data = [data...]
@@ -374,5 +343,23 @@ module raw
 
         return data
     end
+
+    function fix_complex(df::DataFrame)
+        for (i, col) in enumerate(eachcol(df))
+            if typeof(col) <: Arrow.Struct || 
+                eltype(col) <: NamedTuple
+                try
+                    df[!,i] = fix_complex(df[!,i])
+                catch
+                    @infiltrate
+                end
+            end
+        end
+        return df
+    end
+    fix_complex(x::AbstractVector) = fix_complex.(x)
+    fix_complex(x::NamedTuple)     = x.re + (x.im)im
+
+
 
 end

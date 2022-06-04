@@ -1,6 +1,7 @@
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
 include(scriptsdir("decode","Initialize.jl"))
+load_from_checkpoint = true
 
 if !(load_from_checkpoint)
 
@@ -18,14 +19,11 @@ if !(load_from_checkpoint)
     # Checkpoint pre-video data
     decode.save_checkpoint(Main, decode_file; split=split_num)
 else
-    D = decode.load_checkpoint(Main, decode_file)
-    for (key,value) in D
-        eval(Meta.parse("$key = D[:$key]"))
-    end
-    fix_complex(x) = x.re + (x.im)im
-    beh.velVec     = fix_complex.(beh.velVec)
-    ripples.velVec = fix_complex.(ripples.velVec)
-    lfp.velVec     = fix_complex.(lfp.velVec)
+    D = decode.load_checkpoint(decode_file)
+    beh    = fix_complex(beh)
+    ripples= fix_complex(ripples)
+    cycles= fix_complex(cycles)
+    lfp    = fix_complex(lfp)
 end
 
 lfp, theta, ripples, non = begin
@@ -57,7 +55,10 @@ append!(boundary, DataFrame(boundary[1,:]))
 
 annotate_relative_xtime!(beh)
 cycles  = decode.annotate_explodable_cycle_metrics(beh, cycles, dat, x, y, T)
-ripples = annotate_explodable_cycle_metrics(beh, ripples, dat, x, y, T)
+ripples = decode.annotate_explodable_cycle_metrics(beh, ripples, dat, x, y, T)
+
+
+cells = raw.load_cells(animal, day, "*")
 
 
 GC.gc()
@@ -65,6 +66,14 @@ GC.gc()
 # --------------------
 # RUN VIDEO 
 # --------------------
+## FIGURE SETTINGS
+visualize = :slider
+# Spike colors
+colorby    = "bestTau_marginal=x-y_datacut=:all" # nothing | a column of a dataframe
+colorwhere = :cells # dataframe sampling from
+plotNon = false
+resort_cell_order = :meanrate
+
 Δ_bounds = [0.20, 0.20] # seconds
 tr = Dict("beh"=>utils.searchsortednearest(beh.time, T[1]),
           "lfp"=>utils.searchsortednearest(beh.time, T[1]))
@@ -73,6 +82,27 @@ tr = Dict("beh"=>utils.searchsortednearest(beh.time, T[1]),
           "prob"=>median(diff(T)))
 Δi = Dict("beh"=>(Δt["beh"]/Δt["prob"])^-1,
           "lfp"=>(Δt["lfp"]/Δt["prob"])^-1)
+get_extrema(df, col) = nanextrema(dropmissing(df[!, [colorby]])[!,colorby])
+spike_colorrange = begin
+    if colorby == nothing
+        (-Inf, Inf)
+    else
+        if colorwhere == :behavior
+            get_extrema(beh, colorby)
+        elseif colorwhere == :spikes
+            get_extrema(spikes, colorby)
+        elseif colorwhere == :cells
+            cells[!,colorby] = replace(cells[!, colorby], missing=>NaN)
+            get_extrema(cells[spikes[!,:unit],:], colorby)
+        else
+            @error "Unrecognized symbol=$colorwhere"
+        end
+    end
+end
+
+if resort_cell_order
+    cells, spikes = raw.cell_resort(cells, spikes, resort_cell_order)
+end
 
 ## ---------------
 ## FIGURE WISHLIST
@@ -93,11 +123,18 @@ tr = Dict("beh"=>utils.searchsortednearest(beh.time, T[1]),
 # - Ripples
 # - Histograms for properties of interest
 #   (I.e. best way to test for effects. Example, cosine similarity of animal vec to goal and replay vec)
+# - Fields of cells
+#   - Write package to generate convex hull regions of cells.
+#   - Output to format for plots.jl and makie.jl
+#   - (Option) show fields within theta cycle / ripple cycle
+# - Events
+#   - event :: number that counts across theta/ripple events
+#   - (option) vspan current event or all events in plot window
+#
 
-## FIGURE SETTINGS
-visualize = :slider
-
-# Figure
+# ======
+# FIGURE
+# ======
 Fig = Figure(resolution=(800,1300))
 if visualize == :video
     t = Observable(Int(1000))
@@ -109,7 +146,9 @@ elseif visualize == :slider
     end
 end
 
-# Data
+# ======
+# DATA
+# ======
 @time behavior     = @lift select_range($t, T, data=beh, Δ_bounds=[-0.01, 0.60])
 @time spike_events = @lift select_range($t, T, data=spikes, Δ_bounds=Δ_bounds)
 @time lfp_events   = @lift select_est_range($t, T, tr["lfp"], Δt["lfp"], 
@@ -136,11 +175,14 @@ axLFP = Axis(gNeural[2:3,1])
 axNeural = Axis(gNeural[3:8,1], xlabel="time")
 controls = Fig[1:2, 3]
 
+# TODO PROBLEMS
 ln_theta_color = @lift mean($lfp_events.color_phase[-10+$lfp_now:10+$lfp_now])
 ln_phase_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_events[!,[:time,:phaseamp]])]) 
 ln_theta    = lines!(axLFPsum,   ln_phase_xy, color=ln_theta_color, linestyle=:dash)
 
+# -----------------
 # LFP Raw data AXIS
+# -----------------
 ln_broad_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_events[!,[:time,:broadraw]])]) 
 ln_theta_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_events[!,[:time,:raw]])]) 
 ln_broad    = lines!(axLFP, ln_broad_xy, color=:gray,  linestyle=:dash)
@@ -148,25 +190,35 @@ ln_theta    = lines!(axLFP, ln_theta_xy, color=ln_theta_color, linestyle=:dash)
 axLFP.yticks = 100:100
 axLFPsum.yticks = 0:0
 
+# ----------------
 # Neural data AXIS
-colorby = nothing
+# ----------------
+spike_cmap = :viridis
+
+spike_cbar = colorby==nothing ? nothing : Colorbar(gNeural[3:8, 2], limits =
+                                                   spike_colorrange,
+                                                   colormap=spike_cmap, label =
+                                                   string(colorby), flipaxis = false,
+                                                   vertical=true)
 spike_colors = @lift begin
     if colorby == nothing
         :white
     else
-        $behavior[!, colorby]
-    end
-end
-spike_colorrange = begin
-    if colorby == nothing
-        (-Inf, Inf)
-    else
-        extrema(beh[!, colorby])
+        if colorwhere == :behavior
+            $behavior[!, colorby]
+        elseif colorwhere == :spikes
+            $spikes[!, colorby]
+        elseif colorwhere == :cells
+            cells[$spike_events[!, :unit], colorby]
+        else
+            @error "Unrecognized symbol=$colorwhere"
+        end
     end
 end
 sc_sp_events = @lift([Point2f(Tuple(x)) for x in
                       eachrow($spike_events[!,[:time,:unit]])])
-sc = scatter!(axNeural, sc_sp_events, color=spike_colors, markersize=3, colorrange=spike_colorrange)
+sc = scatter!(axNeural, sc_sp_events, color=spike_colors, markersize=5, colorrange=spike_colorrange)
+
 #ln_lfp_phase = @lift([Point2f(Tuple(x)) for x in
 #                      eachrow(select($lfp_events, :time, :phase_plot=>x->x.*1))])
 #sc = lines!(axNeural, ln_lfp_phase,  color=:gray, linestyle=:dash)
@@ -209,15 +261,15 @@ lines!(axArena, boundary.x, boundary.y, color=:grey)
 # ----------------
 # Sequence vectors
 # ----------------
-cycle_start_xy  = @lift isempty($cycle_events) ? [NaN, NaN]  : $cycle_events.dec₀
-cycle_uv        = @lift isempty($cycle_events) ? [NaN, NaN]  : $cycle_events.dec₀₁
-cycle_arrows = arrows!(axArena, cycle_start_xy[1], cycle_start_xy[2],
-                                cycle_uv[1], cycle_uv[2])
-
-ripple_start_xy  = @lift isempty($ripple_events) ? [NaN, NaN]  : $ripple_events.dec₀
-ripple_uv        = @lift isempty($ripple_events) ? [NaN, NaN]  : $ripple_events.dec₀₁
-ripple_arrows = arrows!(axArena, ripple_start_xy[1], ripple_start_xy[2],
-                                 ripple_uv[1], ripple_uv[2])
+#cycle_start_xy  = @lift isempty($cycle_events) ? [NaN, NaN]  : $cycle_events.dec₀
+#cycle_uv        = @lift isempty($cycle_events) ? [NaN, NaN]  : $cycle_events.dec₀₁
+#cycle_arrows = @lift arrows!(axArena, real($cycle_start_xy[1]), imag($cycle_start_xy[1]),
+#                             real($cycle_uv[1]), imag($cycle_uv[1]))
+#
+#ripple_start_xy  = @lift isempty($ripple_events) ? [NaN, NaN]  : $ripple_events.dec₀
+#ripple_uv        = @lift isempty($ripple_events) ? [NaN, NaN]  : $ripple_events.dec₀₁
+#ripple_arrows = @lift arrows!(axArena, real($ripple_start_xy[1]), imag($ripple_start_xy[1]),
+#                              real($ripple_uv[1]), imag($ripple_uv[1]))
 
 # ---------------
 # Sequence maxima

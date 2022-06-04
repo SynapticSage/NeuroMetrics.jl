@@ -64,6 +64,11 @@ function cells_to_type(animal::String, day::Int, tag::String="*",
 
 end
 
+function fill_missing_cellinds(cells, missing_val=missing)
+    cells = sort(cells, :unit)
+    @error "Not implemented"
+end
+
 function load_tetrode(animal, day)
     cells = load_cells(animal,day)
     groups = groupby(cells,"tetrode")
@@ -80,4 +85,20 @@ function load_tetrode(animal, day)
             tetrodes
         end
     return out
+end
+
+function cell_resort(cells::DataFrame, pos...; kws...)
+    cells = sort(cells, pos...; kws...)
+    if :origunit ∉ propertynames(cells)
+        cells.origunit = cells.unit
+    end
+    cells.tmpunit = cells.unit
+    cells.unit = 1:size(cells,1)
+    cells
+end
+function cell_resort(cells::DataFrame, spikes::DataFrame, pos...; kws...)
+    cells = cell_resort(cells, pos...; kws...)
+    trades = Dict(x=>y for (x,y) in zip(cells.tmpunit, cells.unit))
+    spikes.unit = replace(spikes.unit, trades...)
+    cells, spikes
 end
