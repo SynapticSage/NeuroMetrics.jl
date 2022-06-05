@@ -32,7 +32,9 @@ end
     # Field related
     include("field.jl") # General receptive field codes
     import .field
-    timeshift = field.timeshift
+
+    include("timeshift.jl")
+    import .timeshift
 
     # Goal vector measures
     include("statistic.jl")

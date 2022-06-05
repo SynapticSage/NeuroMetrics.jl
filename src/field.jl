@@ -26,8 +26,6 @@ module field
     export info
     include("field/operation.jl")
     export operation
-    include("field/timeshift.jl")
-    export timeshift
     include("field/recon.jl")
     export recon
     include("field/recon_process.jl")

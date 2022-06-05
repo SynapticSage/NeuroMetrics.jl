@@ -3,16 +3,17 @@ module timeshift
     __revise_mode__ = :eval
 
     # Parent libary
-    import ..field
+    include("./field.jl")
+    import .field
 
     # Top-level module imports
-    include("../table.jl")
+    include("./table.jl")
     import .table
-    include("../shuffle.jl")
+    include("./shuffle.jl")
     import .shuffle
-    include("../utils.jl")
+    include("./utils.jl")
     import .utils
-    include("../raw.jl")
+    include("./raw.jl")
     import .raw
 
     # Julia packages
@@ -108,11 +109,11 @@ module timeshift
         return out
     end
 
-    include(srcdir("field/timeshift/checkpoint.jl"))
-    include(srcdir("field/timeshift/dataframe.jl"))
-    include(srcdir("field/timeshift/operation.jl"))
-    include(srcdir("field/timeshift/plot.jl"))
-    include(srcdir("field/timeshift/shuffle.jl"))
-    include(srcdir("field/timeshift/crossval.jl"))
+    include("./timeshift/checkpoint.jl")
+    include("./timeshift/dataframe.jl")
+    include("./timeshift/operation.jl")
+    include("./timeshift/plot.jl")
+    include("./timeshift/shuffle.jl")
+    include("./timeshift/crossval.jl")
 
 end
