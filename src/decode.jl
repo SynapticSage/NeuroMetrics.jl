@@ -34,7 +34,6 @@ function quantile_threshold(dat, thresh=nothing; sample_dim=3,
 end
 
 include("decode/preprocess_lfp.jl")
-include("decode/preprocess_beh.jl")
 include("decode/checkpoint.jl")
 include("decode/makie_observable.jl")
 include("decode/plot.jl")

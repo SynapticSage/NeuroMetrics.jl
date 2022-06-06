@@ -33,7 +33,6 @@ module shuffle
     |:------|:------------|
     |fullname     | A descritive fullname that you would call it, space-allowing|
     |desc         | either a textual or mathematical description|
-    |type         | jitter or permute |
     |shuffle_func | the top-level function called to shuffle|
     |prop         | what property/column to jitter or permute|
     |split        | (optional) split jittering or permuting by this?|
@@ -44,12 +43,17 @@ module shuffle
         :cDt_t => (;fullname="+=x~σ(cellᵢ,Δtraj)|trajⱼ",
                     desc=s"""randomly uniform shift a cell on the timescale of
                     a trajectory length""",
-                    type=:jitter,
-                    shuffle_func=:jitterBy,
-                    split       = [:unit, :traj],
+                    shuffle_func = :jitterBy,
+                    split        = [:unit, :traj],
                     distribution = :uniform,
                     prop         = :time),
-        :dotson => (;name="split by trajreltime_bin and permute traj")
+        :dotson => (;fullname="split by trajreltime_bin and permute traj",
+                    desc=s"""for each trajectory, set the time on a scale 0 to
+                    1, where 0 and 1 are beginning and end. shuffle spikes to
+                    keep the their value i ∈ [0,1].""",
+                    shuffle_func = :permuteBy,
+                    split        = [:unit, :trajreltime_bin],
+                    prop         = :time),
        )
 
     """
@@ -84,7 +88,11 @@ module shuffle
         settings = standard_shuffles[name]
         applyStandardShuffle(settings; precompute_dist)
     end
-    function applyStandardShuffle(settings::Dict; precompute_dist::Bool=true)
+    function applyStandardShuffle(settings::AbstractDict; precompute_dist::Bool=true)
+        settings = utils.namedtuple_to_dict(settings)
+        applyStandardShuffle(settings; precompute_dist)
+    end
+    function applyStandardShuffle(settings::NamedTuple; precompute_dist::Bool=true)
         @info "Settings=$settings"
         dist_type = occursin("jitter", lowercase(String(settings[:shuffle_func])))
         func = eval(settings[:shuffle_func])
@@ -95,6 +103,7 @@ module shuffle
                                      settings...)
             end
         end
+        @infiltrate
         partial(pos...; newkws...) = func(pos...; settings..., newkws...)
         if dist_type
             return partial_dist, partial
@@ -130,12 +139,14 @@ module shuffle
     
     # ---- Permute samples of a property -----
     function permuteSamples(spikes::DataFrame; prop::Symbol=:time, kws...)
-        spikes = transform(spikes, prop => identity => prop, copycols=false)
+        spikes = transform(spikes, :time => identity => :time, copycols=false)
         shuffle!(spikes[!, prop])
+        spikes
     end
 
     function permuteSamples(spikes::SubDataFrame; prop::Symbol=:time, kws...)
-        shuffle!(spikes[!, prop])
+         shuffle!(spikes[!, prop])
+         spikes
     end
 
     # ----- Jitter per spike elelemnt -----
@@ -192,7 +203,7 @@ module shuffle
     """
     UNDEFINED dist, split by something
     """
-    function permuteBy(spikes::DataFrame;
+    function permuteBy(spikes::DataFrame; sort::Bool=false,
             split::SplitType=[:unit,:traj], kws...)::DataFrame
         @debug "by() with distribution=$distribution"
         spikes = transform(spikes, :time => identity => :time, copycols=false)

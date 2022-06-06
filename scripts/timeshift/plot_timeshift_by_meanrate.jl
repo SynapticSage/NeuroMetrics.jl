@@ -30,5 +30,5 @@ Plots.scatter(x,y,z,
                                xlabel="addition-order", ylabel="shift", zlabel="firing rate")
 
 xx, zz = ndgrid(nanminimum(x):0.1:nanmaximum(x), nanminimum(z):0.1:nanmaximum(z))
-yy = ones(size(xx)).*0.00
+yy = ones(size(xx)) .* 0.00
 Plots.surface!(xx,yy,zz)

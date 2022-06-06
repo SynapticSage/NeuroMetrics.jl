@@ -14,6 +14,7 @@ __revise_mode__ = :eval
 
 using GoalFetchAnalysis
 using .decode
+using .raw.behavior
 
 # Debugger?
 ENV["JULIA_DEBUG"] = nothing
