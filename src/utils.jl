@@ -160,6 +160,15 @@ module utils
         return d
     end
 
+    function namedtuple_to_dict(X::NamedTuple)
+        Dict(zip(keys(X), values(X)))
+    end
+    function pop(X::NamedTuple, key)
+        X = namedtuple_to_dict(X)
+        pop!(X, key)
+        NamedTuple(X)
+    end
+
     function namedtupkeys_to_df(K::Base.KeySet)
         df = DataFrame()
         for k in K

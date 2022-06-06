@@ -78,7 +78,7 @@ module raw
     arrowkws = (;)
     pxtocm(x) = 0.1487 * x
     cmtopx(x) = x / 0.1487 
-
+    default_set = ["spikes", "behavior", "ripples", "cells"]
 
     function normalize(data, time, data_source, mintime=nothing)
         # Determine a time normalizing function
@@ -115,7 +115,7 @@ module raw
 
     """
     function load(args...; as="tuple",
-            data_source=["spikes", "behavior", "ripples", "cells"])
+            data_source=default_set)
 
         # Establish a load order
         if as == "dict"

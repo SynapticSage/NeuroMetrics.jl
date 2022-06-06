@@ -193,8 +193,7 @@ axLFPsum.yticks = 0:0
 # ----------------
 # Neural data AXIS
 # ----------------
-spike_cmap = :viridis
-
+spike_cmap = :vik
 spike_cbar = colorby==nothing ? nothing : Colorbar(gNeural[3:8, 2], limits =
                                                    spike_colorrange,
                                                    colormap=spike_cmap, label =
@@ -217,7 +216,11 @@ spike_colors = @lift begin
 end
 sc_sp_events = @lift([Point2f(Tuple(x)) for x in
                       eachrow($spike_events[!,[:time,:unit]])])
-sc = scatter!(axNeural, sc_sp_events, color=spike_colors, markersize=5, colorrange=spike_colorrange)
+sc = scatter!(axNeural, sc_sp_events, colormap=(spike_cmap,0.9), color=spike_colors,
+              markersize=6, colorrange=spike_colorrange)
+if resort_cell_order == :meanrate
+    hlines!(axNeural, findfirst(cells.meanrate .>6), color=:darkgrey, linestyle=:dash)
+end
 
 #ln_lfp_phase = @lift([Point2f(Tuple(x)) for x in
 #                      eachrow(select($lfp_events, :time, :phase_plot=>x->x.*1))])

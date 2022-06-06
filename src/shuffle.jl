@@ -1,5 +1,6 @@
 module shuffle
 
+    __revise_mode__ = :evalassign
     using Distributions
     using DataFrames
     using DrWatson
@@ -22,21 +23,85 @@ module shuffle
     # ===================================
     # Prepackaged description of shuffles
     # ===================================
+    """
+    standard_shuffles
+
+    link shortcut namess of shuffles to a description and set of arguments
+    controlling the application of shuffles with thee machinery below
+
+    | Input | Description |
+    |:------|:------------|
+    |fullname     | A descritive fullname that you would call it, space-allowing|
+    |desc         | either a textual or mathematical description|
+    |type         | jitter or permute |
+    |shuffle_func | the top-level function called to shuffle|
+    |prop         | what property/column to jitter or permute|
+    |split        | (optional) split jittering or permuting by this?|
+    |distribution | (optional) if jitter, what distribution do we draw from?|
+
+    """
     standard_shuffles = Dict(
-        :cDt_t => (;name="+=x~σ(cellᵢ,Δtraj)|trajⱼ",
+        :cDt_t => (;fullname="+=x~σ(cellᵢ,Δtraj)|trajⱼ",
                     desc=s"""randomly uniform shift a cell on the timescale of
                     a trajectory length""",
-                    by           = nothing,
-                    distribution = nothing,
+                    type=:jitter,
+                    shuffle_func=:jitterBy,
+                    split       = [:unit, :traj],
+                    distribution = :uniform,
                     prop         = :time),
         :dotson => (;name="split by trajreltime_bin and permute traj")
        )
-    # by: a grouping that the distribution applied within
-    # distribution: a distribution we sampled from an added to the prop or permutation of the prop,
-    # prop: the property that is jittered or permuted)
 
-    #function applyStandardShuffle()
-    #end
+    """
+    `applyStandardShuffle`
+
+    Tool for applying standard shuffle *presets*. You can make
+    custom shuffles with the jitty and permute functions below
+    if you have tidy data frames.
+
+    # Inputs
+
+    | Inputs | Description |
+    |:-------|:------------|
+    | name   | symbolic name of a [`standard_shuffles`](@ref) preset|
+
+    # Outputs
+    | Outputs | Description |
+    |:--------|:------------|
+    |partial_dist
+
+    # Downstream pos/kws set by presets
+    ## jitterBy
+    split, prop
+    ### ```_create_distribution```
+    distribution, width, shuffledist_df, data
+    #### ```_```**width```_```function**
+    variable sets of arguments
+    ## permuteBy
+    split, prop
+    """
+    function applyStandardShuffle(name::Symbol; precompute_dist::Bool=true)
+        settings = standard_shuffles[name]
+        applyStandardShuffle(settings; precompute_dist)
+    end
+    function applyStandardShuffle(settings::Dict; precompute_dist::Bool=true)
+        @info "Settings=$settings"
+        dist_type = occursin("jitter", lowercase(String(settings[:shuffle_func])))
+        func = eval(settings[:shuffle_func])
+        if dist_type && precompute_dist
+            partial_dist(spikes::DataFrame) = begin
+                @info "distribution_settings=$settings"
+                _create_distribution(spikes::DataFrame, settings[:distribution];
+                                     settings...)
+            end
+        end
+        partial(pos...; newkws...) = func(pos...; settings..., newkws...)
+        if dist_type
+            return partial_dist, partial
+        else
+            return partial
+        end
+    end
 
     # # # # # # # # # # # # # # # # # # # # # # # # 
     # Atomic shuffle operations
@@ -104,10 +169,12 @@ module shuffle
     DEFINED distribution, split by something 
     """
     function jitterBy(spikes::DataFrame, distribution::Distribution; 
-                split::SplitType=:unit, sort::Bool=false, kws...)::DataFrame
+            split::SplitType=[:unit,:traj], sort::Bool=false, kws...)::DataFrame
         @debug "by() with distribution=$distribution"
         @info "jitterBy split=$split"
-        spikes = transform(spikes, :time => identity => :time, copycols=false)
+        spikes = transform(spikes, 
+                           :time => identity => :time, 
+                           copycols=false)
         spikes = combine(groupby(spikes, split, sort=sort),
                          sp->addSampleOfDist(sp, distribution; kws...))
     end
