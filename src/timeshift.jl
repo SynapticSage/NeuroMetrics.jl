@@ -54,9 +54,11 @@ module timeshift
     const σ = shift_func
 
     # -------------------- SHIFTED Receptive Fields --------------------------
-    function get_field_shift(beh::DataFrame, data::DataFrame, shift::Real; kws...)
-        print("Using single")
-        fieldobj = field.get_fields(σ(beh, shift), data; kws...)
+    function get_field_shift(beh::DataFrame, data::DataFrame, shift::Real; 
+            postfunc::Union{Nothing,Function}=nothing,
+            field_kws...)
+        fieldobj = field.get_fields(σ(beh, shift), data; field_kws...)
+        postfunc != nothing ? fieldobj = postfunc(fieldobj) : fieldobj
     end
 
     function get_field_shift(beh::DataFrame, data::DataFrame,
@@ -66,6 +68,7 @@ module timeshift
             as::Type=OrderedDict,
             multi::Union{Bool, Symbol}=true,
             safe_dict::AbstractDict=ThreadSafeDict(),
+            squeeze_unity::Bool=false,
             kws...)
 
         kws = (;dokde=false, kws...)
@@ -106,6 +109,9 @@ module timeshift
         end
         safe_dict = Dict(safe_dict...)
         out = as(key=>pop!(safe_dict, key) for key in sort([keys(safe_dict)...]))
+        if length(keys(safe_dict)) == 1 && squeeze_unity
+            out = out[first(keys(out))]
+        end
         return out
     end
 

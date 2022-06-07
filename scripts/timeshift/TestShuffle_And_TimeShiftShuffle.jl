@@ -49,7 +49,7 @@ result = @time timeshift.get_field_shift(beh, spikes, shifts;
 
 shuf_result = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; # 4-16 hours
                          multi=:single, postfunc=info.information, 
-                         shuffle_func=shuffle.by,
+                         preset=:cDt_t,
                          exfiltrateAfter=Inf,
                          safe_dict=safe_dict,
                          newkws...)

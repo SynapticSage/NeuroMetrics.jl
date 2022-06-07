@@ -9,7 +9,7 @@ if !(load_from_checkpoint)
     # Preprocess BEHAHVIOR
     # TODO Turn this into a function
     # --------------------
-    beh = annotate_pastFutureGoals(beh; doPrevPast=false)
+    beh = raw.behavior.annotate_pastFutureGoals(beh; doPrevPast=false)
 
     # --------------
     # Preprocess LFP
@@ -52,8 +52,7 @@ end
 boundary = task[(task.name.=="boundary") .& (task.epoch .== epoch), :]
 append!(boundary, DataFrame(boundary[1,:]))
 
-
-annotate_relative_xtime!(beh)
+raw.behavior.annotate_relative_xtime!(beh)
 cycles  = decode.annotate_explodable_cycle_metrics(beh, cycles, dat, x, y, T)
 ripples = decode.annotate_explodable_cycle_metrics(beh, ripples, dat, x, y, T)
 

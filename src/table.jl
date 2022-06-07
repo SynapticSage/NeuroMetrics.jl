@@ -19,6 +19,7 @@ using LazyGrids: ndgrid
 using DataStructures
 using Infiltrator
 export to_dataframe
+using Reexport: @reexport
 __revise_mode__ = :evalassign
 ∞ = Inf
 
@@ -352,5 +353,7 @@ include("./table/convert.jl")
 include("./table/display.jl")
 include("./table/type.jl")
 include("./table/group.jl")
+import .group
+@reexport import .group
 
 end # module
