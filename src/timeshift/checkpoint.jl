@@ -49,11 +49,37 @@
         end
         serialize(name, D)
     end
+    function save_fields(M::AbstractDict)
+        name = fieldspath()
+        if isfile(name)
+            @info "Preloading existing $name"
+            D = deserialize(name)
+        else
+            D = Dict()
+        end
+        D = merge(D, M)
+        @info "Saving $name"
+        if keytype(D) == Any
+            D = Dict{NamedTuple, Any}(key=>value for (key, value) in D)
+        end
+        serialize(name, D)
+    end
 
     function load_mains()
         name = mainspath()
         D = deserialize(name)
     end
+
+    function fieldspath()
+        parent_folder = datadir("exp_pro", "timeshift")
+        name = joinpath(parent_folder, "fields")
+    end
+
+    function load_fields()
+        name = fieldspath()
+        D = deserialize(name)
+    end
+
 
     function shufflespath()
         parent_folder = datadir("exp_pro", "timeshift")

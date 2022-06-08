@@ -20,10 +20,13 @@ if !(load_from_checkpoint)
     decode.save_checkpoint(Main, decode_file; split=split_num)
 else
     D = decode.load_checkpoint(decode_file)
-    beh    = fix_complex(beh)
-    ripples= fix_complex(ripples)
-    cycles= fix_complex(cycles)
-    lfp    = fix_complex(lfp)
+    for (key,value) in D
+        eval(Meta.parse("$key = D[:$key]"))
+    end
+    beh     = raw.fix_complex(beh)
+    ripples = raw.fix_complex(ripples)
+    cycles  = raw.fix_complex(cycles)
+    lfp     = raw.fix_complex(lfp)
 end
 
 lfp, theta, ripples, non = begin
@@ -55,11 +58,7 @@ append!(boundary, DataFrame(boundary[1,:]))
 raw.behavior.annotate_relative_xtime!(beh)
 cycles  = decode.annotate_explodable_cycle_metrics(beh, cycles, dat, x, y, T)
 ripples = decode.annotate_explodable_cycle_metrics(beh, ripples, dat, x, y, T)
-
-
 cells = raw.load_cells(animal, day, "*")
-
-
 GC.gc()
 
 # --------------------
@@ -72,6 +71,7 @@ colorby    = "bestTau_marginal=x-y_datacut=:all" # nothing | a column of a dataf
 colorwhere = :cells # dataframe sampling from
 plotNon = false
 resort_cell_order = :meanrate
+cells, spikes = raw.cell_resort(cells, spikes, resort_cell_order)
 
 Δ_bounds = [0.20, 0.20] # seconds
 tr = Dict("beh"=>utils.searchsortednearest(beh.time, T[1]),
@@ -82,6 +82,7 @@ tr = Dict("beh"=>utils.searchsortednearest(beh.time, T[1]),
 Δi = Dict("beh"=>(Δt["beh"]/Δt["prob"])^-1,
           "lfp"=>(Δt["lfp"]/Δt["prob"])^-1)
 get_extrema(df, col) = nanextrema(dropmissing(df[!, [colorby]])[!,colorby])
+
 spike_colorrange = begin
     if colorby == nothing
         (-Inf, Inf)

@@ -6,6 +6,11 @@ marginals_highprior = [
     ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
 ]
 
+
+marginals_superhighprior_shuffle = [
+    ["x", "y"],
+]
+
 # Priority for shuffle
 # Remove the super high dimensional 5D marginal -- would take 50 days to compute
 marginals_highprior_shuffle = [

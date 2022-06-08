@@ -291,6 +291,10 @@ function annotate_explodable_cycle_metrics(beh::DataFrame,
         x::Vector{<:Real}, y::Vector{<:Real}, T::Vector{<:Real}
     )
 
+    if :trajreltime ∉ propertynames(beh)
+        raw.behavior.annotate_relative_xtime!(beh)
+    end
+
     if :cycle in propertynames(E)
         cycle_field = :cycle
     else

@@ -136,52 +136,6 @@ module utils
         send(getPushoverClient(), pos...; kws...)
     end
 
-    function remove_key_item(k::NamedTuple, item)
-        k = Dict(zip(keys(k), values(k)))
-        k = remove_key_item(k, item)
-        NamedTuple(k)
-    end
-    function remove_key_item(k::Dict, item)
-        if item ∈ keys(k)
-            pop!(k, item)
-        end
-        k
-    end
-    function lambda_keys(d::Dict, lambda::Function)
-        d = copy(d)
-        lambda_keys!(d, lambda)
-    end
-    function lambda_keys!(d::Dict, lambda::Function)
-        for key ∈ keys(d)
-            v = pop!(d, key)
-            key = lambda(key)
-            d[key] = v
-        end
-        return d
-    end
-
-    function namedtuple_to_dict(X::NamedTuple)
-        Dict(zip(keys(X), values(X)))
-    end
-    function pop(X::NamedTuple, key)
-        X = namedtuple_to_dict(X)
-        pop!(X, key)
-        NamedTuple(X)
-    end
-
-    function namedtupkeys_to_df(K::Base.KeySet)
-        df = DataFrame()
-        for k in K
-            k = Dict(zip(keys(k), values(k)))
-            k = DataFrame(k)
-            append!(df, k)
-        end
-        df
-    end
-    function namedtupkeys_to_df(D::AbstractDict)
-        K = keys(D)
-        namedtupkeys_to_df(K)
-    end
 
     function findgroups(pos...)
         X = Matrix(hcat(pos...))
@@ -202,5 +156,8 @@ module utils
         Z = ThreadsX.collect(any(Y .== x) for x in eachrow(X))
         replace(Z .!= nothing, missing=>false)
     end
+
+    include("utils/dict.jl")
+    include("utils/namedtup.jl")
 
 end

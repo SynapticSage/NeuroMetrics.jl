@@ -5,7 +5,12 @@ includet(srcdir("shuffle.jl"))
 info      = field.info
 timeshift = field.timeshift
 
-_, spikes = raw.register(beh, spikes; transfer=["velVec"], on="time")
+nbins = 50
+raw.behavior.annotate_relative_xtime!(beh);
+beh.trajreltime_bin = floor.(beh.trajreltime * (nbins-1));
+_, spikes = raw.register(beh, spikes; 
+                         transfer=["trajreltime","trajreltime_bin","velVec"], 
+                         on="time");
 
 import Base.Threads: @spawn
 using ThreadSafeDicts
@@ -21,7 +26,21 @@ convertToMinutes, runshifts = true, false
 # 
 # @time shuffle.jitterAllSpikes(spikes; distribution=:uniform, width=:traj, data=beh) # 0.36 second
 # @time shuffle.jitterAllSpikes(spikes; distribution=:uniform, width=:session, data=beh) # 0.13 seconds
-# 
+#
+#
+spikesnew = @time shuffle.permuteBy(spikes; split=:trajreltime_bin, sort=false, keepold=true)
+for f in ("trajreltime","trajreltime_bin")
+    spikesnew[:,f*"old"] = spikesnew[:,f]
+end
+_, spikesnew = raw.register(beh, spikesnew; 
+                         transfer=["trajreltime","trajreltime_bin","velVec"], 
+                         on="time");
+#sort!(spikesnew, :time)
+@df spikesnew[1:1000:end, :] plot(scatter(:timeold, :time, alpha=0.2, xlabel="old",ylabel="new"), histogram(:time .- :timeold, xlabel="difference"))
+@df spikesnew[1:1000:end,:] plot(
+                                 scatter(:trajreltime, :trajreltimeold, title="Tiny bit of jitter\nunderlying reltime", xlabel="new",ylabel="old",alpha=0.5), 
+                                 scatter(:trajreltime_bin, :trajreltime_binold, title="Preserved bin", xlabel="new",ylabel="old",alpha=0.5))
+
 # -----------------------------
 # Testing time-shifted shuffles
 # -----------------------------

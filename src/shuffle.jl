@@ -23,6 +23,7 @@ module shuffle
     # ===================================
     # Prepackaged description of shuffles
     # ===================================
+
     """
     standard_shuffles
 
@@ -103,7 +104,6 @@ module shuffle
                                      settings...)
             end
         end
-        @infiltrate
         partial(pos...; newkws...) = func(pos...; settings..., newkws...)
         if dist_type
             return partial_dist, partial
@@ -144,9 +144,13 @@ module shuffle
         spikes
     end
 
-    function permuteSamples(spikes::SubDataFrame; prop::Symbol=:time, kws...)
-         shuffle!(spikes[!, prop])
-         spikes
+    function permuteSamples(spikes::SubDataFrame; prop::Symbol=:time, 
+            keepold::Bool=false, kws...)
+        if keepold
+            spikes[!,String(prop)*"old"] = spikes[!,prop]
+        end
+        shuffle!(spikes[!, prop])
+        spikes
     end
 
     # ----- Jitter per spike elelemnt -----
