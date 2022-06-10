@@ -127,6 +127,8 @@ function load_checkpoints(decode_file::String;
             @infiltrate
         end
         tmp = load_checkpoint(file, vars=vars)
+        tmp = raw.fix_complex(tmp)
+        tmp = raw.fix_rgba(tmp)
         if i == 1
             D = merge(D,tmp)
         else

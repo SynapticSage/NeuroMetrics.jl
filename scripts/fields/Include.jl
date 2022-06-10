@@ -14,6 +14,7 @@ using Distributions
 
 using GoalFetchAnalysis
 filt = GoalFetchAnalysis.filt
+utils = GoalFetchAnalysis.utils
 #utils = GoalFetchAnalysis.utils ALREADY EXPORTED IN USING ABOVE
 
 #includet(srcdir("raw.jl"))

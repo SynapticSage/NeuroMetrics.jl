@@ -1,4 +1,3 @@
-
 #=
 This sub library is about functions for named
 tuples and for dicts who have named tuple
@@ -37,33 +36,81 @@ function namedtupkeys_to_df(D::AbstractDict)
     namedtupkeys_to_df(K)
 end
 
-"""
-Counts the number of matches a dict with named tuple keys to a search namedtuple
-"""
-function countmatch(D::AbstractDict{<:NamedTuple,Any}, 
-                             search::NamedTuple)
-    countmatch(keys(D), search)
-end
-
+#                                                                             
+#.    ,          |               ,-,   .                   |--.--          -. 
+#|    |,---.,---.|--- ,---.,---. | |\  |,---.,-.-.,---.,---|  |  .   .,---. | 
+# \  / |---'|    |    |   ||    -: | \ |,---|| | ||---'|   |  |  |   ||   | :-
+#  `'  `---'`---'`---'`---'`     | `  `'`---^` ' '`---'`---'  `  `---'|---' | 
+#                                `-                                   |    -' 
 """
 Counts the number of matches in vector of namedTuples to a search namedtuple
 """
-function countmatch(N::Vector{<:NamedTuple}, search::NamedTuple)
+function countmatch(N::Vector{<:NamedTuple}, search::NamedTuple;
+    tolerance_kws...)
     results = []
     for n in N
         key_results = []
         keys_intersect = intersect(keys(n), keys(search))
         for k in keys_intersect
-            match = n[k] == search[k]
+            if typeof(n[k]) <: Real
+                match = isapprox(n[k], search[k]; tolerance_kws...)
+            else
+                match = n[k] == search[k]
+            end
             push!(key_results, match)
         end
         push!(results,sum(key_results))
     end
     return results
 end
-function bestpartialmatch(K::Vector{<:NamedTuple}, search::NamedTuple)
-    argmax(countmatch(K, search))
+"""
+finds the key that is the best partial match to a search term
+"""
+function bestpartialmatch(K::Vector{<:NamedTuple},
+                          search::NamedTuple)
+    argmax(countmatch(K, search); kws...)
 end
-function bestpartialmatch(D::AbstractDict{<:NamedTuple, Any}, search:NamedTuple)
-    argmax(countmatch(D, search))
+
+#                                                                
+# |   /                        ,---.                 |o     |    
+# |__/ ,---.,   .,---.    ,---.|__.     ,---.    ,---|.,---.|--- 
+# |  \ |---'|   |`---.    |   ||        ,---|    |   |||    |    
+# `   ``---'`---|`---'    `---'`        `---^    `---'``---'`---'
+#           `---'                                                
+"""
+Counts the number of matches a dict with named tuple keys to a search
+namedtuple
+"""
+function countmatch(D::AbstractDict{<:NamedTuple,Any}, 
+                             search::NamedTuple; kws...)
+    countmatch(keys(D), search; kws...)
+end
+
+"""
+finds the key of a dict{namedtuple,any} that is the best partial match to a
+search term
+"""
+function bestpartialmatch(D::AbstractDict{<:NamedTuple, Any},
+                          search::NamedTuple)
+    argmax(countmatch(D, search); kws...)
+end
+function bestentry(D::AbstractDict{<:NamedTuple, Any}, search::NamedTuple)
+    best_key = argmax(countmatch(D, search); kws...)
+    D[collect(keys(D))[best_key]]
+end
+function new_func()
+end
+
+#                                                                           
+# .    ,     |                            ,---.                 |o     |    
+# |    |,---.|    .   .,---.,---.    ,---.|__.     ,---.    ,---|.,---.|--- 
+#  \  / ,---||    |   ||---'`---.    |   ||        ,---|    |   |||    |    
+#   `'  `---^`---'`---'`---'`---'    `---'`        `---^    `---'``---'`---'
+function applyvalues(D::T where T <: AbstractDict{<:Any,<:AbstractDict},
+        lambda::T where T <: Function) 
+    Dict(key=>applyvalues(value, lambda) for (key,value) in D)
+end
+function applyvalues(D::T where T <: AbstractDict{<:Any,<:NamedTuple},
+        lambda::T where T <: Function) 
+    Dict(key=>lambda(value) for (key,value) in D)
 end

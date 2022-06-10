@@ -9,13 +9,16 @@ default_shiftscale = :minutes #what is output by raw.load() if behavior included
 defined set of preprocessing steps. will change if I move the sign
 inversion to the actual shifting code (someday)
 """
-function _preproc(df::DataFrame; shift_scale=nothing)::DataFrame
+function _preproc(df::DataFrame; shift_scale=nothing, keep_orig::Bool=true)::DataFrame
     if shift_scale == nothing
         throw(ArgumentError("Must provide shift_scale, for now"))
     end
     df.shift = df.shift .* -1; # beh.time-shift... negative shift is future, so correcting this
     df = if shift_scale == :minutes
         @info "minutes"
+        if keep_orig
+            df.shiftorig = df.shift
+        end
         df = transform(df, :shift => (x-> x*60) => :shift)
     elseif shift_scale != :seconds
         df
@@ -58,20 +61,28 @@ function info_mean(df::DataFrame)
     combine(groupby(df, [:area, :shift]), :info=>mean)
 end
 
-function imax(df::DataFrame)
+function imax(df::DataFrame; kws...)
     taus = unique(sort(df.shift))
     if :shuffle in propertynames(df)
         groups = [:unit, :area, :shuffle]
     else
         groups = [:unit, :area]
     end
+    if :shiftorig ∈ propertynames(df)
+        tausorig = unique(sort(df.shiftorig))
+        pos = (:info=>(x->tausorig[argmax(x)]) =>:bestTauOrig,)
+    else
+        pos = ()
+    end
     df_imax = combine(groupby(df, groups, skipmissing=true), 
+                      pos...,
                       :info=>argmax, 
+                      :info=>maximum, 
                       :info=>(x->taus[argmax(x)])=>:bestTau)
     df_imax = df_imax[df_imax.bestTau.!=taus[1],:] # Excluding samples with the first tau, because that's the null condition for no variation
 end
-function imax(dict::Dict)
-    df = info_to_dataframe(measurements)
+function imax(dict::Dict; kws...)
+    df = info_to_dataframe(measurements; kws...)
     df_imax(df)
 end
 

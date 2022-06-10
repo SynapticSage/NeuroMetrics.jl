@@ -11,6 +11,7 @@ module raw
     using ProgressMeter
     using Glob
     using Infiltrator
+    using Colors
 
     # Fetch maze internal imports
     include("utils.jl")
@@ -359,6 +360,22 @@ module raw
     end
     fix_complex(x::AbstractVector) = fix_complex.(x)
     fix_complex(x::NamedTuple)     = x.re + (x.im)im
+
+    function fix_rgba(df::DataFrame)
+        for (i, col) in enumerate(eachcol(df))
+            if typeof(col) <: Arrow.Struct || 
+                eltype(col) <: NamedTuple
+                try
+                    df[!,i] = fix_rgba(df[!,i])
+                catch
+                    @infiltrate
+                end
+            end
+        end
+        return df
+    end
+    fix_rgba(x::AbstractVector) = fix_rgba.(x)
+    fix_rgba(x::NamedTuple)     = RGBA(x.r, x.g, x.b, x.alpha)
 
 
 

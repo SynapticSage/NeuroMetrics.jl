@@ -15,9 +15,9 @@ function get_field_shift_shuffles(beh::DataFrame, data::DataFrame,
 
     @info "Applying preset=$preset"
     initial_data_partials = shuffle.applyStandardShuffle(preset)
-    _apply_partials(beh, data, shifts; 
-                             initial_data_partials, nShuffle, compute, postfunc,
-                             safe_dict, exfiltrateAfter, get_field_kws...)
+    _apply_partials(beh, data, shifts, initial_data_partials;
+                    nShuffle, compute, postfunc,
+                    safe_dict, exfiltrateAfter, get_field_kws...)
 end
 
 # ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
@@ -25,8 +25,8 @@ end
 # from the user settings
 # ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
 function _apply_partials(beh::DataFrame, data::DataFrame,
-            shifts::Union{StepRangeLen,Vector{T}} where T <: Real; 
-            initial_data_partials::Tuple{<:Function,<:Function},
+            shifts::Union{StepRangeLen,Vector{T}} where T <: Real,
+            initial_data_partials::Tuple{<:Function,<:Function};
             nShuffle::Int=100, 
             compute::Symbol=:single,
             postfunc::Union{Function,Nothing}=nothing,
@@ -38,15 +38,14 @@ function _apply_partials(beh::DataFrame, data::DataFrame,
     distribution  = dist(spikes)
     shuffle_data_generator() = partial(data, distribution)
 
-    out = _run_partial_functional(beh, data, shifts; 
-                                  shuffle_data_generator, compute, nShuffle,
-                                  postfunc, safe_dict, exfiltrateAfter,
-                                  get_field_kws...)
+    out = _run_partial_functional(beh, data, shifts, shuffle_data_generator;
+                                  compute, nShuffle, postfunc, safe_dict,
+                                  exfiltrateAfter, get_field_kws...)
 end
 
 function _apply_partials(beh::DataFrame, data::DataFrame,
-            shifts::Union{StepRangeLen,Vector{T}} where T <: Real; 
-            initial_data_partials::T where T <: Function,
+            shifts::Union{StepRangeLen,Vector{T}} where T <: Real,
+            initial_data_partials::T where T <: Function;
             nShuffle::Int=100, 
             compute::Symbol=:single,
             postfunc::Union{Function,Nothing}=nothing,

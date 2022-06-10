@@ -121,5 +121,6 @@ module timeshift
     include("./timeshift/plot.jl")
     include("./timeshift/shuffle.jl")
     include("./timeshift/crossval.jl")
+    include("./timeshift/keys.jl")
 
 end

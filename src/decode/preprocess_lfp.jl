@@ -131,7 +131,7 @@ function annotate_vector_info(ripples::DataFrame, cycles::DataFrame,
     end
 
     removal_list = [:act₀, :act₁, :dec₀, :dec₁, :act₀₁, :dec₀₁]
-    remove = [elem for elem in removal_list if elem in propertynames(cycles)]
+    remove       = [elem for elem in removal_list if elem in propertynames(cycles)]
     @debug remove
     cylces = cycles[!, Not(remove)]
     cycles = transform(cycles, :start => (t->(match(t, [:x,:y]))) => :act₀,
@@ -315,11 +315,11 @@ function annotate_explodable_cycle_metrics(beh::DataFrame,
     _, E = raw.register(beh,E,on="time",transfer=["traj"])
 
     #c⃗ ᵢⱼ, trajreltime, time
-    E.decᵢ        = Vector{Vector}(undef,size(E,1))
-    E.decᵢᵢ       = Vector{Vector}(undef,size(E,1))
-    E.trajreltime = Vector{Vector}(undef,size(E,1))
-    E.time        = Vector{Vector}(undef,size(E,1))
-    E.trajtime    = Vector{Vector}(undef,size(E,1))
+    E.dec_0i        = Vector{Vector}(undef,size(E,1))
+    E.dec_ii       = Vector{Vector}(undef,size(E,1))
+    E.trajreltime_i = Vector{Vector}(undef,size(E,1))
+    E.time_i        = Vector{Vector}(undef,size(E,1))
+    E.trajtime_i    = Vector{Vector}(undef,size(E,1))
     P = Progress(size(E,1), dt=0.1, 
                  desc="Adding explodable fields to E")
     Threads.@threads for row in eachrow(E)
@@ -330,13 +330,13 @@ function annotate_explodable_cycle_metrics(beh::DataFrame,
             row.trajreltime = []
         end
         Tind = findall(T .>= row.start .&& T .< row.stop)
-        row.decᵢ  = imatchdxy.(Tind) # looks up vector at each time
-        row.decᵢᵢ = row.decᵢ[2:end] .- row.decᵢ[1:end-1] # looks up vector at each time
-        row.decᵢᵢ = cat(NaN + (NaN)im, row.decᵢᵢ; dims=1)
-        row.time = T[Tind]
-        row.trajtime = T[Tind] .- minimum(T[Tind])
-        row.trajreltime = utils.searchsortednearest.([beh.time], T[Tind])
-        row.trajreltime = beh[row.trajreltime, :trajreltime]
+        row.dec_i  = imatchdxy.(Tind) # looks up vector at each time
+        row.dec_ii = row.decᵢ[2:end] .- row.dec_i[1:end-1] # looks up vector at each time
+        row.dec_ii = cat(NaN + (NaN)im, row.dec_ii; dims=1)
+        row.time_i = T[Tind]
+        row.trajtime_i = T[Tind] .- minimum(T[Tind])
+        row.trajreltime_i = utils.searchsortednearest.([beh.time], T[Tind])
+        row.trajreltime_i = beh[row.trajreltime, :trajreltime]
         cumchange = mean(cumsum(diff(row.trajreltime)))
         if cumchange > 0
             row.trajreltime = LinRange(row.trajreltime[begin],

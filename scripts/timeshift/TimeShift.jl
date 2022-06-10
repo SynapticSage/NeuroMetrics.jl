@@ -1,12 +1,15 @@
 quickactivate("/home/ryoung/Projects/goal-code/")
 @time include(scriptsdir("fields", "Initialize.jl"))
-includet(srcdir("shuffle.jl"))
 info = field.info
 include(scriptsdir("timeshift", "TimeShift_setsOfInterest.jl"))
 _, spikes = raw.register(beh, spikes; transfer=["velVec"], on="time")
 import Base.Threads: @spawn
 using ThreadSafeDicts
-using .timeshift
+using Blink
+using Interact
+using NaNStatistics
+import .timeshift
+using .timeshift: info_to_dataframe, get_key
 using Combinatorics: powerset
 sp = copy(spikes)
 convertToMinutes = true
@@ -54,6 +57,35 @@ end
 # 3. Resolution
 #   -8 : 8 seconds (trajectory length)
 #   (block length)
+
+I = timeshift.load_mains()
+F = timeshift.load_fields()
+key = (;first(keys(I))..., datacut=:all)
+imax = sort(timeshift.imax(timeshift.info_to_dataframe(I[key], shift_scale=:minutes)))
+iall = sort(timeshift.info_to_dataframe(I[key], shift_scale=:minutes))
+
+# ================
+# Examine best TAU
+# ================
+
+# Place best tau into cell.csv storage
+key_order = (;marginal=key.marginal, 
+             datacut=key.datacut,
+             first=key.first,
+             last=key.last,
+             step=key.step)
+cellTaus = sort(timeshift.imax(info_to_dataframe(I[key], shift_scale=:minutes)),
+                :unit)[:,[:unit,:area,:bestTau]]
+keyname = timeshift.keytostring(key, ", "=>"_"; remove_numerics=true)
+rename!(cellTaus, "bestTau" => "bestTau_$keyname")
+raw.save_cell_taginfo(cellTaus, animal, day, keyname)
+
+utils.bestpartialmatch(F, key)
+f_select  = table.to_dataframe(utils.applyvalues(, x->x.Cₕ);
+                               key_name="shift", explode=false)
+
+
+
 
 
 # ========
@@ -171,8 +203,6 @@ end
     timeshift.save_shuffles(S)
 end
 
-#
-
 # ================
 # Get fields at shifts
 # ================
@@ -232,25 +262,60 @@ end
     end
 end
 
-# ================
-# Examine best TAU
-# ================
+# Compare FIELDS AT BEST-(𝛕)
+ui = @manipulate for i ∈ 1:size(imax,1)
+    row = imax[i,:]
+    fr = round(cells[row.unit,:meanrate];digits=2)
+    zerobit = @subset(iall, :shift .==0 .&& :unit .== row.unit).info[1]
+    bestbit = row.info_maximum
+    T = Plots.plot(;plot_title="cell=$(row.unit), μ(fr)=$fr", 
+                   grid=false, showaxis=false, yticks=[],
+                   xticks=[], bottom_margin = -50Plots.px)
+    layout = Plots.@layout [A{0.2h}; a b]
+    best = @subset(f_select, :shift.==row.bestTauOrig .&& :unit .== row.unit)[1,:]
+    zero = @subset(f_select, :shift.==0 .&& :unit .== row.unit)[1,:]
+    clim_0   = ([nanquantile(vec(zero.value),x) for x in (0.20, 0.99)]...,)
+    clim_max = ([nanquantile(vec(best.value),x) for x in (0.20, 0.99)]...,)
+    bestheat = heatmap(best.value, title="best, bits=$bestbit", clim=clim_max)
+    zeroheat = heatmap(zero.value, title="0, bits=$zerobit", clim=clim_0)
+    plot(T,
+        bestheat,
+        zeroheat,
+        layout=layout,
+        size=(1400,900)
+    )
+end
+w=Window()
+body!(w,ui)
 
-# Place best tau into cell.csv storage
-key = (;first(keys(I))..., datacut=:all)
-cellTaus = sort(timeshift.imax(info_to_dataframe(I[key], shift_scale=:minuntes)),:unit)[:,[:unit,:area,:bestTau]]
-keyname = keytostring(key, ", "=>"_"; remove_numerics=true)
-rename!(cellTaus, "bestTau" => "bestTau_$keyname")
-raw.save_cell_taginfo(cellTaus, animal, day, keyname)
-
-
-# GET FIELDS AT BEST-(𝛕)
-F = Dict()
-for (key, value) in I
-    newkws = (;kws..., filters=filts, splitby, gaussian, props, resolution=sz(props))
-    F      = timeshift.fetch_best_fields(I[key], beh, spikes; newkws...)
+cell_plots=[]
+for i = 1:size(imax,1)
+    cell_plot=[]
+    for shift in sort(unique(imax.bestTauOrig))
+        hm = nothing
+        try
+            hm = @subset(f_select, :units .== imax[i,:unit] .&& :shift .== shift)[1,:].value
+        catch
+            @infiltrate
+            @warn "Failed"
+            hm = heatmap(NaN*ones(1,1))
+        end
+        push!(cell_plot, heatmap(hm, title="shift=$shift", xticks=[], yticks=[],
+                                 colorbar=:none))
+    end
+    push!(cell_plots, cell_plot)
 end
 
+ui = @manipulate for i = 1:size(cells,1)
+    p = try
+        plot(cell_plots[i]..., size=(1000,1000))
+    catch
+        @warn "failed"
+        plot()
+    end
+end
+w=Window()
+body!(w,ui)
 
 # ==============
 # Cross-validate

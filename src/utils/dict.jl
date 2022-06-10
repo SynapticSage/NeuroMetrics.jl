@@ -6,12 +6,18 @@ function remove_key_item(k::Dict, item)
     k
 end
 
-function lambda_keys(d::Dict, lambda::Function)
+"""
+filters a dict by its keys
+"""
+function filter_keys(d::Dict, lambda::Function)
     d = copy(d)
     lambda_keys!(d, lambda)
 end
 
-function lambda_keys!(d::Dict, lambda::Function)
+"""
+filters a dict by its keys, with modification
+"""
+function filter_keys!(d::Dict, lambda::Function)
     for key ∈ keys(d)
         v = pop!(d, key)
         key = lambda(key)

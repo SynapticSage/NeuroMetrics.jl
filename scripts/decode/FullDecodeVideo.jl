@@ -23,10 +23,10 @@ else
     for (key,value) in D
         eval(Meta.parse("$key = D[:$key]"))
     end
-    beh     = raw.fix_complex(beh)
-    ripples = raw.fix_complex(ripples)
-    cycles  = raw.fix_complex(cycles)
-    lfp     = raw.fix_complex(lfp)
+    for df in [beh, lfp, cycles, ripples]
+        raw.fix_complex(df)
+        raw.fix_rgba(df)
+    end
 end
 
 lfp, theta, ripples, non = begin
@@ -34,7 +34,7 @@ lfp, theta, ripples, non = begin
     # Separate DECODES by EVENTS
     # ------------------------------
     theta, ripple, non = separate_theta_ripple_and_non_decodes(T, lfp, dat;
-                                                                doRipplePhase=doRipplePhase)
+                                                               doRipplePhase=doRipplePhase)
     if dosweep
         theta, ripples = convert_to_sweeps(lfp, theta, ripples;
                                            doRipplePhase=doRipplePhase)
@@ -68,9 +68,12 @@ GC.gc()
 visualize = :slider
 # Spike colors
 colorby    = "bestTau_marginal=x-y_datacut=:all" # nothing | a column of a dataframe
+#colorby    = "vs(𝔾|ℙ,ℙ|𝔾)" # nothing | a column of a dataframe
+#colorby    = "vs(ℙₛ|ℙ,ℙ|ℙₛ)" # nothing | a column of a dataframe
 colorwhere = :cells # dataframe sampling from
 plotNon = false
 resort_cell_order = :meanrate
+theta_phase_color = :specific_color_of_phase
 cells, spikes = raw.cell_resort(cells, spikes, resort_cell_order)
 
 Δ_bounds = [0.20, 0.20] # seconds
@@ -98,6 +101,16 @@ spike_colorrange = begin
             @error "Unrecognized symbol=$colorwhere"
         end
     end
+end
+if spikes_abovebelow_quantile != nothing
+    spike_colorrange=(-1, 1)
+end
+spike_colormap = if utils.in_range([0], spike_colorrange)[1]
+    top_value = max(abs.(spike_colorrange)...)
+    spike_colorrange = (-top_value,top_value)
+    (spike_cmap_with0,0.9)
+else
+    (spike_cmap_zeroless,0.9)
 end
 
 if resort_cell_order
@@ -149,24 +162,24 @@ end
 # ======
 # DATA
 # ======
-@time behavior     = @lift select_range($t, T, data=beh, Δ_bounds=[-0.01, 0.60])
-@time spike_events = @lift select_range($t, T, data=spikes, Δ_bounds=Δ_bounds)
-@time lfp_events   = @lift select_est_range($t, T, tr["lfp"], Δt["lfp"], 
+@time beh_window     = @lift select_range($t, T, data=beh, Δ_bounds=[-0.01, 0.60])
+@time spike_window = @lift select_range($t, T, data=spikes, Δ_bounds=Δ_bounds)
+@time lfp_window   = @lift select_est_range($t, T, tr["lfp"], Δt["lfp"], 
                                             data=lfp, Δ_bounds=Δ_bounds)
-@time ripple_events = @lift decode.select_events($t, T, events=ripples)
-@time cycle_events  = @lift decode.select_events($t, T, events=cycles)
+@time ripple_window = @lift decode.select_events($t, T, events=ripples)
+@time cycle_window  = @lift decode.select_events($t, T, events=cycles)
 theta_prob  = @lift select_prob($t, T; prob=theta)
 ripple_prob = @lift select_prob4($t, T; prob=ripple)
 
-lfp_now    = @lift Int32(round(size($lfp_events,1)/2))
-lfp_events = @lift transform($lfp_events, 
+lfp_now    = @lift Int32(round(size($lfp_window,1)/2))
+lfp_window = @lift transform($lfp_window, 
                              [:phase,:amp] => ((x,y)->x.*(y.^1.9)) => :phaseamp)
 
 # Grids
 # Axes
 TT = length(T)
-correct = @lift $behavior.correct[1]
-@time title_str = @lift "i=$($t), %=$(@sprintf("%2.2f",100*$t/TT)) \ncorr=$($correct), goal=$($behavior.stopWell[1]), vel=$(@sprintf("%2.1f",abs($behavior.velVec[1])))"
+correct = @lift $beh_window.correct[1]
+@time title_str = @lift "i=$($t), %=$(@sprintf("%2.2f",100*$t/TT)) \ncorr=$($correct), goal=$($beh_window.stopWell[1]), vel=$(@sprintf("%2.1f",abs($beh_window.velVec[1])))"
 
 axArena  = Axis(Fig[1,1], xlabel="x", ylabel="y", title=title_str)
 gNeural = Fig[2,1] = GridLayout(1,1)
@@ -176,15 +189,27 @@ axNeural = Axis(gNeural[3:8,1], xlabel="time")
 controls = Fig[1:2, 3]
 
 # TODO PROBLEMS
-ln_theta_color = @lift mean($lfp_events.color_phase[-10+$lfp_now:10+$lfp_now])
-ln_phase_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_events[!,[:time,:phaseamp]])]) 
+
+# THETA RAINBOW phase middle
+if theta_phase_color == :rainbow_event
+    nan_color = RGBA(1,1,1,1)
+    zerod_phase = ((lfp_sub.time .-start))./(stop-start)
+    zerod_phase[(zerod_phase .> 1) .| (zerod_phase .< 0)] .= NaN
+    zerod_phase = get_color.(zerod_phase, :hawaii, nan_color)
+    lines!(axSpikes, lfp_sub.time, lfp_sub.raw, colormap=:hawaii,
+           color=zerod_phase, linewidth=2)
+elseif theta_phase_color == :rainbow
+elseif theta_phase_color == :specific_color_of_phase
+    ln_theta_color = @lift mean($lfp_window.color_phase[-10+$lfp_now:10+$lfp_now])
+end
+ln_phase_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_window[!,[:time,:phaseamp]])]) 
 ln_theta    = lines!(axLFPsum,   ln_phase_xy, color=ln_theta_color, linestyle=:dash)
 
 # -----------------
 # LFP Raw data AXIS
 # -----------------
-ln_broad_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_events[!,[:time,:broadraw]])]) 
-ln_theta_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_events[!,[:time,:raw]])]) 
+ln_broad_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_window[!,[:time,:broadraw]])]) 
+ln_theta_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_window[!,[:time,:raw]])]) 
 ln_broad    = lines!(axLFP, ln_broad_xy, color=:gray,  linestyle=:dash)
 ln_theta    = lines!(axLFP, ln_theta_xy, color=ln_theta_color, linestyle=:dash)
 axLFP.yticks = 100:100
@@ -193,7 +218,8 @@ axLFPsum.yticks = 0:0
 # ----------------
 # Neural data AXIS
 # ----------------
-spike_cmap = :vik
+spike_cmap_with0 = :vik
+spike_cmap_zeroless = :viridis
 spike_cbar = colorby==nothing ? nothing : Colorbar(gNeural[3:8, 2], limits =
                                                    spike_colorrange,
                                                    colormap=spike_cmap, label =
@@ -204,26 +230,26 @@ spike_colors = @lift begin
         :white
     else
         if colorwhere == :behavior
-            $behavior[!, colorby]
+            $beh_window[!, colorby]
         elseif colorwhere == :spikes
             $spikes[!, colorby]
         elseif colorwhere == :cells
-            cells[$spike_events[!, :unit], colorby]
+            cells[$spike_window[!, :unit], colorby]
         else
             @error "Unrecognized symbol=$colorwhere"
         end
     end
 end
-sc_sp_events = @lift([Point2f(Tuple(x)) for x in
-                      eachrow($spike_events[!,[:time,:unit]])])
-sc = scatter!(axNeural, sc_sp_events, colormap=(spike_cmap,0.9), color=spike_colors,
+sc_sp_window = @lift([Point2f(Tuple(x)) for x in
+                      eachrow($spike_window[!,[:time,:unit]])])
+sc = scatter!(axNeural, sc_sp_window, colormap=spike_colormap, color=spike_colors,
               markersize=6, colorrange=spike_colorrange)
 if resort_cell_order == :meanrate
     hlines!(axNeural, findfirst(cells.meanrate .>6), color=:darkgrey, linestyle=:dash)
 end
 
 #ln_lfp_phase = @lift([Point2f(Tuple(x)) for x in
-#                      eachrow(select($lfp_events, :time, :phase_plot=>x->x.*1))])
+#                      eachrow(select($lfp_window, :time, :phase_plot=>x->x.*1))])
 #sc = lines!(axNeural, ln_lfp_phase,  color=:gray, linestyle=:dash)
 vlines!(axNeural, [0], color=:red, linestyle=:dash)
 vlines!(axLFP,    [0], color=:red, linestyle=:dash)
@@ -253,8 +279,8 @@ now = 1
 # ----------------
 # Animal and wells
 # ----------------
-point_xy = @lift(Point2f($behavior.x[now], $behavior.y[now]))
-line_xy  = @lift([Point2f(b.x, b.y) for b in eachrow($behavior)])
+point_xy = @lift(Point2f($beh_window.x[now], $beh_window.y[now]))
+line_xy  = @lift([Point2f(b.x, b.y) for b in eachrow($beh_window)])
 sc_xy    = scatter!(axArena, point_xy, color=:white)
 sc_arena = scatter!(axArena, arenaWells.x, arenaWells.y, marker=:star5, markersize=40, color=:gray)
 sc_home  = scatter!(axArena, [homeWell.x], [homeWell.y],   marker='𝐇', markersize=25,   color=:gray)
@@ -264,13 +290,13 @@ lines!(axArena, boundary.x, boundary.y, color=:grey)
 # ----------------
 # Sequence vectors
 # ----------------
-#cycle_start_xy  = @lift isempty($cycle_events) ? [NaN, NaN]  : $cycle_events.dec₀
-#cycle_uv        = @lift isempty($cycle_events) ? [NaN, NaN]  : $cycle_events.dec₀₁
+#cycle_start_xy  = @lift isempty($cycle_window) ? [NaN, NaN]  : $cycle_window.dec₀
+#cycle_uv        = @lift isempty($cycle_window) ? [NaN, NaN]  : $cycle_window.dec₀₁
 #cycle_arrows = @lift arrows!(axArena, real($cycle_start_xy[1]), imag($cycle_start_xy[1]),
 #                             real($cycle_uv[1]), imag($cycle_uv[1]))
 #
-#ripple_start_xy  = @lift isempty($ripple_events) ? [NaN, NaN]  : $ripple_events.dec₀
-#ripple_uv        = @lift isempty($ripple_events) ? [NaN, NaN]  : $ripple_events.dec₀₁
+#ripple_start_xy  = @lift isempty($ripple_window) ? [NaN, NaN]  : $ripple_window.dec₀
+#ripple_uv        = @lift isempty($ripple_window) ? [NaN, NaN]  : $ripple_window.dec₀₁
 #ripple_arrows = @lift arrows!(axArena, real($ripple_start_xy[1]), imag($ripple_start_xy[1]),
 #                              real($ripple_uv[1]), imag($ripple_uv[1]))
 
@@ -285,9 +311,9 @@ lines!(axArena, boundary.x, boundary.y, color=:grey)
 # ---------------
 # Goals and pokes
 # ---------------
-future₁ = @lift($behavior.stopWell[now])
-future₂ = @lift($behavior.futureStopWell[now])
-past₁   = @lift($behavior.pastStopWell[now])
+future₁ = @lift($beh_window.stopWell[now])
+future₂ = @lift($beh_window.futureStopWell[now])
+past₁   = @lift($beh_window.pastStopWell[now])
 correctColor = @lift begin
     if $correct == 0
         :indianred1
@@ -304,16 +330,16 @@ sc_future₁_well = scatter!(axArena, future₁_well_xy,  alpha=0.5, marker='�
 sc_future₂_well = scatter!(axArena, future₂_well_xy,  alpha=0.5, marker='𝐟', markersize=60, color=:white,       glowwidth=5)
 sc_past_well    = scatter!(axArena, past₁_well_xy,    alpha=0.5, marker='𝐏', markersize=60, color=:white,       glowwidth=5)
 if doPrevPast
-    past₂   = @lift($behavior.pastStopWell[now])
+    past₂   = @lift($beh_window.pastStopWell[now])
     past₂_well_xy    = @lift (($past₂ == -1) || ($past₂ == $future₁)) ? Point2f(NaN, NaN) : Point2f(wells.x[$past₂], wells.y[$past₂])
 end
 
 # Pokes if error
-poke_1_xy = @lift (!($correct==0) && $behavior.poke_1[now]==1) ? Point2f(wells.x[1], wells.y[1]) : Point2f(NaN, NaN)
-poke_2_xy = @lift (!($correct==0) && $behavior.poke_2[now]==1) ? Point2f(wells.x[2], wells.y[2]) : Point2f(NaN, NaN)
-poke_3_xy = @lift (!($correct==0) && $behavior.poke_3[now]==1) ? Point2f(wells.x[3], wells.y[3]) : Point2f(NaN, NaN)
-poke_4_xy = @lift (!($correct==0) && $behavior.poke_4[now]==1) ? Point2f(wells.x[4], wells.y[4]) : Point2f(NaN, NaN)
-poke_5_xy = @lift (!($correct==0) && $behavior.poke_5[now]==1) ? Point2f(wells.x[5], wells.y[5]) : Point2f(NaN, NaN)
+poke_1_xy = @lift (!($correct==0) && $beh_window.poke_1[now]==1) ? Point2f(wells.x[1], wells.y[1]) : Point2f(NaN, NaN)
+poke_2_xy = @lift (!($correct==0) && $beh_window.poke_2[now]==1) ? Point2f(wells.x[2], wells.y[2]) : Point2f(NaN, NaN)
+poke_3_xy = @lift (!($correct==0) && $beh_window.poke_3[now]==1) ? Point2f(wells.x[3], wells.y[3]) : Point2f(NaN, NaN)
+poke_4_xy = @lift (!($correct==0) && $beh_window.poke_4[now]==1) ? Point2f(wells.x[4], wells.y[4]) : Point2f(NaN, NaN)
+poke_5_xy = @lift (!($correct==0) && $beh_window.poke_5[now]==1) ? Point2f(wells.x[5], wells.y[5]) : Point2f(NaN, NaN)
 poke_1_sc = scatter!(axArena, poke_1_xy, marker='↑', markersize=30, color=:white, glow_width=10)
 poke_2_sc = scatter!(axArena, poke_2_xy, marker='↑', markersize=30, color=:white, glow_width=10)
 poke_3_sc = scatter!(axArena, poke_3_xy, marker='↓', markersize=30, color=:white, glow_width=10)
