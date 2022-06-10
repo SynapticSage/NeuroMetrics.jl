@@ -1,0 +1,4 @@
+name = "Shuffle"
+uuid = "8bf8e940-b9e4-4c24-bbc5-58669b01eec4"
+authors = ["Ryan <ryoung@brandeis.edu>"]
+version = "0.1.0"
