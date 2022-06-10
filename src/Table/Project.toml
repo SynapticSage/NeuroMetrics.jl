@@ -1,0 +1,4 @@
+name = "Table"
+uuid = "e7743bb5-377d-4277-9c1f-8065fbbebb65"
+authors = ["Ryan <ryoung@brandeis.edu>"]
+version = "0.1.0"
