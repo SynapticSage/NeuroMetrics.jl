@@ -8,7 +8,6 @@ Module Contents:
 ** binary on time :: return a set of time ranges where a property is a value
 ** select_group :: return a set of samples where a categorical property is  value
 """
-module table
 
 using DataFrames
 using ProgressMeter
@@ -18,10 +17,10 @@ using TableView
 using LazyGrids: ndgrid
 using DataStructures
 using Infiltrator
-export to_dataframe
-include("./utils.jl")
-import .utils
+import Utils
+utils = Utils
 using Reexport: @reexport
+export to_dataframe
 
 __revise_mode__ = :evalassign
 ∞ = Inf
@@ -351,12 +350,10 @@ function _occupancy_normalize(data::DataFrame, beh::DataFrame,
     return data
 end
 
-include("./table/clean.jl")
-include("./table/convert.jl")
-include("./table/display.jl")
-include("./table/type.jl")
-include("./table/group.jl")
+include("clean.jl")
+include("convert.jl")
+include("display.jl")
+include("type.jl")
+include("group.jl")
 import .group
 
-
-end # module
