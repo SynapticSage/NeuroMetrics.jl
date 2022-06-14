@@ -1,4 +1,4 @@
-module filt
+module Filt
 
 using DataFrames
 using DataStructures

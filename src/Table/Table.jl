@@ -18,7 +18,7 @@ using LazyGrids: ndgrid
 using DataStructures
 using Infiltrator
 import Utils
-utils = Utils
+Utils = Utils
 using Reexport: @reexport
 export to_dataframe
 
@@ -350,10 +350,9 @@ function _occupancy_normalize(data::DataFrame, beh::DataFrame,
     return data
 end
 
-include("clean.jl")
-include("convert.jl")
-include("display.jl")
-include("type.jl")
-include("group.jl")
-import .group
+@reexport using clean
+@reexport using convert
+@reexport using display
+@reexport using type
+@reexport using group
 

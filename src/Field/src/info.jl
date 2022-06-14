@@ -32,8 +32,15 @@ module info
         #I = copy(field)
         field = collect(skipnan(vec(field)))
         R = field ./ nanmean(field)
+        # paper r = ∑ pᵢ * rᵢ
+        # what I've written here: r = ∑ R_occᵢ / N = μ(R_occᵢ), not the actual rate, but occ norm rate
         I = nansum( behProb .* R .* log2.(R) )
+        # what i've written here: ∑ p(state) * r(state)/r̅ * log₂( r(state) / r̅ )
+        # paper : ∑ pᵢ * ( rᵢ/r̅ ) * log₂( rᵢ / r̅ )
         return I
+    end
+
+    function mutualinformation()
     end
 
 end

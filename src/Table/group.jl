@@ -1,5 +1,5 @@
-
 module group
+
     using DataFrames
     using DataStructures
     using Infiltrator
@@ -59,6 +59,6 @@ module group
         end
         GG
     end
+
 end
-export group
 

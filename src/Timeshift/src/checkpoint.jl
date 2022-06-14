@@ -1,3 +1,9 @@
+module checkpoint
+
+    using Serialization
+
+    export ts_plotdir
+    export save_mains, save_shuffles
 
     # ------------------
     # SAVING AND LOADING
@@ -188,3 +194,4 @@
     end
 
 
+end

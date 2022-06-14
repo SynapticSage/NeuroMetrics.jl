@@ -2,7 +2,7 @@
 # Spends less time in precompile when a function/module is first called
 
 _GFA_dependencies=["DataFrames","Plots", "Makie", "CairoMakie", "OhMyREPL",
-                   "CSV", "HDF5", "NetCDF", "Arrow", "Revise",
+                   "CSV", "HDF5", "NetCDF", "Arrow", "Revise", "Reexport",
                    "DataFramesMeta", "Statistics", "NaNStatistics",
                    "ProgressMeter", "Glob", "Printf", "StatsPlots",
                    "StatsBase", "Distributions", "Shuffle", "VideoIO",

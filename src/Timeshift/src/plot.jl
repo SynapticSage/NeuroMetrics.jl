@@ -1,5 +1,11 @@
+module plot
 
+    using StatsPlots: @df
+    using Plots
     import Shuffle
+    using DataFrames, DataFramesMeta
+
+    export plot_shifts
 
     dosave = true
 
@@ -193,3 +199,5 @@
         # PER CELL
         saveplotshift("fields", "shifts", "$(descSave)_heatmap_x=shift,y=cellsort_by=area.pdf")
     end
+
+end

@@ -1,16 +1,17 @@
-module shuffle
+module Shuffle
 
     __revise_mode__ = :evalassign
     using Distributions
     using DataFrames
     using DrWatson
-    export filt
-    include(srcdir("filt.jl"))
-    include(srcdir("utils.jl"))
-    SplitType = Union{Vector{Symbol}, Symbol, String, Vector{String}}
-    defaultFilters = merge(filt.speed_lib)
+
     using Infiltrator
     import Shuffle: shuffle!
+
+    using Filt
+    SplitType = Union{Vector{Symbol}, Symbol, String, Vector{String}}
+    defaultFilters = merge(Filt.speed_lib)
+    using Utils
 
     distribution_based = [:addSampleOfDist, :jitterBy, :jitterAllSpikes]
     function isaDistributionShuffle(shuffle_func::Symbol)

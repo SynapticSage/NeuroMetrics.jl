@@ -1,4 +1,4 @@
-module field
+module Field
 
     export getSettings
     export get_fields, Field
@@ -19,23 +19,10 @@ module field
     include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
     include("utils.jl")
     
-    # Field-related submodules
-    include("field/model.jl")
-    export model
-    include("field/info.jl")
-    export info
-    include("field/operation.jl")
-    export operation
-    include("field/recon.jl")
-    export recon
-    include("field/recon_process.jl")
-    export recon_process
-    include("field/plot.jl")
-    import .plot
-    
 
     rateConversion = 30
     export rateConversion
+
     function getSettings(thing, props;
             resolution::Union{Vector{Int},Int,Nothing}=100,
             settingType::String="hist")
@@ -226,239 +213,19 @@ module field
         throw(InvalidStateException("to density not defined for this case yet"))
     end
 
-    module hist
-        using ..field
-        import ..utils
-        using DataFrames
-        using StatsBase
-        using Infiltrator
 
-        function h2d(thing::DataFrame, props::Vector{String}; grid=(),
-                hist2dkws=Dict())
-            thing = dropmissing(thing);
-            P = tuple([convert(Vector{Float64}, x) for x in eachcol(thing[:, props])]...)
-            return fit(Histogram, P, grid; hist2dkws...)
-        end
-
-        function fields(data::DataFrame, beh::DataFrame;
-                splitby::Union{Nothing,Vector{Symbol},Vector{String},String}="unit",
-                resolution::Union{Vector{Int},Int}=50, 
-                savemem::Bool=true,
-                props::Vector{String}=["x","y"],
-                gaussian::Real=0.0
-            )
-            if gaussian isa Int
-                gaussian = convert(Float64, gaussian);
-            end
-
-            grid = field.getSettings(beh, props, 
-                                    resolution=resolution,
-                                    settingType="hist");
-            @debug "Grid=$grid"
-            @debug "resolution=$resolution"
-
-            behDist = field.hist.h2d(beh, props, grid=grid);
-            
-            ith_group(i) = DataFrame(groups[i])
-            field_of_group(i) = hist.h2d(ith_group(i), props, grid=grid)
-            if splitby isa Vector{Symbol}
-                splitby = String.(splitby)
-            end
-            if all(in.(splitby, [names(data)]))
-                groups = groupby(data, splitby)
-                ugroups =
-                collect(zip(sort(collect(groups.keymap),by=x->x[2])...))[1]
-                ugroups = 
-                [(;zip(groups.cols,ugroup)...) for ugroup in ugroups]
-                #spikeDist = Dict(ugroups[i] => field_of_group(i) 
-                #                 for i ∈ 1:length(groups))
-                spikeDist = Dict{typeof(ugroups[1]),Any}();
-                @inbounds for i ∈ 1:length(groups)
-                    if savemem
-                        spikeDist[ugroups[i]] = Float32.(field_of_group(i).weights)
-                    else
-                        spikeDist[ugroups[i]] = field_of_group(i).weights
-                    end
-                end
-            else
-                if splitby != nothing
-                    @warn "splitby not empty, yet not all columns in df"
-                end
-                spikeDist = hist.h2d(data, props, grid=grid)
-            end
-
-            # Transform behavior
-            behDist_nanWhere0 = copy(behDist.weights);
-            if savemem
-                behDist_nanWhere0 = convert.(Float32, behDist_nanWhere0);
-            else
-                behDist_nanWhere0 = convert.(Float64, behDist_nanWhere0);
-            end
-            behzeroinds = behDist_nanWhere0 .== 0
-            behDist_nanWhere0[behzeroinds] .= NaN;
-            behDist.weights[behDist.weights .== 0] .= 1;
-            
-            return (hist=spikeDist, grid=grid, occ=behDist_nanWhere0,
-                    occzeroinds=behzeroinds)
-        end
-    end
-    export hist
-
-    module kerneldens
-        using ..field
-        using DataFrames
-        using StatsBase, KernelDensity
-        using KernelDensitySJ
-        #using Infiltrator
-        #using DrWatson
-        include("utils.jl")
-        function KDE(data, props; bandwidth=:silverman)
-            data = dropmissing(data[:,props])
-            #for col in props
-            #    inds = data[:, col] .== NaN
-            #    data[inds, col] .= 0
-            #end
-            if isempty(data) || data isa Nothing
-                return nothing
-            else
-                fail=false
-                bandwidths=nothing
-                if bandwidth == :sj
-                    try
-                        bandwidths = tuple([bwsj(data[:,prop]) for prop in props]...)
-                    catch e
-                        fail=true
-                    end
-                    if fail || !all(bandwidths .> 0) 
-                        return nothing
-                    end
-                elseif bandwidth == :silverman
-                    bandwidths = nothing
-                else
-                    bandwidths = bandwidth
-                end
-                if bandwidths == nothing
-                    return kde(tuple([convert(Vector{Float32}, x) 
-                                      for x in eachcol(data[:, props])]...
-                                    )
-                              )
-                else
-                    return kde(tuple([convert(Vector{Float32}, x) 
-                                      for x in eachcol(data[:, props])]...
-                                    ); bandwidth=bandwidths
-                              )
-                end
-            end
-        end
-
-
-        function gridpdf(kde, grid)
-            grid = [grid[prop] for prop in keys(grid)]
-            pdf(kde, grid...)
-        end
-
-        """
-            norm_kde_by_histcount
-
-        normalizes kernel density estimates to have the same number of event
-        counts as the histogram, so that it will accurately represent peak
-        firing/ripple rates
-        """
-        function norm_kde_by_histcount(kde::Union{AbstractArray, Dict}, 
-                hist::Union{AbstractArray,Dict}, skip_keyerror=false)
-            #if typeof(hist) ≠ typeof(kde)
-            #    throw(ArgumentError("type of hist should match type of kde\n...type(hist)=$(supertype(typeof(hist))) != $(supertype(typeof(kde)))"))
-            #end
-            if kde isa AbstractArray
-                area_hist = sum(utils.skipnan(hist))
-                area_kde  = sum(utils.skipnan(kde))
-                kde = (area_hist/area_kde) .* kde;
-            elseif kde isa Dict
-                @inbounds for key in keys(kde)
-                    try
-                        kde[key] = norm_kde_by_histcount(kde[key], hist[key])
-                    catch KeyError
-                        if !skip_keyerror
-                            throw(KeyError("Key=$key missing from hist"))
-                        end
-                    end
-                end
-            else
-                throw(ArgumentError)
-            end
-            return kde
-        end
-
-        function fields(data::DataFrame, beh::DataFrame;
-                splitby::Union{Nothing,Vector{String},Vector{Symbol},String}="unit",
-                resolution::Union{Int,Vector{Int}}=200,
-                savemem::Bool=true,
-                props::Vector{String}=["x","y"])
-
-            # Grid settings
-            grid = getSettings(beh, props, 
-                                     resolution=resolution, settingType="kde")
-            #@infiltrate
-            grid_hist = getSettings(beh, props, resolution=resolution,
-                                    settingType="hist")
-            # Behavioral distribution
-            behDist = KDE(beh, props);
-            behDist_hist = hist.h2d(beh, props, grid=grid_hist).weights;
-
-            # Data distribution applying splits if applicable
-            ith_group(i) = DataFrame(groups[i])
-            field_of_group(i) = KDE(ith_group(i), props)
-            if splitby isa Vector{Symbol}
-                splitby = String.(splitby)
-            end
-            if all(in.(splitby, [names(data)]))
-                groups = groupby(data, splitby)
-                ugroups = collect(zip(sort(collect(groups.keymap),
-                                           by=x->x[2])...))[1]
-                ugroups = 
-                [(;zip(groups.cols,ugroup)...) for ugroup in ugroups]
-                spikeDist = Dict(ugroups[i] => try field_of_group(i) catch nothing end
-                                 for i ∈ 1:length(groups)) # TODO replace nothing with array of nan
-            else
-                if splitby != nothing
-                    @warn "splitby not empty, yet not all columns in df"
-                end
-                spikeDist = KDE(data[!,:], props)
-            end
-
-            # Occupancy
-            behDist = pdf(behDist, grid...);
-            zero_fraction = 0.0000000001
-            behDist[behDist .<= zero_fraction] .= 1
-            behzeroinds = behDist_hist .<= 0
-            if savemem
-                behDist = Float32.(behDist)
-            end
-
-            # Spike count
-            if spikeDist isa Dict
-                dist = Dict{typeof(ugroups[1]),Any}();
-                @inbounds for i ∈ keys(spikeDist)
-                    if spikeDist[i] == nothing
-                        dist[i] = nothing
-                    else
-                        if savemem
-                            dist[i] = Float32.(pdf(spikeDist[i], grid...))
-                        else
-                            dist[i] = pdf(spikeDist[i], grid...)
-                        end
-                    end
-                end
-            else
-                @assert dist != nothing
-                dist = pdf(spikeDist, grid...)
-            end
-
-            return (kde=dist, grid=grid, occ=behDist, occzeroinds=behzeroinds)
-        end
-    end
-    export kerneldens
-
+    # Field-related submodules
+    push!(LOAD_PATH, srcdir("Field","src"))
+    @reexport using model
+    @reexport using fit
+    @reexport using operation
+    @reexport using plot
+    import hist
+    import kerneldens
+    import info
+    import recon
+    import recon_process
+    pop!(LOAD_PATH)
 
 end
 
