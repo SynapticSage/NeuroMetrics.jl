@@ -1,5 +1,6 @@
 module type
 
+    using DataFrames
     export handle_complex_columns
 
     """

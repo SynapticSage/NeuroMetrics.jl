@@ -1,5 +1,9 @@
 module clean
 
+    export clean_duplicate_cols
+    export nan_to_missing, nan_to_missing!
+    export naninf_to_missing, naninf_to_missing!
+    using DataFrames
     #function combine(data::Dict{Any, Any})
     #    print("Dict combine")
     #    return vcat((x[2] for x in data)...)

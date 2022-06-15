@@ -1,3 +1,4 @@
+
 """
 Module Contents:
 
@@ -8,6 +9,7 @@ Module Contents:
 ** binary on time :: return a set of time ranges where a property is a value
 ** select_group :: return a set of samples where a categorical property is  value
 """
+module Table
 
 using DataFrames
 using ProgressMeter
@@ -351,8 +353,9 @@ function _occupancy_normalize(data::DataFrame, beh::DataFrame,
 end
 
 @reexport using clean
-@reexport using convert
-@reexport using display
+@reexport using convert_types
+@reexport using plot
 @reexport using type
 @reexport using group
 
+end

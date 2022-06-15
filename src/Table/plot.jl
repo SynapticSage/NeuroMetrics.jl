@@ -1,4 +1,6 @@
-module display
+module plot
+
+    export display_table
 
     function display_table(data; others...)
         w=Window()
