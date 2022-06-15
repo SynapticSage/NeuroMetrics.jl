@@ -2,7 +2,7 @@ module Filt
 
 using DataFrames
 using DataStructures
-export filters
+export get_filters
 using Base: merge
 
 function SPEED(x)

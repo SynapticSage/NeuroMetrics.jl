@@ -17,7 +17,8 @@ module raster
     #using DrWatson
     using ProgressMeter, Debugger
     using Measures
-    include("table.jl")
+    import Table
+
     __revise_mode__ = :eval
 
     StringSymbol = Union{String, Symbol}
@@ -54,8 +55,8 @@ module raster
         end
 
         if timegroup_count != -1
-            spikes = table.select_row_group(spikes, timegroup, timegroup_count);
-            beh    = table.select_row_group(beh,    timegroup, timegroup_count);
+            spikes = Table.select_row_group(spikes, timegroup, timegroup_count);
+            beh    = Table.select_row_group(beh,    timegroup, timegroup_count);
         end
         if isempty(spikes)
             throw(InvalidStateException("Empty spikes", :spikes))
@@ -63,7 +64,7 @@ module raster
             throw(InvalidStateException("Empty beh", :beh))
         end
         if colorTimeGroup != nothing
-            trajs = table.get_periods(spikes, colorTimeGroup);
+            trajs = Table.get_periods(spikes, colorTimeGroup);
             runTrajLayer = layer(trajs, xmin=:start, 
                                  xmax=:end, color=:traj, alpha=[0.35], 
                                  Geom.vband);
@@ -88,7 +89,7 @@ module raster
                 if dio_vars in names(beh)
                     dio_vars = [dio_vars];
                 else
-                    dio_vars = table.vec_of_matching_colnames(beh, dio_vars);
+                    dio_vars = Table.vec_of_matching_colnames(beh, dio_vars);
                 end
             end
             dioLayer = Vector{Vector{Gadfly.Layer}}()
@@ -138,7 +139,7 @@ module raster
 
     function _unit_specific_column(spikes, column, rank)
         if !(column in names(spikes))
-            colnames = table.vec_of_matching_colnames(spikes, column)
+            colnames = Table.vec_of_matching_colnames(spikes, column)
             if isempty(colnames)
                 throw(ArgumentError("No matching to match=$column"))
             end
@@ -195,8 +196,8 @@ module raster
             timegroup_count = parse(Int, timegroup_count);
         end
         if timegroup_count != -1
-            S = table.select_row_group(spikes, timegroup, timegroup_count);
-            B    = table.select_row_group(beh,    timegroup, timegroup_count);
+            S = Table.select_row_group(spikes, timegroup, timegroup_count);
+            B    = Table.select_row_group(beh,    timegroup, timegroup_count);
         end
         if isempty(spikes)
             throw(InvalidStateException("Empty spikes", :spikes))
@@ -206,7 +207,7 @@ module raster
 
         # Color time group?
         if colorTimeGroup != nothing
-            trajs = table.get_periods(spikes, colorTimeGroup);
+            trajs = Table.get_periods(spikes, colorTimeGroup);
             runTrajLayer = layer(trajs, xmin=:start, 
                                  xmax=:end, color=:traj, alpha=[0.35], 
                                  Geom.vband);
@@ -233,7 +234,7 @@ module raster
                 if dio_vars in names(B)
                     dio_vars = [dio_vars];
                 else
-                    dio_vars = table.vec_of_matching_colnames(B, dio_vars);
+                    dio_vars = Table.vec_of_matching_colnames(B, dio_vars);
                 end
             end
             dioLayers = Vector{Vector{Gadfly.Layer}}()
@@ -359,13 +360,13 @@ module raster
         @assert size(spikes,1) != 0
         # add sortable properties for cells
         println("Adding cell sort properties")
-        spikes = table.add_sort_properties(spikes, beh, props);
+        spikes = Table.add_sort_properties(spikes, beh, props);
         areawise = groupby(spikes, "area");
         A = Vector{DataFrame}([])
         # add sortable properties for cells by area
         println("Adding cell sort properties by area")
         @showprogress "Iterating areas" for a = 1:length(areawise)
-            A = [A; table.add_sort_properties(DataFrame(areawise[a]), beh, props; 
+            A = [A; Table.add_sort_properties(DataFrame(areawise[a]), beh, props; 
                                               modifier="area_")];
         end
         spikes = vcat(A...)

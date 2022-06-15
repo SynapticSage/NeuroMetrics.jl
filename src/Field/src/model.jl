@@ -4,8 +4,8 @@ module model
     using ProgressMeter
     using DataFrames
     import Plots
-    include("../table.jl")
-    include("../utils.jl")
+    import Table, Utils
+
     include("./operation.jl")  #valid if a module has already nested this!
     import ..field #valid if a module has already nested this!
 
@@ -21,7 +21,7 @@ module model
         spikes = copy(spikes)
 
         # Map each spike to its behavioral bin
-        nearest_points = utils.searchsortednearest
+        nearest_points = Utils.searchsortednearest
         spikes[!,"nearest"] = nearest_points.([behavior.time], spikes.time)
 
         # Filter out spikes that do not match the tolerance
@@ -182,7 +182,7 @@ module model
                                         other_labels=Dict(:type=>type),
                                         name="prob")
         likelihood[!,"logprob"] = log10.(likelihood.prob)
-        table.naninf_to_missing!(likelihood, [:prob, :logprob])
+        Table.naninf_to_missing!(likelihood, [:prob, :logprob])
         return likelihood
     end
 

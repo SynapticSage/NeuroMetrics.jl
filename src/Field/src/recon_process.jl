@@ -1,7 +1,7 @@
 module recon_process
     
-    using ..field
-    include("../table.jl")
+    using ..Field
+    import Table
     using ProgressMeter
     using DataFrames
     using Infiltrator
@@ -159,7 +159,7 @@ module recon_process
         for reconstruction in recon_req
             what, given = split(reconstruction, "|")
             error = recon.reconstruction_error(F[what].Rₕsq, R̂[reconstruction])
-            error = table.to_dataframe(error; name="error")
+            error = Table.to_dataframe(error; name="error")
             push!(E, error)
             next!(P)
         end

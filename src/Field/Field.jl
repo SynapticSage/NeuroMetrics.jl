@@ -15,9 +15,8 @@ module Field
 
     # Goal Vector Libraries
     #using DrWatson
-    include("raw.jl")
-    include("utils/SearchSortedNearest.jl/src/SearchSortedNearest.jl")
-    include("utils.jl")
+    import Load
+    import Utils
     
 
     rateConversion = 30
@@ -34,7 +33,7 @@ module Field
         grid = OrderedDict{String,Any}()
         thing = dropmissing(thing);
         for prop in props
-            grid[prop] = extrema(utils.skipnan(thing[!, prop]));
+            grid[prop] = extrema(Utils.skipnan(thing[!, prop]));
         end
         range_func_hist(start, stop, i) = collect(start : (stop-start)/resolution[i] : stop);
         range_func_kde(x,y,i) = x:((y-x)/resolution[i]):y
@@ -73,7 +72,7 @@ module Field
             end
             augmented_props = [filter_props..., props...]
             @debug "augmented_props=$augmented_props"
-            tmp, data = raw.filterAndRegister(beh, data; filters=filters,
+            tmp, data = Load.filterAndRegister(beh, data; filters=filters,
                                               transfer=augmented_props,
                                               on="time")
             @assert length(unique(data.velVec)) > 1 "Empty data!"
@@ -86,7 +85,7 @@ module Field
                 end
             elseif behfilter isa Dict
                     @debug "replacing behavior with custom filter"
-                beh = raw.filterTables(beh; filters=behfilter,
+                beh = Load.filterTables(beh; filters=behfilter,
                                        lookupcols=nothing)[1]
             end
         end

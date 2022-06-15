@@ -32,7 +32,7 @@ module checkpoint
     function saveTauMax_cellTable(df_imax::DataFrame, animal::String, day::Int,
         tag::String)
         tag = "$(tag)_tauMax"
-        raw.save_cell_taginfo(df_imax, animal, day, tag)
+        Load.save_cell_taginfo(df_imax, animal, day, tag)
     end
 
     function mainspath()

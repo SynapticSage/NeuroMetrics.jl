@@ -6,7 +6,8 @@ module kerneldens
         using KernelDensitySJ
         #using Infiltrator
         #using DrWatson
-        include("utils.jl")
+        import Utils
+
         function KDE(data, props; bandwidth=:silverman)
             data = dropmissing(data[:,props])
             #for col in props
@@ -65,8 +66,8 @@ module kerneldens
             #    throw(ArgumentError("type of hist should match type of kde\n...type(hist)=$(supertype(typeof(hist))) != $(supertype(typeof(kde)))"))
             #end
             if kde isa AbstractArray
-                area_hist = sum(utils.skipnan(hist))
-                area_kde  = sum(utils.skipnan(kde))
+                area_hist = sum(Utils.skipnan(hist))
+                area_kde  = sum(Utils.skipnan(kde))
                 kde = (area_hist/area_kde) .* kde;
             elseif kde isa Dict
                 @inbounds for key in keys(kde)

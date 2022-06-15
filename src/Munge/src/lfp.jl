@@ -79,7 +79,7 @@ module lfp
 
     function get_cycle_table(lfp, pos...; kws...)
         @assert "cycle" in names(lfp)
-        tab = table.get_periods(lfp, "cycle", :amp=>mean, pos...; kws...)
+        tab = Table.get_periods(lfp, "cycle", :amp=>mean, pos...; kws...)
         return tab
     end
     getTet(L::DataFrame, T::Int) = filter(:tetrode=> t->t==T, L)

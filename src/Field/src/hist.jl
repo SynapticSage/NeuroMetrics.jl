@@ -1,6 +1,6 @@
 module hist
         using ..Field
-        import ..utils
+        import Utils
         using DataFrames
         using StatsBase
         using Infiltrator

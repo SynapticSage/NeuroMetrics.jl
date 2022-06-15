@@ -1,7 +1,7 @@
 module well
 
     using StatsBase
-    using DataFrame
+    using DataFrames
     export cosine_similarity_to_well
 
     """
@@ -49,4 +49,3 @@ module well
     end
 
 end
-

@@ -13,7 +13,7 @@
 module plot
 
     using ..field
-    import ..utils
+    import Utils
     using Plots, LaTeXStrings, Measures
     using Statistics
     using ProgressMeter
@@ -114,7 +114,7 @@ module plot
         if all(isnan.(FF)) || isempty(FF)
             return Plots.plot()
         end
-        ylims = quantile(utils.skipnan(vec(FF)), quant)
+        ylims = quantile(Utils.skipnan(vec(FF)), quant)
         if grid == []; extrakwargs = (xticks=[], yticks=[])
         else; extrakwargs = ()
         end
@@ -136,7 +136,7 @@ module plot
         if all(isnan.(FF)) || isempty(FF)
             return Plots.plot()
         end
-        clims = quantile(utils.skipnan(vec(FF)), quant)
+        clims = quantile(Utils.skipnan(vec(FF)), quant)
         if grid == []; 
             extrakwargs = (xticks=[], yticks=[])
             grid = (); pos = ();
