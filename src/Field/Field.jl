@@ -14,7 +14,7 @@ module Field
     using Infiltrator
 
     # Goal Vector Libraries
-    #using DrWatson
+    using DrWatson
     import Load
     import Utils
     
@@ -35,9 +35,9 @@ module Field
         for prop in props
             grid[prop] = extrema(Utils.skipnan(thing[!, prop]));
         end
-        range_func_hist(start, stop, i) = collect(start : (stop-start)/resolution[i] : stop);
+        range_func_hist(start, stop, i) = collect(start : (stop-start)/resolution[i] : stop)
         range_func_kde(x,y,i) = x:((y-x)/resolution[i]):y
-        edge_end(x,y,i) = range_func_kde(x,y,i)[begin:end-1]
+        edge_end(x,y,i)   = range_func_kde(x,y,i)[begin:end-1]
         edge_start(x,y,i) = range_func_kde(x,y,i)[begin+1:end]
         mp(x,y,i) = dropdims(diff(hcat(edge_start(x,y,i),edge_end(x,y,i)),
                                    dims=2); dims=2) +  edge_start(x,y,i);
@@ -214,6 +214,7 @@ module Field
 
 
     # Field-related submodules
+    using Reexport
     push!(LOAD_PATH, srcdir("Field","src"))
     @reexport using model
     @reexport using fit
