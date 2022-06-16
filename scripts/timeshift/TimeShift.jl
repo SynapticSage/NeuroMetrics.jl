@@ -1,16 +1,17 @@
-quickactivate("/home/ryoung/Projects/goal-code/")
+
 @time include(scriptsdir("fields", "Initialize.jl"))
 info = field.info
-include(scriptsdir("timeshift", "TimeShift_setsOfInterest.jl"))
-_, spikes = raw.register(beh, spikes; transfer=["velVec"], on="time")
+include(scriptsdir("Timeshift", "TimeShift_setsOfInterest.jl"))
+_, spikes = Load.register(beh, spikes; transfer=["velVec"], on="time")
 import Base.Threads: @spawn
 using ThreadSafeDicts
 using Blink
 using Interact
 using NaNStatistics
-import .timeshift
-using .timeshift: info_to_dataframe, get_key
+import .Timeshift
+using .Timeshift: info_to_dataframe, get_key
 using Combinatorics: powerset
+
 sp = copy(spikes)
 convertToMinutes = true
 
@@ -33,7 +34,7 @@ sz(items) = [IDEALSIZE[item] for item in items]
 splitby=["unit", "area"]
 prop_set = marginals_superhighprior_shuffle
 #gaussian=2.3*0.5
-filts = filt.get_filters()
+filts = Filt.get_filters()
 shifts = -4:0.2:4
 shifts = convertToMinutes ? shifts./60 : shifts
 function get_key(;shifts, kws...)
@@ -58,11 +59,11 @@ end
 #   -8 : 8 seconds (trajectory length)
 #   (block length)
 
-I = timeshift.load_mains()
-F = timeshift.load_fields()
+I = Timeshift.load_mains()
+F = Timeshift.load_fields()
 key = (;first(keys(I))..., datacut=:all)
-imax = sort(timeshift.imax(timeshift.info_to_dataframe(I[key], shift_scale=:minutes)))
-iall = sort(timeshift.info_to_dataframe(I[key], shift_scale=:minutes))
+imax = sort(Timeshift.imax(Timeshift.info_to_dataframe(I[key], shift_scale=:minutes)))
+iall = sort(Timeshift.info_to_dataframe(I[key], shift_scale=:minutes))
 
 # ================
 # Examine best TAU
@@ -74,11 +75,11 @@ key_order = (;marginal=key.marginal,
              first=key.first,
              last=key.last,
              step=key.step)
-cellTaus = sort(timeshift.imax(info_to_dataframe(I[key], shift_scale=:minutes)),
+cellTaus = sort(Timeshift.imax(info_to_dataframe(I[key], shift_scale=:minutes)),
                 :unit)[:,[:unit,:area,:bestTau]]
-keyname = timeshift.keytostring(key, ", "=>"_"; remove_numerics=true)
+keyname = Timeshift.keytostring(key, ", "=>"_"; remove_numerics=true)
 rename!(cellTaus, "bestTau" => "bestTau_$keyname")
-raw.save_cell_taginfo(cellTaus, animal, day, keyname)
+Load.save_cell_taginfo(cellTaus, animal, day, keyname)
 
 utils.bestpartialmatch(F, key)
 f_select  = table.to_dataframe(utils.applyvalues(, x->x.Cₕ);
@@ -92,8 +93,8 @@ f_select  = table.to_dataframe(utils.applyvalues(, x->x.Cₕ);
 # MAINS
 # ========
 # Main, non-shuffles
-if isfile(timeshift.mainspath())
-    I = timeshift.load_mains()
+if isfile(Timeshift.mainspath())
+    I = Timeshift.load_mains()
 else
     I = OrderedDict()
 end
@@ -124,7 +125,7 @@ end
         newkws = (; kws..., filters=filts[datacut], splitby, props, dokde=false,
                   resolution=sz(props), multi=:single, postfunc=info.information)
         try
-            I[key] = @spawn @time timeshift.get_field_shift(beh, spikes, shifts; newkws...)
+            I[key] = @spawn @time Timeshift.get_field_shift(beh, spikes, shifts; newkws...)
             I[key] = fetch(I[key])
         catch
             @warn "key=$key does not run, possibly an edge case where your filters are too stringent for the behavioral property measured"
@@ -139,7 +140,7 @@ end
             end
             @info I
             utils.pushover("Done fetchging jobs for datacut=$datacut")
-            timeshift.save_mains(I)
+            Timeshift.save_mains(I)
             @infiltrate
         catch
             @warn "potential task failure for props=$props, datacut=$datacut"
@@ -153,15 +154,15 @@ end
 shuffle_type = :dotson
 if shuffle_type == :dotson
     nbins = 50
-    raw.behavior.annotate_relative_xtime!(beh)
+    Load.behavior.annotate_relative_xtime!(beh)
     beh.trajreltime_bin = floor.(beh.trajreltime * (nbins-1))
-    _, spikes = raw.register(beh, spikes; 
+    _, spikes = Load.register(beh, spikes; 
                              transfer=["trajreltime","trajreltime_bin"], 
                              on="time")
 end
 # COMPUTE SHUFFLE INFORMATION @ DELAYS
-if isfile(timeshift.shufflespath())
-    S = timeshift.load_shuffles()
+if isfile(Timeshift.shufflespath())
+    S = Timeshift.load_shuffles()
 else
     S = OrderedDict()
 end
@@ -188,7 +189,7 @@ end
                     compute=:single,
                     exfiltrateAfter=100,
                     postfunc=info.information)
-        S[key] = @time timeshift.get_field_shift_shuffles(beh, spikes, shifts; shufshift_settings...)
+        S[key] = @time Timeshift.get_field_shift_shuffles(beh, spikes, shifts; shufshift_settings...)
     end
     try
         for (key, value) in S
@@ -200,15 +201,15 @@ end
     catch
         @warn "potential task failure for props=$props, datacut=$datacut"
     end
-    timeshift.save_shuffles(S)
+    Timeshift.save_shuffles(S)
 end
 
 # ================
 # Get fields at shifts
 # ================
 # Main, non-shuffles
-if isfile(timeshift.fieldspath())
-    F = timeshift.load_fields()
+if isfile(Timeshift.fieldspath())
+    F = Timeshift.load_fields()
 else
     F = OrderedDict()
 end
@@ -240,7 +241,7 @@ end
         newkws = (; kws..., filters=filts[datacut], splitby, props, dokde=false,
                   resolution=sz(props), multi=:single)
         try
-            F[key] = @time timeshift.get_field_shift(beh, spikes, shifts; newkws...)
+            F[key] = @time Timeshift.get_field_shift(beh, spikes, shifts; newkws...)
             F[key] = fetch(I[key])
         catch
             @warn "key=$key does not run, possibly an edge case where your filters are too stringent for the behavioral property measured"
@@ -255,7 +256,7 @@ end
             end
             @info F
             utils.pushover("Done fetchging jobs for datacut=$datacut")
-            timeshift.save_fields(F)
+            Timeshift.save_fields(F)
         catch
             @warn "potential task failure for props=$props, datacut=$datacut"
         end

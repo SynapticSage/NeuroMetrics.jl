@@ -140,7 +140,7 @@ module Load
         data = Dict{String,Any}()
         m = nothing
         for source ∈ load_order
-            data[source] = raw.load_functions[source](args...)
+            data[source] = Load.load_functions[source](args...)
             @assert typeof(data[source]) != Nothing
             if "time" ∈ names(data[source])
                 @info "Centering $source and **converting to minutes**"

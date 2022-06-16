@@ -355,8 +355,6 @@ module Table
     @reexport using .clean
     include(srcdir("Table", "convert_types.jl"))
     @reexport using .convert_types
-    include(srcdir("Table", "plot.jl"))
-    @reexport using .plot
     include(srcdir("Table", "type.jl"))
     @reexport using .type
     include(srcdir("Table", "group.jl"))

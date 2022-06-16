@@ -463,4 +463,3 @@ module raster
     end
 
 end
-

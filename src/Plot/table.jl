@@ -1,4 +1,4 @@
-module plot
+module table
 
     export display_table
 

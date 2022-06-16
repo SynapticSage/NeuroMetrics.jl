@@ -1,4 +1,4 @@
-module plot
+module timeshift
 
     using StatsPlots: @df
     using Plots

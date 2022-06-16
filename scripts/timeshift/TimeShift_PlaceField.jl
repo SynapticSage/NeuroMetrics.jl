@@ -5,15 +5,8 @@ using StatsPlots
 using Statistics
 using StatsPlots
 using DataFrames
-includet(srcdir("field.jl"))
-includet(srcdir("filt.jl"))
-includet(srcdir("raw.jl"))
-includet(srcdir("field/timeshift.jl"))
-includet(srcdir("field/info.jl"))
-includet(srcdir("utils.jl"))
-includet(srcdir("table.jl"))
-@time spikes, beh = raw.load("RY16", 36, data_source=["spikes","behavior"])
-using .timeshift
+@time spikes, beh = Load.load("RY16", 36, data_source=["spikes","behavior"])
+using .Timeshift
 
 correctToMinutes = true
 if correctToMinutes
@@ -54,52 +47,52 @@ n = 2
 # A (( ---- PLACE ---- ))
 props = ["x", "y"]
 splitby=["unit", "area"]
-kws=(;splitby, filters=merge(filt.speed_lib, filt.cellcount), multi=:single, postfunc=info.information)
+kws=(;splitby, filters=merge(Filt.speed_lib, Filt.cellcount), multi=:single, postfunc=info.information)
 
 newkws = (; kws..., resolution=40, gaussian=2.3*0.5, props=props, filters=merge(kws.filters))
-jobs[:place] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
+jobs[:place] = @spawn @time Timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
-newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, filt.correct))
-jobs[:place_correctOnly] = @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
+newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, Filt.correct))
+jobs[:place_correctOnly] = @time Timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
-newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, filt.incorrect))
-jobs[:place_incorrectOnly] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
+newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, Filt.incorrect))
+jobs[:place_incorrectOnly] = @spawn @time Timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
-newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, filt.nontask))
-jobs[:place_nontaskOnly] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
+newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, Filt.nontask))
+jobs[:place_nontaskOnly] = @spawn @time Timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
-newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, filt.cue, filt.correct))
-jobs[:place_correctCue] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
+newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, Filt.cue, Filt.correct))
+jobs[:place_correctCue] = @spawn @time Timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
-newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, filt.mem, filt.correct))
-jobs[:place_correctMem] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
+newkws = (; kws..., resolution=40, gaussian=4.3*0.5, props=props, filters=merge(kws.filters, Filt.mem, Filt.correct))
+jobs[:place_correctMem] = @spawn @time Timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
 
 # B (( ---- GOAL ---- ))
-filters = merge(kws.filters, filt.correct,
-                filt.notnan("currentAngle"), 
-                filt.minmax("currentPathLength", 4, 150))
+filters = merge(kws.filters, Filt.correct,
+                Filt.notnan("currentAngle"), 
+                Filt.minmax("currentPathLength", 4, 150))
 props = ["currentAngle", "currentPathLength"]
 
 newkws = (; kws..., filters=merge(kws.filters, filters), resolution=40, gaussian=4.3*0.5, props=props)
-jobs[:goal] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
+jobs[:goal] = @spawn @time Timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
 # C (( ---- SPECGOAL ---- ))
 props = ["currentAngle", "currentPathLength", "stopWell"]
 newkws = (; kws..., filters=merge(kws.filters, filters),
           resolution=[40, 40, 5], props=props)
-jobs[:specgoal] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
+jobs[:specgoal] = @spawn @time Timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 # C (( ---- SPECPLACE ---- ))
 props = ["x", "y", "stopWell"]
 newkws = (; kws..., filters=merge(kws.filters, filters),
           resolution=[40, 40, 5], props=props)
-jobs[:specplace] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); 
+jobs[:specplace] = @spawn @time Timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); 
                                         newkws...);
 # D (( ---- FULL ---- ))
 props = ["x", "y", "currentAngle", "currentPathLength", "stopWell"]
 newkws = (; kws..., filters=merge(kws.filters, filters),
           resolution=[40, 40, 40, 40, 5], props=props)
-jobs[:full] = @spawn @time timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
+jobs[:full] = @spawn @time Timeshift.get_field_shift(beh, spikes, c(-n:0.1:n); newkws...);
 
 
 # Retrieve
@@ -114,6 +107,6 @@ for (key,job) in jobs
 end
 
 # Shuffle test
-#place = @time timeshift.get_field_shift_shufflesfield_shift(beh, spikes, -2:0.1:2; 
+#place = @time Timeshift.get_field_shift_shufflesfield_shift(beh, spikes, -2:0.1:2; 
 #                                        multithread=true, 
 #                                        postfunc=info.information, newkws...);

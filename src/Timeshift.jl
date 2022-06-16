@@ -94,8 +94,6 @@ module Timeshift
     @reexport using .dataframe
     include(srcdir("Timeshift", "operation.jl"))
     @reexport using .operation
-    include(srcdir("Timeshift", "plot.jl"))
-    @reexport using .plot
     include(srcdir("Timeshift", "shuffle.jl"))
     @reexport using .shuffle
     include(srcdir("Timeshift", "crossval.jl"))

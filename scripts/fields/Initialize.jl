@@ -6,8 +6,8 @@
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
 includet(scriptsdir("fields","Include.jl"))
-@assert field.get_fields isa Function
-@time spikes, beh, ripples, cells = raw.load("RY16", 36);
+@assert Field.get_fields isa Function
+@time spikes, beh, ripples, cells = Load.load("RY16", 36);
 function sf(p, loc)
     p.attr[:size] = (1900, 1900)
     savefig(p, loc)
@@ -20,7 +20,7 @@ R̂ = Dict() # Store reconstructions
 
 # Generalized settings
 splitby=["unit", "area"]
-kws=(;resolution=80, splitby, filters=filt.get_filters()[:all])
+kws=(;resolution=80, splitby, filters=Filt.get_filters()[:all])
 ploton, dofields, dopoissonmodel, doreconstruction = false, false, false, false
 
 if dofields
