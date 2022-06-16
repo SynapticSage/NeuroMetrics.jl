@@ -1,6 +1,7 @@
 module checkpoint
 
     using Serialization
+    using DataFrames
 
     export ts_plotdir
     export save_mains, save_shuffles

@@ -160,9 +160,9 @@ module Utils
         replace(Z .!= nothing, missing=>false)
     end
 
-    push!(LOAD_PATH, srcdir("Utils", "src"))
-    @reexport using dict
-    @reexport using namedtup
-    pop!(LOAD_PATH)
+    include(srcdir("Utils", "dict.jl"))
+    include(srcdir("Utils", "namedtup.jl"))
+    @reexport using .dict
+    @reexport using .namedtup
 
 end

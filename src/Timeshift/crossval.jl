@@ -8,6 +8,8 @@ module crossval
     using ScientificTypes
     using CategoricalArrays
     using DataFrames
+    import Utils
+    using Table: DFColVars
 
     in_range = Utils.in_range
 
@@ -131,8 +133,8 @@ module crossval
     """
 
     function apply_metric_to_traintest(cvresult::AbstractDict;
-            groupby_vars::Table.DFColVars,
-            stackid_vars::Table.DFColVars,
+            groupby_vars::DFColVars,
+            stackid_vars::DFColVars,
             metric=r2_score, shift_scale=:minutes)
 
             combined = unpack_cv_as_df(cvresult; shift_scale)
@@ -141,8 +143,8 @@ module crossval
     end
 
     function apply_metric_to_traintest(combined::DataFrame;
-            groupby_vars::Table.DFColVars,
-            stackid_vars::Table.DFColVars,
+            groupby_vars::DFColVars,
+            stackid_vars::DFColVars,
             metric=mae)
 
         combined = dropmissing(unstack(combined, [groupby_vars,stackid_vars],

@@ -1,6 +1,7 @@
 module dataframe
 
     import Table
+    using DataFrames, DataFramesMeta
     export to_dataframe, info_to_dataframe
     export fetch_best_fields
     export info_dataframe_and_cell_dataframe

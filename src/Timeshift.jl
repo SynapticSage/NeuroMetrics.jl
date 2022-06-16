@@ -1,4 +1,4 @@
-module timeshift
+module Timeshift
 
     __revise_mode__ = :eval
     using DrWatson
@@ -88,14 +88,21 @@ module timeshift
         return out
     end
 
-    push!(LOAD_PATH, srcdir("Timeshift", "src"))
-    @reexport using checkpoint
-    @reexport using dataframe
-    @reexport using operation
-    @reexport using plot
-    @reexport using shuffle
-    @reexport using crossval
-    @reexport using keys
-    pop!(LOAD_PATH)
+    include(srcdir("Timeshift", "checkpoint.jl"))
+    @reexport using .checkpoint
+    include(srcdir("Timeshift", "dataframe.jl"))
+    @reexport using .dataframe
+    include(srcdir("Timeshift", "operation.jl"))
+    @reexport using .operation
+    include(srcdir("Timeshift", "plot.jl"))
+    @reexport using .plot
+    include(srcdir("Timeshift", "shuffle.jl"))
+    @reexport using .shuffle
+    include(srcdir("Timeshift", "crossval.jl"))
+    @reexport using .crossval
+    @info "Made it here"
+    include(srcdir("Timeshift", "Keys.jl"))
+    @reexport using .Keys
+    @info "Made it here"
 
 end

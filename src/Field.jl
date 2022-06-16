@@ -215,17 +215,26 @@ module Field
 
     # Field-related submodules
     using Reexport
-    push!(LOAD_PATH, srcdir("Field","src"))
-    @reexport using model
-    @reexport using fit
-    @reexport using operation
-    @reexport using plot
-    import hist
-    import kerneldens
-    import info
-    import recon
-    import recon_process
-    pop!(LOAD_PATH)
+    include(srcdir("Field","operation.jl"))
+    @reexport using .operation
+    include(srcdir("Field","model.jl"))
+    @reexport using .model
+    include(srcdir("Field","fit.jl"))
+    @reexport using .fit
+    include(srcdir("Field","plot.jl"))
+    @reexport using .plot
+    #include(srcdir("Field","utils.jl"))
+    #@reexport using .utils
+    include(srcdir("Field","hist.jl"))
+    import .hist
+    include(srcdir("Field","kerneldens.jl"))
+    import .kerneldens
+    include(srcdir("Field","info.jl"))
+    import .info
+    include(srcdir("Field","recon.jl"))
+    import .recon
+    include(srcdir("Field","recon_process.jl"))
+    import .recon_process
 
 end
 

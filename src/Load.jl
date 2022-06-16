@@ -24,28 +24,29 @@ module Load
     load_default="arrow"
 
 
-    include(srcdir("Load","src", "behavior.jl"))
-    include(srcdir("Load","src", "celltet.jl"))
-    include(srcdir("Load","src", "decode.jl"))
-    include(srcdir("Load","src", "dlc.jl"))
-    include(srcdir("Load","src", "lfp.jl"))
-    include(srcdir("Load","src", "path.jl"))
-    include(srcdir("Load","src", "spikes.jl"))
-    include(srcdir("Load","src", "ripples.jl"))
-    include(srcdir("Load","src", "task.jl"))
-    include(srcdir("Load","src", "utils.jl"))
-    include(srcdir("Load","src", "video.jl"))
+    include(srcdir("Load", "behavior.jl"))
+    include(srcdir("Load", "celltet.jl"))
+    include(srcdir("Load", "decode.jl"))
+    include(srcdir("Load", "dlc.jl"))
+    include(srcdir("Load", "lfp.jl"))
+    include(srcdir("Load", "path.jl"))
+    include(srcdir("Load", "spikes.jl"))
+    include(srcdir("Load", "ripples.jl"))
+    include(srcdir("Load", "task.jl"))
+    include(srcdir("Load", "utils.jl"))
+    include(srcdir("Load", "video.jl"))
     
     @reexport using .behavior
     @reexport using .celltet
-    #@reexport using .decode
     @reexport using .dlc
     @reexport using .lfp
     @reexport using .path
     @reexport using .spikes
     @reexport using .ripples
     @reexport using .task
+    @info "got utils 1"
     @reexport using .utils
+    @info "got utils 2"
     @reexport using .video
 
     load_functions = Dict(

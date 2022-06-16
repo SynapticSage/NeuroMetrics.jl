@@ -5,6 +5,8 @@ module shuffle
     using ThreadSafeDicts
     using DataFrames
     using DataStructures
+    using Infiltrator
+    using ProgressMeter
 
     export get_field_shift_shuffles
 

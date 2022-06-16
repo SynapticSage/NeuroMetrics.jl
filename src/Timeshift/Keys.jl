@@ -1,4 +1,8 @@
 module Keys
+
+    using ProgressMeter
+    using DataFrames
+    using Infiltrator
     #=
     Methods for dealing with keys that summarize
     batches of timeshift measurements under different conditions

@@ -9,8 +9,8 @@ module recon_process
     using ThreadSafeDicts
     using NaNStatistics
 
-    si = field.operation.selectind
-    sk = field.operation.selectkey
+    si = Field.operation.selectind
+    sk = Field.operation.selectkey
 
     export get_recon_name
     export get_recon_req
@@ -109,7 +109,7 @@ module recon_process
         y = Set(vec([𝔻̅ⱼ(split(x,"|")[2], dims) for x in recon_req])) # requires the LHS andd inverse of the RHS of each reconstruction
         marginals_required = x ∪ y
 
-        @time X = field.get_fields(beh, spikes; K...);
+        @time X = Field.get_fields(beh, spikes; K...);
         field_size = size(si(X.Rₕ))
 
         # ---------
@@ -168,7 +168,7 @@ module recon_process
         E.what, E.under = what, under
         E = sort(E, [:model, :area, :unit])
         recon_summary = vcat(recon_summary, E)
-        field.utils.pushover("Finished reconstruction summaries")
+        Field.utils.pushover("Finished reconstruction summaries")
         return recon_summary
     end
 

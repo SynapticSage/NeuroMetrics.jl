@@ -6,8 +6,8 @@ module model
     import Plots
     import Table, Utils
 
-    include("./operation.jl")  #valid if a module has already nested this!
-    import ..field #valid if a module has already nested this!
+    import ..Field #valid if a module has already nested this!
+    operation = Field.operation
 
     """
     data(spikes, behavior; grid, props)
@@ -39,7 +39,7 @@ module model
                 D[col .> 20, c] .= 20 # maximumal non-big() factorial
             end
         end
-            @assert !(isempty(D))
+        @assert !(isempty(D))
 
         # Let's lookup the linear index into a field for every behavioral
         # time

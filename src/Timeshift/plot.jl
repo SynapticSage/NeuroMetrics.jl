@@ -2,6 +2,7 @@ module plot
 
     using StatsPlots: @df
     using Plots
+    using Infiltrator
     import Shuffle
     using DataFrames, DataFramesMeta
 

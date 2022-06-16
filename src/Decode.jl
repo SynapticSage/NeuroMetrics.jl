@@ -34,11 +34,11 @@ module decode
         return reshape(dat, sz)
     end
 
-    push!(LOAD_PATH, srcdir("Decode", "src"))
+    include(srcdir("Decode","checkpoint.jl"))
     @reexport using checkpoint
+    include(srcdir("Decode","makie_observable.jl"))
     @reexport using makie_observable
+    include(srcdir("Decode","plot.jl"))
     @reexport import plot
-    pop!(LOAD_PATH)
-    #include("decode/wellanalysis.jl")
 
 end

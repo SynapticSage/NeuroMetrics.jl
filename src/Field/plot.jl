@@ -3,16 +3,16 @@
 
 # proposed structure
 
-`show_fieldgroups` : plot a group of field collections, who are indexed by group keys
+`show_fieldgroups` : plot a group of Field collections, who are indexed by group keys
 
 `show_fields` : plot a collection of fields indexed by keys
 
-`show_field`  : plot a single field and its key
+`show_field`  : plot a single Field and its key
 
 """
 module plot
 
-    using ..field
+    using ..Field
     import Utils
     using Plots, LaTeXStrings, Measures
     using Statistics
@@ -67,6 +67,7 @@ module plot
         end
         return plots
     end
+
     function save_dict_fieldplots(plots, name; ext="pdf")
         @showprogress for (key, plot) in plots
             keyname = name * "_" * transform_key(key, splitter=",")
@@ -78,9 +79,11 @@ module plot
             end
         end
     end
+
     function selectbackground()
         ndim = ndims(operation.selectind(F, 1))
     end
+
     function show_fields(F::Dict; fontscale=true, background=:grey30,
             textcolor=:white, as::Union{Type,<:Function}=Plots.plot,
             plotkws::NamedTuple=NamedTuple(), kws...)
@@ -104,6 +107,7 @@ module plot
         end
         return obj
     end
+
     function show_field(FF::AbstractVector; func=Plots.bar,
             key::Union{String,NamedTuple,Nothing}=NamedTuple(),
             keyappend::Union{String,NamedTuple,Nothing}=nothing,
@@ -126,6 +130,7 @@ module plot
                        location=location,nplots=nplots,
                        nplots_factor=nplots_factor)
     end
+
     function show_field(FF::AbstractMatrix; 
             key::Union{String,NamedTuple,Nothing}=NamedTuple(),
             keyappend::Union{String,NamedTuple,Nothing}=nothing,
@@ -157,6 +162,7 @@ module plot
                        location=location,nplots=nplots,
                        nplots_factor=nplots_factor)
     end
+
     function show_field(FF::AbstractArray{T,3}; 
                 key::Union{String,NamedTuple,Nothing}=NamedTuple(),
                 keyappend::Union{String,NamedTuple,Nothing}=nothing,
@@ -199,6 +205,7 @@ module plot
         end
         return p
     end
+
     function annotate_field(hm;
                 key::Union{String,NamedTuple,Nothing}=NamedTuple(),
                 keyappend::Union{String,NamedTuple,Nothing}=nothing,
@@ -225,6 +232,7 @@ module plot
         t = text(annotation, justification, color, :right, :bold, pointsize=fontsize)
         annotate!(hm, x, y, t) 
     end
+
     function text_annotate(;
                 key::Union{String,NamedTuple,Nothing}=NamedTuple(),
                 keyappend::Union{String,NamedTuple,Nothing}=nothing,

@@ -1,4 +1,4 @@
-module statistic
+module Statistic
 
 
     using Statistics, Bootstrap

@@ -30,7 +30,6 @@ module operation
         tranform = transform isa Symbol ? (transform => transform) : transform
         inputfields, outputfields = transform
 
-        @infiltrate
         shuffle = combine(groupby(shuffle, shuffle_is_by), 
                           inputfields => stat => inputfields)
 

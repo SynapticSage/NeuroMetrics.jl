@@ -4,8 +4,7 @@ using Statistics
 using NaNStatistics
 using Bootstrap
 using DataStructures
-include("../utils.jl")
-export utils
+using Utils
 
 """
 field_operation
