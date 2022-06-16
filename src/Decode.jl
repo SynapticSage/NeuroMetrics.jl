@@ -1,4 +1,4 @@
-module decode
+module Decode
 
     using DrWatson
     using Reexport
@@ -12,7 +12,7 @@ module decode
     import Load
     import Table
 
-    searchsortednearest = utils.searchsortednearest
+    searchsortednearest = Utils.searchsortednearest
     export searchsortednearest
 
     function movingmean(dat)
@@ -26,7 +26,7 @@ module decode
 
     function quantile_threshold(dat, thresh=nothing; sample_dim=3,
                                                      nan_replace_val=1)
-        m = [quantile(utils.skipnan(vec(d)), thresh) 
+        m = [quantile(Utils.skipnan(vec(d)), thresh) 
              for d in eachslice(dat, dims=sample_dim)]
         m = reshape(m, (1,1,length(m)))
         sz = size(dat)
@@ -35,10 +35,10 @@ module decode
     end
 
     include(srcdir("Decode","checkpoint.jl"))
-    @reexport using checkpoint
+    @reexport using .checkpoint
     include(srcdir("Decode","makie_observable.jl"))
-    @reexport using makie_observable
+    @reexport using .makie_observable
     include(srcdir("Decode","plot.jl"))
-    @reexport import plot
+    @reexport import .plot
 
 end

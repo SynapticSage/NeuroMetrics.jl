@@ -4,6 +4,8 @@ module checkpoint
     using Arrow
     export HDF5
     export Arrow
+    using ProgressMeter
+    using Infiltrator
     using Glob
 
     pathname(x, decode_file, type="arrow") = joinpath(dirname(decode_file), "split=$(extract_splitnum(decode_file))_$(x).$type")

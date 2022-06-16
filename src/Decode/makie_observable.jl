@@ -1,6 +1,7 @@
 module makie_observable
 
     using DataFramesMeta
+    import Utils
     export select_range, select_est_range, select_time, 
            select_prob, select_prob4
 
@@ -21,7 +22,7 @@ module makie_observable
         data
     end
     function select_est_range(t, T, tr, Δt; data::DataFrame=DataFrame(), Δ_bounds=nothing)
-        I = utils.searchsortednearest(data.time, T[t])
+        I = Utils.searchsortednearest(data.time, T[t])
         if I != 1 && !(isnan(I))
             Δ = -Int(round(Δ_bounds[1]/Δt)) : Int(round(Δ_bounds[2]/Δt))
             center_time = data.time[I]
@@ -36,7 +37,7 @@ module makie_observable
     end
     function select_time(t, T; data::DataFrame=DataFrame(), Δ_bounds=nothing)
         time  = T[t]
-        I = utils.searchsortednearest(beh.time, time)
+        I = Utils.searchsortednearest(beh.time, time)
         data = data[I, :]
         data.time = 0
         data
