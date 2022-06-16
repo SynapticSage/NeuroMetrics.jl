@@ -44,9 +44,7 @@ module Load
     @reexport using .spikes
     @reexport using .ripples
     @reexport using .task
-    @info "got utils 1"
     @reexport using .utils
-    @info "got utils 2"
     @reexport using .video
 
     load_functions = Dict(

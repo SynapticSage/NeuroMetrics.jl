@@ -50,7 +50,6 @@ module Table
         period = groupby(df, property)
         period = combine(period, pos..., :time => (x->minimum(x)) => :start,
                                          :time => (x->maximum(x)) => end_period)
-        @debug "got here"
         period.δ = period[!,end_period] .- period.start;
         period.prop .= property
         return period

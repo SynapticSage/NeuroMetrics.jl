@@ -100,9 +100,7 @@ module Timeshift
     @reexport using .shuffle
     include(srcdir("Timeshift", "crossval.jl"))
     @reexport using .crossval
-    @info "Made it here"
     include(srcdir("Timeshift", "Keys.jl"))
     @reexport using .Keys
-    @info "Made it here"
 
 end
