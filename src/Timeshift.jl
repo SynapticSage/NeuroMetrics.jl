@@ -3,7 +3,6 @@ module Timeshift
     __revise_mode__ = :eval
     using DrWatson
     using Revise
-    using Reexport
     using Infiltrator
     using ProgressMeter
 
@@ -88,6 +87,7 @@ module Timeshift
         return out
     end
 
+    using Reexport
     include(srcdir("Timeshift", "checkpoint.jl"))
     @reexport using .checkpoint
     include(srcdir("Timeshift", "dataframe.jl"))

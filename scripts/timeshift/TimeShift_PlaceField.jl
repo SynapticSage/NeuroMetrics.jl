@@ -7,7 +7,6 @@ using StatsPlots
 using DataFrames
 @time spikes, beh = Load.load("RY16", 36, data_source=["spikes","behavior"])
 using .Timeshift
-
 correctToMinutes = true
 if correctToMinutes
     c(x) = x./60

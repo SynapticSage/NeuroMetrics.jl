@@ -1,6 +1,10 @@
 module convert_types
 
+    using DataFrames
     export to_dataframe
+    using LazyGrids: ndgrid
+    using DataStructures
+    using Infiltrator
 
     """
     to_dataframe
@@ -12,22 +16,50 @@ module convert_types
     #    fields = Dict(key=>fields[key] for key in keys(fields))
     #end
     function to_dataframe(fields::AbstractDict; other_labels=Dict(), 
-            key_name::Union{Nothing,String}=nothing, kws...)
+            key_name::Union{Nothing,Symbol,String,Vector}=nothing,
+            level::Int=0, level_names::Dict=Dict(), kws...)
+
+        level += 1
+        @debug level
+
         D = DataFrame()
         for (key, field) in fields
-            @debug "key=$key"
-            if key_name != nothing #&& (key isa NamedTuple || key isa Dict)
-                other_labels[key_name] = key
-            elseif (key isa NamedTuple) || (key isa Dict)
+
+            if (key isa NamedTuple) || (key isa Dict)
                 key_dict = Dict(string(k)=>v for (k, v) in pairs(key))
                 other_labels = merge(other_labels, key_dict)
+
+            elseif key_name != nothing #&& (key isa NamedTuple || key isa Dict)
+
+                if (typeof(key_name) <: Vector)
+                    kn = pop!(key_name)
+                elseif (key_name == :keyboard)
+                    if level ∉ keys(level_names)
+                        println("Name key for key=$key, typeof(key)=$key")
+                        kn = readline()
+                        level_names[level] = kn
+                    else
+                        kn = level_names[level]
+                    end
+                else
+                    if level-1 ∈ keys(level_names) && 
+                       level_names[level-1] == "__key_level"
+                        key_name = nothing
+                    else
+                        level_names[level] = "__key_level"
+                    end
+                    kn = key_name
+                end
+                other_labels[kn] = key
+
             else
                 @warn "unhandled key_name=$key"
                 other_labels["unnamed"] = key
             end
             if fields[key] != nothing
-                append!(D, to_dataframe(fields[key];
-                                        other_labels=other_labels, kws...))
+                append!(D, to_dataframe(fields[key]; key_name=key_name,
+                                        other_labels=other_labels, kws...),
+                       cols=:union)
             end
         end
         return D
@@ -45,7 +77,7 @@ module convert_types
     function to_dataframe(F::Union{AbstractArray,Real};
             props::Vector{String}=Vector{String}([]), grid::Tuple=(),
             gridtype="center", other_labels=Dict(), name::String="value",
-            explode::Bool=true)
+            explode::Bool=true, kws...)
         D = ndgrid((1:size(F,i) for i in 1:ndims(F))...)
         D = OrderedDict{String,Any}("dim_$d"=>vec(D[d])
                               for d in 1:ndims(F))

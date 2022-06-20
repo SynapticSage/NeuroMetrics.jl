@@ -155,9 +155,16 @@ module Utils
         g
     end
 
+    """
+    ∀ x ∈ X, x ∈ Y
+    """
     function ismember(X::AbstractVector, Y::AbstractVector)
         Z = ThreadsX.collect(any(Y .== x) for x in eachrow(X))
-        replace(Z .!= nothing, missing=>false)
+        #replace(Z .!= nothing, missing=>false)
+    end
+    function ismember_trans(X::AbstractVector, Y::AbstractVector)
+        Z = any(X .== Y', dims=2)
+        #replace(Z .!= nothing, missing=>false)
     end
 
     include(srcdir("Utils", "dict.jl"))

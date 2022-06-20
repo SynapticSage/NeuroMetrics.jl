@@ -2,9 +2,12 @@ module checkpoint
 
     using Serialization
     using DataFrames
+    using DrWatson
 
     export ts_plotdir
-    export save_mains, save_shuffles
+    export save_mains, save_shuffles, save_fields
+    export load_mains, load_shuffles, load_fields
+    export mainspath, shufflespath
 
     # ------------------
     # SAVING AND LOADING

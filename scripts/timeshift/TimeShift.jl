@@ -1,46 +1,5 @@
 
-@time include(scriptsdir("fields", "Initialize.jl"))
-info = field.info
-include(scriptsdir("Timeshift", "TimeShift_setsOfInterest.jl"))
-_, spikes = Load.register(beh, spikes; transfer=["velVec"], on="time")
-import Base.Threads: @spawn
-using ThreadSafeDicts
-using Blink
-using Interact
-using NaNStatistics
-import .Timeshift
-using .Timeshift: info_to_dataframe, get_key
-using Combinatorics: powerset
-
-sp = copy(spikes)
-convertToMinutes = true
-
-# ----------
-# Parameters
-# ----------
-PROPS = ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
-IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
-#-------------------------------------------------------
-"""
-Translate into shorcut names
-"""
-𝕄(items)  = [replace(item, recon_process.var_shortcut_names...) for item in items]
-"""
-UnTranslate from shorcut names
-"""
-𝕄̅(items)  = [replace(item, Dict(kv[2]=>kv[1] for kv in shortcut_names)...) for item in items]
-sz(items) = [IDEALSIZE[item] for item in items]
-#-------------------------------------------------------
-splitby=["unit", "area"]
-prop_set = marginals_superhighprior_shuffle
-#gaussian=2.3*0.5
-filts = Filt.get_filters()
-shifts = -4:0.2:4
-shifts = convertToMinutes ? shifts./60 : shifts
-function get_key(;shifts, kws...)
-    (;kws..., first=first(shifts), last=last(shifts), step=Float64(shifts.step)) 
-end
-
+@time include(scriptsdir("timeshift", "Initialize.jl"))
 # List of the ways that one might want to vary this analysis
 # 1. filters
 #   all-times
@@ -59,34 +18,6 @@ end
 #   -8 : 8 seconds (trajectory length)
 #   (block length)
 
-I = Timeshift.load_mains()
-F = Timeshift.load_fields()
-key = (;first(keys(I))..., datacut=:all)
-imax = sort(Timeshift.imax(Timeshift.info_to_dataframe(I[key], shift_scale=:minutes)))
-iall = sort(Timeshift.info_to_dataframe(I[key], shift_scale=:minutes))
-
-# ================
-# Examine best TAU
-# ================
-
-# Place best tau into cell.csv storage
-key_order = (;marginal=key.marginal, 
-             datacut=key.datacut,
-             first=key.first,
-             last=key.last,
-             step=key.step)
-cellTaus = sort(Timeshift.imax(info_to_dataframe(I[key], shift_scale=:minutes)),
-                :unit)[:,[:unit,:area,:bestTau]]
-keyname = Timeshift.keytostring(key, ", "=>"_"; remove_numerics=true)
-rename!(cellTaus, "bestTau" => "bestTau_$keyname")
-Load.save_cell_taginfo(cellTaus, animal, day, keyname)
-
-utils.bestpartialmatch(F, key)
-f_select  = table.to_dataframe(utils.applyvalues(, x->x.Cₕ);
-                               key_name="shift", explode=false)
-
-
-
 
 
 # ========
@@ -98,11 +29,12 @@ if isfile(Timeshift.mainspath())
 else
     I = OrderedDict()
 end
+
 # COMPUTE INFORMATION @ DELAYS
 @showprogress 0.1 "Datacut iteration" for datacut ∈ keys(filts)
     running = false
     @info "Datacut = $datacut"
-    for props ∈ 
+    for props ∈ prop_set
         @info "Props = $props"
         marginal = 𝕄(props)
         key = get_key(;marginal, datacut, shifts)
@@ -124,12 +56,12 @@ end
         end
         newkws = (; kws..., filters=filts[datacut], splitby, props, dokde=false,
                   resolution=sz(props), multi=:single, postfunc=info.information)
-        try
-            I[key] = @spawn @time Timeshift.get_field_shift(beh, spikes, shifts; newkws...)
+        #try
+            I[key] = @time Timeshift.get_field_shift(beh, spikes, shifts; newkws...)
             I[key] = fetch(I[key])
-        catch
-            @warn "key=$key does not run, possibly an edge case where your filters are too stringent for the behavioral property measured"
-        end
+        #catch
+            #@warn "key=$key does not run, possibly an edge case where your filters are too stringent for the behavioral property measured"
+        #end
         running = true
     end
     if running
@@ -205,7 +137,7 @@ end
 end
 
 # ================
-# Get fields at shifts
+# FIELDS
 # ================
 # Main, non-shuffles
 if isfile(Timeshift.fieldspath())
@@ -322,3 +254,22 @@ body!(w,ui)
 # Cross-validate
 # ==============
 
+# ================
+# Examine best TAU
+# ================
+
+# Place best tau into cell.csv storage
+key_order = (;marginal=key.marginal, 
+             datacut=key.datacut,
+             first=key.first,
+             last=key.last,
+             step=key.step)
+cellTaus = sort(Timeshift.imax(info_to_dataframe(I[key], shift_scale=:minutes)),
+                :unit)[:,[:unit,:area,:bestTau]]
+keyname = Timeshift.keytostring(key, ", "=>"_"; remove_numerics=true)
+rename!(cellTaus, "bestTau" => "bestTau_$keyname")
+Load.save_cell_taginfo(cellTaus, animal, day, keyname)
+
+utils.bestpartialmatch(F, key)
+f_select  = table.to_dataframe(utils.applyvalues(, x->x.Cₕ);
+                               key_name="shift", explode=false)

@@ -18,7 +18,6 @@ module Load
     import Utils
     import Table
     using Table: get_periods
-    findnearest = Utils.searchsortednearest
     __revise_mode__ = :eval
 
     load_default="arrow"
@@ -171,6 +170,7 @@ module Load
             data = DataFrame(Arrow.Table(path))
         end
     end
+
     function load_table(animal::String, day::Int, pos...; 
             tablepath=nothing, 
             load_kws::Union{Nothing,NamedTuple}=(;),

@@ -16,7 +16,6 @@ module Table
     using Statistics
     using Blink
     using TableView
-    using LazyGrids: ndgrid
     using DataStructures
     using Infiltrator
     import Utils

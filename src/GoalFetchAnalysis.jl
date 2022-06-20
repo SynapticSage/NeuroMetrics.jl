@@ -30,5 +30,6 @@ module GoalFetchAnalysis
     export Table 
     export Field, Timeshift
     export Decode
+    export Filt
 
 end
