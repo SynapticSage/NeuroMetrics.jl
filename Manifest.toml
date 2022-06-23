@@ -1084,6 +1084,12 @@ git-tree-sha1 = "b7b88a4716ac33fe31d6556c02fc60017594343c"
 uuid = "3e5b6fbb-0976-4d2c-9146-d79de83f2fb0"
 version = "0.1.8"
 
+[[deps.IOCapture]]
+deps = ["Logging", "Random"]
+git-tree-sha1 = "f7be53659ab06ddc986428d3a9dcc95f6fa6705a"
+uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
+version = "0.2.2"
+
 [[deps.IdentityRanges]]
 deps = ["OffsetArrays"]
 git-tree-sha1 = "be8fcd695c4da16a1d6d0cd213cb88090a150e3b"
@@ -1593,6 +1599,12 @@ version = "2.36.0+0"
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+
+[[deps.Literate]]
+deps = ["Base64", "IOCapture", "JSON", "REPL"]
+git-tree-sha1 = "5b5ec7696d40868945c407f28a6672a230448b70"
+uuid = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+version = "2.13.4"
 
 [[deps.LittleCMS_jll]]
 deps = ["Artifacts", "JLLWrappers", "JpegTurbo_jll", "Libdl", "Libtiff_jll", "Pkg"]

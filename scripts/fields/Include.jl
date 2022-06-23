@@ -13,6 +13,8 @@ using Revise
 using Distributions
 
 using GoalFetchAnalysis
+import Field
+import Load
 #utils = GoalFetchAnalysis.utils ALREADY EXPORTED IN USING ABOVE
 
 operation     = Field.operation

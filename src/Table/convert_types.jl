@@ -4,6 +4,7 @@ module convert_types
     export to_dataframe
     using LazyGrids: ndgrid
     using DataStructures
+    import Utils
     using Infiltrator
 
     """
@@ -57,9 +58,13 @@ module convert_types
                 other_labels["unnamed"] = key
             end
             if fields[key] != nothing
-                append!(D, to_dataframe(fields[key]; key_name=key_name,
-                                        other_labels=other_labels, kws...),
-                       cols=:union)
+                try
+                    append!(D, to_dataframe(fields[key]; key_name=key_name,
+                                            other_labels=other_labels, kws...),
+                           cols=:union)
+                catch
+                    @infiltrate
+                end
             end
         end
         return D

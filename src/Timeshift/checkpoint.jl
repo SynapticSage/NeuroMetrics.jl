@@ -59,6 +59,11 @@ module checkpoint
         end
         serialize(name, D)
     end
+    function save_mains(M::DataFrame)
+        name = mainspath() * "_dataframe.arrow"
+        Arrow.write(name, M)
+    end
+
     function save_fields(M::AbstractDict)
         name = fieldspath()
         if isfile(name)
@@ -74,10 +79,19 @@ module checkpoint
         end
         serialize(name, D)
     end
+    function save_fields(F::DataFrame)
+        name = fieldspath() * "_dataframe.arrow"
+        Arrow.write(name, F)
+    end
 
-    function load_mains()
-        name = mainspath()
-        D = deserialize(name)
+    function load_mains(;dataframe::Bool=false)
+        if dataframe
+            name = mainspath() * "_dataframe.arrow"
+            DataFrame(Arrow.Table(path))
+        else
+            name = mainspath()
+            D = deserialize(name)
+        end
     end
 
     function fieldspath()
@@ -85,9 +99,14 @@ module checkpoint
         name = joinpath(parent_folder, "fields")
     end
 
-    function load_fields()
-        name = fieldspath()
-        D = deserialize(name)
+    function load_fields(;dataframe::Bool=false)
+        if dataframe
+            name = fieldspath() * "_dataframe.arrow"
+            DataFrame(Arrow.Table(path))
+        else
+            name = fieldspath()
+            D = deserialize(name)
+        end
     end
 
 
@@ -108,10 +127,19 @@ module checkpoint
         @info "Saving $name"
         serialize(name, D)
     end
+    function save_shuffles(S::DataFrame)
+        name = save_fields() * "_dataframe.arrow"
+        Arrow.write(name, S)
+    end
 
-    function load_shuffles()
-        name = shufflespath()
-        D = deserialize(name)
+    function load_shuffles(;dataframe::Bool=false)
+        if dataframe
+            name = shufflespath() * "_dataframe.arrow"
+            DataFrame(Arrow.Table(path))
+        else
+            name = shufflespath()
+            D = deserialize(name)
+        end
     end
 
     # ===================

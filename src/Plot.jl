@@ -1,5 +1,8 @@
 module Plot
 
+    using DrWatson
+    using Reexport
+
     include(srcdir("Plot","raster.jl"))
     @reexport using .raster
     include(srcdir("Plot","timeshift.jl"))
@@ -7,6 +10,6 @@ module Plot
     include(srcdir("Plot","table.jl"))
     @reexport using .table
 
-    export raster, timeshift, table
+    export raster, table
 
 end

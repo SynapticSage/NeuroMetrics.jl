@@ -4,9 +4,13 @@ module timeshift
     using Plots
     using Infiltrator
     import Shuffle
+    import Table
+    import Utils
+    using Statistics, NaNStatistics
     using DataFrames, DataFramesMeta
 
     export plot_shifts
+    export plot_shift_versus_info
 
     dosave = true
 
@@ -199,6 +203,76 @@ module timeshift
 
         # PER CELL
         saveplotshift("fields", "shifts", "$(descSave)_heatmap_x=shift,y=cellsort_by=area.pdf")
+    end
+
+
+    function heatmap_unitshift(Isc::DataFrame; sort_rows=:unit, centerline=true)
+        if !(typeof(sort_rows) <:Vector)
+            sort_rows = [sort_rows]
+        end
+        not_list = union([:unit], sort_rows)
+        shifts = unique(sort(Isc.shift))
+        ustack = unstack(sort(Isc,[:unit,:shift]), not_list, :shift, :value)
+        ustack = sort(ustack, sort_rows)
+        units  = unique(sort(ustack.unit))
+        ustack = ustack[:,Not(not_list)]
+        hm = Matrix(ustack)
+        p = heatmap(shifts, units, hm)
+        if centerline
+            vline!([0], c=:white, linestyle=:dash, linewidth=2, label="")
+        end
+        p
+    end
+
+    """
+    Calculates the empirical cdf of the cell relative to its shuffle
+    """
+    function ecdf_units(I, S; groups=:unit)
+
+        G = Table.group.mtg_via_commonmap(groups, Is, Ss)
+        for (ig, sg) in G
+            # Plot
+            C = ecdf(sg.value)
+            p =plot(C, title="unit=$(Int64(ig.unit[1])) area=$(ig.area[1])",
+                                xlabel="bits per spike", ylabel="fraction", ylim=[0,1])
+            plot!([ig.value..., ig.value...], [ylims()...])
+            annotation = string(round(Float64(ig.value[1]),digits=2))
+            @infiltrate annotation != "NaN"
+            annotate!(ig.value, mean([ylims()...]), text(annotation))
+            if cig.sig[1] < 0.05
+                push!(P_sig, p)
+            else
+                push!(P_non, p)
+            end
+        end
+
+    end
+
+    function scatter_unitfield_by_unitfield(Is, x, y; kws...)
+        groups = combine(groupby(Is, :unit), first)
+        s = sort(groups[:,[:unit, y, x]], y)
+        scatter(s[:,x], s[:,y]; xlabel=x, ylabel=y, kws...)
+    end
+
+    function plot_shift_versus_info(Is, sig_frac, bonf_cells_are_sig; 
+                                     groups=:shift, kws...)
+        subset_of_interest = subset(bonf_cells_are_sig, :sig => x -> x .== sig_frac)
+        sig_cells = Utils.ismember(Is.unit, subset_of_interest.unit)
+        #println("Insig cell count  = $(round(sum(insig_cells)/length(unique(Is.shift))))")
+        sig_cells = Is[sig_cells, :]
+        # Candidate for a Util
+        sig_shape = combine(groupby(sig_cells, groups), 
+                :value => mean,
+                :value => median,
+                :value => (x->nanquantile(x, 0.05))  => :lower,
+                :value => (x->nanquantile(x, 0.95))  => :upper)
+        sort!(sig_shape, :shift)
+        p = @df sig_shape plot(:shift * 60, :value_mean; 
+                               fillrange=(:lower, :upper), label="mean", kws...)
+        @df sig_shape plot!(:shift*60, :lower, style=:dash, c=:black, label="lower")
+        @df sig_shape plot!(:shift*60, :upper, style=:dash, c=:black, label="upper")
+        hline!([0], c=:black, label="")
+        p
     end
 
 end

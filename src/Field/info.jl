@@ -31,23 +31,23 @@ module info
         end
         return I
     end
-    function bitsperspike(field::AbstractArray, behProb::Probabilities)
-        field = collect(skipnan(vec(field)))
-        R = field ./ nanmean(field)
+    function bitsperspike(firingrate::AbstractArray, behProb::Probabilities)
+        firingrate = collect(skipnan(vec(firingrate)))
+        FRoverMeanFR = firingrate ./ nanmean(firingrate)
         # paper r = ∑ pᵢ * rᵢ
         # what I've written here: r = ∑ R_occᵢ / N = μ(R_occᵢ), not the actual rate, but occ norm rate
-        I = nansum( behProb .* R .* log2.(R) )
+        I = nansum( behProb .* FRoverMeanFR .* log2.(FRoverMeanFR) )
         # what i've written here: ∑ p(state) * r(state)/r̅ * log₂( r(state) / r̅ )
         # paper : ∑ pᵢ * ( rᵢ/r̅ ) * log₂( rᵢ / r̅ )
         return I
     end
     spatialinformation = bitsperspike
-    function bitspersecond(field::AbstractArray, behProb::Probabilities)
-        field = collect(skipnan(vec(field)))
-        R = field ./ nanmean(field)
+    function bitspersecond(firingrate::AbstractArray, behProb::Probabilities)
+        firingrate = collect(skipnan(vec(firingrate)))
+        FRoverMeanFR = firingrate ./ nanmean(firingrate)
         # paper r = ∑ pᵢ * rᵢ
         # what I've written here: r = ∑ R_occᵢ / N = μ(R_occᵢ), not the actual rate, but occ norm rate
-        I = nansum( behProb .* field .* log2.(R) )
+        I = nansum( behProb .* firingrate .* log2.(FRoverMeanFR) )
         # what i've written here: ∑ p(state) * r(state)/r̅ * log₂( r(state) / r̅ )
         # paper : ∑ pᵢ * ( rᵢ/r̅ ) * log₂( rᵢ / r̅ )
         return I
@@ -61,7 +61,19 @@ module info
         HY  = Entropies.genentropy(behRate, K)
         HX + HY - HXY
     end
-    function mutualinformation(field::AbstractVector{<:Int}, behCount::AbstractArray{<:Int})
+    
+    """
+    mutualinformation
+
+    get the mutual information of a single cell
+    """
+    function mutualinformation(beh, spikes, props, unit)
+        
+        beh, spikes = Load.keep_overlapping_times(beh, spikes)
+
+
+        
+
     end
 
 end

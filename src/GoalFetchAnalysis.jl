@@ -1,16 +1,13 @@
 module GoalFetchAnalysis
 
     push!(LOAD_PATH, @__DIR__)
-
     __revise_mode__ = :eval
     using OhMyREPL
 
     # General
     using Load   # Loading/saving/manipulating raw data
     using Utils # General utilites
-    using Utils # General utilites
     import Filt
-    using Utils # General utilites
     import Shuffle # General receptive field codes
 
     import Table # Manipulating tables
