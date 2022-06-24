@@ -84,7 +84,11 @@ module convert_types
             props::Vector{String}=Vector{String}([]), grid::Tuple=(),
             gridtype="center", other_labels=Dict(), name::String="value",
             explode::Bool=true, kws...)
-        D = ndgrid((1:size(F,i) for i in 1:ndims(F))...)
+        if explode
+            D = ndgrid((1:size(F,i) for i in 1:ndims(F))...)
+        else
+            D = [1:size(F,i) for i in 1:ndims(F)]
+        end
         D = OrderedDict{String,Any}("dim_$d"=>vec(D[d])
                               for d in 1:ndims(F))
         if typeof(F) <: Real
@@ -94,7 +98,10 @@ module convert_types
             if gridtype == "edge"
                 grid = edge_to_center.(grid)
             end
-            grid = ndgrid(grid...)
+            if explode
+                @info "ndgrid of grid"
+                grid = ndgrid(grid...)
+            end
         end
         _clean_label_values(other_labels)
         for (label, value) in other_labels

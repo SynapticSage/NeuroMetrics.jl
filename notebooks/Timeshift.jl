@@ -34,6 +34,7 @@ begin
 	using ColorSchemes
 	using StatsBase
 	using Infiltrator
+	using StatsPlots
 	"Importing packages"
 end
 
@@ -74,7 +75,7 @@ First, we're going to loadup a key dataframe of interest: **cells**
 """
 
 # ╔═╡ cadaf555-3b90-4c5b-846b-686ce4130497
-@time cells = Load.load_cells("RY16", 36)
+@time cells = Load.load_cells("RY16", 36, "*")
 
 # ╔═╡ 13b0d82f-d721-40f7-b2f6-d099d41e8897
 md"""And pull in our *checkpoint* shifted field files!"""
@@ -85,7 +86,7 @@ Our main shifted fields info stats
 """
 
 # ╔═╡ 7ee46c7e-eeb4-4ae2-bc4b-318322aff9fb
-I = Timeshift.load_mains(dataframe=true);
+_, I = Load.register(cells, Timeshift.load_mains(dataframe=true), on="unit", transfer="meanrate");
 
 # ╔═╡ 3c02c040-2fed-4bed-b985-8e78bb241455
 md"""
@@ -101,7 +102,14 @@ Our fields at shifts
 """
 
 # ╔═╡ 61d024da-011a-42a3-b456-19475da19e78
-@time F = Timeshift.load_fields(dataframe=true);
+begin
+	F = DataFrame(Timeshift.load_fields(dataframe=true))
+	F.mat = Vector{Matrix}(undef, size(F,1))
+	for row in eachrow(F)
+		row.mat = reshape(row.value, length(row.dim_1), length(row.dim_2))
+	end
+	F
+end;
 
 # ╔═╡ 5bad660a-016b-4e05-83c3-38e10e3323a1
 md"""
@@ -134,7 +142,10 @@ md"""
 Is = transform(DataFramesMeta.@subset(I, :datacut .== Symbol(datacut), :marginal .== marginal), :shift => (x->x*60) => :shift)
 
 # ╔═╡ ee772af0-a435-4390-9fe5-d4cd3a2aacac
-Ss = transform(DataFramesMeta.@subset(S, :datacut .== Symbol(datacut), :marginal .== marginal) , :shift => (x->x*60) => :shift)
+Ss = transform(DataFramesMeta.@subset(S, :datacut .== Symbol(datacut), :marginal .== marginal) , :shift => (x->x*60) => :shift);
+
+# ╔═╡ 3c5fad0a-fd7f-4766-88fc-53c2ad7bcca4
+Fs = transform(DataFramesMeta.@subset(F, :datacut .== Symbol(datacut), :marginal .== marginal) , :shift => (x->x*60) => :shift);
 
 # ╔═╡ d1ae7695-1e2f-4d90-9663-37f500bfd53a
 groups = [:datacut, :marginal, :unit, :shift, :area]
@@ -231,9 +242,6 @@ begin
 	norm_info = Timeshift.operation.norm_information
 end;
 
-# ╔═╡ dc0e42c3-e684-4e16-b5a7-792f4fa71466
-
-
 # ╔═╡ 3f946154-9c2a-4a31-bba3-99f3e68e0dea
 
 plot(
@@ -248,11 +256,13 @@ plot(
     heatmap_unitshift(norm_info(Is_sig); removenonsig=true, setnanzero=true, sort_rows=:bestsigshift, clims=(0,1))
 )
 
-# ╔═╡ 9e1e2e3c-b616-4066-b58d-779b57a6a766
+# ╔═╡ 6bcc8054-4f6d-4d82-a34a-b5541235d87a
+md"""
+**TODO**
+Sig best shift does not make that much sense
 
-
-# ╔═╡ daf34dd4-597b-41fd-bba2-ab9795870b6f
-heatmap_unitshift(normed_sig; remove_nonsig=true, sort_rows=:bestshift, dropmissingrows=true)
+## Does bestsigshift make sense?
+"""
 
 # ╔═╡ 33c64062-002a-4eea-8e29-e8e36784a666
 begin
@@ -261,16 +271,136 @@ begin
 		jitter.(Is_sig.bestshift, 0.1), 
 		jitter.(Is_sig.bestsigshift, 0.1);
 		c=[get(ColorSchemes.grayyellow, s) for s in Is_sig.unit./maximum(Is_sig.unit)],
+		aspect_ratio=1,
 		alpha=0.1, label="Match for all sig values",
 		xlabel="Best shift", ylabel="Best significant shift");
-	s
+	d = @df Is_sig density(collect(Utils.skipnan(:bestsigshift .- :bestshift)), xlabel="Best sig shift - best shift")
+	plot(s,d;layout=Plots.grid(2,1),label="",)
+end
+
+# ╔═╡ c8800b8a-fd8b-43b2-a1fa-bbb76879e56d
+md"""
+Fraction of the time that bestshift = bestsigshift: $(mean(Is_sig.bestsigshift .== Is_sig.bestshift))
+"""
+
+# ╔═╡ 2a75cc20-9bf4-4d2e-9cd5-a5d30d8d8c76
+begin
+	nanvals = Is_sig.bestsigshift .== NaN
+	goodvals = (!).(nanvals)
+	frac_of_agreement = mean(Is_sig.bestsigshift[goodvals] .== Is_sig.bestshift[goodvals])
+	md"""
+	Fraction of agreement for non-nan vals = $frac_of_agreement
+	"""
+end
+
+# ╔═╡ 975a6d70-ae6b-4b25-8fef-34552c39c94c
+md"""
+# Firing rate effects
+
+An interesting question is whether and how many effects are created by the spike rate of the neurons. This can help identify if controls are needed.
+"""
+
+# ╔═╡ b2ed7800-80f1-4d30-a00a-c76bcd8036a9
+begin
+	sort!(cells,:unit)
+	cells_with_info=outerjoin(cells, 
+		combine(groupby(Is, :unit), 
+			:value => maximum => :info_best_shift), 
+		on=:unit, 
+		makeunique=true)
+end;
+
+# ╔═╡ 07b01f6f-f0b8-4f23-ac64-53f7dc9ea6f2
+md"""
+From the following, we can see when our mean rates are very low, the spatial info jumps way up rather deterministically. Therefore, we need to counter-balance rate with binsize, so our entropy doesn't increase.
+"""
+
+# ╔═╡ 1762e086-7f10-47cd-a895-fae9a772d6d5
+begin
+	kws_scat_ = (;aspect_ratio=1, xlim=(0,100), ylim=(0,100), label="Rate versus best shift info", xlabel="Mean Rate", ylabel="Best shift info", alpha=0.3)
+	p_rate_best_outzoom = @df cells_with_info scatter(:meanrate, :info_best_shift;kws_scat_...) 
+	plot!(0:30, 0:30, c=:black, linestyle=:dash, label="unity")
+	p_rate_best_zoom = @df cells_with_info scatter(:meanrate, :info_best_shift;  kws_scat_..., xlim=(0,20), ylim=(0,20))
+	plot!(0:30, 0:30, c=:black, linestyle=:dash, label="unity")
+	plot(p_rate_best_zoom, p_rate_best_outzoom)
+end
+
+# ╔═╡ 09819531-982a-4ded-9b0c-5187aac26e97
+md"""
+The shift however has an effect within a given firing rate, so it's not like there's no ability to find a good shift. Rather that it increases the variance a ton in low firing rate regimes, and possibly noise dominates shift decision.
+"""
+
+# ╔═╡ d728c9d6-4571-40bb-b1df-b34d7ae0b785
+begin
+	norm(x) = (x.-minimum(x))./(maximum(x).-minimum(x))
+	@df Is scatter(:meanrate, :shift, log2.(:value), xlim=(0,0.25), 
+	c=get.([ColorSchemes.vik], norm(:shift)),
+	xlabel="Mean FR", ylabel="Shift", zlabel="Log2(Information)",
+		label="log₂(info)"
+	)
+end
+
+# ╔═╡ b5a4f445-1cd2-476a-aeab-a362a2de3b17
+Is_sig
+
+# ╔═╡ 32ddb00f-1eac-491f-a321-3d9f48c7f70c
+begin
+	@df Is_sig scatter(:meanrate, log2.(:value), xlim=(0,4), 
+	c=get.([ColorSchemes.vik], norm(:shift)),
+	xlabel="Mean FR", ylabel="Info", zlabel="Log2(Information)",
+		label="log₂(info)",
+		alpha=0.8
+	)
+	hline!([0],c=:black,linestyle=:dash)
+end
+
+# ╔═╡ 125653c1-55de-4410-ad30-d00433008005
+begin
+	scat_shift_meanrate     = @df Is_sig scatter(log10.(:meanrate), :bestshift, label="", ylabel="Best Shift", xlabel="Log₁₀(mean FR)")
+	scat_shift_meanrate_log = @df Is_sig scatter(:meanrate, :bestshift, label="")
+	vspan!([5, xlims()[2]], c=:orange, alpha=0.3, label="Interneuron Zone", linestyle=:dash)
+	plot(scat_shift_meanrate, scat_shift_meanrate_log)
 end
 
 # ╔═╡ 07d3adea-b413-461d-a68d-0383cd5ab26b
 
 
+# ╔═╡ cd3925de-dbb0-4e57-9a1e-48bf8fbb109f
+md"""
+# Raw fields
+Are field selections for shifts any good?
+"""
+
+# ╔═╡ 2bb18fdc-9080-4f0a-9d09-c2cbe0e6404a
+@bind unit_field_select PlutoUI.Slider(sort(unique(Fs.unit)), show_value=true)
+
+# ╔═╡ 398a837c-4710-4eb6-9f78-786d7173bc49
+@bind shift_select PlutoUI.Slider(sort(unique(Fs.shift)), show_value=true, default=0)
+
+# ╔═╡ 49bb383c-b3cf-448f-9906-ab1eabae3f75
+md"Neuron 🧠 $unit_field_select", md"Shift 🏃 $shift_select"
+
+# ╔═╡ 54d550c9-0e83-4cdb-bb27-88d4c6dffe83
+begin
+	Fi = @subset(Fs, :unit .== unit_field_select, :shift .== shift_select)[1,:]
+	cell_ratemap = @subset(cells, :unit .== unit_field_select)[1,:]
+	title_ratemap = "μ(Fr) = $(round(cell_ratemap.meanrate,sigdigits=2))"
+	heatmap(Fi.mat; title=title_ratemap)
+end
+
+# ╔═╡ 5df33da9-bb8d-4356-99b0-a4742a20c87e
+md"""
+**TODO**
+1. precache heatmaps
+2. clim [a. per ratemap, b. const across shifts]
+3. eliminate rate map some fixed distance outside of arena/home
+"""
+
+# ╔═╡ de04cae5-7de1-40c0-bcd2-761a68fd2d6d
+Fs
+
 # ╔═╡ Cell order:
-# ╠═8d41c178-16ee-4881-b55c-fb80f274d7bc
+# ╟─8d41c178-16ee-4881-b55c-fb80f274d7bc
 # ╟─dfcfa875-d122-49f1-ab24-66c1937b3134
 # ╟─42ea762b-12ed-4eb8-ade0-3bffff593690
 # ╟─450738b2-3d49-4e45-9a4d-ffa1721f833a
@@ -285,7 +415,7 @@ end
 # ╟─3c02c040-2fed-4bed-b985-8e78bb241455
 # ╟─eb62a3a9-5ba8-4737-8214-06b3c436eac2
 # ╟─edcb03f0-3e52-4fd6-adbe-48d37150ba13
-# ╠═61d024da-011a-42a3-b456-19475da19e78
+# ╟─61d024da-011a-42a3-b456-19475da19e78
 # ╟─5bad660a-016b-4e05-83c3-38e10e3323a1
 # ╟─435f9680-1520-468e-b97c-2ea4fb2c1ff4
 # ╠═b553e927-d6b8-469a-90de-b1b0bf9efa11
@@ -294,7 +424,8 @@ end
 # ╟─6399b851-1f0a-4999-ae00-e66437f5e264
 # ╟─d47c3d1d-394b-45bb-9d8b-1dc8ddc1b9b3
 # ╟─bfcf1a0a-6520-4f79-b6c2-f97d8d0f34cc
-# ╟─ee772af0-a435-4390-9fe5-d4cd3a2aacac
+# ╠═ee772af0-a435-4390-9fe5-d4cd3a2aacac
+# ╟─3c5fad0a-fd7f-4766-88fc-53c2ad7bcca4
 # ╟─d1ae7695-1e2f-4d90-9663-37f500bfd53a
 # ╟─07daf23c-24dc-4907-bdad-ba2c91978f8e
 # ╟─35ea2991-0a66-47a6-bec2-d1f44725bc8e
@@ -310,11 +441,27 @@ end
 # ╟─72fdc63f-ce5d-42a7-8d51-b3bb4cbd7624
 # ╟─4539b9f8-4ba1-4576-82ca-02bc2e8151d1
 # ╟─5ffb3ee8-141d-4ee0-8021-021c746b8bc5
-# ╠═4f71df4b-e203-403e-bf52-611f58f9751c
-# ╠═dc0e42c3-e684-4e16-b5a7-792f4fa71466
-# ╠═3f946154-9c2a-4a31-bba3-99f3e68e0dea
-# ╠═44f6cfdd-fd5d-4757-b497-e6b58039d95c
-# ╠═9e1e2e3c-b616-4066-b58d-779b57a6a766
-# ╠═daf34dd4-597b-41fd-bba2-ab9795870b6f
-# ╟─33c64062-002a-4eea-8e29-e8e36784a666
+# ╟─4f71df4b-e203-403e-bf52-611f58f9751c
+# ╟─3f946154-9c2a-4a31-bba3-99f3e68e0dea
+# ╟─44f6cfdd-fd5d-4757-b497-e6b58039d95c
+# ╟─6bcc8054-4f6d-4d82-a34a-b5541235d87a
+# ╠═33c64062-002a-4eea-8e29-e8e36784a666
+# ╟─c8800b8a-fd8b-43b2-a1fa-bbb76879e56d
+# ╟─2a75cc20-9bf4-4d2e-9cd5-a5d30d8d8c76
+# ╟─975a6d70-ae6b-4b25-8fef-34552c39c94c
+# ╟─b2ed7800-80f1-4d30-a00a-c76bcd8036a9
+# ╟─07b01f6f-f0b8-4f23-ac64-53f7dc9ea6f2
+# ╟─1762e086-7f10-47cd-a895-fae9a772d6d5
+# ╟─09819531-982a-4ded-9b0c-5187aac26e97
+# ╟─d728c9d6-4571-40bb-b1df-b34d7ae0b785
+# ╟─b5a4f445-1cd2-476a-aeab-a362a2de3b17
+# ╟─32ddb00f-1eac-491f-a321-3d9f48c7f70c
+# ╟─125653c1-55de-4410-ad30-d00433008005
 # ╟─07d3adea-b413-461d-a68d-0383cd5ab26b
+# ╟─cd3925de-dbb0-4e57-9a1e-48bf8fbb109f
+# ╟─2bb18fdc-9080-4f0a-9d09-c2cbe0e6404a
+# ╟─398a837c-4710-4eb6-9f78-786d7173bc49
+# ╟─49bb383c-b3cf-448f-9906-ab1eabae3f75
+# ╟─54d550c9-0e83-4cdb-bb27-88d4c6dffe83
+# ╟─5df33da9-bb8d-4356-99b0-a4742a20c87e
+# ╠═de04cae5-7de1-40c0-bcd2-761a68fd2d6d

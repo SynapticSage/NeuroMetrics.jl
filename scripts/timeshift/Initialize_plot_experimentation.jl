@@ -17,7 +17,7 @@ import Timeshift
 import Field
 import Utils
 import Table
-#utils = GoalFetchAnalysis.utils ALREADY EXPORTED IN USING ABOVE
+import Plot
 
 operation     = Field.operation
 model         = Field.model
@@ -29,14 +29,11 @@ include(scriptsdir("fields","Include.jl"))
 
 include(scriptsdir("timeshift", "TimeShift_setsOfInterest.jl"))
 
-
-import Plot
-
 # --- GET TEH DATA ---
 I = Timeshift.load_mains()
 S = Timeshift.load_shuffles()
 F = Timeshift.load_fields()
- = Utils.namedtup.lambda_values(F, x->x.Rₕ)
+F = Utils.namedtup.lambda_values(F, x->x.Rₕ)
 key = (;first(keys(I))..., datacut=:all)
 #imax = sort(Timeshift.imax(Timeshift.info_to_dataframe(I[key], shift_scale=:minutes)))
 #iall = sort(Timeshift.info_to_dataframe(I[key], shift_scale=:minutes))
