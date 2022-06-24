@@ -207,6 +207,7 @@ module timeshift
     end
 
     function heatmap_unitshift(Isc::DataFrame; sort_rows=:bestshift,
+            value=:value,
             removenonsig=false, centerline=true, setnanzero=true,
             dropmissingrows=false, kws...)
 		 if !(typeof(sort_rows) <:Vector)
@@ -215,7 +216,7 @@ module timeshift
 		not_list = union([:unit, :sig_minimum], sort_rows)
 		shifts = unique(sort(Isc.shift))
 		dropmissing!(Isc)
-		ustack = unstack(sort(Isc,[:unit,:shift, :sig_minimum]), not_list, :shift, :value)
+		ustack = unstack(sort(Isc,[:unit,:shift, :sig_minimum]), not_list, :shift, value)
 		ustack = sort(ustack, sort_rows)
         if removenonsig
             ustack = @subset(ustack, :sig_minimum .< 0.05)

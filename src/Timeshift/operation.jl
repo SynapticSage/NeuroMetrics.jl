@@ -117,13 +117,13 @@ module operation
     Normalizes information to be between 0 and 1
 Examine fields that are significant
     """
-    function norm_information(Isc)
+    function norm_information(Isc; value=:value)
         @info "Normalizig by unit"
         Isc = copy(Isc)
         groups = groupby(Isc, :unit)
         for group in groups
             norm(x) = (x .- minimum(x))./(maximum(x).-minimum(x))
-            group.value = norm(group.value)
+            group[!,value] = norm(group[!,value])
         end
         Isc = combine(groups, identity)
     end

@@ -293,6 +293,83 @@ begin
 	"""
 end
 
+# ╔═╡ e81ceff1-a29f-428c-b448-d3f1ac204ef4
+md"""
+## Explore smoothing
+
+### Behavior of the Loess tool
+"""
+
+# ╔═╡ 63237edf-5fb0-44f7-8650-134974d71734
+begin
+	import Loess
+	@bind span_rand PlutoUI.Slider(0.1:0.05:1, show_value=true)
+end
+
+# ╔═╡ 7bcaad0e-17ab-4908-b3f2-0d56b03b0c87
+md"""
+And we use the model to smooth random data ≡ `rand(100)`
+"""
+
+# ╔═╡ d84ddfac-bb8b-4203-a734-7ee0500201b6
+begin
+	R = rand(100)
+	make_loess_model(x,y) = Loess.loess(x, y, span=span_rand)
+	rand_loess_model = make_loess_model(Utils.squeeze(1:100), R)
+end;
+
+# ╔═╡ a557bb0a-a88a-4519-a235-ae446630bdd7
+smoothed =Loess.predict(rand_loess_model, 1:0.5:100)
+
+# ╔═╡ 765e0db8-1364-437e-8ecf-3d5055d8a07f
+plot(plot(1:100, R), plot(1:0.5:100, smoothed))
+
+# ╔═╡ 17b37173-4fbe-49e9-8d80-503ab8d73f97
+md"""
+### Smoothing data
+"""
+
+# ╔═╡ 410c533c-744a-4ac6-8d6e-1e5a55b2ed27
+loess_data_span = @bind span_data PlutoUI.Slider(0.1:0.05:1, show_value=true, default=0.15)
+
+# ╔═╡ 6f425636-86d6-4314-a0f6-5f5772999918
+begin
+	data_loess_model(x,y) = Loess.loess(x, y, span=span_data)
+
+	Is_sig_smooth = combine(groupby(sort(Is_sig,[:unit,:shift]), :unit),
+						    [:shift, :value] => ((x,y) -> Loess.predict(data_loess_model(x,y),x)) => :smoothed_value,
+		Not(:unit)
+	)
+end;
+
+# ╔═╡ 3e0ae61d-c7e5-477f-9576-b76462b7085b
+begin
+	norm_log10(x) = (log10.(x) .- minimum(log10.(x))) ./ (maximum(log10.(x))-minimum(log10.(x)))
+
+	transform!(Is_sig_smooth, :meanrate => norm_log10 => :norm_meanrate) 
+	
+	p_val_min_smoothed = @df Is_sig_smooth density(abs.(:value .- :smoothed_value))
+	
+	
+	p_val_v_smoothed = @df Is_sig_smooth scatter(:value, :smoothed_value, aspect_ratio=1, xlim=(0, xlims()[2]), ylim=(0, 300), alpha=0.3,
+		xlabel="Value", ylabel="Smoothed Value", label="Point color by norm_log10 FR",
+		c=get.([ColorSchemes.vik], Is_sig_smooth.norm_meanrate)
+	)
+	plot(p_val_min_smoothed, p_val_v_smoothed)
+end
+
+# ╔═╡ 25e863d7-6530-4e9d-a482-a06b3379e53f
+extrema(Is_sig_smooth.norm_meanrate)
+
+# ╔═╡ efb2c590-804c-4c87-bd79-102913dfb865
+get.([ColorSchemes.vik], Is_sig_smooth.norm_meanrate)
+
+# ╔═╡ f8ef3758-951d-4d64-96c2-7856caf21fce
+loess_data_span
+
+# ╔═╡ f46b7018-e10d-4d96-a572-85fd8df371dd
+heatmap_unitshift(Timeshift.norm_information(Is_sig_smooth, value=:smoothed_value), value=:smoothed_value)
+
 # ╔═╡ 975a6d70-ae6b-4b25-8fef-34552c39c94c
 md"""
 # Firing rate effects
@@ -448,6 +525,20 @@ Fs
 # ╠═33c64062-002a-4eea-8e29-e8e36784a666
 # ╟─c8800b8a-fd8b-43b2-a1fa-bbb76879e56d
 # ╟─2a75cc20-9bf4-4d2e-9cd5-a5d30d8d8c76
+# ╟─e81ceff1-a29f-428c-b448-d3f1ac204ef4
+# ╟─63237edf-5fb0-44f7-8650-134974d71734
+# ╟─7bcaad0e-17ab-4908-b3f2-0d56b03b0c87
+# ╟─d84ddfac-bb8b-4203-a734-7ee0500201b6
+# ╟─a557bb0a-a88a-4519-a235-ae446630bdd7
+# ╟─765e0db8-1364-437e-8ecf-3d5055d8a07f
+# ╟─17b37173-4fbe-49e9-8d80-503ab8d73f97
+# ╟─6f425636-86d6-4314-a0f6-5f5772999918
+# ╟─410c533c-744a-4ac6-8d6e-1e5a55b2ed27
+# ╠═3e0ae61d-c7e5-477f-9576-b76462b7085b
+# ╠═25e863d7-6530-4e9d-a482-a06b3379e53f
+# ╠═efb2c590-804c-4c87-bd79-102913dfb865
+# ╠═f8ef3758-951d-4d64-96c2-7856caf21fce
+# ╠═f46b7018-e10d-4d96-a572-85fd8df371dd
 # ╟─975a6d70-ae6b-4b25-8fef-34552c39c94c
 # ╟─b2ed7800-80f1-4d30-a00a-c76bcd8036a9
 # ╟─07b01f6f-f0b8-4f23-ac64-53f7dc9ea6f2
