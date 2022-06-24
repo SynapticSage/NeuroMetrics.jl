@@ -206,19 +206,35 @@ module timeshift
         saveplotshift("fields", "shifts", "$(descSave)_heatmap_x=shift,y=cellsort_by=area.pdf")
     end
 
-
-    function heatmap_unitshift(Isc::DataFrame; sort_rows=:unit, centerline=true)
-        if !(typeof(sort_rows) <:Vector)
-            sort_rows = [sort_rows]
+    function heatmap_unitshift(Isc::DataFrame; sort_rows=:bestshift,
+            removenonsig=false, centerline=true, setnanzero=true,
+            dropmissingrows=false, kws...)
+		 if !(typeof(sort_rows) <:Vector)
+					sort_rows = [sort_rows]
+		end
+		not_list = union([:unit, :sig_minimum], sort_rows)
+		shifts = unique(sort(Isc.shift))
+		dropmissing!(Isc)
+		ustack = unstack(sort(Isc,[:unit,:shift, :sig_minimum]), not_list, :shift, :value)
+		ustack = sort(ustack, sort_rows)
+        if removenonsig
+            ustack = @subset(ustack, :sig_minimum .< 0.05)
         end
-        not_list = union([:unit], sort_rows)
-        shifts = unique(sort(Isc.shift))
-        ustack = unstack(sort(Isc,[:unit,:shift]), not_list, :shift, :value)
-        ustack = sort(ustack, sort_rows)
-        units  = unique(sort(ustack.unit))
-        ustack = ustack[:,Not(not_list)]
-        hm = Matrix(ustack)
-        p = heatmap(shifts, units, hm)
+		units  = unique(sort(ustack.unit))
+		ustack = ustack[:,Not(not_list)]
+		ustack = replace(Matrix(ustack), missing=>NaN)	
+        good = (!).(isnan.(ustack))
+        if dropmissingrows && !(setnanzero)
+            inds= findall(Utils.squeeze(any(good; dims=2)))
+            ustack = ustack[inds, :]
+            units = units[inds]
+        elseif setnanzero
+            bad = findall(Utils.squeeze((!).(good)))
+            ustack[bad,:] .= 0
+            #units = units[inds]
+        end
+        hm = Float32.(Matrix(ustack))
+        p = heatmap(shifts, 1:length(units), hm; kws...)
         if centerline
             vline!([0], c=:white, linestyle=:dash, linewidth=2, label="")
         end

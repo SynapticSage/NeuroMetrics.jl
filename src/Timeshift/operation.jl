@@ -137,17 +137,22 @@ Examine fields that are significant
             max_ = argmax(unit[:, value])
             unit[!, :bestshift] .= unit[max_, :shift]
         end
-        combine(I, identity)
+        I = combine(I, identity)
         return I
     end
 
-    function add_best_sig_shift(I; value=:value; sig=0.05)
-        I = copy(I)
+    function add_best_sig_shift(I; value=:value, sig=0.05)
         I = groupby(I, :unit)
         for unit in I
-            unit[unit.sig .< sig, value] .= NaN
-            max_ = argmax(unit[:, value])
-            unit[!, :bestshift] .= unit[max_, :shift]
+            V = unit[:,value]
+            V[unit.sig .< sig] .= NaN
+            if all((!).(isnan.(V)))
+                replace!(V, NaN=>-Inf)
+                max_ = argmax(V)
+                unit[!, :bestsigshift] .= unit[max_, :shift]
+            else
+                unit[!, :bestsigshift] .= NaN
+            end
         end
         I = combine(I, identity)
         return I
@@ -159,7 +164,7 @@ Examine fields that are significant
             val = stat(unit[:, sigval])
             unit[!, String(sigval) * "_" * String(Symbol(stat))] .= val
         end
-        combine(I, identity)
+        I = combine(I, identity)
         return I
     end
 
