@@ -36,7 +36,7 @@ import Plot
 I = Timeshift.load_mains()
 S = Timeshift.load_shuffles()
 F = Timeshift.load_fields()
-F = Utils.namedtup.lambda_values(F, x->x.Rₕ)
+ = Utils.namedtup.lambda_values(F, x->x.Rₕ)
 key = (;first(keys(I))..., datacut=:all)
 #imax = sort(Timeshift.imax(Timeshift.info_to_dataframe(I[key], shift_scale=:minutes)))
 #iall = sort(Timeshift.info_to_dataframe(I[key], shift_scale=:minutes))

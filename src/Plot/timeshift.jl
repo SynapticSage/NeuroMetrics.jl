@@ -8,6 +8,7 @@ module timeshift
     import Utils
     using Statistics, NaNStatistics
     using DataFrames, DataFramesMeta
+    using StatsBase
 
     export plot_shifts
     export plot_shift_versus_info
@@ -229,7 +230,7 @@ module timeshift
     """
     function ecdf_units(I, S; groups=:unit)
 
-        G = Table.group.mtg_via_commonmap(groups, Is, Ss)
+        G = Table.group.mtg_via_commonmap(groups, I, S)
         for (ig, sg) in G
             # Plot
             C = ecdf(sg.value)
@@ -239,12 +240,14 @@ module timeshift
             annotation = string(round(Float64(ig.value[1]),digits=2))
             @infiltrate annotation != "NaN"
             annotate!(ig.value, mean([ylims()...]), text(annotation))
-            if cig.sig[1] < 0.05
+            if ig.sig[1] < 0.05
                 push!(P_sig, p)
             else
                 push!(P_non, p)
             end
         end
+
+        P_sig, P_non
 
     end
 

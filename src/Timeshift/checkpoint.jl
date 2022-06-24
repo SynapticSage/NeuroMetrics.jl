@@ -3,6 +3,7 @@ module checkpoint
     using Serialization
     using DataFrames
     using DrWatson
+    import Arrow
 
     export ts_plotdir
     export save_mains, save_shuffles, save_fields
@@ -87,7 +88,7 @@ module checkpoint
     function load_mains(;dataframe::Bool=false)
         if dataframe
             name = mainspath() * "_dataframe.arrow"
-            DataFrame(Arrow.Table(path))
+            DataFrame(Arrow.Table(name))
         else
             name = mainspath()
             D = deserialize(name)
@@ -102,7 +103,7 @@ module checkpoint
     function load_fields(;dataframe::Bool=false)
         if dataframe
             name = fieldspath() * "_dataframe.arrow"
-            DataFrame(Arrow.Table(path))
+            DataFrame(Arrow.Table(name))
         else
             name = fieldspath()
             D = deserialize(name)
@@ -128,14 +129,14 @@ module checkpoint
         serialize(name, D)
     end
     function save_shuffles(S::DataFrame)
-        name = save_fields() * "_dataframe.arrow"
+        name = shufflespath() * "_dataframe.arrow"
         Arrow.write(name, S)
     end
 
     function load_shuffles(;dataframe::Bool=false)
         if dataframe
             name = shufflespath() * "_dataframe.arrow"
-            DataFrame(Arrow.Table(path))
+            DataFrame(Arrow.Table(name))
         else
             name = shufflespath()
             D = deserialize(name)

@@ -63,6 +63,7 @@ module convert_types
                                             other_labels=other_labels, kws...),
                            cols=:union)
                 catch
+                    @warn "Hiccup"
                     @infiltrate
                 end
             end

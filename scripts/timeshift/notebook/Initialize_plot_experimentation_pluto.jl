@@ -47,6 +47,10 @@ key = (;first(keys(I))..., datacut=:all)
 @time S = Table.to_dataframe(S, key_name=:keyboard, explode=true)
 @time F = Table.to_dataframe(F, key_name="shift",   explode=false)
 
+
+Timeshift.checkpoint.save_mains(I)
+
+
 # --- DESCRIBE ------
 using Term: Panel
 P = Panel( Panel("Basic stats   main↓  shuffle→") /

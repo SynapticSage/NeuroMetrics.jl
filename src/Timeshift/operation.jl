@@ -115,9 +115,11 @@ module operation
 
     """
     Normalizes information to be between 0 and 1
+Examine fields that are significant
     """
     function norm_information(Isc)
         @info "Normalizig by unit"
+        Isc = copy(Isc)
         groups = groupby(Isc, :unit)
         for group in groups
             norm(x) = (x .- minimum(x))./(maximum(x).-minimum(x))
@@ -136,6 +138,18 @@ module operation
             unit[!, :bestshift] .= unit[max_, :shift]
         end
         combine(I, identity)
+        return I
+    end
+
+    function add_best_sig_shift(I; value=:value; sig=0.05)
+        I = copy(I)
+        I = groupby(I, :unit)
+        for unit in I
+            unit[unit.sig .< sig, value] .= NaN
+            max_ = argmax(unit[:, value])
+            unit[!, :bestshift] .= unit[max_, :shift]
+        end
+        I = combine(I, identity)
         return I
     end
 
