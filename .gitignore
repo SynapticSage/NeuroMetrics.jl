@@ -7,7 +7,7 @@ data
 videos
 plots
 papers
-notebooks
+#notebooks
 _research
 vim # for vim session files
 
