@@ -1,5 +1,6 @@
-
 @time include(scriptsdir("timeshift", "Initialize.jl"))
+import Timeshift
+
 # List of the ways that one might want to vary this analysis
 # 1. filters
 #   all-times
@@ -17,8 +18,6 @@
 # 3. Resolution
 #   -8 : 8 seconds (trajectory length)
 #   (block length)
-
-
 
 # ========
 # MAINS
@@ -86,7 +85,7 @@ end
 shuffle_type = :dotson
 if shuffle_type == :dotson
     nbins = 50
-    Load.behavior.annotate_relative_xtime!(beh)
+    Munge.behavior.annotate_relative_xtime!(beh)
     beh.trajreltime_bin = floor.(beh.trajreltime * (nbins-1))
     _, spikes = Load.register(beh, spikes; 
                              transfer=["trajreltime","trajreltime_bin"], 
@@ -129,7 +128,7 @@ end
             S[key] = fetch(S[key])
         end
         @info S
-        utils.pushover("Done fetchging jobs for datacut=$datacut")
+        #utils.pushover("Done fetchging jobs for datacut=$datacut")
     catch
         @warn "potential task failure for props=$props, datacut=$datacut"
     end

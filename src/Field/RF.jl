@@ -19,20 +19,32 @@ Work-in-progress
 """
 module RF
 
-    struct ReceptiveField
-            Cₕ::Array{Float32}
-            Cₖ::Union{Array{Float32},Nothing}
-            occ::Array{Float32}
-            occR::Array{Float32, Nothing}
-            occzeroinds::Array{Float32}
-            cgrid::Tuple
-            egrid::Tuple
-            gridh::Tuple
-            gridk::Tuple
-            dims::Union{Vector{String}, Vector{Symbol}}
+    # -----------
+    # NEW SYSTEM|
+    # -----------
+
+    struct FixedGrid
+        centers::Tuple
+        edges::Tuple
     end
 
-    const ReceptiveFields = AbstractDict{ReceptiveField}
+    struct Occupancy
+        count::Array{Float32}
+        prob::Array{Float32}
+    end
+
+    struct Field
+        count::Array{Float32}
+        rate::Array{Float32}
+        occ::Occupancy
+        grid::FixedGrid
+    end
+
+    const ReceptiveFields = AbstractDict{Field}
+
+    # -----------
+    # OLD SYSTEM|
+    # -----------
 
     struct Old_ReceptiveFields
             Cₕ::Dict

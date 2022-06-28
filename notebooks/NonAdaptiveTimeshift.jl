@@ -69,7 +69,7 @@ PlutoUI.TableOfContents(title="Non-adaptive field shifting")
 
 # ╔═╡ 42ea762b-12ed-4eb8-ade0-3bffff593690
 md"""
-# Package Imports
+# Package Imports 📦
 """
 
 # ╔═╡ 10a1552f-ffda-4b79-8a4c-fe2864bc3ae5
@@ -82,12 +82,12 @@ import Plot
 
 # ╔═╡ bf904f0e-7387-4b73-890b-fbb5fc6137de
 md"""
-# Loading data
+# Loading data  💾
 First, we're going to loadup a key dataframe of interest: **cells**
 """
 
 # ╔═╡ cadaf555-3b90-4c5b-846b-686ce4130497
-@time cells = Load.load_cells("RY16", 36, "*")
+cells = Load.load_cells("RY16", 36, "*")
 
 # ╔═╡ 13b0d82f-d721-40f7-b2f6-d099d41e8897
 md"""And pull in our *checkpoint* shifted field files!"""
@@ -125,7 +125,7 @@ end;
 
 # ╔═╡ 5bad660a-016b-4e05-83c3-38e10e3323a1
 md"""
-# Set the *DATACUT* and *MARGINAL*
+## Parameters :: Set the *DATACUT* and *MARGINAL*
 Let's grab first let the user pick **what** to look at
 """
 
@@ -164,7 +164,7 @@ groups = [:datacut, :marginal, :unit, :shift, :area]
 
 # ╔═╡ 07daf23c-24dc-4907-bdad-ba2c91978f8e
 md"""
-# Obtain signficance of fields
+# Obtain signficance of fields ✨
 """
 
 # ╔═╡ 35ea2991-0a66-47a6-bec2-d1f44725bc8e
@@ -241,7 +241,7 @@ plot_sig(unit_nonsig, Gnonsig)
 
 # ╔═╡ 5ffb3ee8-141d-4ee0-8021-021c746b8bc5
 md"""
-# Population level shifts
+# Population level shifts 👥
 """
 
 # ╔═╡ 4f71df4b-e203-403e-bf52-611f58f9751c
@@ -391,7 +391,7 @@ heatmap_unitshift(Is_sig_smooth, value=:smoothed_value, clim=(0.5,17))
 
 # ╔═╡ 975a6d70-ae6b-4b25-8fef-34552c39c94c
 md"""
-# Firing rate effects
+# Firing rate effects 🤯
 
 An interesting question is whether and how many effects are created by the spike rate of the neurons. This can help identify if controls are needed.
 """
@@ -426,14 +426,20 @@ md"""
 The shift however has an effect within a given firing rate, so it's not like there's no ability to find a good shift. Rather that it increases the variance a ton in low firing rate regimes, and possibly noise dominates shift decision.
 """
 
+# ╔═╡ 063b8c00-e52b-4888-a384-b15df02afa8d
+begin
+	v1_manip = @bind v1 PlutoUI.Slider(0:360, show_value=true, default=74)
+	v2_manip = @bind v2 PlutoUI.Slider(0:360, show_value=true, default=18)
+	v1_manip, v2_manip
+end
+
 # ╔═╡ d728c9d6-4571-40bb-b1df-b34d7ae0b785
 begin
 	norm(x) = (x.-minimum(x))./(maximum(x).-minimum(x))
-	@df Is scatter(:meanrate, :shift, log2.(:value), xlim=(0,0.25), 
-	c=get.([ColorSchemes.vik], norm(:shift)),
+	@df Is scatter(:meanrate, :shift, log2.(:value), alpha=0.6, camera=(v1,v2), xlim=(0,0.25), 
+	c=get.([ColorSchemes.diverging_isoluminant_cjm_75_c23_n256], norm(:shift)),
 	xlabel="Mean FR", ylabel="Shift", zlabel="Log2(Information)",
-		label="log₂(info)"
-	)
+		label="log₂(info)")
 end
 
 # ╔═╡ b5a4f445-1cd2-476a-aeab-a362a2de3b17
@@ -526,7 +532,7 @@ end
 
 # ╔═╡ cd3925de-dbb0-4e57-9a1e-48bf8fbb109f
 md"""
-# Raw fields
+# Raw fields 🌾
 Are field selections for shifts any good?
 
 Use the sliders to examine different neurons 🧠 at different shifts 🏃
@@ -567,12 +573,12 @@ md"""
 
 
 # ╔═╡ Cell order:
-# ╟─8d41c178-16ee-4881-b55c-fb80f274d7bc
+# ╠═8d41c178-16ee-4881-b55c-fb80f274d7bc
 # ╟─dfcfa875-d122-49f1-ab24-66c1937b3134
 # ╟─42ea762b-12ed-4eb8-ade0-3bffff593690
-# ╠═450738b2-3d49-4e45-9a4d-ffa1721f833a
+# ╟─450738b2-3d49-4e45-9a4d-ffa1721f833a
 # ╟─10a1552f-ffda-4b79-8a4c-fe2864bc3ae5
-# ╠═a9b4b3d2-f318-11ec-210a-a70a7964ee72
+# ╟─a9b4b3d2-f318-11ec-210a-a70a7964ee72
 # ╟─12c97814-1d83-4f82-9f5f-891abb878e60
 # ╟─bf904f0e-7387-4b73-890b-fbb5fc6137de
 # ╟─cadaf555-3b90-4c5b-846b-686ce4130497
@@ -583,7 +589,7 @@ md"""
 # ╟─eb62a3a9-5ba8-4737-8214-06b3c436eac2
 # ╟─edcb03f0-3e52-4fd6-adbe-48d37150ba13
 # ╟─61d024da-011a-42a3-b456-19475da19e78
-# ╟─5bad660a-016b-4e05-83c3-38e10e3323a1
+# ╠═5bad660a-016b-4e05-83c3-38e10e3323a1
 # ╟─435f9680-1520-468e-b97c-2ea4fb2c1ff4
 # ╠═b553e927-d6b8-469a-90de-b1b0bf9efa11
 # ╠═225323c9-4ed6-42ce-987d-4d5557efaa35
@@ -595,7 +601,7 @@ md"""
 # ╟─3c5fad0a-fd7f-4766-88fc-53c2ad7bcca4
 # ╟─d1ae7695-1e2f-4d90-9663-37f500bfd53a
 # ╟─07daf23c-24dc-4907-bdad-ba2c91978f8e
-# ╠═35ea2991-0a66-47a6-bec2-d1f44725bc8e
+# ╟─35ea2991-0a66-47a6-bec2-d1f44725bc8e
 # ╟─131fb039-7631-429b-b327-73a40e408b59
 # ╟─5adb69a3-ab98-401e-a344-38aada960e6d
 # ╟─3cb16c9d-eb21-4947-8597-3991917cc7f0
@@ -635,7 +641,8 @@ md"""
 # ╟─07b01f6f-f0b8-4f23-ac64-53f7dc9ea6f2
 # ╟─1762e086-7f10-47cd-a895-fae9a772d6d5
 # ╟─09819531-982a-4ded-9b0c-5187aac26e97
-# ╟─d728c9d6-4571-40bb-b1df-b34d7ae0b785
+# ╠═063b8c00-e52b-4888-a384-b15df02afa8d
+# ╠═d728c9d6-4571-40bb-b1df-b34d7ae0b785
 # ╟─b5a4f445-1cd2-476a-aeab-a362a2de3b17
 # ╟─32ddb00f-1eac-491f-a321-3d9f48c7f70c
 # ╟─125653c1-55de-4410-ad30-d00433008005

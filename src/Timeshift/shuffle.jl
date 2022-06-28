@@ -7,6 +7,7 @@ module shuffle
     using DataStructures
     using Infiltrator
     using ProgressMeter
+    using LoopVectorization
 
     export get_field_shift_shuffles
 
@@ -25,7 +26,7 @@ module shuffle
                 get_field_kws...)::AbstractDict
 
         @info "Applying preset=$preset"
-        initial_data_partials = shuffle.applyStandardShuffle(preset)
+        initial_data_partials = Shuffle.applyStandardShuffle(preset)
         _apply_partials(beh, data, shifts, initial_data_partials;
                         nShuffle, compute, postfunc,
                         safe_dict, exfiltrateAfter, get_field_kws...)

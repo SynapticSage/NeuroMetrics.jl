@@ -5,6 +5,7 @@ module adaptive
     using LazyGrids: ndgrid
     import Base
     using ..Field.RF
+    using LoopVectorization
 
     abstract type Grid end
     abstract type RF end
@@ -12,19 +13,19 @@ module adaptive
 
     grid_to_full(G::Vector...) = [g for g in zip(ndgrid(G...))]
     grid_to_full(G::Tuple)     = [g for g in zip(ndgrid(G...))]
-                                                   grid_to_full(r))
+                                                   
 
     struct GridAdaptive <: Grid
         centers::Array
         radii::Array
         GridAdaptive(c::Array, r::Array) = new(c,r)
-        GridAdaptive(c::Tuple, r::Tuple) = new(grid_to_full(c),
+        GridAdaptive(c::Tuple, r::Tuple) = new(grid_to_full(c),grid_to_full(r))
         GridAdaptive(c::Tuple) = new(grid_to_full(c), undef)
     end
     # Setup iteration
-    Base.start(g::GridAdaptive) = 1
-    Base.done(g::GridAdaptive, state::Int) = length(g.centers) == state
-    Base.next(g::GridAdaptive, state::Int) = Base.next(zip(G.centers, G.radii), 
+    Base.iterate(g::GridAdaptive) = Base.iterate(zip(G.centers,G.radii))
+    #Base.done(g::GridAdaptive, state::Int) = length(g.centers) == state
+    Base.iterate(g::GridAdaptive, state::Int) = Base.iterate(zip(G.centers, G.radii), 
                                                        state)
     cenumerate(G::GridAdaptive) = zip(CartesianIndices(G.centers), G)
 
@@ -90,10 +91,10 @@ module adaptive
             thresh::Real=1, # Threshold in seconds
             sampletime=1/30, # Total time of sample
             radiusinc=0.1, # Spatial unit of RF
-            width::OrderedDict, boundary::OrderedDict)::GridAdaptive
+            width::OrderedDict, boundary::OrderedDict, kws...)::GridAdaptive
         vals = return_vals(behavior, props)
         G = GridAdaptive(width, boundary, width)
-        @avx for (index, center, radius) in cenumerate(G)
+        for (index, center, radius) in cenumerate(G)
             while (sum(vals .< (center .+ radius)) * sampletime) < thresh
                 radius += radiusinc
             end

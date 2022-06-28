@@ -30,7 +30,7 @@ module GoalFetchAnalysis
     #include(srcdir("Plot.jl"))
     #import .Plot
 
-    import Load, Filt, Shuffle, Table, Field, Timeshift, Decode
+    import Load, Filt, Shuffle, Table, Field, Timeshift, Decode, Munge
 
     export Load
     export Utils
@@ -39,6 +39,7 @@ module GoalFetchAnalysis
     export Decode
     export Filt
     export Plot
+    export Munge
 
 
 end

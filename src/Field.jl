@@ -241,6 +241,9 @@ module Field
         H[answers] .= NaN
     end
 
+    function get_RF()
+    end
+
     # Field-related submodules
     using Reexport
     include(srcdir("Field","operation.jl"))
@@ -265,8 +268,8 @@ module Field
     import .recon_process
     include(srcdir("Field","RF.jl"))
     import .RF
-    include(srcdir("Field","adaptive.jl"))
-    import .adaptive
+    #include(srcdir("Field","adaptive.jl"))
+    #import .adaptive
 
 end
 
