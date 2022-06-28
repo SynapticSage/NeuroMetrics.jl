@@ -129,6 +129,7 @@ module adaptive
         end
         ulanovsky(spikes, props; G, splitby)
     end
+
     function ulanovsky(spikeGroups::GroupedDataFrame, props::Vector; G::GridAdaptive, kws...)::AdapativFieldDict
         D = AdapativFieldDict()
         for (nt, group) in zip(Table.group.nt_keys(spikeGroups), spikeGroups)

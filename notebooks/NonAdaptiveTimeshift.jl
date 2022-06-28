@@ -541,6 +541,9 @@ Use the sliders to examine different neurons 🧠 at different shifts 🏃
 # ╔═╡ 2bb18fdc-9080-4f0a-9d09-c2cbe0e6404a
 @bind unit_field_select PlutoUI.Slider(sort(unique(Fs.unit)), show_value=true)
 
+# ╔═╡ ef189310-69cc-4ed6-ad45-9ee6a6f6371b
+
+
 # ╔═╡ 398a837c-4710-4eb6-9f78-786d7173bc49
 @bind shift_select PlutoUI.Slider(sort(unique(Fs.shift)), show_value=true, default=0)
 
@@ -589,14 +592,14 @@ md"""
 # ╟─eb62a3a9-5ba8-4737-8214-06b3c436eac2
 # ╟─edcb03f0-3e52-4fd6-adbe-48d37150ba13
 # ╟─61d024da-011a-42a3-b456-19475da19e78
-# ╠═5bad660a-016b-4e05-83c3-38e10e3323a1
+# ╟─5bad660a-016b-4e05-83c3-38e10e3323a1
 # ╟─435f9680-1520-468e-b97c-2ea4fb2c1ff4
 # ╠═b553e927-d6b8-469a-90de-b1b0bf9efa11
 # ╠═225323c9-4ed6-42ce-987d-4d5557efaa35
 # ╟─f77875f8-21c4-4d97-8103-cdc7d33adee3
 # ╟─6399b851-1f0a-4999-ae00-e66437f5e264
 # ╟─d47c3d1d-394b-45bb-9d8b-1dc8ddc1b9b3
-# ╟─bfcf1a0a-6520-4f79-b6c2-f97d8d0f34cc
+# ╠═bfcf1a0a-6520-4f79-b6c2-f97d8d0f34cc
 # ╠═ee772af0-a435-4390-9fe5-d4cd3a2aacac
 # ╟─3c5fad0a-fd7f-4766-88fc-53c2ad7bcca4
 # ╟─d1ae7695-1e2f-4d90-9663-37f500bfd53a
@@ -641,8 +644,8 @@ md"""
 # ╟─07b01f6f-f0b8-4f23-ac64-53f7dc9ea6f2
 # ╟─1762e086-7f10-47cd-a895-fae9a772d6d5
 # ╟─09819531-982a-4ded-9b0c-5187aac26e97
-# ╠═063b8c00-e52b-4888-a384-b15df02afa8d
-# ╠═d728c9d6-4571-40bb-b1df-b34d7ae0b785
+# ╟─063b8c00-e52b-4888-a384-b15df02afa8d
+# ╟─d728c9d6-4571-40bb-b1df-b34d7ae0b785
 # ╟─b5a4f445-1cd2-476a-aeab-a362a2de3b17
 # ╟─32ddb00f-1eac-491f-a321-3d9f48c7f70c
 # ╟─125653c1-55de-4410-ad30-d00433008005
@@ -653,9 +656,10 @@ md"""
 # ╟─735ab0d6-0c9f-499d-b62d-93b7fcc3b39e
 # ╟─3b6aaa97-aee1-46cf-b4cf-79d7312056eb
 # ╟─c42b9721-f30f-45b0-a6ab-60413eee9876
-# ╟─cd3925de-dbb0-4e57-9a1e-48bf8fbb109f
+# ╠═cd3925de-dbb0-4e57-9a1e-48bf8fbb109f
 # ╟─2bb18fdc-9080-4f0a-9d09-c2cbe0e6404a
-# ╟─398a837c-4710-4eb6-9f78-786d7173bc49
+# ╟─ef189310-69cc-4ed6-ad45-9ee6a6f6371b
+# ╠═398a837c-4710-4eb6-9f78-786d7173bc49
 # ╟─49bb383c-b3cf-448f-9906-ab1eabae3f75
 # ╟─54d550c9-0e83-4cdb-bb27-88d4c6dffe83
 # ╟─5df33da9-bb8d-4356-99b0-a4742a20c87e

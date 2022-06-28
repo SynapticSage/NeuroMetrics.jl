@@ -1,4 +1,4 @@
-module Shuffle
+module Shuf
 
     __revise_mode__ = :evalassign
     using Distributions
@@ -284,4 +284,4 @@ module Shuffle
     end
 
 end
-export shuffle
+export Shuf

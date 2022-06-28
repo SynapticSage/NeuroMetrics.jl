@@ -77,11 +77,6 @@ md"""
 ## Load data
 """
 
-# ╔═╡ 49896b0c-19d3-4c51-8e54-2f046e6d8382
-md"""
-We have some choices to make. This worksheet will compare any *two* checked datasets.  In the future, maybe N. But for now, 2 is the limit.
-"""
-
 # ╔═╡ 2ab79319-1f6f-431f-93ab-dcb5c381afd8
 I, cells = with_logger(NullLogger()) do
 cells = Load.load_cells("RY16", 36, "*");
@@ -89,16 +84,43 @@ _, I = Load.register(cells, Timeshift.load_mains(dataframe=true), on="unit", tra
 	I, cells
 end;
 
-# ╔═╡ e8221624-f6fd-11ec-0151-cf9da8e7d639
-@bind datacut PlutoUI.MultiCheckBox(String.(unique(I.datacut)), default=["all"])
-
 # ╔═╡ 68f79249-c6f2-4f54-b3b6-e0559f9bb7b5
 md"""
 ### Parameters
 """
 
+# ╔═╡ 49896b0c-19d3-4c51-8e54-2f046e6d8382
+md"""
+We have some choices to make. This worksheet will compare any *two* checked datasets.  In the future, maybe N. But for now, 2 is the limit.
+"""
+
+# ╔═╡ e8221624-f6fd-11ec-0151-cf9da8e7d639
+@bind datacut PlutoUI.MultiCheckBox(String.(unique(I.datacut)), default=["all"])
+
 # ╔═╡ b38a32ff-9b95-416c-be82-3d7371d51932
 @bind marginal PlutoUI.Radio(String.(unique(I.marginal)), default="x-y")
+
+# ╔═╡ 48c22294-fc9d-44ff-b2ea-b2c59e795da0
+datacut
+
+# ╔═╡ 61f417ed-a4c9-42a3-b858-17dc170dfea0
+Is = begin
+	Is = Dict{Symbol,DataFrame}()
+	for cut in datacut
+		Is[Symbol(cut)] = transform(DataFramesMeta.@subset(I, :datacut .== Symbol(cut), :marginal .== marginal), :shift => (x->x*60) => :shift)
+	end
+	Is
+end
+
+# ╔═╡ a02f5d19-7d9a-44fa-893e-647d591243d7
+typeof(Table.group.multitable_groupby([:unit, :datacut, :shift], values(Is)...))
+
+# ╔═╡ e2def883-20ea-44dc-bc19-143e8bf48b38
+c = copy(a)
+		c.datacut .= Symbol("compare_" * 
+							String(a.datacut) * "_" * 
+							String(b.datacut))
+		c.value = a.value - b.value
 
 # ╔═╡ Cell order:
 # ╟─94816c70-20ab-4e80-93fb-ed1ce0b3405a
@@ -107,8 +129,12 @@ md"""
 # ╟─f9d33aee-5392-41a6-bf03-fd9244adfa0f
 # ╟─81dd0cb9-5400-4502-8a27-0530d730c616
 # ╟─4d85a1f8-fe28-45bd-970c-cab78838034f
-# ╟─49896b0c-19d3-4c51-8e54-2f046e6d8382
 # ╟─2ab79319-1f6f-431f-93ab-dcb5c381afd8
-# ╟─e8221624-f6fd-11ec-0151-cf9da8e7d639
 # ╟─68f79249-c6f2-4f54-b3b6-e0559f9bb7b5
+# ╟─49896b0c-19d3-4c51-8e54-2f046e6d8382
+# ╟─e8221624-f6fd-11ec-0151-cf9da8e7d639
 # ╟─b38a32ff-9b95-416c-be82-3d7371d51932
+# ╠═48c22294-fc9d-44ff-b2ea-b2c59e795da0
+# ╟─61f417ed-a4c9-42a3-b858-17dc170dfea0
+# ╠═a02f5d19-7d9a-44fa-893e-647d591243d7
+# ╠═e2def883-20ea-44dc-bc19-143e8bf48b38

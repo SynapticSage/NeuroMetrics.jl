@@ -6,12 +6,45 @@ module lfp
     using ImageFiltering
     using Table
 
+    """
+        bandpass
+
+    execute bandpass on an lfp dataframe
+    """
+    function bandpass(df::DataFrame, low, high; order=5)
+        # Butterworth and hilbert the averaged raw (averaging introduces higher
+        # freequency changes)
+        df = copy(df)
+        filt = DSP.analogfilter(DSP.Bandpass(low, high, fs=1/median(diff(df.time))),
+                         DSP.Butterworth(order))
+        df.raw =  Float64.(df.raw)
+        df.raw = DSP.filtfilt(filt.p, df.raw)
+        hilb   = DSP.hilbert(df.raw)
+        df.amp, df.phase = abs.(hilb), angle.(hilb)
+        # Find higher variance tetrodes
+        if !(isempty(kws))
+            df = Table.smooth.gauss(df, kws...)
+        end
+        df
+    end
+
+    """
+        phase_to_radians
+
+    converts phase numbers (whichever their coordinates) into radians
+    """
     function phase_to_radians(phase)
         phase = Float32.(phase)
         phase = 2*π*(phase .- minimum(phase))./diff([extrema(phase)...]) .- π
         #phase = convert.(Float16, phase)
     end
-    function annotate_cycles(lfp; phase_col="phase", method="peak-to-peak")
+
+    """
+        annotate_cycles
+
+    annotates lfp dataframe with cycle numbers
+    """
+    function annotate_cycles(lfp::DataFrame; phase_col="phase", method="peak-to-peak")
         phase = lfp[!, phase_col]
         lfp.phase = phase_to_radians(lfp[:,"phase"])
         println("Method=$method")
@@ -39,6 +72,12 @@ module lfp
         lfp[!,"cycle"] = cycle_labels
         return lfp
     end
+
+    """
+        mean_lfp
+
+    obtains the average LFP across a set of tetrodes
+    """
     function mean_lfp(lfp; mean_fields=["phase","amp","raw"], func=Circular.median)
         lfp = groupby(lfp, :time)
         non_mean_fields = setdiff(names(lfp), mean_fields)
@@ -46,19 +85,13 @@ module lfp
                      non_mean_fields.=>first.=>non_mean_fields)
         return lfp[!, Not(:tetrode)]
     end
-    function gauss_lfp(lfp; fields=["phase"], gaussian=3)
-        kernel = Kernel.gaussian((gaussian,))
-        for field in fields
-            lfp[!,field] = imfilter(lfp[!,field], kernel)
-        end
-        return lfp
-    end
+
     """
-    weighted_lfp
+        weighted
 
     creates an amplitude weighted average of fields across tetrodes
     """
-    function weighted_lfp(lfp; mean_fields=["phase","amp","raw"],
+    function weighted_lfp(lfp::DataFrame; mean_fields=["phase","amp","raw"],
             weighting="amp")
         lfp = groupby(lfp, :time)
         non_mean_fields = setdiff(names(lfp), mean_fields)
@@ -73,15 +106,31 @@ module lfp
         return new[!, Not(:tetrode)]
     end
 
-    function unstack_tetrode(df; measure::Symbol=:phase)
+    """
+        unstack_tetrode
+
+    unstacks tetrode dimension for an lfp dataframe
+    """
+    function unstack_tetrode(df::DataFrame; measure::Symbol=:phase)
         unstack(df[!, [:time, :tetrode, measure]], :tetrode, measure)
     end
 
-    function get_cycle_table(lfp, pos...; kws...)
+    """
+        get_cycle_table
+
+    obtain a table with the start and stop times of each lfp cycle
+    """
+    function get_cycle_table(lfp::DataFrame, pos...; kws...)
         @assert "cycle" in names(lfp)
         tab = Table.get_periods(lfp, "cycle", :amp=>mean, pos...; kws...)
         return tab
     end
+
+    """
+        get_tet
+
+    get a tetrode subset of an lfp datarfame
+    """
     getTet(L::DataFrame, T::Int) = filter(:tetrode=> t->t==T, L)
 
 end

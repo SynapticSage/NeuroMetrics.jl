@@ -82,6 +82,7 @@ end
 # ========
 # SHUFFLE
 # ========
+
 shuffle_type = :dotson
 if shuffle_type == :dotson
     nbins = 50
@@ -91,6 +92,7 @@ if shuffle_type == :dotson
                              transfer=["trajreltime","trajreltime_bin"], 
                              on="time")
 end
+
 # COMPUTE SHUFFLE INFORMATION @ DELAYS
 if isfile(Timeshift.shufflespath())
     S = Timeshift.load_shuffles()

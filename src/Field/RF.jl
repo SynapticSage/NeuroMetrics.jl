@@ -40,7 +40,7 @@ module RF
         grid::FixedGrid
     end
 
-    const ReceptiveFields = AbstractDict{Field}
+    ReceptiveFields = AbstractDict{Field}
 
     # -----------
     # OLD SYSTEM|
