@@ -12,6 +12,7 @@ module Field
     using Statistics
     using NaNStatistics
     using Infiltrator
+    using GeometricalPredicates: inpolygon
 
     # Goal Vector Libraries
     using DrWatson
@@ -35,12 +36,14 @@ module Field
         for prop in props
             grid[prop] = extrema(Utils.skipnan(thing[!, prop]));
         end
+
         range_func_hist(start, stop, i) = collect(start : (stop-start)/resolution[i] : stop)
         range_func_kde(x,y,i) = x:((y-x)/resolution[i]):y
         edge_end(x,y,i)   = range_func_kde(x,y,i)[begin:end-1]
         edge_start(x,y,i) = range_func_kde(x,y,i)[begin+1:end]
         mp(x,y,i) = dropdims(diff(hcat(edge_start(x,y,i),edge_end(x,y,i)),
                                    dims=2); dims=2) +  edge_start(x,y,i);
+
         get_extrema(prop) = grid[prop][1], grid[prop][2]
 
         if lowercase(settingType) == "hist"
@@ -141,6 +144,7 @@ module Field
             dohist::Bool=true,
             normkde::Bool=true,
             savemem::Bool=true,
+            boundary::Union{Nothing, DataFrame}=nothing,
             behfilter::Union{Bool, AbstractDict}=true,
             filters::Union{AbstractDict,Nothing}=nothing)
 
@@ -165,6 +169,11 @@ module Field
                                         resolution=resolution, 
                                         splitby=splitby,
                                         gaussian=gaussian);
+        end
+
+        # Boundary?
+        if boundary != nothing
+            H  =_enforce_boundary(H)
         end
 
         # KERNEL DENSITY
@@ -192,9 +201,6 @@ module Field
         return out
     end
 
-    #Field = NamedTuple{(:hist, :kde, :cgrid, :egrid, :gridh, :gridk, :beh, :behdens), 
-    #                   Tuple{Dict, Dict, Tuple, Tuple, Tuple, Vector, Array, Array}}
-
     function center_to_edge(grid::AbstractVector)
         grid = collect(grid)
         Δ = median(diff(grid))
@@ -212,6 +218,28 @@ module Field
         throw(InvalidStateException("to density not defined for this case yet"))
     end
 
+    function _enforce_boundary(H::NamedTuple, boundary::Matrix)
+        @infiltrate
+        for field in RF._dictfields
+            h =getproperty(H, field)
+            grid = H.cgrid
+            h = _enforce_boundary(h, grid, boundary)
+        end
+    end
+    function _enforce_boundary(H::Dict, grid::Tuple, boundary::Matrix)
+        Dict(k => _enforce_boundary(v, grid, boundary) for (k,v) in H)
+    end
+
+    __get_point(x::Tuple) = GeometricalPredicates.Point(x...)
+    __get_point(x::AbstractVector) = GeometricalPredicates.Point(x...)
+    function _enforce_boundary(H::Array, grid::Tuple, boundary::Matrix)
+        @infiltrate
+        points = __get_point.(Iterators.product(grid ...))
+        boundary = [__get_point(r) for r in eachrow(boundary)]
+        polygon = GeometricalPredicates.Polygon2D(boundary...)
+        answers = (!).(GeometricalPredicates.inpolygon.([polygon], points))
+        H[answers] .= NaN
+    end
 
     # Field-related submodules
     using Reexport
@@ -235,6 +263,10 @@ module Field
     import .recon
     include(srcdir("Field","recon_process.jl"))
     import .recon_process
+    include(srcdir("Field","RF.jl"))
+    import .RF
+    include(srcdir("Field","adaptive.jl"))
+    import .adaptive
 
 end
 

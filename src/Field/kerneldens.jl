@@ -99,7 +99,7 @@ module kerneldens
                                 settingType="hist")
         # Behavioral distribution
         behDist = KDE(beh, props);
-        behDist_hist = hist.h2d(beh, props, grid=grid_hist).weights;
+        behDist_hist = Field.hist.h2d(beh, props, grid=grid_hist).weights;
 
         # Data distribution applying splits if applicable
         ith_group(i) = DataFrame(groups[i])

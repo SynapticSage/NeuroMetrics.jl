@@ -9,4 +9,7 @@ module Munge
     @reexport using .lfp
     include(srcdir("Munge","well.jl"))
     @reexport using .well
+    include(srcdir("Munge","task.jl"))
+    @reexport using .task
+
 end

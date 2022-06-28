@@ -9,7 +9,7 @@ end
 # `    `---'`---^`---'`---'    `    ``---'`---'`---'
 props = ["x", "y"]
 newkws = (; kws..., props=props, filters=merge(kws.filters))
-place = field.get_fields(beh, spikes; newkws...);
+@time place = Field.get_fields(beh, spikes; newkws...);
 F["place"] = place
 
 # Generate all of the fields >  5cm/s

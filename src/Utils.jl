@@ -69,6 +69,9 @@ module Utils
     function in_range(X::AbstractArray, range::Union{Tuple, Vector})
         X .≥ range[1] .&& X .< range[2]
     end
+    function in_range(X::Real, range::Union{Tuple, Vector})
+        X ≥ range[1] .&& X < range[2]
+    end
 
     function squeeze(A::AbstractArray)  
         s = size(A)
@@ -165,6 +168,10 @@ module Utils
     function ismember_trans(X::AbstractVector, Y::AbstractVector)
         Z = any(X .== Y', dims=2)
         #replace(Z .!= nothing, missing=>false)
+    end
+
+    function notisnan(X::Vector)
+        (!).(isnan.(X))
     end
 
     include(srcdir("Utils", "dict.jl"))

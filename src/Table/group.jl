@@ -74,5 +74,21 @@ module group
         GG
     end
 
+    function nt_keys(GroupDF::GroupedDataFrame)::Vector{NamedTuple}
+        result = Vector{NamedTuple}()
+        by = collect(values(GroupDF.keymap))
+        sortme = collect(keys(GroupDF.keymap))
+        K = sortme[by]
+        for kk in K
+            symbols = Tuple(Symbol(col) for col in GroupDF.cols)
+            valuez = Tuple(val for val in kk)
+            key_new = NamedTuple(
+                                 Dict(a=>b for (a,b) in zip(symbols,valuez))
+                                )
+            push!(result, key_new)
+        end
+        return result
+    end
+
 end
 
