@@ -1,4 +1,5 @@
 module Precompile
+
     export precompile_goalmaze
     export precompile_GFA_dependencies
     # Uses https://github.com/JuliaLang/PackageCompiler.jl to speed up use of my library

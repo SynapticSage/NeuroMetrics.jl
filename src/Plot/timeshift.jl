@@ -213,10 +213,11 @@ module timeshift
 		 if !(typeof(sort_rows) <:Vector)
 					sort_rows = [sort_rows]
 		end
-		not_list = union([:unit, :sig_minimum], sort_rows)
+        extra = removenonsig ? [:sig_minimum] : []
+		not_list = union([:unit, extra...], sort_rows)
 		shifts = unique(sort(Isc.shift))
 		dropmissing!(Isc)
-		ustack = unstack(sort(Isc,[:unit,:shift, :sig_minimum]), not_list, :shift, value)
+		ustack = unstack(sort(Isc,[:unit,:shift, extra...]), not_list, :shift, value)
 		ustack = sort(ustack, sort_rows)
         if removenonsig
             ustack = @subset(ustack, :sig_minimum .< 0.05)

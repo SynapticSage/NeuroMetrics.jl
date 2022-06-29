@@ -117,15 +117,23 @@ module operation
     Normalizes information to be between 0 and 1
 Examine fields that are significant
     """
-    function norm_information(Isc; value=:value)
+    function norm_information(Isc; value=:value, minmax=[0,1],
+        removenan=true)
         @info "Normalizig by unit"
         Isc = copy(Isc)
+        Δ = minmax[2] - minmax[1]
+        Γ = minmax[1]
         groups = groupby(Isc, :unit)
         for group in groups
-            norm(x) = (x .- minimum(x))./(maximum(x).-minimum(x))
+            norm(x) = Δ * ((x .- minimum(x))./(maximum(x).-minimum(x))) .+ Γ
             group[!,value] = norm(group[!,value])
         end
         Isc = combine(groups, identity)
+        if removenan
+            Isc = Isc[Utils.notisnan(Isc[!,value]),:]
+        else
+            Isc
+        end
     end
 
     """
@@ -136,6 +144,16 @@ Examine fields that are significant
         for unit in I
             max_ = argmax(unit[:, value])
             unit[!, :bestshift] .= unit[max_, :shift]
+        end
+        I = combine(I, identity)
+        return I
+    end
+
+    function add_centroid_shift(I; value=:value)
+        I = groupby(I, :unit)
+        for unit in I
+            shift = sum(unit[!, value].*unit.shift)./sum(unit.shift)
+            unit[!, :centshift] .= shift
         end
         I = combine(I, identity)
         return I

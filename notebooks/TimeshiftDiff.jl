@@ -30,7 +30,8 @@ Field, Load, Timeshift, Utils, Load, Table = begin
 	import Utils
 	import Load
 	import Table
-	Field, Load, Timeshift, Utils, Load, Table
+	import Plot
+	Field, Load, Timeshift, Utils, Load, Table, Plot
 end
 
 # ╔═╡ 81dd0cb9-5400-4502-8a27-0530d730c616
@@ -49,6 +50,7 @@ begin
 	using Dates
 	using StatsPlots
 	using Logging
+	using DataStructures
 
 	if Utils.in_range(hour(now()), [0,5]) ||
 	   Utils.in_range(hour(now()), [20, 24])
@@ -75,6 +77,8 @@ md"""
 # ╔═╡ 4d85a1f8-fe28-45bd-970c-cab78838034f
 md"""
 ## Load data
+
+Load up shifting data and subset it parametrically.
 """
 
 # ╔═╡ 2ab79319-1f6f-431f-93ab-dcb5c381afd8
@@ -95,32 +99,78 @@ We have some choices to make. This worksheet will compare any *two* checked data
 """
 
 # ╔═╡ e8221624-f6fd-11ec-0151-cf9da8e7d639
-@bind datacut PlutoUI.MultiCheckBox(String.(unique(I.datacut)), default=["all"])
+datasets=@bind datacut PlutoUI.MultiCheckBox(String.(unique(I.datacut)), default=["all"])
 
 # ╔═╡ b38a32ff-9b95-416c-be82-3d7371d51932
 @bind marginal PlutoUI.Radio(String.(unique(I.marginal)), default="x-y")
+
+# ╔═╡ b741339a-8a3b-416d-9a59-33624595f56f
+@bind area PlutoUI.Radio(["CA1-PFC", String.(unique(I.area))...], default="CA1-PFC")
+
+# ╔═╡ 4c670dcd-25ff-43d1-b78f-2b60fc5878d5
+comparison_name = "Δ $(datacut[1])-$(datacut[2])"
 
 # ╔═╡ 48c22294-fc9d-44ff-b2ea-b2c59e795da0
 datacut
 
 # ╔═╡ 61f417ed-a4c9-42a3-b858-17dc170dfea0
 Is = begin
-	Is = Dict{Symbol,DataFrame}()
+	Is = OrderedDict{Symbol,DataFrame}()
 	for cut in datacut
-		Is[Symbol(cut)] = transform(DataFramesMeta.@subset(I, :datacut .== Symbol(cut), :marginal .== marginal), :shift => (x->x*60) => :shift)
+		tmp = transform(DataFramesMeta.@subset(I, :datacut .== Symbol(cut), :marginal .== marginal), :shift => (x->x*60) => :shift)
+		if area != "CA1-PFC"
+			@subset!(tmp, :area .== area)
+		end
+		Is[Symbol(cut)] = tmp
 	end
-	Is
+	
+	TT = Table.group.multitable_groupby([:unit, :shift], values(Is)...);
+	dfDiff = DataFrame()
+	for (a,b) in eachrow(TT)
+		c = copy(a)
+		if ismissing(a) || ismissing(b)
+			continue
+		end
+		
+		c.datacut .= Symbol("compare_" * 
+							String(a.datacut[1]) * "_" * 
+							String(b.datacut[1]))
+		c.value = a.value - b.value
+		append!(dfDiff, c)
+	end
+	dfDiff=Timeshift.operation.add_best_shift(dfDiff);
+	dfDiff=Timeshift.operation.add_centroid_shift(dfDiff);
+	dfDiff
+end;
+
+# ╔═╡ a7727c6b-b284-4862-876d-591051ce5a2d
+with_logger(NullLogger()) do
+h_diff = heatmap(Float32.(replace(
+	Matrix(
+		sort(unstack(Timeshift.norm_information(dfDiff), [:unit, :bestshift], :shift, :value)[:,Not(:unit)], :bestshift)
+	), missing=>NaN)
+), clim=(0.25,1))
 end
 
-# ╔═╡ a02f5d19-7d9a-44fa-893e-647d591243d7
-typeof(Table.group.multitable_groupby([:unit, :datacut, :shift], values(Is)...))
+# ╔═╡ ee2ce4a3-f36f-4814-9853-1dddf1984b56
+datasets
 
-# ╔═╡ e2def883-20ea-44dc-bc19-143e8bf48b38
-c = copy(a)
-		c.datacut .= Symbol("compare_" * 
-							String(a.datacut) * "_" * 
-							String(b.datacut))
-		c.value = a.value - b.value
+# ╔═╡ 11704bde-db87-4469-97cf-e2a4fc5c4c76
+begin
+	cs_diff = :oxy
+	
+	p1 = @df Timeshift.norm_information(dfDiff,minmax=[-1,1]) density(:value, xlabel=comparison_name,label="Overall difference")
+	hline!([0.5], linestyle=:dash,label="")
+	vline!([0], linestyle=:dash, c=:gray,label="")
+	
+	p2 = @df Timeshift.norm_information(dfDiff,minmax=[-1,1]) density(:value, group=:shift, legend=:none, palette=palette(cs_diff,41), xlim=(-1,1), title=String(dfDiff.datacut[1]) * " @ shifts", xlabel=comparison_name)
+	hline!([0.5], linestyle=:dash, c=:gray)
+	vline!([0], linestyle=:dash, c=:gray)
+
+	cbar=heatmap([xlims(p2)...], [ylims(p2)...], repeat([NaN], 2,2), clim=(-4,4), colorbar=true,c=cs_diff, cbar_title="Shifts", yticks=[], xticks=[])
+	layout = @layout [Plots.grid(1,2) b{0.075w}]
+	plot(p1,p2,cbar; link=:y, layout)
+end
 
 # ╔═╡ Cell order:
 # ╟─94816c70-20ab-4e80-93fb-ed1ce0b3405a
@@ -134,7 +184,10 @@ c = copy(a)
 # ╟─49896b0c-19d3-4c51-8e54-2f046e6d8382
 # ╟─e8221624-f6fd-11ec-0151-cf9da8e7d639
 # ╟─b38a32ff-9b95-416c-be82-3d7371d51932
-# ╠═48c22294-fc9d-44ff-b2ea-b2c59e795da0
+# ╟─b741339a-8a3b-416d-9a59-33624595f56f
+# ╟─4c670dcd-25ff-43d1-b78f-2b60fc5878d5
+# ╟─48c22294-fc9d-44ff-b2ea-b2c59e795da0
 # ╟─61f417ed-a4c9-42a3-b858-17dc170dfea0
-# ╠═a02f5d19-7d9a-44fa-893e-647d591243d7
-# ╠═e2def883-20ea-44dc-bc19-143e8bf48b38
+# ╟─a7727c6b-b284-4862-876d-591051ce5a2d
+# ╟─ee2ce4a3-f36f-4814-9853-1dddf1984b56
+# ╟─11704bde-db87-4469-97cf-e2a4fc5c4c76

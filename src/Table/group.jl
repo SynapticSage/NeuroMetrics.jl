@@ -18,7 +18,7 @@ module group
     finds a common index system to move through multiple dataframes
     """
     function find_common_mapping(args::GroupedDataFrame...)
-        # Obtain a hash of the keys of each keymap
+        # -- Obtain a hash of the keys of each keymap --
         hashmaps = []
         for i ∈ 1:length(args)
             hashmap = OrderedDict()
@@ -51,7 +51,7 @@ module group
     Combine two tables and groupby some props, while distinguishing the tables with a new key
     """
     function multitable_groupby(groups::Union{Vector, Symbol, String}, args::AbstractDataFrame...; dropmissingrows::Bool=false)
-        @info length(args)
+        #@info length(args)
         args = vcat(args...; source="source", cols=:union)
         G = [groupby(g, :source) for g in groupby(args, groups)]
         source_count, group_count = maximum([length(G[i]) for i in 1:length(G)]),
@@ -91,4 +91,3 @@ module group
     end
 
 end
-

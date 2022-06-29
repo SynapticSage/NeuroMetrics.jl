@@ -383,6 +383,4 @@ module Load
     fix_rgba(x::AbstractVector) = fix_rgba.(x)
     fix_rgba(x::NamedTuple)     = RGBA(x.r, x.g, x.b, x.alpha)
 
-
-
 end

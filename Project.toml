@@ -36,8 +36,8 @@ Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 ElectronDisplay = "d872a56f-244b-5cc9-b574-2017b5b909a8"
 Entropies = "ed8fcbec-b94c-44b6-89df-898894ad9591"
-FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 Fontconfig = "186bb1d3-e1f7-5a2c-a377-96d770f13627"
+FourierAnalysis = "e7e9c730-dc46-11e9-3633-f1ab55cc17e1"
 GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 GR = "28b8d3ca-fb5f-59d9-8090-bfdbd6d07a71"
 GRUtils = "0337cf30-a0fd-11e9-31db-a79914c9d7ac"
@@ -124,6 +124,7 @@ WebIO = "0f1e0344-ec1d-5b48-a673-e5cf874b6c29"
 
 [compat]
 DrWatson = ">=2.8.0"
+PlotThemes = ">=3.0.0"
 Pluto = ">=0.19"
 julia = "1.7.1"
 

@@ -96,7 +96,7 @@ module shuffle
             
             # Shuffle and run with shifted behavior
             data   = shuffle_data_generator()
-            result = field.get_fields(σ(beh,shift), data; get_field_kws...)
+            result = Field.get_fields(σ(beh,shift), data; get_field_kws...)
 
             # Apply post-processing
             if postfunc != nothing

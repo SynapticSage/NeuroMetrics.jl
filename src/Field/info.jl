@@ -3,7 +3,7 @@ module info
     using NaNStatistics
 
     skipnan(x) = Iterators.filter(!isnan, x)
-    function _convert_to_prop(behProb::AbstractArray)
+    function _convert_to_prob(behProb::AbstractArray)
         if behProb isa AbstractArray
             behProb = Probabilities(collect(skipnan(vec(behProb))))
         end
@@ -20,7 +20,7 @@ module info
         return info.information(F.Rₕ, F.occR; kws...)
     end
     function information(F::Dict, behProb::AbstractArray, method=:spatialinformation)
-        behProb = _convert_to_prob(behProb)
+        behProb = info._convert_to_prob(behProb)
         information(F, behProb; method)
     end
     function information(F::Dict, behProb::Probabilities; method=:spatialinformation)
