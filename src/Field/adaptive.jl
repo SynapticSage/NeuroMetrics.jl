@@ -39,7 +39,7 @@ module adaptive
     end
 
     function max_radii(centers::Tuple)
-        C = Vector{Float64}()
+        C = Vector{Float32}()
         for center in centers
             c = maximum(diff([center...]))
             push!(C, c)
@@ -52,10 +52,10 @@ module adaptive
     struct GridAdaptive <: Field.Grid
         centers::Tuple
         edges::Tuple
-        grid::Array
-        radii::Array
-        samptime::Array
-        function GridAdaptive(pos...; width::Vector, boundary::Vector)
+        grid::Array{Array{Float32}}
+        radii::Array{Float32}
+        samptime::Array{Float32}
+        function GridAdaptive(; width::Vector, boundary::Vector)
             centers = Tuple(Tuple(collect(s:w:e))
                             for (w, (s, e)) in zip(width, boundary))
             GridAdaptive(centers)
@@ -132,8 +132,8 @@ module adaptive
     return a value matrix/dataframe for the requested
     properties in the DataFrame X
     """
-    function return_vals(X::DataFrame, props::Vector)
-        vals = hcat([X[!,prop] for prop in props]...)
+    function return_vals(X::DataFrame, props::Vector)::Union{Vector{Float32}, Matrix{Float32}}
+        vals = Float32.(hcat([X[!,prop] for prop in props]...))
     end
 
     ###########################################
@@ -155,27 +155,17 @@ module adaptive
         vals = return_vals(behavior, props)
         cv(x) = collect(values(x))
         G = GridAdaptive(;width=cv(widths), boundary=cv(boundary))
-        function vector_dist(center,radius)
-            sqrt.(sum((vals .- center[Utils.na, :]).^2,dims=2)[:,1])
-        end
-        inside(center,radius) = vector_dist(center, radius) .< radius
-        function get_samptime(center, radius)
-            sum(inside(center,radius)) * sampletime
-        end
         P = Progress(length(G))
         R = Vector{Float32}(undef, length(G))
         Threads.@threads for (index, (center, radius)) in collect(enumerate(G))
-            while get_samptime(center, radius) < thresh
+            while get_samptime(vals, center, radius; sampletime) < thresh
                 radius += radiusinc
-                #@info (;samptime=get_samptime(center,radius), radiuschange=radius)
-
                 if radius > maxrad
                     radius = NaN
                     break
                 end
             end
             next!(P)
-            #@info get_samptime(center, radius)
             R[index] = radius
         end
         G.radii .= reshape(R, size(G))
@@ -197,20 +187,22 @@ module adaptive
     function test_New()
     end
 
-    #"""
-    #    ulanovsky(spikes, props; grid::GridAdaptive)
+    """
+        ulanovsky(spikes, props; grid::GridAdaptive)
 
-    #computes adaptive ratemap based on methods in ulanovsky papers
-    #"""
-    #function ulanovsky(spikes, props; grid::GridAdaptive)
-    #    vals = return_vals(spikes, props)
-    #    #vals = replace(vals, NaN=>-Inf)
-    #    results = zeros(size(GridAdaptive.centers))
-    #    indices = CartesianIndices(results)
-    #    @avx for (index, center, radius) in zip(indicies, grid.centers, grid.radii)
-    #        results[index] = sum((vals .- center) .< radius)
-    #    end
-    #end
+    computes adaptive ratemap based on methods in ulanovsky papers
+    """
+    function ulanovsky(spikes, props; grid::GridAdaptive)
+        vals = return_vals(spikes, props)
+        #vals = replace(vals, NaN=>-Inf)
+        results = zeros(size(grid))
+        prog = Progress(length(grid))
+        Threads.@threads for (index, (center, radius)) in collect(enumerate(grid))
+            results[index] = sum(inside(vals, center, radius))
+            next!(prog)
+        end
+        results = reshape(results, size(grid))
+    end
 
     #"""
     #    ulanovsky(spikes, behavior, props; kws...)
@@ -270,5 +262,17 @@ module adaptive
     #"""
     #function skaggs()
     #end
+
+
+    # Helper fucntions
+    function vector_dist(vals::Array, center::Array)::Vector{Float32}
+        sqrt.(sum((vals .- center[Utils.na, :]).^2,dims=2)[:,1])
+    end
+    function inside(vals::Array, center::Array, radius::T where T<:Real)::BitVector
+        vector_dist(vals, center) .< radius
+    end
+    function get_samptime(vals::Array, center::Array, radius::T where T<:Real; sampletime=1/30)::Float32
+        sum(inside(vals, center, radius)) * sampletime
+    end
 
 end
