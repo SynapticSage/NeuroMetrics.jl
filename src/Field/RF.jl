@@ -26,6 +26,7 @@ module RF
     struct FixedGrid
         centers::Tuple
         edges::Tuple
+        grid::Array
     end
 
     struct Occupancy

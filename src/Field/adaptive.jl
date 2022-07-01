@@ -4,37 +4,99 @@ module adaptive
     using DataFrames
     using LazyGrids: ndgrid
     import Base
+    using ..Field
     using ..Field.RF
     using LoopVectorization
+    using Infiltrator
+    import Utils
+    using ProgressMeter
+    #using ThreadsX
 
-    abstract type Grid end
-    abstract type RF end
-    abstract type FieldDict end
-
-    grid_to_full(G::Vector...) = [g for g in zip(ndgrid(G...))]
-    grid_to_full(G::Tuple)     = [g for g in zip(ndgrid(G...))]
-                                                   
-
-    struct GridAdaptive <: Grid
-        centers::Array
-        radii::Array
-        GridAdaptive(c::Array, r::Array) = new(c,r)
-        GridAdaptive(c::Tuple, r::Tuple) = new(grid_to_full(c),grid_to_full(r))
-        GridAdaptive(c::Tuple) = new(grid_to_full(c), undef)
+    sparse_to_full(C::Vector...) = [g for g in zip(ndgrid(G...)...)]
+    sparse_to_full(C::Tuple{Vector}) = [g for g in zip(ndgrid(G...)...)]
+    function sparse_to_full(C::Tuple...)::Array{Tuple}
+        C = [[c...] for c in C]
+        C = [c for c in zip(ndgrid(C...)...)]
+        [collect(c) for c in C]
+    end
+    function sparse_to_full(C::Tuple)::Array{Array}
+        C = [[c...] for c in C]
+        C = [c for c in zip(ndgrid(C...)...)]
+        return [collect(x) for x in C]
+    end
+    function full_to_sparse(G::Array)::Array{Array}
+        accessor = Vector{Union{Colon,<:Int}}(undef,ndims(G))
+        accessor .= 1
+        out = []
+        for i in 1:ndims(G)
+            access = copy(accessor)
+            access[i] = Colon()
+            g = G[access...]
+            g = Tuple(g[i] for g in g)
+            push!(out,g)
+        end
+        out
     end
 
+    function max_radii(centers::Tuple)
+        C = Vector{Float64}()
+        for center in centers
+            c = maximum(diff([center...]))
+            push!(C, c)
+        end
+        C ./= 2
+        sqrt(sum(C.^2))
+    end
+                                                   
+
+    struct GridAdaptive <: Field.Grid
+        centers::Tuple
+        edges::Tuple
+        grid::Array
+        radii::Array
+        samptime::Array
+        function GridAdaptive(pos...; width::Vector, boundary::Vector)
+            centers = Tuple(Tuple(collect(s:w:e))
+                            for (w, (s, e)) in zip(width, boundary))
+            GridAdaptive(centers)
+        end
+        function GridAdaptive(centers::Union{Array,Tuple}, radii::Real)
+            centers = centers isa Array ? Tuple(centers) : centers
+            grid = sparse_to_full(centers)
+            radii = ones(size(grid))*radii
+            edges = Field.center_to_edge.([[c...] for c in centers])
+            edges = Tuple((e...,) for e in edges)
+            new(centers, edges, grid, radii)
+        end
+        function GridAdaptive(centers::Union{Array,Tuple}) 
+            centers = centers isa Array ? Tuple(centers) : centers
+            radii = max_radii(centers)
+            GridAdaptive(centers, radii)
+        end
+        function GridAdaptive(centers::Tuple, grid::Array, radii::Array)
+            @assert(size(grid) == size(radii))
+            edges = Field.center_to_edge.([[c...] for c in centers])
+            edges = Tuple((e...,) for e in edges)
+            new(centers,edges,grid,radii)
+        end
+    end
+    # TODO make plot recipe
+
     # Setup iteration
-    Base.iterate(g::GridAdaptive) = Base.iterate(zip(G.centers,G.radii))
+    Base.length(g::GridAdaptive)  = length(g.grid)
+    Base.size(g::GridAdaptive)  = size(g.grid)
+    Base.iterate(g::GridAdaptive) = Base.iterate(zip(g.grid,g.radii))
     #Base.done(g::GridAdaptive, state::Int) = length(g.centers) == state
-    Base.iterate(g::GridAdaptive, state::Int) = Base.iterate(zip(G.centers, G.radii), 
-                                                       state)
-    cenumerate(G::GridAdaptive) = zip(CartesianIndices(G.centers), G)
+    function Base.iterate(g::GridAdaptive, state::Tuple{Int,Int})
+        iterate(zip(g.grid,g.radii), state)
+    end
+    cenumerate(g::GridAdaptive) = zip(CartesianIndices(g.grid), g)
 
     struct AdaptiveField
         grid::GridAdaptive
         field::Array
     end
-    const AdapativFieldDict = OrderedDict{<:NamedTuple, <:Any}
+    AdapativFieldDict = OrderedDict{<:NamedTuple, <:Any}
 
     # Utility functions
     """
@@ -58,9 +120,10 @@ module adaptive
     """
     function get_boundary(behavior::DataFrame, props::Vector)
         boundary   = OrderedDict{String,Any}()
-        for props in props
+        for prop in props
             boundary[prop]   = extrema(Utils.skipnan(behavior[!,prop]))
         end
+        boundary
     end
 
     """
@@ -77,36 +140,62 @@ module adaptive
     ##### ULANOVSKY BASED  ####################
     ###########################################
 
-    #function ulanovsky_find_grid(behavior, props; width::Int, kws...)::GridAdaptive
-    #    width = OrderedDict(prop=>width for prop in props)
-    #    ulanovsky_find_grid(behavior, props; width, boundary, kws...)::GridAdaptive
-    #end
 
-    #function ulanovsky_find_grid(behavior, props; widths::Vector{<:Int}, kws...)::GridAdaptive
-    #    width = OrderedDict(prop=>width for (prop,width) in zip(props,widths))
-    #    ulanovsky_find_grid(behavior, props; width, boundary, kws...)
-    #end
+    """
+        ulanovsky_find_grid
 
-    #function ulanovsky_find_grid(behavior, props; width::OrderedDict, kws...)::GridAdaptive
-    #    boundary = get_boundary(behavior, props)
-    #    ulanovsky_find_grid(behavior, props; width, boundary, kws...)
-    #end
+    obtains the dynamic sampling grid from only the animals behavior
+    """
+    function ulanovsky_find_grid_bounded(behavior, props; 
+            thresh::Real=1, # Threshold in seconds
+            sampletime=1/30, # Total time of sample
+            radiusinc=0.1, # Spatial unit of RF
+            maxrad=5,
+            widths::OrderedDict, boundary::OrderedDict)::GridAdaptive
+        vals = return_vals(behavior, props)
+        cv(x) = collect(values(x))
+        G = GridAdaptive(;width=cv(widths), boundary=cv(boundary))
+        function vector_dist(center,radius)
+            sqrt.(sum((vals .- center[Utils.na, :]).^2,dims=2)[:,1])
+        end
+        inside(center,radius) = vector_dist(center, radius) .< radius
+        function get_samptime(center, radius)
+            sum(inside(center,radius)) * sampletime
+        end
+        P = Progress(length(G))
+        R = Vector{Float32}(undef, length(G))
+        Threads.@threads for (index, (center, radius)) in collect(enumerate(G))
+            while get_samptime(center, radius) < thresh
+                radius += radiusinc
+                #@info (;samptime=get_samptime(center,radius), radiuschange=radius)
 
-    #function ulanovsky_find_grid(behavior, props; 
-    #        thresh::Real=1, # Threshold in seconds
-    #        sampletime=1/30, # Total time of sample
-    #        radiusinc=0.1, # Spatial unit of RF
-    #        width::OrderedDict, boundary::OrderedDict, kws...)::GridAdaptive
-    #    vals = return_vals(behavior, props)
-    #    G = GridAdaptive(width, boundary, width)
-    #    for (index, center, radius) in cenumerate(G)
-    #        while (sum(vals .< (center .+ radius)) * sampletime) < thresh
-    #            radius += radiusinc
-    #        end
-    #        G.radii[index] = radius
-    #    end
-    #    G
-    #end
+                if radius > maxrad
+                    radius = NaN
+                    break
+                end
+            end
+            next!(P)
+            #@info get_samptime(center, radius)
+            R[index] = radius
+        end
+        G.radii .= reshape(R, size(G))
+        G
+    end
+    function ulanovsky_find_grid(behavior::DataFrame, props::Vector;
+            widths::Union{<:Int, Vector{<:Int}, OrderedDict},
+            other_kws=(;))::GridAdaptive
+        if typeof(widths) <: Int
+            widths = OrderedDict{}(prop=>widths for prop in props)
+        elseif typeof(widths) <: AbstractVector
+            widths = OrderedDict{}(prop=>width for (width,prop) in zip(widths,props))
+        else
+            @assert(widths isa OrderedDict)
+        end
+        boundary = get_boundary(behavior, props)
+        ulanovsky_find_grid_bounded(behavior, props; widths=widths, boundary, other_kws...)
+    end
+    function test_New()
+    end
 
     #"""
     #    ulanovsky(spikes, props; grid::GridAdaptive)

@@ -1855,6 +1855,12 @@ git-tree-sha1 = "8be09d84a2d597c7c0c34d7d604c039c9763e48c"
 uuid = "7269a6da-0436-5bbc-96c2-40638cbb6118"
 version = "0.4.10"
 
+[[deps.MetaArrays]]
+deps = ["Requires"]
+git-tree-sha1 = "6647f7d45a9153162d6561957405c12088caf537"
+uuid = "36b8f3f0-b776-11e8-061f-1f20094e1fc8"
+version = "0.2.10"
+
 [[deps.MethodAnalysis]]
 deps = ["AbstractTrees"]
 git-tree-sha1 = "81e123ea81d6081fe8b733dbe79e1291d55cfb0f"
@@ -2568,6 +2574,18 @@ git-tree-sha1 = "b812fb30d6d8b295b71dd5a4102d1ae7b60698e3"
 uuid = "bf21e494-c40e-4daa-abfb-de5ec0aad010"
 version = "0.1.1"
 
+[[deps.SignalAnalysis]]
+deps = ["DSP", "Distributions", "DocStringExtensions", "FFTW", "LinearAlgebra", "MetaArrays", "PaddedViews", "Random", "Requires", "SignalBase", "Statistics", "WAV"]
+git-tree-sha1 = "da5e232a8fe1f08d047f3d1614ad9a25e439a390"
+uuid = "df1fea92-c066-49dd-8b36-eace3378ea47"
+version = "0.4.1"
+
+[[deps.SignalBase]]
+deps = ["Unitful"]
+git-tree-sha1 = "14cb05cba5cc89d15e6098e7bb41dcef2606a10a"
+uuid = "00c44e92-20f5-44bc-8f45-a1dcef76ba38"
+version = "0.1.2"
+
 [[deps.SignedDistanceFields]]
 deps = ["Random", "Statistics", "Test"]
 git-tree-sha1 = "d263a08ec505853a5ff1c1ebde2070419e3f28e9"
@@ -2881,6 +2899,12 @@ deps = ["ColorTypes", "Dates", "Downloads", "FFMPEG", "FileIO", "Glob", "ImageCo
 git-tree-sha1 = "d10a083fbec15c5ded457366cc76240a5b3db279"
 uuid = "d6d074c3-1acf-5d4c-9a43-ef38773959a2"
 version = "1.0.3"
+
+[[deps.WAV]]
+deps = ["Base64", "FileIO", "Libdl", "Logging"]
+git-tree-sha1 = "7e7e1b4686995aaf4ecaaf52f6cd824fa6bd6aa5"
+uuid = "8149f6b0-98f6-5db9-b78f-408fbbb8ef88"
+version = "1.2.0"
 
 [[deps.Wavelets]]
 deps = ["DSP", "FFTW", "LinearAlgebra", "Reexport", "SpecialFunctions", "Statistics"]

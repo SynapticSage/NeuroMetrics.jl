@@ -18,10 +18,15 @@ module Field
     using DrWatson
     import Load
     import Utils
-    
 
     rateConversion = 30
     export rateConversion
+
+    # Our general RECEPTIVE-FIELD types
+    abstract type Grid end
+    abstract type FieldDict end
+    abstract type ReceptiveField end
+
 
     function getSettings(thing, props;
             resolution::Union{Vector{Int},Int,Nothing}=100,
@@ -100,39 +105,20 @@ module Field
 
     distills the process of getting fields into one interface
 
-    # Arguments
-        beh::DataFrame
-
-        data::DataFrame
-
-        resolution::Int=40 
-    Resolution to sample our fields at
-
-        hist2kde_ratio::Real=40/100,
-    Ratio of hist to kde sampling resolution
-
-        props::Vector{String}=["x","y"],
-    Which props to make a field of
-
-        gaussian::Real=0,
-    Gaussian kernel? If 0, none applied (kde doesn't need it)
-
-        dokde::Bool=true,
-    Do KDE at all?
-
-        dohist::Bool=true,
-    Do hist at all?
-
-        normkde::Bool=true,
-    Normalize kde area by hist area (make them occupy same area)
-
-        behfilter::Bool=true
-    If false, we skip applying the filter to behavior (can be useful
-    for normalizing purposes, because non-occupied areas are naned)
-
-        filters::Union{Dict,Nothing}=nothing)
-    # Output
-        X::named_tuple
+    ### Input
+    `beh`::DataFrame
+    `data`::DataFrame
+    `resolution`     -- ::Int=40 Resolution to sample our fields at
+    `hist2kde_ratio` -- ::Real=40/100Ratio of hist to kde sampling resolution
+    `props`          -- ::Vector{String}=["x","y"]Which props to make a field of
+    `gaussian`       -- ::Real=0 Gaussian kernel? If 0, none applied (kde doesn't need it)
+    `dokde`          -- ::Bool=true Do KDE at all?
+    `dohist`         -- ::Bool=true Do hist at all?
+    `normkde`        -- ::Bool=true Normalize kde area by hist area (make them occupy same area)
+    `behfilter`      -- ::Bool=true If false, we skip applying the filter to behavior (can be useful for normalizing purposes, because non-occupied areas are naned)
+    `filters`        -- ::Union{Dict,Nothing}=nothing
+    ### Output
+    `X` -- ::NamedTuple
     """
     function get_fields(beh::DataFrame, data::DataFrame; 
             resolution::Union{Int, Vector{Int}, Tuple{Int}}=40, 
@@ -205,7 +191,7 @@ module Field
         grid = collect(grid)
         Δ = median(diff(grid))
         δ = Δ/2
-        grid = minimum(grid)-δ:Δ:maximum(grid)+δ
+        grid = collect(minimum(grid)-δ:Δ:maximum(grid)+δ)
     end
     function edge_to_center(grid::AbstractArray)
         grid = collect(grid)
