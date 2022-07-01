@@ -66,7 +66,8 @@ module adaptive
             radii = ones(size(grid))*radii
             edges = Field.center_to_edge.([[c...] for c in centers])
             edges = Tuple((e...,) for e in edges)
-            new(centers, edges, grid, radii)
+            samptime = fill(zeros(size(grid)), NaN)
+            new(centers, edges, grid, radii, samptime)
         end
         function GridAdaptive(centers::Union{Array,Tuple}) 
             centers = centers isa Array ? Tuple(centers) : centers
@@ -77,14 +78,28 @@ module adaptive
             @assert(size(grid) == size(radii))
             edges = Field.center_to_edge.([[c...] for c in centers])
             edges = Tuple((e...,) for e in edges)
-            new(centers,edges,grid,radii)
+            samptime = fill(zeros(size(grid)), NaN)
+            new(centers,edges,grid,radii,samptime)
         end
+    end
+
+    struct AdaptiveOcc <: Field.Occupancy
+        grid::GridAdaptive
+        count::Array{Int16}
+        prob::Probabilities
+    end
+
+    struct AdaptiveRF <: Field.ReceptiveField
+        occ::AdaptiveOcc
+        grid::GridAdaptive
+        count::Array{Int16}
+        rate::Array{Float32}
     end
     # TODO make plot recipe
 
     # Setup iteration
     Base.length(g::GridAdaptive)  = length(g.grid)
-    Base.size(g::GridAdaptive)  = size(g.grid)
+    Base.size(g::GridAdaptive)    = size(g.grid)
     Base.iterate(g::GridAdaptive) = Base.iterate(zip(g.grid,g.radii))
     #Base.done(g::GridAdaptive, state::Int) = length(g.centers) == state
     function Base.iterate(g::GridAdaptive, state::Tuple{Int,Int})
@@ -204,25 +219,25 @@ module adaptive
         results = reshape(results, size(grid))
     end
 
-    #"""
-    #    ulanovsky(spikes, behavior, props; kws...)
+    """
+        ulanovsky(spikes, behavior, props; kws...)
 
-    #computes an adaptive grid and ratemap based on methods in ulanovsky papers
-    #"""
-    #function ulanovsky(spikes::DataFrame, behavior::DataFrame, props::Vector; splitby=nothing, kws...)::Union{AdapativFieldDict, AdaptiveField}
-    #    G = ulanovsky_find_grid(behavior; kws...)
-    #    if splitby != nothing
-    #        spikes = groupby(spikes, splitby)
-    #    end
-    #    ulanovsky(spikes, props; G, splitby)
-    #end
+    computes an adaptive grid and ratemap based on methods in ulanovsky papers
+    """
+    function ulanovsky(spikes::DataFrame, behavior::DataFrame, props::Vector; splitby=nothing, kws...)::Union{AdapativFieldDict, AdaptiveField}
+        G = ulanovsky_find_grid(behavior; kws...)
+        if splitby != nothing
+            spikes = groupby(spikes, splitby)
+        end
+        ulanovsky(spikes, props; G, splitby)
+    end
 
-    #function ulanovsky(spikeGroups::GroupedDataFrame, props::Vector; G::GridAdaptive, kws...)::AdapativFieldDict
-    #    D = AdapativFieldDict()
-    #    for (nt, group) in zip(Table.group.nt_keys(spikeGroups), spikeGroups)
-    #        D[nt] = ulanovsky(group, props; G, splitby)
-    #    end
-    #end
+    function ulanovsky(spikeGroups::GroupedDataFrame, props::Vector; G::GridAdaptive, kws...)::AdapativFieldDict
+        D = AdapativFieldDict()
+        for (nt, group) in zip(Table.group.nt_keys(spikeGroups), spikeGroups)
+            D[nt] = ulanovsky(group, props; G, splitby)
+        end
+    end
 
     ## ------
     ## Skaggs

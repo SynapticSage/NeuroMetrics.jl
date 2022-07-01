@@ -22,10 +22,15 @@ module Field
     rateConversion = 30
     export rateConversion
 
-    # Our general RECEPTIVE-FIELD types
+    # Our basic RECEPTIVE-FIELD type components
     abstract type Grid end
-    abstract type FieldDict end
     abstract type ReceptiveField end
+    abstract type Occupancy end
+
+    # Collection types
+    abstract type FieldCollection end
+    abstract type FieldDict <: FieldCollection end
+    abstract type FieldArray <: FieldCollection end
 
 
     function getSettings(thing, props;
