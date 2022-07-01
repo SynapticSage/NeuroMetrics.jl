@@ -12,7 +12,7 @@ module Precompile
                        "StatsBase", "Distributions", "Shuffle", "VideoIO",
                        "DataStructures", "Gadfly", "TableView", "LazyGrids",
                        "Random", "Colors", "ColorSchemes", "ImageFiltering",
-                       "KernelDensity"]   
+                       "ProtoStructs", "KernelDensity"]   
 
     using PackageCompiler
     function precompile_GFA_dependencies()

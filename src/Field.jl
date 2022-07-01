@@ -29,7 +29,7 @@ module Field
 
     # Collection types
     abstract type FieldCollection end
-    abstract type FieldDict <: FieldCollection end
+    abstract type FieldDict  <: FieldCollection end
     abstract type FieldArray <: FieldCollection end
 
 

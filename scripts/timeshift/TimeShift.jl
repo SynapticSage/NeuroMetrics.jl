@@ -106,13 +106,19 @@ end
         if key in keys(S)
             if (S[key] isa Task && !(istaskfailed(S[key]))) ||
                 !(S[key] isa Task)
+                println()
                 @info "key=$key already exists, skipping..."
+                println()
                 continue
             else
+                println()
                 @info "key=$key already exists, but failed...redo!"
+                println()
             end
         else
+                println()
                 @info "key=$key"
+                println()
         end
         shufshift_settings = (; kws..., 
                     filters=filts[datacut], 
@@ -122,7 +128,8 @@ end
                     compute=:single,
                     exfiltrateAfter=100,
                     postfunc=info.information)
-        S[key] = @time Timeshift.get_field_shift_shuffles(beh, spikes, shifts; shufshift_settings...)
+        S[key] = @time Timeshift.get_field_shift_shuffles(beh, spikes, shifts;
+                                                          shufshift_settings...)
     end
     try
         for (key, value) in S
