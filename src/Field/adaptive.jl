@@ -9,11 +9,14 @@ module adaptive
     using LoopVectorization
     using Infiltrator
     import Utils
+    import Table
     using ProgressMeter
+    using Entropies: Probabilities
+    using ProtoStructs
     #using ThreadsX
 
-    sparse_to_full(C::Vector...) = [g for g in zip(ndgrid(G...)...)]
-    sparse_to_full(C::Tuple{Vector}) = [g for g in zip(ndgrid(G...)...)]
+    sparse_to_full(G::Vector...) = [g for g in zip(ndgrid(G...)...)]
+    sparse_to_full(G::Tuple{Vector}) = [g for g in zip(ndgrid(G...)...)]
     function sparse_to_full(C::Tuple...)::Array{Tuple}
         C = [[c...] for c in C]
         C = [c for c in zip(ndgrid(C...)...)]
@@ -54,64 +57,60 @@ module adaptive
         edges::Tuple
         grid::Array{Array{Float32}}
         radii::Array{Float32}
-        samptime::Array{Float32}
-        function GridAdaptive(; width::Vector, boundary::Vector)
-            centers = Tuple(Tuple(collect(s:w:e))
-                            for (w, (s, e)) in zip(width, boundary))
-            GridAdaptive(centers)
-        end
-        function GridAdaptive(centers::Union{Array,Tuple}, radii::Real)
-            centers = centers isa Array ? Tuple(centers) : centers
-            grid = sparse_to_full(centers)
-            radii = ones(size(grid))*radii
-            edges = Field.center_to_edge.([[c...] for c in centers])
-            edges = Tuple((e...,) for e in edges)
-            samptime = fill(zeros(size(grid)), NaN)
-            new(centers, edges, grid, radii, samptime)
-        end
         function GridAdaptive(centers::Union{Array,Tuple}) 
             centers = centers isa Array ? Tuple(centers) : centers
             radii = max_radii(centers)
             GridAdaptive(centers, radii)
         end
+        function GridAdaptive(centers::Union{<:AbstractArray,Tuple}, radii::Real)
+            centers = centers isa Array ? Tuple(centers) : centers
+            grid = sparse_to_full(centers)
+            radii = ones(size(grid))*radii
+            edges = Field.center_to_edge.([[c...] for c in centers])
+            edges = Tuple((e...,) for e in edges)
+            new(centers, edges, grid, radii)
+        end
         function GridAdaptive(centers::Tuple, grid::Array, radii::Array)
             @assert(size(grid) == size(radii))
             edges = Field.center_to_edge.([[c...] for c in centers])
             edges = Tuple((e...,) for e in edges)
-            samptime = fill(zeros(size(grid)), NaN)
-            new(centers,edges,grid,radii,samptime)
+            new(centers,edges,grid,radii)
+        end
+        function GridAdaptive(;width::Vector, boundary::Vector)
+            centers = Tuple(Tuple(collect(s:w:e))
+                            for (w, (s, e)) in zip(width, boundary))
+            GridAdaptive(centers)
         end
     end
 
     struct AdaptiveOcc <: Field.Occupancy
         grid::GridAdaptive
-        count::Array{Int16}
+        count::Array{Int32}
         prob::Probabilities
     end
 
     struct AdaptiveRF <: Field.ReceptiveField
-        occ::AdaptiveOcc
         grid::GridAdaptive
-        count::Array{Int16}
-        rate::Array{Float32}
+        occ::AdaptiveOcc
+        count::T where T <: Array{Int32}
+        rate::S where S  <: Array{Float32}
     end
+
     # TODO make plot recipe
 
     # Setup iteration
     Base.length(g::GridAdaptive)  = length(g.grid)
     Base.size(g::GridAdaptive)    = size(g.grid)
-    Base.iterate(g::GridAdaptive) = Base.iterate(zip(g.grid,g.radii))
+    Base.iterate(g::GridAdaptive) = Base.iterate(zip(g.grid, g.radii))
     #Base.done(g::GridAdaptive, state::Int) = length(g.centers) == state
     function Base.iterate(g::GridAdaptive, state::Tuple{Int,Int})
         iterate(zip(g.grid,g.radii), state)
     end
     cenumerate(g::GridAdaptive) = zip(CartesianIndices(g.grid), g)
 
-    struct AdaptiveField
-        grid::GridAdaptive
-        field::Array
-    end
-    AdapativFieldDict = OrderedDict{<:NamedTuple, <:Any}
+    AdapativFieldDict    = OrderedDict{<:NamedTuple, AdaptiveRF}
+    #AdaptiveFieldDict(x) = OrderedDict{NamedTuple,   AdaptiveRF}(x)
+    #AdaptiveFieldDict()  = OrderedDict{NamedTuple,   AdaptiveRF}()
 
     # Utility functions
     """
@@ -122,7 +121,7 @@ module adaptive
     """
     function resolution_to_width(resolution::OrderedDict, boundary::OrderedDict)
         width = OrderedDict{String,Any}()
-        for prop in props
+        for prop in keys(resolution)
             width[prop] = boundary[prop] / resolution[prop]
         end
         width
@@ -134,7 +133,7 @@ module adaptive
     gets the boundary of each property
     """
     function get_boundary(behavior::DataFrame, props::Vector)
-        boundary   = OrderedDict{String,Any}()
+        boundary   = OrderedDict{eltype(props),Any}()
         for prop in props
             boundary[prop]   = extrema(Utils.skipnan(behavior[!,prop]))
         end
@@ -147,8 +146,10 @@ module adaptive
     return a value matrix/dataframe for the requested
     properties in the DataFrame X
     """
-    function return_vals(X::DataFrame, props::Vector)::Union{Vector{Float32}, Matrix{Float32}}
-        vals = Float32.(hcat([X[!,prop] for prop in props]...))
+    function return_vals(X::DataFrame, props::Vector)::Union{Vector{Float32},
+                                                             Matrix{Float32}}
+        Y = dropmissing(X[!, props])
+        Float32.(hcat([Y[!,prop] for prop in props]...))
     end
 
     ###########################################
@@ -170,7 +171,7 @@ module adaptive
         vals = return_vals(behavior, props)
         cv(x) = collect(values(x))
         G = GridAdaptive(;width=cv(widths), boundary=cv(boundary))
-        P = Progress(length(G))
+        P = Progress(length(G), desc="grid")
         R = Vector{Float32}(undef, length(G))
         Threads.@threads for (index, (center, radius)) in collect(enumerate(G))
             while get_samptime(vals, center, radius; sampletime) < thresh
@@ -203,40 +204,81 @@ module adaptive
     end
 
     """
-        ulanovsky(spikes, props; grid::GridAdaptive)
-
-    computes adaptive ratemap based on methods in ulanovsky papers
-    """
-    function ulanovsky(spikes, props; grid::GridAdaptive)
-        vals = return_vals(spikes, props)
-        #vals = replace(vals, NaN=>-Inf)
-        results = zeros(size(grid))
-        prog = Progress(length(grid))
-        Threads.@threads for (index, (center, radius)) in collect(enumerate(grid))
-            results[index] = sum(inside(vals, center, radius))
-            next!(prog)
-        end
-        results = reshape(results, size(grid))
-    end
-
-    """
         ulanovsky(spikes, behavior, props; kws...)
 
     computes an adaptive grid and ratemap based on methods in ulanovsky papers
     """
-    function ulanovsky(spikes::DataFrame, behavior::DataFrame, props::Vector; splitby=nothing, kws...)::Union{AdapativFieldDict, AdaptiveField}
-        G = ulanovsky_find_grid(behavior; kws...)
-        if splitby != nothing
+    function ulanovsky(spikes::DataFrame, behavior::DataFrame, props::Vector;
+            splitby::Vector=nothing, grid_kws...)::Union{AdapativFieldDict, 
+                                                 AdaptiveRF}
+        grid = ulanovsky_find_grid(behavior, props; grid_kws...)
+        occ  = get_occupancy(behavior, props, grid)
+        if splitby !== nothing
             spikes = groupby(spikes, splitby)
+            fields = get_adaptivefields(spikes, props, grid, occ)
+        else
+            fields = get_adaptivefield(spikes, props, grid, occ)
         end
-        ulanovsky(spikes, props; G, splitby)
+        return fields 
     end
 
-    function ulanovsky(spikeGroups::GroupedDataFrame, props::Vector; G::GridAdaptive, kws...)::AdapativFieldDict
-        D = AdapativFieldDict()
-        for (nt, group) in zip(Table.group.nt_keys(spikeGroups), spikeGroups)
-            D[nt] = ulanovsky(group, props; G, splitby)
+    """
+        get_adaptivefields(spikeGroups::GroupedDataFrame, props::Vector,
+        grid::GridAdaptive; kws...)::AdapativFieldDict
+
+    computes adaptive ratemap based on a fixed grid derived from behavior
+    """
+    function get_adaptivefields(spikeGroups::GroupedDataFrame, props::Vector,
+            grid::GridAdaptive, occ::AdaptiveOcc)::AdapativFieldDict
+        D = OrderedDict{NamedTuple, AdaptiveRF}()
+        @showprogress for (nt, group) in zip(Table.group.nt_keys(spikeGroups), spikeGroups)
+            D[nt] = get_adaptivefield(DataFrame(group), props, grid, occ)
         end
+        return D
+    end
+
+    """
+        get_adaptivefield(X::DataFrame, props::Vector,
+                          grid::GridAdaptive, occ::AdaptiveOcc)::AdaptiveRF
+
+    computes adaptive ratemap based on a fixed grid derived from behavior
+    """
+    function get_adaptivefield(spikes::DataFrame, props::Vector,
+            grid::GridAdaptive, occ::AdaptiveOcc)::AdaptiveRF
+        vals = return_vals(spikes, props)
+        count = zeros(Int32, size(grid))
+        #prog = Progress(length(grid))
+        Threads.@threads for (index, (center, radius)) in collect(enumerate(grid))
+            count[index] = sum(inside(vals, center, radius))
+            #next!(prog)
+        end
+        count = reshape(count, size(grid))
+        AdaptiveRF(grid, occ, count, Float32.(count./occ.count))
+    end
+
+    function get_occupancy(behavior::DataFrame, props::Vector,
+            grid::GridAdaptive)::AdaptiveOcc
+        vals = return_vals(behavior, props)
+        count = zeros(Int32, size(grid))
+        prog = Progress(length(grid))
+        Threads.@threads for (index, (center, radius)) in collect(enumerate(grid))
+            count[index] = sum(inside(vals, center, radius))
+            next!(prog)
+        end
+        count = reshape(count, size(grid))
+        prob = Probabilities(Float32.(vec(count)))
+        AdaptiveOcc(grid, count, prob)
+    end
+
+    # Helper fucntions
+    function vector_dist(vals::Array, center::Array)::Vector{Float32}
+        sqrt.(sum((vals .- center[Utils.na, :]).^2,dims=2)[:,1])
+    end
+    function inside(vals::Array, center::Array, radius::T where T<:Real)::BitVector
+        vector_dist(vals, center) .< radius
+    end
+    function get_samptime(vals::Array, center::Array, radius::T where T<:Real; sampletime=1/30)::Float32
+        sum(inside(vals, center, radius)) * sampletime
     end
 
     ## ------
@@ -278,16 +320,5 @@ module adaptive
     #function skaggs()
     #end
 
-
-    # Helper fucntions
-    function vector_dist(vals::Array, center::Array)::Vector{Float32}
-        sqrt.(sum((vals .- center[Utils.na, :]).^2,dims=2)[:,1])
-    end
-    function inside(vals::Array, center::Array, radius::T where T<:Real)::BitVector
-        vector_dist(vals, center) .< radius
-    end
-    function get_samptime(vals::Array, center::Array, radius::T where T<:Real; sampletime=1/30)::Float32
-        sum(inside(vals, center, radius)) * sampletime
-    end
 
 end

@@ -1,0 +1,261 @@
+let SessionLoad = 1
+let s:so_save = &g:so | let s:siso_save = &g:siso | setg so=0 siso=0 | setl so=-1 siso=-1
+let v:this_session=expand("<sfile>:p")
+let NERDTreeMapPreviewSplit = "gi"
+let NERDTreeShowHidden =  0 
+let Tlist_Show_One_File =  0 
+let NERDTreeMinimalUI =  0 
+let WebDevIconsNerdTreeGitPluginForceVAlign =  1 
+let NERDTreeRespectWildIgnore =  0 
+let NERDTreeMapToggleHidden = "I"
+let NERDTreeWinSize =  31 
+let UltiSnipsRemoveSelectModeMappings =  1 
+let LanguageClient_loaded =  1 
+let NERDTreeMapMenu = "m"
+let JuliaFormatter_sysimage_path = "/home/ryoung/.vim/plugged/JuliaFormatter.vim/scripts/juliaformatter.so"
+let NERDTreeMapJumpParent = "p"
+let NERDTreeNodeDelimiter = ""
+let NERDTreeCascadeOpenSingleChildDir =  1 
+let NERDTreeShowBookmarks =  0 
+let NERDTreeMouseMode =  1 
+let NERDTreeCreatePrefix = "silent"
+let NERDTreeMapOpenSplit = "i"
+let JuliaFormatter_root = "/home/ryoung/.vim/plugged/JuliaFormatter.vim"
+let NERDTreeShowLineNumbers =  0 
+let NERDTreeHighlightCursorline =  1 
+let UltiSnipsEnableSnipMate =  1 
+let Tlist_GainFocus_On_ToggleOpen =  0 
+let Tlist_Auto_Update =  1 
+let Lf_StlColorscheme = "one"
+let NERDTreeMapPreviewVSplit = "gs"
+let NERDTreeMapJumpRoot = "P"
+let NERDTreeGlyphReadOnly = "RO"
+let NERDTreeAutoDeleteBuffer =  0 
+let NERDTreeMapRefreshRoot = "R"
+let NERDTreeAutoCenter =  1 
+let NERDTreeMapOpenVSplit = "s"
+let UltiSnipsDebugHost = "localhost"
+let NERDTreeMapDeleteBookmark = "D"
+let Tlist_File_Fold_Auto_Close =  0 
+let UltiSnipsEditSplit = "vertical"
+let NERDTreeMapJumpFirstChild = "K"
+let VM_Cursor_hl = "Cursor"
+let LanguageClient_autoStart =  1 
+let NERDTreeMapToggleBookmarks = "B"
+let WebDevIconsTabAirLineBeforeGlyphPadding = " "
+let Tlist_Sort_Type = "order"
+let Tlist_Enable_Fold_Column =  1 
+let Tlist_Compact_Format =  0 
+let NERDTreeBookmarksFile = "/home/ryoung/.NERDTreeBookmarks"
+let UltiSnipsJumpForwardTrigger = "<C-j>"
+let VM_Extend_hl = "Visual"
+let Tlist_Ctags_Cmd = "ctags"
+let DevIconsEnableDistro =  1 
+let LanguageClient_serverStatusMessage = ""
+let Taboo_tabs = "2	Fields\n3	PlotLib\n4	OptLib\n"
+let NERDTreeMapCustomOpen = "<CR>"
+let NERDTreeDirArrowExpandable = "▸"
+let WebDevIconsUnicodeDecorateFileNodes =  1 
+let UltiSnipsPMDebugBlocking =  0 
+let Tlist_Display_Tag_Scope =  1 
+let NERDTreeMapOpenInTabSilent = "T"
+let NERDTreeMapHelp = "?"
+let NERDTreeMapJumpPrevSibling = "<C-k>"
+let NERDTreeMapOpenInTab = "t"
+let NERDTreeChDirMode =  0 
+let Tlist_Highlight_Tag_On_BufEnter =  1 
+let NERDTreeAutoCenterThreshold =  3 
+let NERDTreeShowFiles =  1 
+let NERDTreeHijackNetrw =  1 
+let Tlist_Max_Submenu_Items =  20 
+let NERDTreeBookmarksSort =  1 
+let NERDTreeNaturalSort =  0 
+let JuliaFormatter_loaded =  1 
+let NERDTreeMinimalMenu =  0 
+let Tlist_WinWidth =  30 
+let Tlist_Close_On_Select =  0 
+let NERDTreeUpdateOnCursorHold =  1 
+let DevIconsDefaultFolderOpenSymbol = ""
+let UltiSnipsJumpBackwardTrigger = "<C-k>"
+let NERDTreeSortDirs =  1 
+let NERDTreeMapToggleFiles = "F"
+let UltiSnipsDebugPort =  8080 
+let NERDTreeMapOpenRecursively = "O"
+let NERDTreeMapUpdirKeepOpen = "U"
+let Tlist_Show_Menu =  0 
+let Tlist_Use_SingleClick =  0 
+let UltiSnipsUsePythonVersion =  3 
+let NERDTreeMapCloseDir = "x"
+let NERDTreeSortHiddenFirst =  1 
+let UltiSnipsExpandTrigger = "<C-j>"
+let DevIconsEnableFoldersOpenClose =  0 
+let NERDTreeUseTCD =  0 
+let JuliaFormatter_log = "/home/ryoung/.vim/plugged/JuliaFormatter.vim/scripts/juliaformatter.log"
+let WebDevIconsUnicodeDecorateFolderNodesDefaultSymbol = ""
+let NERDTreeMapPreview = "go"
+let NERDTreeCascadeSingleChildDir =  1 
+let DevIconsEnableFolderPatternMatching =  1 
+let VM_Insert_hl = "Cursor"
+let TagList_title = "__Tag_List__"
+let WebDevIconsTabAirLineAfterGlyphPadding = ""
+let NERDTreeRemoveDirCmd = "rm -rf "
+let WebDevIconsUnicodeDecorateFileNodesDefaultSymbol = ""
+let NERDTreeGitStatusUpdateOnCursorHold =  1 
+let NERDTreeCaseSensitiveSort =  0 
+let NERDTreeMapRefresh = "r"
+let WebDevIconsUnicodeByteOrderMarkerDefaultSymbol = ""
+let DevIconsAppendArtifactFix =  0 
+let WebDevIconsUnicodeDecorateFolderNodes =  1 
+let UltiSnipsDebugServerEnable =  0 
+let WebDevIconsUnicodeGlyphDoubleWidth =  1 
+let Tlist_Exit_OnlyWindow =  0 
+let Tlist_Max_Tag_Length =  10 
+let UltiSnipsListSnippets = "<c-tab>"
+let Tlist_Auto_Open =  0 
+let NERDTreeMapChangeRoot = "C"
+let DevIconsEnableFolderExtensionPatternMatching =  0 
+let NERDTreeMapOpenExpl = "e"
+let NERDTreeMapCloseChildren = "X"
+let Tlist_Auto_Highlight_Tag =  1 
+let WebDevIconsUnicodeDecorateFolderNodesExactMatches =  1 
+let Tlist_Use_Horiz_Window =  0 
+let NERDTreeMenuUp = "k"
+let WebDevIconsNerdTreeAfterGlyphPadding = " "
+let Tlist_Process_File_Always =  0 
+let NERDTreeNotificationThreshold =  100 
+let NERDTreeMapActivateNode = "o"
+let NERDTreeWinPos = "left"
+let NERDTreeStatusline = "%{exists('b:NERDTree')?b:NERDTree.root.path.str():''}"
+let NERDTreeMapToggleFilters = "f"
+let ScreenImpl = "Tmux"
+let VM_Mono_hl = "Cursor"
+let LanguageClient_serverStatus =  0 
+let DevIconsArtifactFixChar = " "
+let Tlist_WinHeight =  10 
+let Tlist_Inc_Winwidth =  1 
+let NERDTreeMapCWD = "CD"
+let WebDevIconsNerdTreeBeforeGlyphPadding = " "
+let NERDTreeMenuDown = "j"
+let NERDTreeMapUpdir = "u"
+let WebDevIconsUnicodeDecorateFolderNodesSymlinkSymbol = ""
+let NERDTreeMapChdir = "cd"
+let NERDTreeMapToggleZoom = "A"
+let NERDTreeMarkBookmarks =  1 
+let Tlist_Display_Prototype =  0 
+let NERDTreeMapJumpLastChild = "J"
+let NERDTreeMapJumpNextSibling = "<C-j>"
+let NERDTreeCopyCmd = "cp -r "
+let NERDTreeMapQuit = "q"
+let NERDTreeDirArrowCollapsible = "▾"
+let DevIconsEnableNERDTreeRedraw =  0 
+let NERDTreeQuitOnOpen =  0 
+let Tlist_Use_Right_Window =  0 
+silent only
+silent tabonly
+cd ~/Code/projects/goal-code
+if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
+  let s:wipebuf = bufnr('%')
+endif
+let s:shortmess_save = &shortmess
+set shortmess=aoO
+badd +50 scripts/timeshift/TimeShift.jl
+badd +54 scripts/decode/Initialize.jl
+badd +10 scripts/fields/Initialize.jl
+badd +16 scripts/fields/Include.jl
+badd +28 src/Load.jl
+badd +16 src/Load/spikes.jl
+badd +2 src/Load/behavior.jl
+badd +8 src/Load/ripples.jl
+badd +82 src/Load/utils.jl
+badd +102 src/Timeshift.jl
+badd +107 src/Timeshift/checkpoint.jl
+badd +1 src/Utils.jl
+badd +15 src/Field/hist.jl
+badd +1 src/Table/convert_types.jl
+badd +353 src/Table.jl
+badd +12 src/Utils/dict.jl
+badd +21 src/Utils/namedtup.jl
+badd +1 src/Timeshift/Keys.jl
+badd +33 src/GoalFetchAnalysis.jl
+badd +1 scripts/timeshift/plot_experiment_with_data.jl
+badd +1 scripts/timeshift/Initialize.jl
+badd +44 scripts/timeshift/Initialize_plot_experimentation.jl
+badd +12 src/Decode/checkpoint.jl
+badd +74 src/Field/info.jl
+badd +1 scripts/timeshift/plot_timeshif_vs_theta_phase.jl
+badd +1 scripts/timeshift/plot_examine_set_of_fields.jl
+badd +80 src/Table/group.jl
+badd +51 src/Timeshift/operation.jl
+badd +223 src/Plot/timeshift.jl
+badd +14 src/Plot.jl
+badd +2 src/Plot/raster.jl
+badd +1 src/Plot/table.jl
+badd +13 src/Munge.jl
+badd +25 scripts/timeshift/notebook/Initialize_plot_experimentation_pluto.jl
+badd +3197 Manifest.toml
+badd +127 Project.toml
+badd +1 src/Load/celltet.jl
+badd +3 src/Field.jl
+badd +29 src/Field/RF.jl
+badd +15 src/Load/task.jl
+badd +5 src/Munge/task.jl
+badd +1 scripts/fields/PlaceField.jl
+badd +1 src/Field/kerneldens.jl
+badd +69 _research/test_enforce_bound.jl
+badd +235 src/Field/adaptive.jl
+badd +3 ~/tmp.jl
+badd +15 src/Precompile.jl
+argglobal
+%argdel
+tabnew +setlocal\ bufhidden=wipe
+tabnew +setlocal\ bufhidden=wipe
+tabnew +setlocal\ bufhidden=wipe
+tabrewind
+tabnext
+edit scripts/timeshift/Initialize_plot_experimentation.jl
+argglobal
+balt scripts/timeshift/plot_examine_set_of_fields.jl
+let s:l = 34 - ((4 * winheight(0) + 24) / 49)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 34
+normal! 029|
+tabnext
+edit src/Load/celltet.jl
+argglobal
+balt src/Plot/timeshift.jl
+let s:l = 73 - ((39 * winheight(0) + 24) / 49)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 73
+normal! 011|
+tabnext
+edit ~/tmp.jl
+argglobal
+balt src/Field/adaptive.jl
+let s:l = 1 - ((0 * winheight(0) + 27) / 54)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 1
+normal! 0
+tabnext 4
+if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
+  silent exe 'bwipe ' . s:wipebuf
+endif
+unlet! s:wipebuf
+set winheight=1 winwidth=20
+let &shortmess = s:shortmess_save
+let s:sx = expand("<sfile>:p:r")."x.vim"
+if filereadable(s:sx)
+  exe "source " . fnameescape(s:sx)
+endif
+let &g:so = s:so_save | let &g:siso = s:siso_save
+set hlsearch
+let g:this_session = v:this_session
+let g:this_obsession = v:this_session
+doautoall SessionLoadPost
+unlet SessionLoad
+" vim: set ft=vim :
