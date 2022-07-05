@@ -158,7 +158,7 @@ if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
 endif
 let s:shortmess_save = &shortmess
 set shortmess=aoO
-badd +50 scripts/timeshift/TimeShift.jl
+badd +99 scripts/timeshift/TimeShift.jl
 badd +54 scripts/decode/Initialize.jl
 badd +10 scripts/fields/Initialize.jl
 badd +16 scripts/fields/Include.jl
@@ -166,8 +166,8 @@ badd +28 src/Load.jl
 badd +16 src/Load/spikes.jl
 badd +2 src/Load/behavior.jl
 badd +8 src/Load/ripples.jl
-badd +82 src/Load/utils.jl
-badd +82 src/Timeshift.jl
+badd +85 src/Load/utils.jl
+badd +144 src/Timeshift.jl
 badd +107 src/Timeshift/checkpoint.jl
 badd +101 src/Utils.jl
 badd +15 src/Field/hist.jl
@@ -181,7 +181,7 @@ badd +1 scripts/timeshift/plot_experiment_with_data.jl
 badd +1 scripts/timeshift/Initialize.jl
 badd +29 scripts/timeshift/Initialize_plot_experimentation.jl
 badd +12 src/Decode/checkpoint.jl
-badd +74 src/Field/info.jl
+badd +50 src/Field/info.jl
 badd +1 scripts/timeshift/plot_timeshif_vs_theta_phase.jl
 badd +1 scripts/timeshift/plot_examine_set_of_fields.jl
 badd +80 src/Table/group.jl
@@ -195,21 +195,22 @@ badd +25 scripts/timeshift/notebook/Initialize_plot_experimentation_pluto.jl
 badd +3197 Manifest.toml
 badd +127 Project.toml
 badd +2 src/Load/celltet.jl
-badd +308 src/Field.jl
+badd +51 src/Field.jl
 badd +29 src/Field/RF.jl
 badd +15 src/Load/task.jl
 badd +5 src/Munge/task.jl
 badd +1 scripts/fields/PlaceField.jl
 badd +1 src/Field/kerneldens.jl
 badd +69 _research/test_enforce_bound.jl
-badd +211 src/Field/adaptive.jl
+badd +242 src/Field/adaptive.jl
 badd +26 ~/tmp.jl
 badd +15 src/Precompile.jl
-badd +111 notebooks/TestAdaptive.jl
+badd +129 notebooks/TestAdaptive.jl
 badd +91 src/Timeshift/shuffle.jl
 badd +15 ~/Code/projects/goal-code/src/Field/plot.jl
+badd +11497 ~/.cache/nvim/lsp.log
 badd +223 src/Field/fixed.jl
-badd +0 ~/Code/projects/goal-code/src/Utils/plot.jl
+badd +1 ~/Code/projects/goal-code/src/Utils/plot.jl
 argglobal
 %argdel
 tabnew +setlocal\ bufhidden=wipe
@@ -218,76 +219,42 @@ tabnew +setlocal\ bufhidden=wipe
 tabrewind
 edit src/Field.jl
 argglobal
-let s:l = 304 - ((24 * winheight(0) + 18) / 36)
+let s:l = 326 - ((30 * winheight(0) + 22) / 45)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 304
+keepjumps 326
 normal! 026|
 tabnext
 edit src/Field/adaptive.jl
 argglobal
 balt src/Utils.jl
-let s:l = 221 - ((2 * winheight(0) + 18) / 36)
+let s:l = 296 - ((23 * winheight(0) + 22) / 45)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 221
-normal! 010|
+keepjumps 296
+normal! 014|
 tabnext
-edit src/Field/adaptive.jl
-let s:save_splitbelow = &splitbelow
-let s:save_splitright = &splitright
-set splitbelow splitright
-wincmd _ | wincmd |
-split
-1wincmd k
-wincmd w
-let &splitbelow = s:save_splitbelow
-let &splitright = s:save_splitright
-wincmd t
-let s:save_winminheight = &winminheight
-let s:save_winminwidth = &winminwidth
-set winminheight=0
-set winheight=1
-set winminwidth=0
-set winwidth=1
-exe '1resize ' . ((&lines * 18 + 19) / 39)
-exe '2resize ' . ((&lines * 17 + 19) / 39)
+edit notebooks/TestAdaptive.jl
 argglobal
-balt src/Timeshift.jl
-let s:l = 1 - ((0 * winheight(0) + 9) / 18)
+let s:l = 130 - ((1 * winheight(0) + 22) / 45)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 130
+normal! 0
+tabnext
+edit src/Timeshift.jl
+argglobal
+balt src/Field/info.jl
+let s:l = 1 - ((0 * winheight(0) + 22) / 45)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
 keepjumps 1
 normal! 0
-wincmd w
-argglobal
-if bufexists(fnamemodify("src/Timeshift.jl", ":p")) | buffer src/Timeshift.jl | else | edit src/Timeshift.jl | endif
-if &buftype ==# 'terminal'
-  silent file src/Timeshift.jl
-endif
-balt src/Field/adaptive.jl
-let s:l = 82 - ((8 * winheight(0) + 8) / 17)
-if s:l < 1 | let s:l = 1 | endif
-keepjumps exe s:l
-normal! zt
-keepjumps 82
-normal! 019|
-wincmd w
-exe '1resize ' . ((&lines * 18 + 19) / 39)
-exe '2resize ' . ((&lines * 17 + 19) / 39)
-tabnext
-edit notebooks/TestAdaptive.jl
-argglobal
-let s:l = 1 - ((0 * winheight(0) + 24) / 49)
-if s:l < 1 | let s:l = 1 | endif
-keepjumps exe s:l
-normal! zt
-keepjumps 1
-normal! 027|
-tabnext 3
+tabnext 4
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
 endif

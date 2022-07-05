@@ -22,11 +22,10 @@ begin
 	  using Plots
 	  using Revise
 	  using DataFrames
-	  using NaNStatistics
-	  import Utils
 	  props = ["x","y"]
+	  using NaNStatistics
 	  adaptive = Field.adaptive
-      info = Field.info
+	  import Utils
 end
 
 # ╔═╡ d33ca749-25af-4b1e-b78c-00ebf54f1327
@@ -41,12 +40,11 @@ Preamble ... loading and importing
 """
 
 # ╔═╡ 31082fe7-ed61-4d37-a025-77420da3f24a
-beh, spikes = begin
+begin
 	
 	@time spikes, beh, ripples, cells = Load.load("RY16", 36);
 	@time beh, spikes  = Load.register(beh, spikes; on="time", transfer=props)
-    spikes = dropmissing(spikes, props)
-    beh, spikes
+	
 end;
 
 # ╔═╡ d51ce0f2-03bf-4c88-9302-9fd4bc8621eb
@@ -108,9 +106,9 @@ plot(units[(;unit=unit)], aspect_ratio=1)
 
 # ╔═╡ 4d814c3e-97e1-491a-b1d8-c7ca9c628afd
 μ_firing = begin
-    Q = units[(;unit=unit)]
-    nansum(reshape(Q.occ.prob, size(Q.occ.count)) .* Q.rate)
-end
+		Q = units[(;unit=unit)]
+		nansum(reshape(Q.occ.prob, size(Q.occ.count)) .* Q.rate)
+	end
 
 # ╔═╡ f9378d49-2f86-4088-bc6d-3b5b227b7c66
 md"""
@@ -127,14 +125,13 @@ Getting everything working with Timeshift.jl
 import Timeshift
 
 # ╔═╡ 39737bd9-f38a-408d-a0c0-99b9e2bd0045
-shifted = Timeshift.shifted_fields(beh, spikes, -2:0.2:2, props, widths=3f0,
-                                   metrics=info.information)
+shifted = Timeshift.shifted_fields(beh, spikes, -2:0.2:2, props, widths=3f0)
 
 # ╔═╡ 5acf0a77-9e40-4117-83fa-4a0791849265
 begin
-	unit_sel = @bind shift_unit PlutoUI.Slider(sort(unique(spikes.unit)), show_value=true)
-	 shift_sel = @bind shift_shift PlutoUI.Slider(sort(collect(keys(shifted))), show_value=true,default=0)
-	(;unit_sel, shift_sel)
+	shift_unit_sel = @bind shift_unit PlutoUI.Slider(sort(unique(spikes.unit)), show_value=true)
+	 shift_shift_sel = @bind shift_shift PlutoUI.Slider(sort(collect(keys(shifted))), show_value=true,default=0)
+	(;shift_unit_sel, shift_shift_sel)
 end
 
 # ╔═╡ 94930aab-8bb0-4da0-b26b-35ddb3efde3b
@@ -166,8 +163,11 @@ end
 # ╠═44abcbd4-5f71-4924-b77d-9680cc96044f
 # ╟─4d814c3e-97e1-491a-b1d8-c7ca9c628afd
 # ╟─f9378d49-2f86-4088-bc6d-3b5b227b7c66
+# ╠═5a348e0e-a313-4fe3-a6f7-132fed079c02
+# ╠═00736d6f-5a85-4ad7-8661-f2857a36237c
+# ╠═f001cdd1-fb4b-4f40-bfcd-be9fea6c8e5b
 # ╟─34b5441c-add2-4272-b384-67994daf7745
 # ╠═9e5fde4a-f312-419a-b7d5-5ef7a08c305e
 # ╠═39737bd9-f38a-408d-a0c0-99b9e2bd0045
-# ╠═5acf0a77-9e40-4117-83fa-4a0791849265
+# ╟─5acf0a77-9e40-4117-83fa-4a0791849265
 # ╠═94930aab-8bb0-4da0-b26b-35ddb3efde3b

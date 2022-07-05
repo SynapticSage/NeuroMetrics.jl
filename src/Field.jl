@@ -35,6 +35,28 @@ module Field
     abstract type FieldDict  <: FieldCollection end
     abstract type FieldArray <: FieldCollection end
 
+    mutable struct Metrics
+        data::AbstractDict{Symbol, Any}
+        Metrics() = new(Dict{Symbol,Any}())
+        Metrics(x) = new(x)
+    end
+    function Base.getindex(M::Metrics, index...)
+        Base.getindex(M.data, index...)
+    end
+    function Base.setindex!(M::Metrics, val, index::Symbol)
+        M.data[index] = val
+    end
+    function Base.push!(M::Metrics, p::Pair{Symbol, <:Any})
+        push!(M.data, p)
+    end
+    function Base.pop!(M::Metrics, key)::Any
+        pop!(M.data, key)
+    end
+
+    function Base.push!(R::ReceptiveField, measurement_name::Symbol, measurement_value)
+        push!(R.metrics, measurement_name => measurement_value)
+    end
+
 
     function getSettings(thing, props;
             resolution::Union{Vector{Int},Int,Nothing}=100,

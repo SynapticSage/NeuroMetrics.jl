@@ -8,6 +8,11 @@ outputs https://github.com/JuliaArrays/AxisArrays.jl types
 """
 module trial
 
+    using DataFrames
+    using DataStructures: OrderedDict
+    using StatsBase
+    using Statistics
+
     SymStr = Union{Symbol, String}
 
     """
@@ -28,19 +33,59 @@ module trial
     `X`         -- DataFrame we'll pull a tensor out of
     `dims`      -- Columns that will become the dimension of the tensor
     `var`       -- Column that will become the measurement
-    `equalize`  -- (optional, default=false) List of columns that we will force to be equal in length
-    `equalmeth` -- (optional, default=:first) Method of equalization
 
     ### Output
     `T` -- Tensor; either a square array or stacked arrays of unequal dim
      
     """
     function tensor_continuous(X::DataFrame, dims::Vector, var::<:SymStr;
-            equalize::Bool=false, equalmeth::Symbol=:first)
-        
+            quantilebin::Dict{<:SymStr, <:Int}=Dict{Symbol,Int}(),
+            relative::Vector{<:SymStr},
+            TensType::Type=Float64)
+
+        X = copy(X)
+        X = quantilize(X, quantilebin)
+        X = relativize(X, dims, relative)
+        G = groupby(X[!, [dims..., var]], dims)
+        counts = combine(G, nrow)
+        if !(all(counts.nrow .== 1))
+            TensType = Array{TensType}
+            singular = false
+        else
+            singular = true
+        end
+
+        axes = OrderedDict(dim=>sort(unique(X[!,dim])) for dim in dims)
+        sz   = [length(ax) for ax in axes]
+        T = Array{TensType}(undef,sz...)
+        for g in G
+            searches = map((dim, ax) -> first(g)[dim] .== ax, zip(dims, axes))
+            overall = (accumulate(.&, searches))[end]
+            for i = 1:length(searches)
+                searches[i] .&= overall
+            end
+            indices = Tuple(findfirst(search) for search in searches)
+            T[indices...] = singular ? g[!, var] : g[!, var][1]
+        end
     end
 
     function equalize
     end
+
+    function quantilize(X::DataFrame, quantilebin::Dict{<:SymStr, <:Int},)
+        # Rank bin anything requested
+        for (var, bins) in quantilebin
+            quant = sortperm(X[!,var])./size(X,1)
+            binned = ceil.(bins*quant)
+            X[!,var] = binned
+        end
+    end
+
+    function relativize(X::DataFrame, dims::Vector{<:SymStr}, relative::Vector{<:SymStr})
+        # Rank bin anything requested
+        makerelative(x) = x .- minimum(x)
+        combine(groupby(X, dims), relative .=> makerelative .=> relative)
+    end
+
 
 end

@@ -1,6 +1,8 @@
 module info
     using Entropies: Probabilities
     using NaNStatistics
+    import ..Field
+    using Infiltrator
 
     skipnan(x) = Iterators.filter(!isnan, x)
     function _convert_to_prob(behProb::AbstractArray)
@@ -12,12 +14,16 @@ module info
     """
     `information`
 
-    computes the `information` of a receptive field
+    computes the `information` of a receptive field ... general dispatcher for
+    a number of information metrics
 
     see yartsev dotson 2021 supp
     """
-    function information(F::NamedTuple; kws...)
-        return info.information(F.Rₕ, F.occR; kws...)
+    function information(F::Field.ReceptiveField; method=:spatialinformation)
+        return information(F.rate, F.occ.prob; method)
+    end
+    function information(F::NamedTuple; method=:spatialinformation)
+        return information(F.Rₕ, F.occR; method)
     end
     function information(F::Dict, behProb::AbstractArray, method=:spatialinformation)
         behProb = info._convert_to_prob(behProb)
@@ -31,8 +37,13 @@ module info
         end
         return I
     end
+    function information(F::Array, behProb::Probabilities; method=:spatialinformation)
+        eval(method)(F, behProb)
+    end
+
+
     function bitsperspike(firingrate::AbstractArray, behProb::Probabilities)
-        firingrate = collect(skipnan(vec(firingrate)))
+        firingrate = vec(firingrate)
         FRoverMeanFR = firingrate ./ nanmean(firingrate)
         # paper r = ∑ pᵢ * rᵢ
         # what I've written here: r = ∑ R_occᵢ / N = μ(R_occᵢ), not the actual rate, but occ norm rate
@@ -43,7 +54,7 @@ module info
     end
     spatialinformation = bitsperspike
     function bitspersecond(firingrate::AbstractArray, behProb::Probabilities)
-        firingrate = collect(skipnan(vec(firingrate)))
+        firingrate = vec(firingrate)
         FRoverMeanFR = firingrate ./ nanmean(firingrate)
         # paper r = ∑ pᵢ * rᵢ
         # what I've written here: r = ∑ R_occᵢ / N = μ(R_occᵢ), not the actual rate, but occ norm rate

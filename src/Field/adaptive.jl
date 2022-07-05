@@ -1,7 +1,7 @@
 module adaptive
 
     using ..Field
-    using ..Field: Grid, ReceptiveField, Occupancy
+    using ..Field: Grid, ReceptiveField, Occupancy, Metrics
     import ..Field: get_boundary, resolution_to_width, return_vals
     import Utils
     import Table
@@ -93,6 +93,7 @@ module adaptive
         occ::AdaptiveOcc
         count::Array{Int32}
         rate::Array{Float32}
+        metrics::Metrics
     end
 
     # Setup iteration
@@ -145,15 +146,12 @@ module adaptive
                 else
                     radiusinc /= 2
                 end
-                #@info "radius_inc = $radiusinc"
                 tₛ = get_samptime(vals, center, radius; sampletime)
                 δ = tₛ - thresh
                 push!(Δ, δ)
                 s = sign(δ)
                 tolerance_acheived = abs(δ) < ϵ
             end
-            #@info "reversal"
-            #@infiltrate
             reversal *= -1
             radiusinc *= -1
             increase_phase = false
@@ -236,6 +234,7 @@ module adaptive
                                                  AdaptiveRF}
         grid = get_grid(behavior, props; grid_kws...)
         occ  = get_occupancy(behavior, grid)
+        spikes = dropmissing(spikes, props)
         ulanovsky(spikes, grid, occ; splitby, grid_kws...)
     end
     function ulanovsky(spikes::DataFrame, grid::GridAdaptive, occ::AdaptiveOcc;
@@ -290,7 +289,8 @@ module adaptive
             #next!(prog)
         end
         count = reshape(count, size(grid))
-        AdaptiveRF(grid, occ, count, occ.camerarate*Float32.(count./occ.count))
+        AdaptiveRF(grid, occ, count, occ.camerarate*Float32.(count./occ.count), 
+                   Metrics())
     end
 
     function get_occupancy(behavior::DataFrame, grid::GridAdaptive)::AdaptiveOcc

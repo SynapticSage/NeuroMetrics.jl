@@ -120,20 +120,41 @@ module Timeshift
             gridfunc::Union{Function, Symbol}=adaptive.get_grid,
             occfunc::Union{Function, Symbol}=adaptive.get_occupancy,
             postfunc::Union{Function,Nothing}=nothing,
+            metrics::Union{Function,Symbol,
+                           Vector{Symbol},Vector{Function},Nothing}=nothing,
             multi::Union{Bool, Symbol}=true,
-            safe_dict::AbstractDict=ThreadSafeDict(),
-            grid_kws...)::OrderedDict
+            result_dict::AbstractDict=ThreadSafeDict(),
+            metric_dict::AbstractDict=ThreadSafeDict(),
+            grid_kws...)::DictOfShiftOfUnit
+
+        if metrics isa Symbol
+            metrics = [eval(metrics)]
+        elseif metrics isa Function
+            metrics = [metrics]
+        elseif metrics isa Vector{Symbol}
+            metrics = [eval(metric) for metric in metrics]
+        end
 
         if multi isa Bool
             multi = multi ? :thread : :single
         end
-        @info "Starting multi=$multi"
+
         grid = gridfunc(beh, props; grid_kws...)
         occ  = occfunc(beh, grid)
+        data = dropmissing(data, grid.props)
+
+        if maximum(abs.(shifts)) >= 0.25 && median(diff(beh.time)) < (1/30)
+            shift_correct = true
+            @info "correcting shifts for minutes"
+            shifts = collect(shifts)
+            shifts ./= 60
+        else
+            shift_correct = false
+        end
 
         prog = Progress(length(shifts), desc="Field shift calculations")
         for shift in shifts
-            if shift ∈ keys(safe_dict)
+            if shift ∈ keys(result_dict)
                 continue
             end
             _, data = register(σ(beh, shift), data; on="time",
@@ -142,14 +163,59 @@ module Timeshift
             if postfunc !== nothing
                 result = postfunc(result)
             end
-            push!(safe_dict, shift=>result)
+            shift = shift_correct ? shift*60 : shift
+            push!(result_dict, shift=>result)
+            if metrics !== nothing
+                for (unit,metric) in Iterators.product(keys(result), metrics)
+                    push!(result[unit].metrics, Symbol(metric)=>metric(result[unit]))
+                end
+            end
             next!(prog)
         end
-        safe_dict = Dict(safe_dict...)
-        out = OrderedDict(key=>pop!(safe_dict, key) for key in sort([keys(safe_dict)...]))
+        result_dict = Dict(result_dict...)
+        out = OrderedDict(key=>pop!(result_dict, key) for key in sort([keys(result_dict)...]))
         return out
     end
 
+    struct DictOfShiftOfUnit
+        data::OrderedDict{<:AbstractDict}
+        metrics::AbstractDict
+    end
+    function Base.getindex(S::DictOfShiftOfUnit)
+        S.data
+    end
+    function Base.getindex(S::DictOfShiftOfUnit, shift::Float64, index...) 
+        s = S.data[shift]
+        while !(isempty(index))
+            k = collect(keys(s))
+            kₙ = [k[1] for k in Tuple.(k)]
+            select = kₙ .== index[1]
+            if !(any(select))
+                @error "No matches"
+            end
+            s = s[k[select][1]]
+        end
+        return s
+    end
+    function Base.getindex(S::DictOfShiftOfUnit, shift::Float64, index::NamedTuple) 
+    end
+
+    mutable struct ShiftedField
+        data::OrderedDict{<:Real,<:Field.ReceptiveField}
+        shifts::Vector{<:Real}
+        ShiftedField(data) = new(data)
+    end
+
+    mutable struct ShiftedFields
+        data::AbstractDict{<:NamedTuple, <:ShiftedField}
+        function ShiftedFields(S::DictOfShiftOfUnit)
+            units = collect(keys(S[1]))
+            shifts = unique(S[])
+        end
+    end
+
+    #@recipte plot_shiftedfields(S::ShiftedFields, shifts::Int, neurons::Int)
+    #end
 
     using Reexport
     include(srcdir("Timeshift", "checkpoint.jl"))
