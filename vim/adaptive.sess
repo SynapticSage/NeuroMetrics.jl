@@ -7,6 +7,7 @@ let Tlist_Show_One_File =  0
 let NERDTreeMinimalUI =  0 
 let WebDevIconsNerdTreeGitPluginForceVAlign =  1 
 let NERDTreeRespectWildIgnore =  0 
+let NERDTreeMapHelp = "?"
 let NERDTreeMapToggleHidden = "I"
 let NERDTreeWinSize =  31 
 let UltiSnipsRemoveSelectModeMappings =  1 
@@ -14,7 +15,8 @@ let LanguageClient_loaded =  1
 let NERDTreeMapMenu = "m"
 let JuliaFormatter_sysimage_path = "/home/ryoung/.vim/plugged/JuliaFormatter.vim/scripts/juliaformatter.so"
 let NERDTreeMapJumpParent = "p"
-let NERDTreeNodeDelimiter = ""
+let NERDTreeAutoCenter =  1 
+let ScreenImpl = "Tmux"
 let NERDTreeCascadeOpenSingleChildDir =  1 
 let NERDTreeShowBookmarks =  0 
 let NERDTreeMouseMode =  1 
@@ -32,7 +34,6 @@ let NERDTreeMapJumpRoot = "P"
 let NERDTreeGlyphReadOnly = "RO"
 let NERDTreeAutoDeleteBuffer =  0 
 let NERDTreeMapRefreshRoot = "R"
-let NERDTreeAutoCenter =  1 
 let NERDTreeMapOpenVSplit = "s"
 let UltiSnipsDebugHost = "localhost"
 let NERDTreeMapDeleteBookmark = "D"
@@ -52,14 +53,13 @@ let VM_Extend_hl = "Visual"
 let Tlist_Ctags_Cmd = "ctags"
 let DevIconsEnableDistro =  1 
 let LanguageClient_serverStatusMessage = ""
-let Taboo_tabs = "2	Fields\n3	PlotLib\n4	OptLib\n"
+let Taboo_tabs = "2	Adaptive\n"
 let NERDTreeMapCustomOpen = "<CR>"
 let NERDTreeDirArrowExpandable = "▸"
 let WebDevIconsUnicodeDecorateFileNodes =  1 
 let UltiSnipsPMDebugBlocking =  0 
 let Tlist_Display_Tag_Scope =  1 
 let NERDTreeMapOpenInTabSilent = "T"
-let NERDTreeMapHelp = "?"
 let NERDTreeMapJumpPrevSibling = "<C-k>"
 let NERDTreeMapOpenInTab = "t"
 let NERDTreeChDirMode =  0 
@@ -69,7 +69,7 @@ let NERDTreeShowFiles =  1
 let NERDTreeHijackNetrw =  1 
 let Tlist_Max_Submenu_Items =  20 
 let NERDTreeBookmarksSort =  1 
-let NERDTreeNaturalSort =  0 
+let WebDevIconsNerdTreeBeforeGlyphPadding = " "
 let JuliaFormatter_loaded =  1 
 let NERDTreeMinimalMenu =  0 
 let Tlist_WinWidth =  30 
@@ -127,14 +127,14 @@ let NERDTreeMapActivateNode = "o"
 let NERDTreeWinPos = "left"
 let NERDTreeStatusline = "%{exists('b:NERDTree')?b:NERDTree.root.path.str():''}"
 let NERDTreeMapToggleFilters = "f"
-let ScreenImpl = "Tmux"
+let NERDTreeNodeDelimiter = ""
 let VM_Mono_hl = "Cursor"
 let LanguageClient_serverStatus =  0 
 let DevIconsArtifactFixChar = " "
 let Tlist_WinHeight =  10 
 let Tlist_Inc_Winwidth =  1 
 let NERDTreeMapCWD = "CD"
-let WebDevIconsNerdTreeBeforeGlyphPadding = " "
+let NERDTreeNaturalSort =  0 
 let NERDTreeMenuDown = "j"
 let NERDTreeMapUpdir = "u"
 let WebDevIconsUnicodeDecorateFolderNodesSymlinkSymbol = ""
@@ -179,7 +179,7 @@ badd +1 src/Timeshift/Keys.jl
 badd +33 src/GoalFetchAnalysis.jl
 badd +1 scripts/timeshift/plot_experiment_with_data.jl
 badd +1 scripts/timeshift/Initialize.jl
-badd +44 scripts/timeshift/Initialize_plot_experimentation.jl
+badd +29 scripts/timeshift/Initialize_plot_experimentation.jl
 badd +12 src/Decode/checkpoint.jl
 badd +74 src/Field/info.jl
 badd +1 scripts/timeshift/plot_timeshif_vs_theta_phase.jl
@@ -194,54 +194,78 @@ badd +13 src/Munge.jl
 badd +25 scripts/timeshift/notebook/Initialize_plot_experimentation_pluto.jl
 badd +3197 Manifest.toml
 badd +127 Project.toml
-badd +1 src/Load/celltet.jl
-badd +3 src/Field.jl
+badd +2 src/Load/celltet.jl
+badd +303 src/Field.jl
 badd +29 src/Field/RF.jl
 badd +15 src/Load/task.jl
 badd +5 src/Munge/task.jl
 badd +1 scripts/fields/PlaceField.jl
 badd +1 src/Field/kerneldens.jl
 badd +69 _research/test_enforce_bound.jl
-badd +235 src/Field/adaptive.jl
-badd +3 ~/tmp.jl
+badd +15 src/Field/adaptive.jl
+badd +26 ~/tmp.jl
 badd +15 src/Precompile.jl
+badd +72 notebooks/TestAdaptive.jl
+badd +91 src/Timeshift/shuffle.jl
+badd +271 ~/Code/projects/goal-code/src/Field/plot.jl
+badd +97 src/Field/fixed.jl
 argglobal
 %argdel
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
-tabnew +setlocal\ bufhidden=wipe
 tabrewind
 tabnext
-edit scripts/timeshift/Initialize_plot_experimentation.jl
+edit src/Field/adaptive.jl
+let s:save_splitbelow = &splitbelow
+let s:save_splitright = &splitright
+set splitbelow splitright
+wincmd _ | wincmd |
+vsplit
+1wincmd h
+wincmd w
+let &splitbelow = s:save_splitbelow
+let &splitright = s:save_splitright
+wincmd t
+let s:save_winminheight = &winminheight
+let s:save_winminwidth = &winminwidth
+set winminheight=0
+set winheight=1
+set winminwidth=0
+set winwidth=1
+wincmd =
 argglobal
-balt scripts/timeshift/plot_examine_set_of_fields.jl
-let s:l = 34 - ((4 * winheight(0) + 24) / 49)
-if s:l < 1 | let s:l = 1 | endif
-keepjumps exe s:l
-normal! zt
-keepjumps 34
-normal! 029|
-tabnext
-edit src/Load/celltet.jl
-argglobal
-balt src/Plot/timeshift.jl
-let s:l = 73 - ((39 * winheight(0) + 24) / 49)
-if s:l < 1 | let s:l = 1 | endif
-keepjumps exe s:l
-normal! zt
-keepjumps 73
-normal! 011|
-tabnext
-edit ~/tmp.jl
-argglobal
-balt src/Field/adaptive.jl
-let s:l = 1 - ((0 * winheight(0) + 27) / 54)
+balt ~/Code/projects/goal-code/src/Field/plot.jl
+let s:l = 1 - ((0 * winheight(0) + 24) / 49)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
 keepjumps 1
 normal! 0
-tabnext 4
+wincmd w
+argglobal
+if bufexists(fnamemodify("src/Field/fixed.jl", ":p")) | buffer src/Field/fixed.jl | else | edit src/Field/fixed.jl | endif
+if &buftype ==# 'terminal'
+  silent file src/Field/fixed.jl
+endif
+balt src/Field.jl
+let s:l = 202 - ((36 * winheight(0) + 24) / 49)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 202
+normal! 022|
+wincmd w
+wincmd =
+tabnext
+edit notebooks/TestAdaptive.jl
+argglobal
+let s:l = 1 - ((0 * winheight(0) + 17) / 35)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 1
+normal! 027|
+tabnext 2
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
 endif

@@ -266,6 +266,42 @@ module plot
         hm.attr[:plot_titlefontcolor] = color
         hm.attr[:window_title] = annotation
     end
+
+    @recipe function plot_adaptiveocc(grid::GridAdaptive, val::Symbol=:radii)
+        colorbar_title --> String(val)
+        seriestype --> :heatmap
+        c --> :thermal
+        x --> [grid.centers[1]...]
+        if length(grid.centers) > 1
+            y --> [grid.centers[2]...]
+        end
+        getproperty(grid, val)
+    end
+
+    @recipe function plot_adaptiverf(field::T where T<:Field.RF, val::Symbol=:rate)
+        colorbar_title --> String(val)
+        seriestype --> :heatmap
+        x --> [field.grid.centers[1]...]
+        if length(field.grid.centers) > 1
+            y --> [field.grid.centers[2]...]
+        end
+        getproperty(field, val)
+    end
+
+    @recipe function plot_adaptiveocc(field::T where T<:Field.Occupancy, val::Symbol=:prob)
+        seriestype --> :heatmap
+        colorbar_title --> String(val)
+        seriestype --> :heatmap
+        x := [field.grid.centers[1]...]
+        y := length(field.grid.centers) > 1 ?
+             [field.grid.centers[2]...] : nothing
+        z := if val==:prob
+            reshape(getproperty(field, val), size(field.grid))
+        else
+            getproperty(field, val)
+        end
+    end
+
 end
 
 export plot

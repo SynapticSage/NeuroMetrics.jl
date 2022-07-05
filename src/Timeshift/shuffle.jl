@@ -48,7 +48,7 @@ module shuffle
                 get_field_kws...)::AbstractDict
 
         partial, dist = initial_data_partials
-        distribution  = dist(spikes)
+        distribution  = dist(data)
         shuffle_data_generator() = partial(data, distribution)
 
         out = _run_partial_functional(beh, data, shifts, shuffle_data_generator;
@@ -80,14 +80,14 @@ module shuffle
             shuffle_data_generator::Function,
             compute::Symbol, 
             nShuffle::Int,
+            fieldfunc::Union{Function,Symbol}=Field.get_fields,
             postfunc::Union{Function,Nothing}=nothing,
             safe_dict::AbstractDict=ThreadSafeDict(),
             exfiltrateAfter::Real=Inf,
             get_field_kws...
         )
 
-        # KWS for get_fields
-        get_field_kws = (;dokde=false, get_field_kws...)
+        fieldfunc = fieldfunc isa Symbol ? eval(fieldfunc) : fieldfunc
 
         # Collect sets we will iterate
         shuffle_shift_sets = collect(enumerate(Iterators.product(1:nShuffle, shifts)))
@@ -99,7 +99,7 @@ module shuffle
             result = Field.get_fields(σ(beh,shift), data; get_field_kws...)
 
             # Apply post-processing
-            if postfunc != nothing
+            if postfunc !== nothing
                 result = postfunc(result)
             end
 

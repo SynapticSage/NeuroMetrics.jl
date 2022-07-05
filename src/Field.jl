@@ -13,6 +13,8 @@ module Field
     using NaNStatistics
     using Infiltrator
     using GeometricalPredicates: inpolygon
+    using LazyGrids: ndgrid
+    using Statistics
 
     # Goal Vector Libraries
     using DrWatson
@@ -73,7 +75,7 @@ module Field
             props::Vector{String}=[],
             behfilter::Union{AbstractDict, Bool}=nothing)
 
-        user_specified_filter = (filters != nothing)
+        user_specified_filter = (filters !== nothing)
         missing_columns_in_df = !all(in.(props,[names(data)]))
 
         if user_specified_filter || missing_columns_in_df
@@ -131,7 +133,7 @@ module Field
             props::Vector{String}=["x","y"],
             splitby::Union{Vector{Symbol},Vector{String},Nothing,String}="unit",
             gaussian::Real=0,
-            dokde::Bool=true,
+            dokde::Bool=false,
             dohist::Bool=true,
             normkde::Bool=true,
             savemem::Bool=true,
@@ -206,7 +208,7 @@ module Field
         field = field./nansum(vec(field))
     end
     function to_density(field, density)
-        throw(InvalidStateException("to density not defined for this case yet"))
+        @error "not defined yet"
     end
 
     function _enforce_boundary(H::NamedTuple, boundary::Matrix)
@@ -232,8 +234,72 @@ module Field
         H[answers] .= NaN
     end
 
-    function get_RF()
+    sparse_to_full(G::Vector...) = [g for g in zip(ndgrid(G...)...)]
+    sparse_to_full(G::Tuple{Vector}) = [g for g in zip(ndgrid(G...)...)]
+    function sparse_to_full(C::Tuple...)::Array{Tuple}
+        C = [[c...] for c in C]
+        C = [c for c in zip(ndgrid(C...)...)]
+        [collect(c) for c in C]
     end
+    function sparse_to_full(C::Tuple)::Array{Array}
+        C = [[c...] for c in C]
+        C = [c for c in zip(ndgrid(C...)...)]
+        return [collect(x) for x in C]
+    end
+    function full_to_sparse(G::Array)::Array{Array}
+        accessor = Vector{Union{Colon,<:Int}}(undef,ndims(G))
+        accessor .= 1
+        out = []
+        for i in 1:ndims(G)
+            access = copy(accessor)
+            access[i] = Colon()
+            g = G[access...]
+            g = Tuple(g[i] for g in g)
+            push!(out,g)
+        end
+        out
+    end
+
+    """
+        resolution_to_width
+
+    converts resolution to width, ie the number of points spread over a
+    range of points into the inter-sample width
+    """
+    function resolution_to_width(resolution::OrderedDict,
+            boundary::OrderedDict)::OrderedDict
+        width = OrderedDict{String,Any}()
+        for prop in keys(resolution)
+            width[prop] = boundary[prop] / resolution[prop]
+        end
+        width
+    end
+
+    """
+        get_boundary
+
+    gets the boundary of each property
+    """
+    function get_boundary(behavior::DataFrame, props::Vector)::OrderedDict
+        boundary   = OrderedDict{eltype(props),Any}()
+        for prop in props
+            boundary[prop]   = extrema(Utils.skipnan(behavior[!,prop]))
+        end
+        boundary
+    end
+
+    """
+        return_vals
+
+    return a value matrix/dataframe for the requested
+    properties in the DataFrame X
+    """
+    function return_vals(X::DataFrame, props::Vector)::Union{Vector{Float32},
+                                                             Matrix{Float32}}
+        Y = dropmissing(X[!, props])
+        Float32.(hcat([Y[!,prop] for prop in props]...))
+    end
+
 
     # Field-related submodules
     using Reexport

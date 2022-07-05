@@ -1,10 +1,9 @@
-module adaptive
+module fixed
 
     using ..Field
-    using ..Field: get_boundary, resolution_to_width, return_vals
+    using ..Field.RF
     import Utils
     import Table
-    using Dagger
     using DataStructures
     using DataFrames
     import Base
@@ -15,32 +14,22 @@ module adaptive
     using ProtoStructs
     using ProgressLogging
     using RecipesBase
-    #using ThreadsX
     using Statistics
 
-    function max_radii(centers::Tuple)
-        C = Vector{Float32}()
-        for center in centers
-            c = maximum(diff([center...]))
-            push!(C, c)
-        end
-        C ./= 2
-        sqrt(sum(C.^2))
-    end
+    
+                                                   
 
-    struct GridAdaptive <: Field.Grid
+    struct GridFixed <: Field.Grid
         props::Array{String}
         centers::Tuple
         edges::Tuple
         grid::Array{Array{Float32}}
-        radii::Array{Float32}
         function GridAdaptive(props::Vector, centers::Union{Array,Tuple}) 
             if eltype(props) == Symbol
                 props = String.(props)
             end
             centers = centers isa Array ? Tuple(centers) : centers
-            radii = max_radii(centers)
-            GridAdaptive(props,centers, radii)
+            GridAdaptive(props,centers)
         end
         function GridAdaptive(props::Vector, centers::Union{<:AbstractArray,Tuple}, radii::Real)
             if eltype(props) == Symbol
@@ -51,7 +40,7 @@ module adaptive
             radii = ones(size(grid))*radii
             edges = Field.center_to_edge.([[c...] for c in centers])
             edges = Tuple((e...,) for e in edges)
-            new(props,centers, edges, grid, radii)
+            new(props,centers, edges, grid)
         end
         function GridAdaptive(props::Vector, centers::Tuple, grid::Array, radii::Array)
             if eltype(props) == Symbol
@@ -60,7 +49,7 @@ module adaptive
             @assert(size(grid) == size(radii))
             edges = Field.center_to_edge.([[c...] for c in centers])
             edges = Tuple((e...,) for e in edges)
-            new(props,centers,edges,grid,radii)
+            new(props,centers,edges,grid)
         end
         function GridAdaptive(props::Vector;width::Vector, boundary::Vector)
             centers = Tuple(Tuple(collect(s:w:e))
@@ -69,16 +58,16 @@ module adaptive
         end
     end
 
-    struct AdaptiveOcc <: Field.Occupancy
-        grid::GridAdaptive
+    struct FixedOcc <: Field.Occupancy
+        grid::GridFixed
         count::Array{Int32}
         prob::Probabilities
         camerarate::Float32
     end
 
-    struct AdaptiveRF <: Field.ReceptiveField
+    struct FixedRF <: Field.ReceptiveField
         grid::GridAdaptive
-        occ::AdaptiveOcc
+        occ::FixedOcc
         count::Array{Int32}
         rate::Array{Float32}
     end
@@ -97,64 +86,6 @@ module adaptive
     #AdaptiveFieldDict(x) = OrderedDict{NamedTuple,   AdaptiveRF}(x)
     #AdaptiveFieldDict()  = OrderedDict{NamedTuple,   AdaptiveRF}()
     
-    function converge_to_radius(vals::Matrix{Float32}, center::Vector{Float32},
-            radius::Float32; sampletime::Float32, thresh::Float32,
-            maxrad::Float32, radiusinc::Real, kws...)::Float32
-        while get_samptime(vals, center, radius; sampletime) < thresh
-            radius += radiusinc
-            if radius > maxrad
-                radius = NaN
-                break
-            end
-        end
-        radius
-    end
-
-    function converge_to_radius_w_inertia(vals::Matrix{Float32},
-            center::Vector{Float32}, radius::Float32; sampletime::Float32,
-            thresh::Float32, maxrad::Float32, radiusinc::Float32,
-            ϵ::Float32, kws...)::Float32
-        Δ = []
-        tₛ = get_samptime(vals, center, radius; sampletime)
-        δ = tₛ - thresh
-        push!(Δ, δ)
-        s = sign(δ)
-        tolerance_acheived = abs(δ) < ϵ
-        if s == 1
-            tolerance_acheived =true
-        end
-        increase_phase = true
-        reversal = 1
-        while !(tolerance_acheived)
-            while s != reversal && !(tolerance_acheived)
-                radius += radiusinc
-                if increase_phase 
-                    radiusinc *= 2
-                else
-                    radiusinc /= 2
-                end
-                #@info "radius_inc = $radiusinc"
-                tₛ = get_samptime(vals, center, radius; sampletime)
-                δ = tₛ - thresh
-                push!(Δ, δ)
-                s = sign(δ)
-                tolerance_acheived = abs(δ) < ϵ
-            end
-            #@info "reversal"
-            #@infiltrate
-            reversal *= -1
-            radiusinc *= -1
-            increase_phase = false
-            if abs(radiusinc) < 0.01
-                break
-            end
-        end
-        #@info "tolernace acheived = $tolerance_acheived"
-        if radius > maxrad
-            radius = NaN
-        end
-        radius
-    end
 
     """
         find_grid
@@ -219,14 +150,14 @@ module adaptive
 
     computes an adaptive grid and ratemap based on methods in ulanovsky papers
     """
-    function ulanovsky(spikes::DataFrame, behavior::DataFrame, props::Vector;
+    function RFs(spikes::DataFrame, behavior::DataFrame, props::Vector;
             splitby::Vector=nothing, grid_kws...)::Union{AdapativFieldDict, 
                                                  AdaptiveRF}
         grid = find_grid(behavior, props; grid_kws...)
         occ  = get_occupancy(behavior, props, grid)
         ulanovsky(spikes, props, grid, occ; splitby, grid_kws...)
     end
-    function ulanovsky(spikes::DataFrame, props::Vector, grid::GridAdaptive,
+    function RFs(spikes::DataFrame, props::Vector, grid::GridAdaptive,
             occ::AdaptiveOcc;
             splitby::Vector=nothing, grid_kws...)::Union{AdapativFieldDict, 
                                                  AdaptiveRF}
@@ -245,7 +176,7 @@ module adaptive
 
     computes adaptive ratema based on a fixed grid derived from behavior
     """
-    function get_adaptivefields(spikeGroups::GroupedDataFrame, props::Vector,
+    function get_fixedfields(spikeGroups::GroupedDataFrame, props::Vector,
             grid::GridAdaptive, occ::AdaptiveOcc)::AdapativFieldDict
         D = OrderedDict{NamedTuple, AdaptiveRF}()
         #V = []
@@ -253,7 +184,6 @@ module adaptive
                                       spikeGroups))
         #Prog = Progress(length(keys_and_groups); desc="units")
         for (nt, group) in keys_and_groups
-            #push!(V, Dagger.spawn(get_adaptivefield, DataFrame(group), props, grid, occ))
             D[nt] = get_adaptivefield(DataFrame(group), props, grid, occ)
         end
         #for (i, (nt, group)) in enumerate(keys_and_groups)
@@ -269,7 +199,7 @@ module adaptive
 
     computes adaptive ratemap based on a fixed grid derived from behavior
     """
-    function get_adaptivefield(spikes::DataFrame, props::Vector,
+    function get_fixedfield(spikes::DataFrame, props::Vector,
             grid::GridAdaptive, occ::AdaptiveOcc)::AdaptiveRF
         vals = return_vals(spikes, props)
         count = zeros(Int32, size(grid))
@@ -372,3 +302,4 @@ module adaptive
     end
 
 end
+
