@@ -18,19 +18,19 @@ module convert_types
     #end
     function to_dataframe(fields::AbstractDict; other_labels=Dict(), 
             key_name::Union{Nothing,Symbol,String,Vector}=nothing,
-            level::Int=0, level_names::Dict=Dict(), kws...)
+            level::Int=0, level_names::Dict=Dict(), kws...)::DataFrame
 
         level += 1
         @debug level
 
         D = DataFrame()
-        for (key, field) in fields
+        for key in keys(fields)
 
             if (key isa NamedTuple) || (key isa Dict)
                 key_dict = Dict(string(k)=>v for (k, v) in pairs(key))
                 other_labels = merge(other_labels, key_dict)
 
-            elseif key_name != nothing #&& (key isa NamedTuple || key isa Dict)
+            elseif key_name !== nothing #&& (key isa NamedTuple || key isa Dict)
 
                 if (typeof(key_name) <: Vector)
                     kn = pop!(key_name)
@@ -57,11 +57,11 @@ module convert_types
                 @warn "unhandled key_name=$key"
                 other_labels["unnamed"] = key
             end
-            if fields[key] != nothing
+            if fields[key] !== nothing
                 try
-                    append!(D, to_dataframe(fields[key]; key_name=key_name,
-                                            other_labels=other_labels, kws...),
-                           cols=:union)
+                    df = to_dataframe(fields[key]; key_name=key_name,
+                                      other_labels=other_labels, kws...)
+                    append!(D, df , cols=:union)
                 catch
                     @warn "Hiccup"
                     @infiltrate
@@ -70,7 +70,7 @@ module convert_types
         end
         return D
     end
-    function to_dataframe(fields::T where T <: NamedTuple; kws...)
+    function to_dataframe(fields::T where T <: NamedTuple; kws...)::DataFrame
         D = to_dataframe(Utils.namedtuple_to_dict(fields); kws...) 
         return D
     end
@@ -83,7 +83,7 @@ module convert_types
     function to_dataframe(F::Union{AbstractArray,Real};
             props::Vector{String}=Vector{String}([]), grid::Tuple=(),
             gridtype="center", other_labels=Dict(), name::String="value",
-            explode::Bool=true, kws...)
+            explode::Bool=true, kws...)::DataFrame
         if explode
             D = ndgrid((1:size(F,i) for i in 1:ndims(F))...)
         else
@@ -95,6 +95,9 @@ module convert_types
             F = [F]
         end
         if ~isempty(props)
+            if grid[1] isa Tuple
+                grid = Tuple([g...] for g in grid)
+            end
             if gridtype == "edge"
                 grid = edge_to_center.(grid)
             end

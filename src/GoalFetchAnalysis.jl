@@ -30,7 +30,7 @@ module GoalFetchAnalysis
     #include(srcdir("Plot.jl"))
     #import .Plot
 
-    import Load, Filt, Shuf, Table, Field, Timeshift, Decode, Munge
+    import Load, Filt, Shuf, Table, Field, Timeshift, Decode, Munge, Utils
 
     export Load
     export Utils
@@ -41,5 +41,6 @@ module GoalFetchAnalysis
     export Plot
     export Munge
 
+    Utils.plot.set_theme_timebased()
 
 end

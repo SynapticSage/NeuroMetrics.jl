@@ -149,8 +149,8 @@ module Utils
         g = zeros(Int,size(X,1))
         #P = Progress(size(X,1))
         for (i,row) in enumerate(eachrow(X))
-            answer = findfirst(utils.squeeze(all(uX .== row[na, :], dims=2)))
-            if answer != nothing
+            answer = findfirst(Utils.squeeze(all(uX .== row[na, :], dims=2)))
+            if answer !== nothing
                 g[i] = answer
             end
             #next!(P)
@@ -176,7 +176,9 @@ module Utils
 
     include(srcdir("Utils", "dict.jl"))
     include(srcdir("Utils", "namedtup.jl"))
+    include(srcdir("Utils", "plot.jl"))
     @reexport using .dict
     @reexport using .namedtup
+    @reexport using .plot
 
 end

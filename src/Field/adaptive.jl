@@ -1,7 +1,8 @@
 module adaptive
 
     using ..Field
-    using ..Field: get_boundary, resolution_to_width, return_vals
+    using ..Field: Grid, ReceptiveField, Occupancy
+    import ..Field: get_boundary, resolution_to_width, return_vals
     import Utils
     import Table
     using Dagger
@@ -28,7 +29,7 @@ module adaptive
         sqrt(sum(C.^2))
     end
 
-    struct GridAdaptive <: Field.Grid
+    struct GridAdaptive <: Grid
         props::Array{String}
         centers::Tuple
         edges::Tuple
@@ -62,21 +63,32 @@ module adaptive
             edges = Tuple((e...,) for e in edges)
             new(props,centers,edges,grid,radii)
         end
-        function GridAdaptive(props::Vector;width::Vector, boundary::Vector)
+        function GridAdaptive(props::Vector; width::Vector, boundary::Vector)
             centers = Tuple(Tuple(collect(s:w:e))
                             for (w, (s, e)) in zip(width, boundary))
             GridAdaptive(props,centers)
         end
     end
 
-    struct AdaptiveOcc <: Field.Occupancy
+    @recipe function plot_adaptiveocc(grid::GridAdaptive, val::Symbol=:radii)
+        colorbar_title --> String(val)
+        seriestype --> :heatmap
+        c --> :thermal
+        x --> [grid.centers[1]...]
+        if length(grid.centers) > 1
+            y --> [grid.centers[2]...]
+        end
+        getproperty(grid, val)
+    end
+
+    struct AdaptiveOcc <: Occupancy
         grid::GridAdaptive
         count::Array{Int32}
         prob::Probabilities
         camerarate::Float32
     end
 
-    struct AdaptiveRF <: Field.ReceptiveField
+    struct AdaptiveRF <: ReceptiveField
         grid::GridAdaptive
         occ::AdaptiveOcc
         count::Array{Int32}
@@ -157,12 +169,12 @@ module adaptive
     end
 
     """
-        find_grid
+        get_grid
 
     obtains the dynamic sampling grid from only the animals behavior
     """
-    function find_grid_bounded(behavior, props; 
-            thresh::Float32=1f0, # Threshold in seconds
+    function get_grid_bounded(behavior, props; 
+            thresh::Float32=1.25f0, # Threshold in seconds
             sampletime::Float32=1/30f0, # Total time of sample
             radiusinc::Float32=0.5f0, # Spatial unit of RF
             ϵ::Float32=0.1f0,
@@ -170,7 +182,7 @@ module adaptive
             method::Symbol=:converge_to_radius,
             #eliminateunusedrowscols::Bool=true,
             widths::OrderedDict, boundary::OrderedDict)::GridAdaptive
-        vals = return_vals(behavior, props)
+        vals = Field.return_vals(behavior, props)
         cv(x) = collect(values(x))
         G = GridAdaptive(props;width=cv(widths), boundary=cv(boundary))
         P = Progress(length(G), desc="grid")
@@ -195,18 +207,18 @@ module adaptive
         G
     end
 
-    function find_grid(behavior::DataFrame, props::Vector;
-            widths::Union{<:Int, Vector{<:Int}, OrderedDict},
+    function get_grid(behavior::DataFrame, props::Vector;
+            widths::Union{<:Float32, Vector{<:Float32}, OrderedDict},
             other_kws=(;))::GridAdaptive
-        if typeof(widths) <: Int
+        if typeof(widths) <: Float32
             widths = OrderedDict{}(prop=>widths for prop in props)
         elseif typeof(widths) <: AbstractVector
             widths = OrderedDict{}(prop=>width for (width,prop) in zip(widths,props))
         else
             @assert(widths isa OrderedDict)
         end
-        boundary = get_boundary(behavior, props)
-        find_grid_bounded(behavior, props; widths=widths, boundary, other_kws...)
+        boundary = Field.get_boundary(behavior, props)
+        get_grid_bounded(behavior, props; widths=widths, boundary, other_kws...)
     end
     
 
@@ -219,22 +231,21 @@ module adaptive
 
     computes an adaptive grid and ratemap based on methods in ulanovsky papers
     """
-    function ulanovsky(spikes::DataFrame, behavior::DataFrame, props::Vector;
+    function ulanovsky(behavior::DataFrame, spikes::DataFrame, props::Vector;
             splitby::Vector=nothing, grid_kws...)::Union{AdapativFieldDict, 
                                                  AdaptiveRF}
-        grid = find_grid(behavior, props; grid_kws...)
-        occ  = get_occupancy(behavior, props, grid)
-        ulanovsky(spikes, props, grid, occ; splitby, grid_kws...)
+        grid = get_grid(behavior, props; grid_kws...)
+        occ  = get_occupancy(behavior, grid)
+        ulanovsky(spikes, grid, occ; splitby, grid_kws...)
     end
-    function ulanovsky(spikes::DataFrame, props::Vector, grid::GridAdaptive,
-            occ::AdaptiveOcc;
+    function ulanovsky(spikes::DataFrame, grid::GridAdaptive, occ::AdaptiveOcc;
             splitby::Vector=nothing, grid_kws...)::Union{AdapativFieldDict, 
-                                                 AdaptiveRF}
+                                                         AdaptiveRF}
         if splitby !== nothing
             spikes = groupby(spikes, splitby)
-            fields = get_adaptivefields(spikes, props, grid, occ)
+            fields = get_adaptivefields(spikes, grid, occ)
         else
-            fields = get_adaptivefield(spikes, props, grid, occ)
+            fields = get_adaptivefield(spikes, grid, occ)
         end
         return fields 
     end
@@ -245,7 +256,7 @@ module adaptive
 
     computes adaptive ratema based on a fixed grid derived from behavior
     """
-    function get_adaptivefields(spikeGroups::GroupedDataFrame, props::Vector,
+    function get_adaptivefields(spikeGroups::GroupedDataFrame, 
             grid::GridAdaptive, occ::AdaptiveOcc)::AdapativFieldDict
         D = OrderedDict{NamedTuple, AdaptiveRF}()
         #V = []
@@ -254,7 +265,7 @@ module adaptive
         #Prog = Progress(length(keys_and_groups); desc="units")
         for (nt, group) in keys_and_groups
             #push!(V, Dagger.spawn(get_adaptivefield, DataFrame(group), props, grid, occ))
-            D[nt] = get_adaptivefield(DataFrame(group), props, grid, occ)
+            D[nt] = get_adaptivefield(DataFrame(group), grid, occ)
         end
         #for (i, (nt, group)) in enumerate(keys_and_groups)
         #    @infiltrate
@@ -269,9 +280,9 @@ module adaptive
 
     computes adaptive ratemap based on a fixed grid derived from behavior
     """
-    function get_adaptivefield(spikes::DataFrame, props::Vector,
+    function get_adaptivefield(spikes::DataFrame, 
             grid::GridAdaptive, occ::AdaptiveOcc)::AdaptiveRF
-        vals = return_vals(spikes, props)
+        vals = Field.return_vals(spikes, grid.props)
         count = zeros(Int32, size(grid))
         #prog = Progress(length(grid))
         Threads.@threads for (index, (center, radius)) in collect(enumerate(grid))
@@ -282,9 +293,8 @@ module adaptive
         AdaptiveRF(grid, occ, count, occ.camerarate*Float32.(count./occ.count))
     end
 
-    function get_occupancy(behavior::DataFrame, props::Vector,
-            grid::GridAdaptive)::AdaptiveOcc
-        vals = return_vals(behavior, props)
+    function get_occupancy(behavior::DataFrame, grid::GridAdaptive)::AdaptiveOcc
+        vals = Field.return_vals(behavior, grid.props)
         count = zeros(Int32, size(grid))
         prog = Progress(length(grid);desc="occupancy")
         Threads.@threads for (index, (center, radius)) in collect(enumerate(grid))
@@ -316,19 +326,19 @@ module adaptive
     ## Skaggs
     ## ------
 
-    #function skaggs_find_grid(behavior, props; width::Int, kws...)
+    #function skaggs_get_grid(behavior, props; width::Int, kws...)
     #    width = OrderedDict(prop=>width for prop in props)
-    #    skaggs_find_grid(behavior, props; width, boundary, kws...)
+    #    skaggs_get_grid(behavior, props; width, boundary, kws...)
     #end
-    #function skaggs_find_grid(behavior, props; widths::Vector{<:Int}, kws...)
+    #function skaggs_get_grid(behavior, props; widths::Vector{<:Int}, kws...)
     #    width = OrderedDict(prop=>width for (prop,width) in zip(props,widths))
-    #    skaggs_find_grid(behavior, props; width, boundary, kws...)
+    #    skaggs_get_grid(behavior, props; width, boundary, kws...)
     #end
-    #function skaggs_find_grid(behavior, props; width::OrderedDict, kws...)
+    #function skaggs_get_grid(behavior, props; width::OrderedDict, kws...)
     #    boundary = get_boundary(behavior, props)
-    #    skaggs_find_grid(behavior, props; width, boundary, kws...)
+    #    skaggs_get_grid(behavior, props; width, boundary, kws...)
     #end
-    #function skaggs_find_grid(spikes, behavior, props; 
+    #function skaggs_get_grid(spikes, behavior, props; 
     #        thresh::Real=1, # Threshold in seconds
     #        sampletime=1/30, # Total time of sample
     #        radiusinc=0.1, # Spatial unit of RF
@@ -354,21 +364,17 @@ module adaptive
     ## --------
     ## UTILITIES
     ## --------
-    function to_dict(F::AdaptiveRF)
-        FF = Dict{Symbol, Any}
-        FF[:count] = F.count
-        FF[:rate] = F.rate
-        FF[:occ_prob] = F.occ.prob
-        FF[:occ_count] = F.occ.count
+    function Utils.to_dict(F::AdaptiveRF)
+        FF = Dict{Symbol, Any}()
+        FF[:count]        = F.count
+        FF[:rate]         = F.rate
+        FF[:occ_prob]     = reshape(F.occ.prob, size(F.grid.grid))
+        FF[:occ_count]    = F.occ.count
         FF[:grid_centers] = F.grid.centers
-        FF[:grid] = F.grid.grid
-        FF[:radii] = F.grid.radii
+        FF[:props] = F.grid.props
+        #FF[:grid]         = F.grid.grid
+        FF[:radii]        = F.grid.radii
         FF
-    end
-    
-    function Table.to_dataframe(F::AdaptiveRF)
-        F = to_dict(F)
-        Table.to_dataframe(F)
     end
 
 end

@@ -20,6 +20,7 @@ module Field
     using DrWatson
     import Load
     import Utils
+    import Table
 
     rateConversion = 30
     export rateConversion
@@ -298,6 +299,14 @@ module Field
                                                              Matrix{Float32}}
         Y = dropmissing(X[!, props])
         Float32.(hcat([Y[!,prop] for prop in props]...))
+    end
+    
+    function Table.to_dataframe(F::ReceptiveField, pos...; kws...)
+        F = Utils.to_dict(F)
+        grid  = pop!(F, :grid_centers)
+        props = pop!(F, :props)
+        F = NamedTuple(F)
+        Table.to_dataframe(F, pos...; grid=grid, props=props, kws...)
     end
 
 

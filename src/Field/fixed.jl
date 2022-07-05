@@ -2,6 +2,8 @@ module fixed
 
     using ..Field
     using ..Field.RF
+    using ..Field.adaptive: AdaptiveOcc, AdaptiveRF, GridAdaptive
+    using ..Field: RF, Grid, Occupancy
     import Utils
     import Table
     using DataStructures
@@ -284,7 +286,7 @@ module fixed
     ## --------
     ## UTILITIES
     ## --------
-    function to_dict(F::AdaptiveRF)
+    function to_dict(F::FixedRF)
         FF = Dict{Symbol, Any}
         FF[:count] = F.count
         FF[:rate] = F.rate
@@ -292,13 +294,7 @@ module fixed
         FF[:occ_count] = F.occ.count
         FF[:grid_centers] = F.grid.centers
         FF[:grid] = F.grid.grid
-        FF[:radii] = F.grid.radii
         FF
-    end
-    
-    function Table.to_dataframe(F::AdaptiveRF)
-        F = to_dict(F)
-        Table.to_dataframe(F)
     end
 
 end

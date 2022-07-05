@@ -143,7 +143,7 @@ module Table
         if matchstr isa Symbol
             matchstr = String(matchstr)
         end
-        if matchstr == nothing
+        if matchstr === nothing
             matching_cols = Vector{String}()
         else
             matching_cols = sort(filter(name -> occursin(matchstr, name),
@@ -207,7 +207,7 @@ module Table
             throw(ArgumentError("Not a supported feature yet"))
         end
 
-        if index_column == nothing
+        if index_column === nothing
             index_column = "index";
         end
         indices = receiver[:,index_column];

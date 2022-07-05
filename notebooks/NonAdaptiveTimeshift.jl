@@ -49,14 +49,7 @@ begin
 	using StatsPlots
 	using Logging
 
-	if Utils.in_range(hour(now()), [0,5]) ||
-	   Utils.in_range(hour(now()), [20, 24])
-		Plots.theme(:dark)
-		theme="dark"
-	else
-		Plots.theme(:bright)
-		theme="bright"
-	end
+	Utils.plot.set_theme_timebased()
 	
 	"Importing packages, theme=$theme"
 end
@@ -555,7 +548,7 @@ Logging.with_logger(Logging.NullLogger()) do
 	Fi = @subset(Fs, :unit .== unit_field_select, :shift .== shift_select)[1,:]
 	cell_ratemap = @subset(cells, :unit .== unit_field_select)[1,:]
 	title_ratemap = "μ(Fr) = $(round(cell_ratemap.meanrate,sigdigits=2))"
-	heatmap(Fi.mat; title=title_ratemap)
+	heatmap(Fi.mat; title=title_ratemap, aspect_ratio=1)
 end
 
 # ╔═╡ 5df33da9-bb8d-4356-99b0-a4742a20c87e
@@ -579,7 +572,7 @@ md"""
 # ╠═8d41c178-16ee-4881-b55c-fb80f274d7bc
 # ╟─dfcfa875-d122-49f1-ab24-66c1937b3134
 # ╟─42ea762b-12ed-4eb8-ade0-3bffff593690
-# ╟─450738b2-3d49-4e45-9a4d-ffa1721f833a
+# ╠═450738b2-3d49-4e45-9a4d-ffa1721f833a
 # ╟─10a1552f-ffda-4b79-8a4c-fe2864bc3ae5
 # ╟─a9b4b3d2-f318-11ec-210a-a70a7964ee72
 # ╟─12c97814-1d83-4f82-9f5f-891abb878e60
@@ -661,7 +654,7 @@ md"""
 # ╟─ef189310-69cc-4ed6-ad45-9ee6a6f6371b
 # ╠═398a837c-4710-4eb6-9f78-786d7173bc49
 # ╟─49bb383c-b3cf-448f-9906-ab1eabae3f75
-# ╟─54d550c9-0e83-4cdb-bb27-88d4c6dffe83
+# ╠═54d550c9-0e83-4cdb-bb27-88d4c6dffe83
 # ╟─5df33da9-bb8d-4356-99b0-a4742a20c87e
 # ╟─9c886791-db14-489e-a286-3430805e590d
 # ╠═f901bc86-c793-4445-bed6-77a0ff0fec0c
