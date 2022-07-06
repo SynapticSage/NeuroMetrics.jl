@@ -54,7 +54,7 @@ module Filt
     """
     This is kind of more of a spike count filter than a cell count
     """
-    cellcount       = OrderedDict(All() =>
+    cellcount       = OrderedDict([:time,:unit] =>
                           x->groupby_summary_cond(x, :unit,
                                                   x->x.count.>50, # > 50 spikes
                                                   nrow=>:count))
@@ -144,7 +144,7 @@ module Filt
 
     # Create a set of predefined filter combinations
     function get_filters()
-        filters = OrderedDict(:all => merge(speed_lib, cellcount))
+        filters = OrderedDict(:all => merge(speed_lib, spikecount))
         filters[:task]        = merge(filters[:all], task)
         filters[:correct]     = merge(filters[:all], correct)
         filters[:error]       = merge(filters[:all], error)
@@ -156,6 +156,17 @@ module Filt
         filters[:mem_correct] = merge(filters[:all], mem, correct)
         filters[:mem_error]   = merge(filters[:all], mem, error)
         filters
+    end
+
+    """
+        get_filter_req
+
+    Gets the fields required by the set of filters to operate
+    """
+    function get_filter_req(F::AbstractDict)
+        sets = [String.(f) for f ∈ keys(F)]
+        sets = [s isa Vector ? s : [s] for s in sets]
+        unique(collect(Iterators.flatten(sets)))
     end
 
 end

@@ -9,7 +9,7 @@ module Timeshift
 
     # Parent libary
     import Field
-    import Load: register
+    import Load: register, filterAndRegister
     adaptive = Field.adaptive
 
     # Julia packages
@@ -28,6 +28,7 @@ module Timeshift
     export get_field_shift
     export shifted_fields
     export getshifts, getunits
+    export ShiftedField, ShiftedFields, DictOfShiftOfUnit
 
     # -------------------- SHIFTING TYPES ---------------------------
     shift_func(data::DataFrame, shift::Real) = 
@@ -117,6 +118,7 @@ module Timeshift
     function shifted_fields(beh::DataFrame, data::DataFrame,
             shifts::Union{StepRangeLen,Vector{T}} where T <: Real,
             props::Vector; 
+            filters::Union{OrderedDict, Nothing}=nothing,
             splitby::Vector=[:unit],
             fieldfunc::Union{Function, Symbol}=adaptive.ulanovsky,
             gridfunc::Union{Function, Symbol}=adaptive.get_grid,
@@ -158,8 +160,8 @@ module Timeshift
             if shift ∈ keys(result_dict)
                 continue
             end
-            _, data = register(σ(beh, shift), data; on="time",
-                               transfer=grid.props)
+            _, data = filterAndRegister(σ(beh, shift), data; on="time",
+                               transfer=grid.props, filters)
             result = fieldfunc(data, grid, occ; splitby)
             if postfunc !== nothing
                 result = postfunc(result)
@@ -174,12 +176,11 @@ module Timeshift
             next!(prog)
         end
         result_dict = Dict(result_dict...)
-        @exfiltrate
-        @infiltrate
         out = OrderedDict(
                           key=>pop!(result_dict, key) 
                           for key in sort([keys(result_dict)...])
                          )
+        out = Timeshift.DictOfShiftOfUnit{keytype(out)}(out)
         return out
     end
 
@@ -205,9 +206,8 @@ module Timeshift
         end
         return s
     end
-    function Base.get(S::AbsDictOfShiftOfUnit, shift::Float64,
-             index::NamedTuple) 
-    end
+    Base.get(S::AbsDictOfShiftOfUnit, shift::Float64, index::NamedTuple) = 
+                                                            S[shift][index]
     function getshifts(S::AbsDictOfShiftOfUnit)
         collect(keys(S))
     end
@@ -218,8 +218,9 @@ module Timeshift
     mutable struct ShiftedField
         data::OrderedDict{<:Real,<:Field.ReceptiveField}
         shifts::Vector{<:Real}
-        function ShiftedField(data::DictOfShiftOfUnit)
-            shifts = keys(data)
+        metrics::DataFrame
+        function ShiftedField(data::OrderedDict)
+            shifts = collect(keys(data))
             new(data, shifts)
         end
         ShiftedField(data::OrderedDict, shifts::Vector{<:Real}) = new(data, 
@@ -228,13 +229,14 @@ module Timeshift
 
     mutable struct ShiftedFields
         data::AbstractDict{<:NamedTuple, <:ShiftedField}
+        metrics::DataFrame
         function ShiftedFields(S::AbsDictOfShiftOfUnit)
             shifts = getshifts(S)
             units  = getunits(S)
             fields = OrderedDict{NamedTuple, ShiftedField}()
             for unit in units
-                SF = ShiftedField(shift=>get(S, shift, unit)
-                                  for shift in shifts)
+                @infiltrate
+                SF = ShiftedField(OrderedDict(shift=>get(S, shift, unit) for shift in shifts))
                 fields[unit] = SF
             end
             new(fields)

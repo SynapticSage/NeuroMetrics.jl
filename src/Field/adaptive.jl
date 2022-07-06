@@ -8,6 +8,8 @@ module adaptive
     using Dagger
     using DataStructures
     using DataFrames
+    import DataFrames: ColumnIndex
+    import Load.utils: filterAndRegister
     import Base
     using LoopVectorization
     using Infiltrator
@@ -18,6 +20,9 @@ module adaptive
     using RecipesBase
     #using ThreadsX
     using Statistics
+    
+    CItype = Union{ColumnIndex, Vector{<:ColumnIndex}}
+    CItype_plusNull = Union{ColumnIndex, Vector{<:ColumnIndex}, Nothing}
 
     function max_radii(centers::Tuple)
         C = Vector{Float32}()
@@ -230,16 +235,22 @@ module adaptive
     computes an adaptive grid and ratemap based on methods in ulanovsky papers
     """
     function ulanovsky(behavior::DataFrame, spikes::DataFrame, props::Vector;
-            splitby::Vector=nothing, grid_kws...)::Union{AdapativFieldDict, 
-                                                 AdaptiveRF}
+            splitby::CItype_plusNull=[:unit], 
+            filters::Union{<:AbstractDict, Nothing}=nothing, 
+            grid_kws...)::Union{AdapativFieldDict, AdaptiveRF}
+        if filters !== nothing
+            beh, spikes = filterAndRegister(behavior, spikes; filters,
+                                                 on="time",transfer=props,
+                                                 filter_skipmissingcols=true)
+        end
         grid = get_grid(behavior, props; grid_kws...)
         occ  = get_occupancy(behavior, grid)
         spikes = dropmissing(spikes, props)
         ulanovsky(spikes, grid, occ; splitby, grid_kws...)
     end
     function ulanovsky(spikes::DataFrame, grid::GridAdaptive, occ::AdaptiveOcc;
-            splitby::Vector=nothing, grid_kws...)::Union{AdapativFieldDict, 
-                                                         AdaptiveRF}
+            splitby::CItype_plusNull=[:unit], 
+            grid_kws...)::Union{AdapativFieldDict, AdaptiveRF}
         if splitby !== nothing
             spikes = groupby(spikes, splitby)
             fields = get_adaptivefields(spikes, grid, occ)

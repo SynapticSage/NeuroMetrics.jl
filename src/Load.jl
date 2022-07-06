@@ -88,7 +88,7 @@ module Load
 
     function normalize(data, time, data_source, mintime=nothing)
         # Determine a time normalizing function
-        if mintime == nothing
+        if mintime === nothing
             if "behavior" ∈ data_source
                 mintime = minimum(data["behavior"].time)
             else
@@ -175,7 +175,7 @@ module Load
             tablepath=nothing, 
             load_kws::Union{Nothing,NamedTuple}=(;),
             kws...)
-        if tablepath == nothing
+        if tablepath === nothing
             throw(ArgumentError("Must provide tablepath symbol... see path_functions dict in this module"))
         end
 
@@ -208,7 +208,7 @@ module Load
         end
     end
     function save_table(data::AbstractDataFrame, pos...; tablepath=nothing, kws...)
-        if tablepath == nothing
+        if tablepath === nothing
             throw(ArgumentError("Must provide tablepath symbol... see path_functions dict in this module"))
         end
         tablepath = String(tablepath)
@@ -237,7 +237,7 @@ module Load
             savefunc(data, animal, day; type=to)
             if delete_prev
                 pathfunc = path_functions[key]
-                path = pathfunc(animal, day; type=type)
+                path = pathfunc(animal, day; type=from)
                 if isfile(path); rm(path); end
             end
         end
