@@ -12,5 +12,7 @@ module Munge
     @reexport using .well
     include(srcdir("Munge","task.jl"))
     @reexport using .task
+    include(srcdir("Munge","tensor.jl"))
+    @reexport using .tensor
 
 end

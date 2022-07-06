@@ -6,12 +6,14 @@ trial-based transformations
 
 outputs https://github.com/JuliaArrays/AxisArrays.jl types
 """
-module trial
+module tensor
 
     using DataFrames
     using DataStructures: OrderedDict
     using StatsBase
     using Statistics
+    export tensor_continuous
+    export quantilize, relativize
 
     SymStr = Union{Symbol, String}
 
@@ -38,7 +40,7 @@ module trial
     `T` -- Tensor; either a square array or stacked arrays of unequal dim
      
     """
-    function tensor_continuous(X::DataFrame, dims::Vector, var::<:SymStr;
+    function tensor_continuous(X::DataFrame, dims::Vector, var::T where T<:SymStr;
             quantilebin::Dict{<:SymStr, <:Int}=Dict{Symbol,Int}(),
             relative::Vector{<:SymStr},
             TensType::Type=Float64)
@@ -75,8 +77,8 @@ module trial
     function quantilize(X::DataFrame, quantilebin::Dict{<:SymStr, <:Int},)
         # Rank bin anything requested
         for (var, bins) in quantilebin
-            quant = sortperm(X[!,var])./size(X,1)
-            binned = ceil.(bins*quant)
+            quant = X[!,var]./maximum(X[!,var])
+            binned = ceil.((bins-1)*quant) 
             X[!,var] = binned
         end
     end
@@ -86,6 +88,5 @@ module trial
         makerelative(x) = x .- minimum(x)
         combine(groupby(X, dims), relative .=> makerelative .=> relative)
     end
-
 
 end

@@ -5,6 +5,7 @@ module Timeshift
     using Revise
     using Infiltrator
     using ProgressMeter
+    using DataStructures: OrderedDict
 
     # Parent libary
     import Field
@@ -124,8 +125,7 @@ module Timeshift
                            Vector{Symbol},Vector{Function},Nothing}=nothing,
             multi::Union{Bool, Symbol}=true,
             result_dict::AbstractDict=ThreadSafeDict(),
-            metric_dict::AbstractDict=ThreadSafeDict(),
-            grid_kws...)::DictOfShiftOfUnit
+            grid_kws...)::OrderedDict
 
         if metrics isa Symbol
             metrics = [eval(metrics)]
@@ -173,19 +173,20 @@ module Timeshift
             next!(prog)
         end
         result_dict = Dict(result_dict...)
-        out = OrderedDict(key=>pop!(result_dict, key) for key in sort([keys(result_dict)...]))
+        @infiltrate
+        out = DictOfShiftOfUnit(
+                          key=>pop!(result_dict, key) 
+                          for key in sort([keys(result_dict)...])
+                         )
         return out
     end
 
-    struct DictOfShiftOfUnit
-        data::OrderedDict{<:AbstractDict}
-        metrics::AbstractDict
-    end
-    function Base.getindex(S::DictOfShiftOfUnit)
+    DictOfShiftOfUnit = OrderedDict{Union{<:Real,<:NamedTuple}, Dict}
+    function Base.get(S::DictOfShiftOfUnit)
         S.data
     end
-    function Base.getindex(S::DictOfShiftOfUnit, shift::Float64, index...) 
-        s = S.data[shift]
+    function Base.get(S::DictOfShiftOfUnit, shift::Float64, index...) 
+        s = S[shift]
         while !(isempty(index))
             k = collect(keys(s))
             kₙ = [k[1] for k in Tuple.(k)]
@@ -197,20 +198,28 @@ module Timeshift
         end
         return s
     end
-    function Base.getindex(S::DictOfShiftOfUnit, shift::Float64, index::NamedTuple) 
+    function Base.get(S::DictOfShiftOfUnit, shift::Float64,
+             index::NamedTuple) 
     end
 
     mutable struct ShiftedField
         data::OrderedDict{<:Real,<:Field.ReceptiveField}
         shifts::Vector{<:Real}
-        ShiftedField(data) = new(data)
+        function ShiftedField(data::DictOfShiftOfUnit)
+            shifts = keys(data)
+            new(data, shifts)
+        end
+        ShiftedField(data::OrderedDict, shifts::Vector{<:Real}) = new(data, 
+                                                                      shifts)
     end
 
     mutable struct ShiftedFields
         data::AbstractDict{<:NamedTuple, <:ShiftedField}
         function ShiftedFields(S::DictOfShiftOfUnit)
-            units = collect(keys(S[1]))
-            shifts = unique(S[])
+            vals = values(S.data)
+            vals = [ShiftedField(val) for val in vals]
+            kys  = keys(S.data)
+            new(OrderedDict(ky=>val for (ky,val) in zip(kys,vals)))
         end
     end
 
