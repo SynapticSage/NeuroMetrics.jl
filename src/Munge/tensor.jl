@@ -12,6 +12,9 @@ module tensor
     using DataStructures: OrderedDict
     using StatsBase
     using Statistics
+
+    import Utils
+
     export tensor_continuous
     export quantilize, relativize
 
@@ -46,6 +49,13 @@ module tensor
             TensType::Type=Float64)
 
         X = copy(X)
+        
+        # Clean
+        X = dropmissing(X, [dims...])
+        notisnan = Utils.notisnan(X[!,dims])
+        notisnan = all(notisnan, dims=2)
+        X = X[notisnan, :]
+
         X = quantilize(X, quantilebin)
         X = relativize(X, dims, relative)
         G = groupby(X[!, [dims..., var]], dims)
@@ -83,10 +93,14 @@ module tensor
         end
     end
 
-    function relativize(X::DataFrame, dims::Vector{<:SymStr}, relative::Vector{<:SymStr})
+    function relativize(X::DataFrame, dims::Vector{<:SymStr}, var::Vector{<:SymStr}; keeporig::Bool=false)
         # Rank bin anything requested
         makerelative(x) = x .- minimum(x)
-        combine(groupby(X, dims), relative .=> makerelative .=> relative)
+        pos = keeporig ? [v => identity => Symbol("orig"*String(v)) for v in var] : []
+        combine(groupby(X, dims, sort=false), var .=> makerelative .=> var, pos...)
+    end
+    function relativize(X::DataFrame, dims::Vector{<:SymStr}, var::T where  T<:SymStr; keeporig::Bool=false)
+        relativize(X, dims, [var]; keeporig)
     end
 
 end

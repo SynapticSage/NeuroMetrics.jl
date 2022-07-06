@@ -167,7 +167,7 @@ badd +16 src/Load/spikes.jl
 badd +2 src/Load/behavior.jl
 badd +8 src/Load/ripples.jl
 badd +85 src/Load/utils.jl
-badd +58 src/Timeshift.jl
+badd +185 src/Timeshift.jl
 badd +107 src/Timeshift/checkpoint.jl
 badd +101 src/Utils.jl
 badd +15 src/Field/hist.jl
@@ -202,10 +202,10 @@ badd +5 src/Munge/task.jl
 badd +1 scripts/fields/PlaceField.jl
 badd +1 src/Field/kerneldens.jl
 badd +69 _research/test_enforce_bound.jl
-badd +242 src/Field/adaptive.jl
+badd +271 src/Field/adaptive.jl
 badd +26 ~/tmp.jl
 badd +15 src/Precompile.jl
-badd +129 notebooks/TestAdaptive.jl
+badd +31 notebooks/TestAdaptive.jl
 badd +91 src/Timeshift/shuffle.jl
 badd +15 ~/Code/projects/goal-code/src/Field/plot.jl
 badd +11497 ~/.cache/nvim/lsp.log
@@ -219,42 +219,74 @@ tabnew +setlocal\ bufhidden=wipe
 tabrewind
 edit src/Field.jl
 argglobal
-let s:l = 326 - ((30 * winheight(0) + 22) / 45)
+let s:l = 312 - ((10 * winheight(0) + 18) / 36)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 326
-normal! 026|
+keepjumps 312
+normal! 07|
 tabnext
-edit src/Field/adaptive.jl
+edit src/Timeshift.jl
 argglobal
-balt src/Utils.jl
-let s:l = 296 - ((23 * winheight(0) + 22) / 45)
+balt src/Field/adaptive.jl
+let s:l = 178 - ((23 * winheight(0) + 25) / 50)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 296
-normal! 014|
+keepjumps 178
+normal! 010|
 tabnext
-edit notebooks/TestAdaptive.jl
+edit src/Timeshift.jl
+let s:save_splitbelow = &splitbelow
+let s:save_splitright = &splitright
+set splitbelow splitright
+wincmd _ | wincmd |
+split
+1wincmd k
+wincmd w
+let &splitbelow = s:save_splitbelow
+let &splitright = s:save_splitright
+wincmd t
+let s:save_winminheight = &winminheight
+let s:save_winminwidth = &winminwidth
+set winminheight=0
+set winheight=1
+set winminwidth=0
+set winwidth=1
+wincmd =
 argglobal
-let s:l = 4 - ((3 * winheight(0) + 22) / 45)
+balt notebooks/TestAdaptive.jl
+let s:l = 231 - ((5 * winheight(0) + 6) / 12)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 4
+keepjumps 231
+normal! 055|
+wincmd w
+argglobal
+if bufexists(fnamemodify("notebooks/TestAdaptive.jl", ":p")) | buffer notebooks/TestAdaptive.jl | else | edit notebooks/TestAdaptive.jl | endif
+if &buftype ==# 'terminal'
+  silent file notebooks/TestAdaptive.jl
+endif
+let s:l = 31 - ((11 * winheight(0) + 12) / 24)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 31
 normal! 0
+wincmd w
+wincmd =
 tabnext
 edit src/Timeshift.jl
 argglobal
 balt src/Field.jl
-let s:l = 176 - ((9 * winheight(0) + 22) / 45)
+let s:l = 185 - ((23 * winheight(0) + 25) / 50)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 176
-normal! 019|
-tabnext 4
+keepjumps 185
+normal! 0
+tabnext 3
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
 endif

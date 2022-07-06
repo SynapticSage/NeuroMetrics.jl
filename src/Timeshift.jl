@@ -27,6 +27,7 @@ module Timeshift
     export Field
     export get_field_shift
     export shifted_fields
+    export getshifts, getunits
 
     # -------------------- SHIFTING TYPES ---------------------------
     shift_func(data::DataFrame, shift::Real) = 
@@ -173,24 +174,30 @@ module Timeshift
             next!(prog)
         end
         result_dict = Dict(result_dict...)
+        @exfiltrate
         @infiltrate
-        out = DictOfShiftOfUnit(
+        out = OrderedDict(
                           key=>pop!(result_dict, key) 
                           for key in sort([keys(result_dict)...])
                          )
         return out
     end
 
-    DictOfShiftOfUnit = OrderedDict{Union{<:Real,<:NamedTuple}, Dict}
-    function Base.get(S::DictOfShiftOfUnit)
-        S.data
-    end
-    function Base.get(S::DictOfShiftOfUnit, shift::Float64, index...) 
+    DictOfShiftOfUnit{T<:Union{<:Real, NamedTuple}} =
+                                            OrderedDict{T, OrderedDict} 
+    AbsDictOfShiftOfUnit =
+                     OrderedDict{<:Union{<:Real, NamedTuple}, OrderedDict} 
+
+    #function Base.get(S::AbsDictOfShiftOfUnit)
+    #    S.data
+    #end
+    function Base.get(S::T where T<:AbsDictOfShiftOfUnit, shift::Float64, index...) 
         s = S[shift]
+        index = [index...]
         while !(isempty(index))
             k = collect(keys(s))
-            kₙ = [k[1] for k in Tuple.(k)]
-            select = kₙ .== index[1]
+            kk = [k[1] for k in Tuple.(k)]
+            select = kk .== pop!(index)
             if !(any(select))
                 @error "No matches"
             end
@@ -198,8 +205,14 @@ module Timeshift
         end
         return s
     end
-    function Base.get(S::DictOfShiftOfUnit, shift::Float64,
+    function Base.get(S::AbsDictOfShiftOfUnit, shift::Float64,
              index::NamedTuple) 
+    end
+    function getshifts(S::AbsDictOfShiftOfUnit)
+        collect(keys(S))
+    end
+    function getunits(S::AbsDictOfShiftOfUnit)
+        collect(keys(S[1]))
     end
 
     mutable struct ShiftedField
@@ -215,11 +228,16 @@ module Timeshift
 
     mutable struct ShiftedFields
         data::AbstractDict{<:NamedTuple, <:ShiftedField}
-        function ShiftedFields(S::DictOfShiftOfUnit)
-            vals = values(S.data)
-            vals = [ShiftedField(val) for val in vals]
-            kys  = keys(S.data)
-            new(OrderedDict(ky=>val for (ky,val) in zip(kys,vals)))
+        function ShiftedFields(S::AbsDictOfShiftOfUnit)
+            shifts = getshifts(S)
+            units  = getunits(S)
+            fields = OrderedDict{NamedTuple, ShiftedField}()
+            for unit in units
+                SF = ShiftedField(shift=>get(S, shift, unit)
+                                  for shift in shifts)
+                fields[unit] = SF
+            end
+            new(fields)
         end
     end
 
