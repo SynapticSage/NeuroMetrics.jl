@@ -51,10 +51,21 @@ module Filt
     max(x, M)       = OrderedDict(x  => x-> x .<= M)
     min(x, m)       = OrderedDict(x  => x-> x .>= m)
 
+    """
+    This is kind of more of a spike count filter than a cell count
+    """
     cellcount       = OrderedDict(All() =>
-                                  x->groupby_summary_cond(x, :unit,
-                                                          x->x.count.>50,
-                                                          nrow=>:count))
+                          x->groupby_summary_cond(x, :unit,
+                                                  x->x.count.>50, # > 50 spikes
+                                                  nrow=>:count))
+    spikecount = cellcount
+
+    trajectory_diversity  = OrderedDict([:unit, :period] => 
+            x->groupby_summary_cond(x, :unit,
+                                    x->x.percount.>=3, # >= 3 trajectories
+                                    :period =>
+                                    (x->length(unique(x))) =>
+                                    :percount))
     """
     fieldrate
 
@@ -90,7 +101,22 @@ module Filt
         groups = groups[ summaries.condition ]
         return combine(groups, identity)
     end
-    function groupby_summary_cond(df, splitby, summary_condition, combine_args...)
+
+    """
+             groupby_summary_cond(df::DataFrame, splitby, summary_condition,
+                                  combine_args...)
+
+    splits(splitby) a df and filters by a summary condition.
+
+    ### Algorithm
+    after it splits, we transform the splits with combine_args and apply a
+    condition to the resultant combined table to filter the original dataframe.
+
+    The original and combined dataframe are kept in register by an index
+    variable.
+    """
+    function groupby_summary_cond(df::DataFrame, splitby, summary_condition,
+                                  combine_args...)::BitVector
         columns = names(df)
         if splitby isa Vector{Symbol} || splitby isa Symbol
             columns = Symbol.(columns)
