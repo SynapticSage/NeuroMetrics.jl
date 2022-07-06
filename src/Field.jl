@@ -46,17 +46,18 @@ module Field
     function Base.setindex!(M::Metrics, val, index::Symbol)
         M.data[index] = val
     end
-    function Base.push!(M::Metrics, p::Pair{Symbol, <:Any})
-        push!(M.data, p)
-    end
-    function Base.pop!(M::Metrics, key)::Any
-        pop!(M.data, key)
-    end
-
+    Base.push!(M::Metrics, p::Pair{Symbol, <:Any}) = push!(M.data, p)
+    Base.pop!(M::Metrics, key)::Any = pop!(M.data, key)
     function Base.push!(R::ReceptiveField, measurement_name::Symbol, measurement_value)
         push!(R.metrics, measurement_name => measurement_value)
     end
-
+    function Base.string(S::T where T<:Field.ReceptiveField; sigdigits=2)
+        M = ["$k=$(round(v;sigdigits))" for (k,v) in S.metrics]
+        join(M, " ")
+    end
+    Base.iterate(M::Metrics) = iterate(M.data)
+    Base.iterate(M::Metrics, i::Int64) = iterate(M.data, i)
+    Base.length(M::Metrics)  = length(M.data)
 
     function getSettings(thing, props;
             resolution::Union{Vector{Int},Int,Nothing}=100,

@@ -139,9 +139,17 @@ end
 
 # ╔═╡ 94930aab-8bb0-4da0-b26b-35ddb3efde3b
 begin
-    obj = Timeshift.ShiftedFields(shifted)
-    plot(obj[shift_shift, shift_unit])
+    obj = Timeshift.DictOfShiftOfUnit{Float64}(shifted)
+    plot(get(obj,shift_shift, shift_unit), aspect_ratio=1, title=string(get(obj, shift_shift, shift_unit)))
 end
+
+# ╔═╡ 47af1633-99bd-4dc2-9d91-9073ec327f27
+md"""
+Do shifted units have metrics?
+"""
+
+# ╔═╡ ae5554ad-5679-44b4-8115-d8c8161ccb89
+Revise.errors()
 
 # ╔═╡ Cell order:
 # ╟─0be7ba01-a316-41ce-8df3-a5ae028c74e7
@@ -171,3 +179,5 @@ end
 # ╠═39737bd9-f38a-408d-a0c0-99b9e2bd0045
 # ╠═5acf0a77-9e40-4117-83fa-4a0791849265
 # ╠═94930aab-8bb0-4da0-b26b-35ddb3efde3b
+# ╠═47af1633-99bd-4dc2-9d91-9073ec327f27
+# ╠═ae5554ad-5679-44b4-8115-d8c8161ccb89

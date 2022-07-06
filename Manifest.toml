@@ -17,9 +17,9 @@ version = "2.36.1+0"
 
 [[deps.AbstractFFTs]]
 deps = ["ChainRulesCore", "LinearAlgebra"]
-git-tree-sha1 = "8e9c3482c61d06343a6199814bf84f7df82f2b28"
+git-tree-sha1 = "69f7020bd72f069c219b5e8c236c1fa90d2cb409"
 uuid = "621f4979-c628-5d54-868e-fcf4e3e8185c"
-version = "1.2.0"
+version = "1.2.1"
 
 [[deps.AbstractPlutoDingetjes]]
 deps = ["Pkg"]
@@ -424,9 +424,9 @@ uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
 
 [[deps.Compose]]
 deps = ["Base64", "Colors", "DataStructures", "Dates", "IterTools", "JSON", "LinearAlgebra", "Measures", "Printf", "Random", "Requires", "Statistics", "UUIDs"]
-git-tree-sha1 = "9a2695195199f4f20b94898c8a8ac72609e165a4"
+git-tree-sha1 = "d853e57661ba3a57abcdaa201f4c9917a93487a2"
 uuid = "a81c6b42-2e10-5240-aca2-a61377ecd94b"
-version = "0.9.3"
+version = "0.9.4"
 
 [[deps.CompositionsBase]]
 git-tree-sha1 = "455419f7e328a1a2493cabc6428d79e951349769"
@@ -458,9 +458,9 @@ version = "0.17.3"
 
 [[deps.ConstructionBase]]
 deps = ["LinearAlgebra"]
-git-tree-sha1 = "c096d0e321368ac23eb1be1ea405814f8b32adb3"
+git-tree-sha1 = "59d00b3139a9de4eb961057eabb65ac6522be954"
 uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
-version = "1.3.1"
+version = "1.4.0"
 
 [[deps.ContextVariablesX]]
 deps = ["Compat", "Logging", "UUIDs"]
@@ -516,9 +516,9 @@ version = "0.7.6"
 
 [[deps.Dagger]]
 deps = ["Colors", "ContextVariablesX", "Distributed", "LinearAlgebra", "MemPool", "Profile", "Random", "Requires", "Serialization", "SharedArrays", "SparseArrays", "Statistics", "StatsBase", "UUIDs"]
-git-tree-sha1 = "f8d1481472ade340eba5b70dc1c51b2f34ed1a80"
+git-tree-sha1 = "2708abfa918d282e3d50fd83109668bcd93d31d0"
 uuid = "d58978e5-989f-55fb-8d15-ea34adc7bf54"
-version = "0.15.0"
+version = "0.15.1"
 
 [[deps.DataAPI]]
 git-tree-sha1 = "fb5f5316dd3fd4c5e7c30a24d50643b73e37cd40"
@@ -976,9 +976,9 @@ uuid = "cf35fbd7-0cd7-5166-be24-54bfbe79505f"
 version = "0.5.7"
 
 [[deps.GeometricalPredicates]]
-git-tree-sha1 = "527d55e28ff359029d8f72d77c0bdcaf28793079"
+git-tree-sha1 = "6c9f24b54b8bf2e3496b5b3c25f5a0aebacd95d5"
 uuid = "fd0ad045-b25c-564e-8f9c-8ef5c5f21267"
-version = "0.4.1"
+version = "0.4.2"
 
 [[deps.GeometryBasics]]
 deps = ["EarCut_jll", "IterTools", "LinearAlgebra", "StaticArrays", "StructArrays", "Tables"]
@@ -1255,9 +1255,9 @@ version = "0.3.1"
 
 [[deps.InlineStrings]]
 deps = ["Parsers"]
-git-tree-sha1 = "a8671d5c9670a62cb36b7d44c376bdb09181aa26"
+git-tree-sha1 = "d19f9edd8c34760dca2de2b503f969d8700ed288"
 uuid = "842dd82b-1e85-43dc-bf29-5d0ee9dffc48"
-version = "1.1.3"
+version = "1.1.4"
 
 [[deps.InspectDR]]
 deps = ["Cairo", "Colors", "Graphics", "Gtk", "NumericIO", "Pkg", "Printf"]
@@ -1488,11 +1488,11 @@ version = "1.3.0"
 
 [[deps.LanguageServer]]
 deps = ["CSTParser", "JSON", "JSONRPC", "JuliaFormatter", "Markdown", "Pkg", "REPL", "StaticLint", "SymbolServer", "Tokenize", "URIs", "UUIDs"]
-git-tree-sha1 = "dcf887f7f3fe9cf7bf7bf343c015b1c80294da98"
+git-tree-sha1 = "f6ac8f5520cbced706603a37254a9debaa3cdf62"
 repo-rev = "master"
 repo-url = "https://github.com/julia-vscode/LanguageServer.jl.git"
 uuid = "2b0e0bc5-e4fd-59b4-8912-456d1b03d8d7"
-version = "4.3.1-DEV"
+version = "4.3.2-DEV"
 
 [[deps.Latexify]]
 deps = ["Formatting", "InteractiveUtils", "LaTeXStrings", "MacroTools", "Markdown", "Printf", "Requires"]
@@ -1841,15 +1841,15 @@ version = "0.5.0"
 
 [[deps.MemPool]]
 deps = ["DataStructures", "Distributed", "Mmap", "Random", "Serialization", "Sockets"]
-git-tree-sha1 = "b0bbcf9346ef0a60d2a63069dfc8b4d51d682153"
+git-tree-sha1 = "c038bfceb0547874ec9ed10ec8466e8aaadc4202"
 uuid = "f9f48841-c794-520a-933b-121f7ba6ed94"
-version = "0.3.9"
+version = "0.4.1"
 
 [[deps.Memento]]
 deps = ["Dates", "Distributed", "Requires", "Serialization", "Sockets", "Test", "UUIDs"]
-git-tree-sha1 = "aa3dfe57792d69afc1191efb62fe513bf5d0c0c2"
+git-tree-sha1 = "bb1167df2fae4a2e6a9350aedc2193a3b70d59fc"
 uuid = "f28f55f0-a522-5efc-85c2-fe41dfb9b2d9"
-version = "1.3.1"
+version = "1.4.0"
 
 [[deps.MeshIO]]
 deps = ["ColorTypes", "FileIO", "GeometryBasics", "Printf"]
@@ -2773,9 +2773,9 @@ uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 
 [[deps.Term]]
 deps = ["Dates", "Highlights", "InteractiveUtils", "Logging", "Markdown", "MyterialColors", "OrderedCollections", "Parameters", "ProgressLogging", "Tables", "UUIDs", "UnicodeFun"]
-git-tree-sha1 = "9b7ea2beefb11e89211b35b6e0d59cb31aa24550"
+git-tree-sha1 = "e4ccdfbdc073f71109c5fe0af7239c43714997d3"
 uuid = "22787eb5-b846-44ae-b979-8e399b8463ab"
-version = "1.0.1"
+version = "1.0.2"
 
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
@@ -2892,9 +2892,9 @@ version = "0.1.2"
 
 [[deps.VectorizationBase]]
 deps = ["ArrayInterface", "CPUSummary", "HostCPUFeatures", "IfElse", "LayoutPointers", "Libdl", "LinearAlgebra", "SIMDTypes", "Static"]
-git-tree-sha1 = "9d87c8c1d27dc20ba8be6bdca85d36556c371172"
+git-tree-sha1 = "39e55018bccc5a858217db32aa3d9e7decbefd0c"
 uuid = "3d5dd08c-fd9d-11e8-17fa-ed2836048c2f"
-version = "0.21.38"
+version = "0.21.40"
 
 [[deps.VersionParsing]]
 git-tree-sha1 = "58d6e80b4ee071f5efd07fda82cb9fbe17200868"
