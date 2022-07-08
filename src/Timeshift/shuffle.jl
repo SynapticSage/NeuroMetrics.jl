@@ -1,5 +1,6 @@
 module shuffle
 
+    using ..Timeshift: σ, shift_func
     import Field
     import Shuf
     using ThreadSafeDicts
@@ -8,7 +9,6 @@ module shuffle
     using Infiltrator
     using ProgressMeter
     using LoopVectorization
-    using ..Timeshift: σ, shift_func
 
     export get_field_shift_shuffles
 
@@ -17,7 +17,7 @@ module shuffle
     # ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
 
     function get_field_shift_shuffles(beh::DataFrame, data::DataFrame,
-                shifts::Union{StepRangeLen,Vector{T}} where T <: Real; 
+                shifts::Union{StepRangeLen, Vector{T}} where T <: Real; 
                 preset::Union{Symbol, NamedTuple, AbstractDict},
                 nShuffle::Int=100, 
                 compute::Symbol=:single,
@@ -51,7 +51,7 @@ module shuffle
         distribution  = dist(data)
         shuffle_data_generator() = partial(data, distribution)
 
-        out = _run_partial_functional(beh, data, shifts, shuffle_data_generator;
+        _run_partial_functional(beh, data, shifts, shuffle_data_generator;
                                       compute, nShuffle, postfunc, safe_dict,
                                       exfiltrateAfter, get_field_kws...)
     end
@@ -92,7 +92,7 @@ module shuffle
         # Collect sets we will iterate
         shuffle_shift_sets = collect(enumerate(Iterators.product(1:nShuffle, shifts)))
 
-        function core_shuffle(shuffle::Int, shift::Real, P::Progress, i::Int)
+        function core_shuffle(shuffle::Int, shift::Real, P::Progress, i::Int, skips::Int)
             
             # Shuffle and run with shifted behavior
             data   = shuffle_data_generator()
@@ -123,7 +123,7 @@ module shuffle
                     next!(P)
                     continue
                 end
-                core_shuffle(shuffle, shift, P, i)
+                core_shuffle(shuffle, shift, P, i, skips)
             end
         elseif compute == :single
             @inbounds for (i,(shuffle,shift)) in shuffle_shift_sets
@@ -132,13 +132,13 @@ module shuffle
                     next!(P)
                     continue
                 end
-                core_shuffle(shuffle, shift, P, i)
+                core_shuffle(shuffle, shift, P, i, skips)
             end
         else
             throw(ArgumentError("Unrecognized argument compute=$compute"))
         end
         safe_dict = Dict(safe_dict...)
-        out = OrderedDict(key=>pop!(safe_dict, key) 
+        OrderedDict(key=>pop!(safe_dict, key) 
                           for key in sort([keys(safe_dict)...]))
     end
 

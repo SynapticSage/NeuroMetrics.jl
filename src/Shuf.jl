@@ -42,20 +42,24 @@ module Shuf
 
     """
     standard_shuffles = Dict(
+
         :cDt_t => (;fullname="+=x~σ(cellᵢ,Δtraj)|trajⱼ",
                     desc=s"""randomly uniform shift a cell on the timescale of
                     a trajectory length""",
                     shuffle_func = :jitterBy,
                     split        = [:unit, :traj],
                     distribution = :uniform,
-                    prop         = :time),
+                    prop         = :time
+                   ),
+
         :dotson => (;fullname="split by trajreltime_bin and permute traj",
                     desc=s"""for each trajectory, set the time on a scale 0 to
                     1, where 0 and 1 are beginning and end. shuffle spikes to
                     keep the their value i ∈ [0,1].""",
                     shuffle_func = :permuteBy,
                     split        = [:unit, :trajreltime_bin],
-                    prop         = :time),
+                    prop         = :time
+                   ),
        )
 
     """

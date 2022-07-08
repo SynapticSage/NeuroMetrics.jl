@@ -46,60 +46,6 @@ module Timeshift
     end
 
     """
-        get_field_shift
-
-    old way of getting shifted fields
-    """
-    function get_field_shift(beh::DataFrame, data::DataFrame,
-            shifts::Union{StepRangeLen,Vector{T}} where T <: Real; 
-            fieldfunc::Union{Function, Symbol}=Field.get_fields,
-            postfunc::Union{Function,Nothing}=nothing,
-            as::Type=OrderedDict,
-            multi::Union{Bool, Symbol}=true,
-            safe_dict::AbstractDict=ThreadSafeDict(),
-            squeeze_unity::Bool=false,
-            kws...)
-
-        if multi isa Bool
-            multi = multi ? :thread : :single
-        end
-        @info "Starting multi=$multi"
-
-        p = Progress(length(shifts), desc="Field shift calculations")
-        if multi == :thread
-            Threads.@threads for shift in shifts
-                if shift ∈ keys(safe_dict)
-                    continue
-                end
-                result = fieldfunc(σ(beh, shift), data; kws...)
-                if postfunc !== nothing
-                    result = postfunc(result)
-                end
-                push!(safe_dict, shift=>result)
-                next!(p)
-            end
-        elseif multi == :single
-            @showprogress 0.1 "shifts=$shifts" for shift in shifts
-                if shift ∈ keys(safe_dict)
-                    continue
-                end
-                result = fieldfunc(σ(beh,shift), data; kws...)
-                if postfunc !== nothing
-                    result = postfunc(result)
-                end
-                push!(safe_dict, shift=>result)
-                next!(p)
-            end
-        end
-        safe_dict = Dict(safe_dict...)
-        out = as(key=>pop!(safe_dict, key) for key in sort([keys(safe_dict)...]))
-        if length(keys(safe_dict)) == 1 && squeeze_unity
-            out = out[first(keys(out))]
-        end
-        return out
-    end
-
-    """
         function shifted_fields(beh::DataFrame, data::DataFrame,
                 shifts::Union{StepRangeLen,Vector{T}} where T <: Real,
                 props::Vector; 
@@ -124,18 +70,18 @@ module Timeshift
             gridfunc::Union{Function, Symbol}=adaptive.get_grid,
             occfunc::Union{Function, Symbol}=adaptive.get_occupancy,
             postfunc::Union{Function,Nothing}=nothing,
-            metrics::Union{Function,Symbol,
+            metricfuncs::Union{Function,Symbol,
                            Vector{Symbol},Vector{Function},Nothing}=nothing,
             multi::Union{Bool, Symbol}=true,
             result_dict::AbstractDict=ThreadSafeDict(),
             grid_kws...)::OrderedDict
 
-        if metrics isa Symbol
-            metrics = [eval(metrics)]
+        if metricfuncs isa Symbol
+            metricfuncs = [eval(metricfuncs)]
         elseif metrics isa Function
-            metrics = [metrics]
+            metricfuncs = [metricfuncs]
         elseif metrics isa Vector{Symbol}
-            metrics = [eval(metric) for metric in metrics]
+            metricfuncs = [eval(metricfuncs) for metricfuncs in metricfuncs]
         end
 
         if multi isa Bool
@@ -168,9 +114,10 @@ module Timeshift
             end
             shift = shift_correct ? shift*60 : shift
             push!(result_dict, shift=>result)
-            if metrics !== nothing
-                for (unit,metric) in Iterators.product(keys(result), metrics)
-                    push!(result[unit].metrics, Symbol(metric)=>metric(result[unit]))
+            if metricfuncs !== nothing
+                for (unit,metricfuncs) in Iterators.product(keys(result), metricfuncs)
+                    name, calculation = Symbol(metricfuncs), metricfuncs(result[unit])
+                    push!(result[unit].metricfuncs, name=>calculation)
                 end
             end
             next!(prog)

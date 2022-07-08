@@ -1,4 +1,4 @@
-module info
+module metrics
     using Entropies: Probabilities
     using NaNStatistics
     import ..Field

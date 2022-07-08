@@ -158,19 +158,18 @@ if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
 endif
 let s:shortmess_save = &shortmess
 set shortmess=aoO
-badd +2 scripts/timeshift/TimeShift.jl
+badd +5 scripts/timeshift/TimeShift.jl
 badd +54 scripts/decode/Initialize.jl
-badd +23 scripts/fields/Initialize.jl
+badd +10 scripts/fields/Initialize.jl
 badd +16 scripts/fields/Include.jl
-badd +97 src/Load.jl
+badd +28 src/Load.jl
 badd +16 src/Load/spikes.jl
 badd +2 src/Load/behavior.jl
 badd +8 src/Load/ripples.jl
-badd +243 src/Load/utils.jl
-badd +230 src/Timeshift.jl
+badd +85 src/Load/utils.jl
+badd +73 src/Timeshift.jl
 badd +107 src/Timeshift/checkpoint.jl
-badd +1 src/Utils.jl
-badd +15 src/Field/hist.jl
+badd +101 src/Utils.jl
 badd +99 src/Table/convert_types.jl
 badd +85 src/Table.jl
 badd +30 src/Utils/dict.jl
@@ -181,7 +180,6 @@ badd +1 scripts/timeshift/plot_experiment_with_data.jl
 badd +1 scripts/timeshift/Initialize.jl
 badd +29 scripts/timeshift/Initialize_plot_experimentation.jl
 badd +12 src/Decode/checkpoint.jl
-badd +50 src/Field/info.jl
 badd +1 scripts/timeshift/plot_timeshif_vs_theta_phase.jl
 badd +1 scripts/timeshift/plot_examine_set_of_fields.jl
 badd +80 src/Table/group.jl
@@ -195,50 +193,69 @@ badd +25 scripts/timeshift/notebook/Initialize_plot_experimentation_pluto.jl
 badd +3197 Manifest.toml
 badd +127 Project.toml
 badd +2 src/Load/celltet.jl
-badd +98 src/Field.jl
-badd +29 src/Field/RF.jl
+badd +154 src/Field.jl
 badd +15 src/Load/task.jl
 badd +5 src/Munge/task.jl
 badd +1 scripts/fields/PlaceField.jl
-badd +1 src/Field/kerneldens.jl
 badd +69 _research/test_enforce_bound.jl
-badd +236 src/Field/adaptive.jl
+badd +271 src/Field/adaptive.jl
 badd +26 ~/tmp.jl
 badd +15 src/Precompile.jl
-badd +4 notebooks/TestAdaptive.jl
+badd +31 notebooks/TestAdaptive.jl
 badd +91 src/Timeshift/shuffle.jl
 badd +15 ~/Code/projects/goal-code/src/Field/plot.jl
 badd +11497 ~/.cache/nvim/lsp.log
 badd +1 src/Field/fixed.jl
 badd +1 ~/Code/projects/goal-code/src/Utils/plot.jl
+badd +44 ~/Code/projects/goal-code/src/Shuf.jl
 badd +5 ~/Code/projects/goal-code/src/Filt.jl
+badd +10 ~/Code/projects/goal-code/src/Field/model.jl
+badd +2 ~/Code/projects/goal-code/src/Field/operation.jl
 badd +1 ~/Code/projects/goal-code/_research/tensor_test.jl
 badd +8 _research/test_filt.jl
 badd +42 _research/test_shifting_timediff.jl
+badd +4 plots/fields/shift.shorter/GOAL_TRAJ_LEN_heatmap_x=shift,y=cellsort_by=area.pdf
+badd +19 src/Field/preset.jl
+badd +1 src/Field/legacy.jl
+badd +1 src/Timeshift/legacy.jl
+badd +1 ~/Code/projects/goal-code/src/Field/metrics.jl
 argglobal
 %argdel
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabrewind
-edit src/Field.jl
+edit src/Timeshift/legacy.jl
 argglobal
-let s:l = 313 - ((9 * winheight(0) + 16) / 32)
+balt src/Timeshift.jl
+let s:l = 25 - ((18 * winheight(0) + 21) / 42)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 313
-normal! 07|
-tabnext
-edit src/Timeshift.jl
-argglobal
-balt src/Field/adaptive.jl
-let s:l = 177 - ((13 * winheight(0) + 16) / 32)
-if s:l < 1 | let s:l = 1 | endif
-keepjumps exe s:l
-normal! zt
-keepjumps 177
+keepjumps 25
 normal! 0
+tabnext
+edit scripts/fields/Initialize.jl
+let s:save_splitbelow = &splitbelow
+let s:save_splitright = &splitright
+set splitbelow splitright
+let &splitbelow = s:save_splitbelow
+let &splitright = s:save_splitright
+wincmd t
+let s:save_winminheight = &winminheight
+let s:save_winminwidth = &winminwidth
+set winminheight=0
+set winheight=1
+set winminwidth=0
+set winwidth=1
+argglobal
+balt scripts/decode/Initialize.jl
+let s:l = 4 - ((0 * winheight(0) + 21) / 42)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 4
+normal! 09|
 tabnext
 edit src/Field/fixed.jl
 let s:save_splitbelow = &splitbelow
@@ -257,18 +274,15 @@ set winminheight=0
 set winheight=1
 set winminwidth=0
 set winwidth=1
-exe '1resize ' . ((&lines * 32 + 27) / 54)
-exe 'vert 1resize ' . ((&columns * 100 + 69) / 138)
-exe '2resize ' . ((&lines * 32 + 27) / 54)
-exe 'vert 2resize ' . ((&columns * 99 + 69) / 138)
+wincmd =
 argglobal
 balt src/GoalFetchAnalysis.jl
-let s:l = 10 - ((9 * winheight(0) + 16) / 32)
+let s:l = 7 - ((6 * winheight(0) + 21) / 42)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 10
-normal! 0
+keepjumps 7
+normal! 016|
 wincmd w
 argglobal
 if bufexists(fnamemodify("src/Field/adaptive.jl", ":p")) | buffer src/Field/adaptive.jl | else | edit src/Field/adaptive.jl | endif
@@ -276,26 +290,19 @@ if &buftype ==# 'terminal'
   silent file src/Field/adaptive.jl
 endif
 balt src/Field/fixed.jl
-let s:l = 10 - ((9 * winheight(0) + 16) / 32)
+let s:l = 6 - ((5 * winheight(0) + 21) / 42)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 10
-normal! 0
+keepjumps 6
+normal! 016|
 wincmd w
-exe '1resize ' . ((&lines * 32 + 27) / 54)
-exe 'vert 1resize ' . ((&columns * 100 + 69) / 138)
-exe '2resize ' . ((&lines * 32 + 27) / 54)
-exe 'vert 2resize ' . ((&columns * 99 + 69) / 138)
+2wincmd w
+wincmd =
 tabnext
-edit src/Field.jl
 let s:save_splitbelow = &splitbelow
 let s:save_splitright = &splitright
 set splitbelow splitright
-wincmd _ | wincmd |
-split
-1wincmd k
-wincmd w
 let &splitbelow = s:save_splitbelow
 let &splitright = s:save_splitright
 wincmd t
@@ -305,34 +312,7 @@ set winminheight=0
 set winheight=1
 set winminwidth=0
 set winwidth=1
-exe '1resize ' . ((&lines * 25 + 27) / 54)
-exe '2resize ' . ((&lines * 25 + 27) / 54)
-argglobal
-balt src/Timeshift.jl
-let s:l = 39 - ((11 * winheight(0) + 12) / 25)
-if s:l < 1 | let s:l = 1 | endif
-keepjumps exe s:l
-normal! zt
-keepjumps 39
-normal! 011|
-wincmd w
-argglobal
-if bufexists(fnamemodify("src/Timeshift.jl", ":p")) | buffer src/Timeshift.jl | else | edit src/Timeshift.jl | endif
-if &buftype ==# 'terminal'
-  silent file src/Timeshift.jl
-endif
-balt _research/test_shifting_timediff.jl
-let s:l = 230 - ((19 * winheight(0) + 12) / 25)
-if s:l < 1 | let s:l = 1 | endif
-keepjumps exe s:l
-normal! zt
-keepjumps 230
-normal! 09|
-wincmd w
-2wincmd w
-exe '1resize ' . ((&lines * 25 + 27) / 54)
-exe '2resize ' . ((&lines * 25 + 27) / 54)
-tabnext 4
+tabnext 3
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
 endif

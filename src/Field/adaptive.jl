@@ -239,7 +239,7 @@ module adaptive
             filters::Union{<:AbstractDict, Nothing}=nothing, 
             grid_kws...)::Union{AdapativFieldDict, AdaptiveRF}
         if filters !== nothing
-            beh, spikes = filterAndRegister(behavior, spikes; filters,
+            behavior, spikes = filterAndRegister(behavior, spikes; filters,
                                                  on="time",transfer=props,
                                                  filter_skipmissingcols=true)
         end
