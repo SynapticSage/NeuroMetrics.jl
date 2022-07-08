@@ -12,6 +12,14 @@ module metrics
     end
 
     """
+        coherence(F::Field.ReceptiveField)
+
+    computes the spatial coherence of a field
+    """
+    function coherence(F::Field.ReceptiveField)
+    end
+
+    """
     `information`
 
     computes the `information` of a receptive field ... general dispatcher for
@@ -81,10 +89,6 @@ module metrics
     function mutualinformation(beh, spikes, props, unit)
         
         beh, spikes = Load.keep_overlapping_times(beh, spikes)
-
-
-        
-
     end
 
 end

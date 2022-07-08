@@ -10,6 +10,7 @@ module Timeshift
     # Parent libary
     import Field
     import Load: register, filterAndRegister
+    import Field.preset: field_presets, return_preset_funcs
     adaptive = Field.adaptive
 
     # Julia packages
@@ -66,9 +67,10 @@ module Timeshift
             props::Vector; 
             filters::Union{OrderedDict, Nothing}=nothing,
             splitby::Vector=[:unit],
-            fieldfunc::Union{Function, Symbol}=adaptive.ulanovsky,
-            gridfunc::Union{Function, Symbol}=adaptive.get_grid,
-            occfunc::Union{Function, Symbol}=adaptive.get_occupancy,
+            fieldpreset::Union{Nothing,Symbol}=:yartsev,
+            fieldfunc::Union{Function, Symbol,Nothing}=nothing,
+            gridfunc::Union{Function, Symbol,Nothing}=nothing,
+            occfunc::Union{Function, Symbol,Nothing}=nothing,
             postfunc::Union{Function,Nothing}=nothing,
             metricfuncs::Union{Function,Symbol,
                            Vector{Symbol},Vector{Function},Nothing}=nothing,
@@ -76,14 +78,23 @@ module Timeshift
             result_dict::AbstractDict=ThreadSafeDict(),
             grid_kws...)::OrderedDict
 
+        # Process preset options
+        if fieldpreset !== nothing
+            fieldfunc, occfunc, gridfunc, metricfuncs, postfunc =
+                return_preset_funcs(fieldpreset)
+        else
+            fieldfunc   = fieldfunc isa Symbol ? eval(fieldfunc) : fieldfunc
+            occfunc     = occfunc isa Symbol ? eval(occfunc) : occfunc
+            gridfunc    = gridfunc isa Symbol ? eval(gridfunc) : gridfunc
+            postfunc    = postfunc isa Symbol ? eval(postfunc) : postfunc
+        end
         if metricfuncs isa Symbol
             metricfuncs = [eval(metricfuncs)]
-        elseif metrics isa Function
+        elseif metricfuncs isa Function
             metricfuncs = [metricfuncs]
-        elseif metrics isa Vector{Symbol}
+        elseif metricfuncs isa Vector{Symbol}
             metricfuncs = [eval(metricfuncs) for metricfuncs in metricfuncs]
         end
-
         if multi isa Bool
             multi = multi ? :thread : :single
         end

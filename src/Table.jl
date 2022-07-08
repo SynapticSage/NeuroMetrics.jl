@@ -12,6 +12,7 @@ module Table
 
     using DrWatson
     using DataFrames
+    using DataFrames: ColumnIndex
     using ProgressMeter
     using Statistics
     using Blink
@@ -26,6 +27,8 @@ module Table
     __revise_mode__ = :evalassign
     ∞ = Inf
 
+    CItype = Union{ColumnIndex, Vector{<:ColumnIndex}}
+    CItype_plusNull = Union{ColumnIndex, Vector{<:ColumnIndex}, Nothing}
     ColumnSelector = Union{Nothing,Vector{String},InvertedIndex,Cols,All,Between}
     DFColVars = Union{DataFrames.ColumnIndex, DataFrames.MultiColumnIndex}
                                                   

@@ -1,19 +1,19 @@
 module fixed
 
     using ..Field
-    using ..Field.RF
-    using ..Field.adaptive: AdaptiveOcc, AdaptiveRF, GridAdaptive
-    using ..Field: RF, Grid, Occupancy
+    import ..Field: Grid, ReceptiveField, Occupancy, Metrics
+    import ..Field: get_boundary, resolution_to_width, return_vals
     import Utils
     import Table
+    import Table: CItype, CItype_plusNull
     using DataStructures
     using DataFrames
+    import Load.utils: filterAndRegister
     import Base
     using LoopVectorization
     using Infiltrator
     using ProgressMeter
     using Entropies: Probabilities
-    using ProtoStructs
     using ProgressLogging
     using RecipesBase
     using Statistics
@@ -26,14 +26,14 @@ module fixed
         centers::Tuple
         edges::Tuple
         grid::Array{Array{Float32}}
-        function GridAdaptive(props::Vector, centers::Union{Array,Tuple}) 
+        function GridFixed(props::Vector, centers::Union{Array,Tuple}) 
             if eltype(props) == Symbol
                 props = String.(props)
             end
             centers = centers isa Array ? Tuple(centers) : centers
-            GridAdaptive(props,centers)
+            GridFixed(props,centers)
         end
-        function GridAdaptive(props::Vector, centers::Union{<:AbstractArray,Tuple}, radii::Real)
+        function GridFixed(props::Vector, centers::Union{<:AbstractArray,Tuple}, radii::Real)
             if eltype(props) == Symbol
                 props = String.(props)
             end
@@ -44,7 +44,7 @@ module fixed
             edges = Tuple((e...,) for e in edges)
             new(props,centers, edges, grid)
         end
-        function GridAdaptive(props::Vector, centers::Tuple, grid::Array, radii::Array)
+        function GridFixed(props::Vector, centers::Tuple, grid::Array, radii::Array)
             if eltype(props) == Symbol
                 props = String.(props)
             end
@@ -53,10 +53,10 @@ module fixed
             edges = Tuple((e...,) for e in edges)
             new(props,centers,edges,grid)
         end
-        function GridAdaptive(props::Vector;width::Vector, boundary::Vector)
+        function GridFixed(props::Vector;width::Vector, boundary::Vector)
             centers = Tuple(Tuple(collect(s:w:e))
                             for (w, (s, e)) in zip(width, boundary))
-            GridAdaptive(props,centers)
+            GridFixed(props,centers)
         end
     end
 
@@ -67,26 +67,27 @@ module fixed
         camerarate::Float32
     end
 
-    struct FixedRF <: Field.ReceptiveField
-        grid::GridAdaptive
+    struct FixedRF <: ReceptiveField
+        grid::GridFixed
         occ::FixedOcc
         count::Array{Int32}
         rate::Array{Float32}
+        metrics::Metrics
     end
 
     # Setup iteration
-    Base.length(g::GridAdaptive)  = length(g.grid)
-    Base.size(g::GridAdaptive)    = size(g.grid)
-    Base.iterate(g::GridAdaptive) = Base.iterate(zip(g.grid, g.radii))
-    #Base.done(g::GridAdaptive, state::Int) = length(g.centers) == state
-    function Base.iterate(g::GridAdaptive, state::Tuple{Int,Int})
-        iterate(zip(g.grid,g.radii), state)
+    Base.length(g::GridFixed)  = length(g.grid)
+    Base.size(g::GridFixed)    = size(g.grid)
+    Base.iterate(g::GridFixed) = Base.iterate(g.grid)
+    #Base.done(g::GridFixed, state::Int) = length(g.centers) == state
+    function Base.iterate(g::GridFixed, state::Tuple{Int,Int})
+        iterate(g.grid, state)
     end
-    cenumerate(g::GridAdaptive) = zip(CartesianIndices(g.grid), g)
+    cenumerate(g::GridFixed) = zip(CartesianIndices(g.grid), g)
 
-    AdapativFieldDict    = OrderedDict{<:NamedTuple, AdaptiveRF}
-    #AdaptiveFieldDict(x) = OrderedDict{NamedTuple,   AdaptiveRF}(x)
-    #AdaptiveFieldDict()  = OrderedDict{NamedTuple,   AdaptiveRF}()
+    FixedFieldDict    = OrderedDict{<:NamedTuple, FixedRF}
+    #FixedFieldDict(x) = OrderedDict{NamedTuple,   FixedRF}(x)
+    #FixedFieldDict()  = OrderedDict{NamedTuple,   FixedRF}()
     
 
     """
@@ -94,43 +95,18 @@ module fixed
 
     obtains the dynamic sampling grid from only the animals behavior
     """
-    function find_grid_bounded(behavior, props; 
-            thresh::Float32=1f0, # Threshold in seconds
-            sampletime::Float32=1/30f0, # Total time of sample
-            radiusinc::Float32=0.5f0, # Spatial unit of RF
-            ϵ::Float32=0.1f0,
-            maxrad::Float32=5f0,
-            method::Symbol=:converge_to_radius,
+    function get_grid_bounded(behavior, props; 
             #eliminateunusedrowscols::Bool=true,
-            widths::OrderedDict, boundary::OrderedDict)::GridAdaptive
-        vals = return_vals(behavior, props)
+            widths::OrderedDict, 
+            boundary::OrderedDict)::GridFixed
         cv(x) = collect(values(x))
-        G = GridAdaptive(props;width=cv(widths), boundary=cv(boundary))
-        P = Progress(length(G), desc="grid")
-        R = Vector{Float32}(undef, length(G))
-        if method == :converge_to_radius_w_inertia
-            sampletime += ϵ
-        end
-        method = eval(method)
-        Threads.@threads for (index, (center, radius)) in collect(enumerate(G))
-            #@infiltrate
-            radius = method(vals, center, radius; sampletime, thresh, maxrad,
-                            radiusinc, ϵ)
-            next!(P)
-            R[index] = radius
-        end
-        G.radii .= reshape(R, size(G))
-        #if eliminateunusedrowscols
-        #    rows = findall(all(isnan.(G.radii), dims=2))
-        #    cols = findall(all(isnan.(G.radii), dims=1))
-        #    G.grid = G.grid[Not(rows), Not(cols)]
-        #end
+        G = GridFixed(props;width=cv(widths), boundary=cv(boundary))
         G
     end
 
-    function find_grid(behavior::DataFrame, props::Vector;
+    function get_grid(behavior::DataFrame, props::Vector;
             widths::Union{<:Int, Vector{<:Int}, OrderedDict},
-            other_kws=(;))::GridAdaptive
+            other_kws=(;))::GridFixed
         if typeof(widths) <: Int
             widths = OrderedDict{}(prop=>widths for prop in props)
         elseif typeof(widths) <: AbstractVector
@@ -144,49 +120,48 @@ module fixed
     
 
     #################################################
-    ##### ulanovsky paper based  ####################
+    ##### classic fixed grid based  #################
     #################################################
 
     """
-        ulanovsky(spikes, behavior, props; kws...)
+        RFs(spikes, behavior, props; kws...)
 
-    computes an adaptive grid and ratemap based on methods in ulanovsky papers
+    computes an fixed grid and ratemap based on methods in ulanovsky papers
     """
     function RFs(spikes::DataFrame, behavior::DataFrame, props::Vector;
-            splitby::Vector=nothing, grid_kws...)::Union{AdapativFieldDict, 
-                                                 AdaptiveRF}
+            splitby::Vector=nothing, grid_kws...)::Union{FixedFieldDict, 
+                                                 FixedRF}
         grid = find_grid(behavior, props; grid_kws...)
         occ  = get_occupancy(behavior, props, grid)
-        ulanovsky(spikes, props, grid, occ; splitby, grid_kws...)
+        RFs(spikes, grid, occ; splitby, grid_kws...)
     end
-    function RFs(spikes::DataFrame, props::Vector, grid::GridAdaptive,
-            occ::AdaptiveOcc;
-            splitby::Vector=nothing, grid_kws...)::Union{AdapativFieldDict, 
-                                                 AdaptiveRF}
+    function RFs(spikes::DataFrame, grid::GridFixed, occ::FixedOcc;
+            splitby::CItype_plusNull=[:unit],
+            grid_kws...)::Union{FixedFieldDict, FixedRF}
         if splitby !== nothing
             spikes = groupby(spikes, splitby)
-            fields = get_adaptivefields(spikes, props, grid, occ)
+            fields = get_adaptivefields(spikes, grid, occ)
         else
-            fields = get_adaptivefield(spikes, props, grid, occ)
+            fields = get_adaptivefield(spikes, grid, occ)
         end
         return fields 
     end
 
     """
         get_adaptivefields(spikeGroups::GroupedDataFrame, props::Vector,
-        grid::GridAdaptive; kws...)::AdapativFieldDict
+        grid::GridFixed; kws...)::FixedFieldDict
 
-    computes adaptive ratema based on a fixed grid derived from behavior
+    computes fixed ratema based on a fixed grid derived from behavior
     """
-    function get_fixedfields(spikeGroups::GroupedDataFrame, props::Vector,
-            grid::GridAdaptive, occ::AdaptiveOcc)::AdapativFieldDict
-        D = OrderedDict{NamedTuple, AdaptiveRF}()
+    function get_fixedfields(spikeGroups::GroupedDataFrame, 
+            grid::GridFixed, occ::FixedOcc)::FixedFieldDict
+        D = OrderedDict{NamedTuple, FixedRF}()
         #V = []
         keys_and_groups = collect(zip(Table.group.nt_keys(spikeGroups),
                                       spikeGroups))
         #Prog = Progress(length(keys_and_groups); desc="units")
         for (nt, group) in keys_and_groups
-            D[nt] = get_adaptivefield(DataFrame(group), props, grid, occ)
+            D[nt] = get_adaptivefield(DataFrame(group), grid, occ)
         end
         #for (i, (nt, group)) in enumerate(keys_and_groups)
         #    @infiltrate
@@ -197,12 +172,12 @@ module fixed
 
     """
         get_adaptivefield(X::DataFrame, props::Vector,
-                          grid::GridAdaptive, occ::AdaptiveOcc)::AdaptiveRF
+                          grid::GridFixed, occ::FixedOcc)::FixedRF
 
-    computes adaptive ratemap based on a fixed grid derived from behavior
+    computes fixed ratemap based on a fixed grid derived from behavior
     """
-    function get_fixedfield(spikes::DataFrame, props::Vector,
-            grid::GridAdaptive, occ::AdaptiveOcc)::AdaptiveRF
+    function get_fixedfield(spikes::DataFrame, 
+            grid::GridFixed, occ::FixedOcc)::FixedRF
         vals = return_vals(spikes, props)
         count = zeros(Int32, size(grid))
         #prog = Progress(length(grid))
@@ -211,11 +186,11 @@ module fixed
             #next!(prog)
         end
         count = reshape(count, size(grid))
-        AdaptiveRF(grid, occ, count, occ.camerarate*Float32.(count./occ.count))
+        FixedRF(grid, occ, count, occ.camerarate*Float32.(count./occ.count))
     end
 
-    function get_occupancy(behavior::DataFrame, props::Vector,
-            grid::GridAdaptive)::AdaptiveOcc
+    function get_occupancy(behavior::DataFrame, 
+            grid::GridFixed)::FixedOcc
         vals = return_vals(behavior, props)
         count = zeros(Int32, size(grid))
         prog = Progress(length(grid);desc="occupancy")
@@ -229,7 +204,7 @@ module fixed
         if camerarate > 300
             camerarate /= 60
         end
-        AdaptiveOcc(grid, count, prob, camerarate)
+        FixedOcc(grid, count, prob, camerarate)
     end
 
     # Helper fucntions
@@ -242,6 +217,20 @@ module fixed
     function get_samptime(vals::Array, center::Array, radius::Float32;
             sampletime::Float32=1/30)::Float32
         sum(inside(vals, center, radius)) * sampletime
+    end
+
+    ## --------
+    ## UTILITIES
+    ## --------
+    function to_dict(F::FixedRF)
+        FF = Dict{Symbol, Any}
+        FF[:count]        = F.count
+        FF[:rate]         = F.rate
+        FF[:occ_prob]     = reshape(F.occ.prob, size(F.grid.grid))
+        FF[:occ_count]    = F.occ.count
+        FF[:grid_centers] = F.grid.centers
+        FF[:props]        = F.grid.props
+        FF
     end
 
     ## ------
@@ -267,7 +256,7 @@ module fixed
     #        width::OrderedDict, boundary::OrderedDict)
     #    vals_behavior = return_vals(behavior, props)
     #    vals_spikes   = return_vals(spikes, props)
-    #    G = GridAdaptive(width, boundary, width)
+    #    G = GridFixed(width, boundary, width)
     #    @avx for (index, center, radius) in cenumerate(G)
     #        while (sum(vals .< (center .+ radius)) * sampletime) < thresh
     #            radius += radiusinc
@@ -282,20 +271,6 @@ module fixed
     #"""
     #function skaggs()
     #end
-
-    ## --------
-    ## UTILITIES
-    ## --------
-    function to_dict(F::FixedRF)
-        FF = Dict{Symbol, Any}
-        FF[:count] = F.count
-        FF[:rate] = F.rate
-        FF[:occ_prob] = F.occ.prob
-        FF[:occ_count] = F.occ.count
-        FF[:grid_centers] = F.grid.centers
-        FF[:grid] = F.grid.grid
-        FF
-    end
 
 end
 

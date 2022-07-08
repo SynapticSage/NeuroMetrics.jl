@@ -135,9 +135,6 @@ module Field
         Table.to_dataframe(F, pos...; grid=grid, props=props, kws...)
     end
 
-
-
-
     # Field-related submodules
     using Reexport
     include(srcdir("Field","operation.jl"))
@@ -148,18 +145,20 @@ module Field
     @reexport using .fit
     include(srcdir("Field","plot.jl"))
     @reexport using .plot
-    #include(srcdir("Field","utils.jl"))
-    #@reexport using .utils
-    include(srcdir("Field","info.jl"))
-    import .info
+    include(srcdir("Field","metrics.jl"))
+    import .metrics
     include(srcdir("Field","recon.jl"))
     import .recon
     include(srcdir("Field","recon_process.jl"))
     import .recon_process
     include(srcdir("Field","adaptive.jl"))
-    import .adaptive
+    @reexport using .adaptive
+    include(srcdir("Field","fixed.jl"))
+    @reexport using .fixed
+
+    include(srcdir("Field","preset.jl"))
+    @reexport using .preset
 
     #include(srcdir("Field","legacy.jl"))
     #import .legacy
-    
 end
