@@ -1,5 +1,6 @@
 module shuffle
 
+    import ..Timeshift
     using ..Timeshift: σ, shift_func
     import Field
     import Field.preset: field_presets, return_preset_funcs
@@ -37,9 +38,9 @@ module shuffle
     measurement for the number of shuffles requested.
 
     """
-    function get_field_shift_shuffles(beh::DataFrame, data::DataFrame,
-                shifts::Union{StepRangeLen, Vector{T}} where T <: Real; 
-                fieldpreset::Union{Symbol, NamedTuple, AbstractDict},
+    function shifted_field_shuffles(beh::DataFrame, data::DataFrame,
+                shifts::Union{StepRangeLen, Vector{T}} where T <: Real,
+                props::Vector; 
                 shufflepreset::Union{Symbol, NamedTuple, AbstractDict},
                 nShuffle::Int=100, 
                 compute::Symbol=:single,
@@ -48,9 +49,9 @@ module shuffle
                 exfiltrateAfter::Real=Inf,
                 get_field_kws...)::AbstractDict
 
-        @info "Applying preset=$preset"
-        initial_data_partials = Shuf.applyStandardShuffle(preset)
-        _apply_partials(beh, data, shifts, initial_data_partials;
+        @info "Applying shufflepreset=$shufflepreset"
+        initial_data_partials = Shuf.applyStandardShuffle(shufflepreset)
+        _apply_partials(beh, data, shifts, props, initial_data_partials;
                         nShuffle, compute, postfunc,
                         safe_dict, exfiltrateAfter, get_field_kws...)
     end
@@ -65,6 +66,7 @@ module shuffle
     """
     function _apply_partials(beh::DataFrame, data::DataFrame,
                 shifts::Union{StepRangeLen,Vector{T}} where T <: Real,
+                props::Vector,
                 initial_data_partials::Tuple{<:Function,<:Function};
                 nShuffle::Int=100, 
                 compute::Symbol=:single,
@@ -88,6 +90,7 @@ module shuffle
     """
     function _apply_partials(beh::DataFrame, data::DataFrame,
                 shifts::Union{StepRangeLen,Vector{T}} where T <: Real,
+                props::Vector,
                 initial_data_partials::T where T <: Function;
                 nShuffle::Int=100, 
                 compute::Symbol=:single,
@@ -99,10 +102,10 @@ module shuffle
         partial = initial_data_partials
         shuffle_data_generator() = partial(data)
 
-        _run_partial_functional(beh, data, shifts; 
+        _run_partial_functional(beh, data, shifts, props; 
                                       shuffle_data_generator, compute, nShuffle,
                                       postfunc, safe_dict, exfiltrateAfter,
-                                      get_field_kws...)
+                                      field_kws...)
     end
 
     """
@@ -110,21 +113,16 @@ module shuffle
     shifted fields.
     """
     function _run_partial_functional(beh::DataFrame, data::DataFrame,
-            shifts::Union{StepRangeLen,Vector{T}} where T <: Real; 
+            shifts::Union{StepRangeLen,Vector{T}} where T <: Real,
+            props::Vector; 
             shuffle_data_generator::Function,
             compute::Symbol, 
             nShuffle::Union{StepRangeLen, Int},
             safe_dict::AbstractDict=ThreadSafeDict{NamedTuple,Any}(),
             exfiltrateAfter::Real=Inf,
             skipproc::Bool=false,
-            field_kws...
-        )
+            field_kws...)
 
-
-        # Setup grid and occ
-        grid = gridfunc(beh, props; grid_kws...)
-        occ  = occfunc(beh, grid)
-        data = dropmissing(data, grid.props)
 
         # Collect sets we will iterate
         if nShuffle isa Int
@@ -132,13 +130,14 @@ module shuffle
         else
             shuffle_sets = collect(enumerate(nShuffle))
         end
-        for s in shuffle
+        nShuffle = nShuffle isa Int ? (1:nShuffle) : nShuffle
+        for s in nShuffle
             if skipproc && (;shuffle=s) ∈ keys(safe_dict)
                 continue
             end
             @infiltrate
             data   = shuffle_data_generator()
-            safe_dict[(;shuffle=s)] = Timeshift.shifted_fields(beh, data, shifts; 
+            safe_dict[(;shuffle=s)] = Timeshift.shifted_fields(beh, data, shifts, props; 
                                                      field_kws...)
             if mod(s, exfiltrateAfter) == 0
                 @exfiltrate

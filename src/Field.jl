@@ -135,8 +135,6 @@ module Field
     @reexport using .model
     include(srcdir("Field","fit.jl"))
     @reexport using .fit
-    include(srcdir("Field","plot.jl"))
-    @reexport using .plot
     include(srcdir("Field","metrics.jl"))
     import .metrics
     include(srcdir("Field","recon.jl"))

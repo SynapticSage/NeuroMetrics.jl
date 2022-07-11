@@ -49,7 +49,7 @@ Import packages
 valtype(WIDTHS)
 
 # ╔═╡ a1ad6173-5ead-4559-bddb-9aee6119b9d0
-prop_sel = @bind prop_str PlutoUI.Radio(["x-y","currentAngle-currentPathLength"], 										default="x-y")
+prop_sel = @bind prop_str PlutoUI.Radio(["y-x","currentAngle-currentPathLength"], 										default="y-x")
 
 # ╔═╡ 31082fe7-ed61-4d37-a025-77420da3f24a
 beh, spikes = begin
@@ -97,7 +97,10 @@ Implied linear width of maxrad[$(nanmaximum(G.radii))] => $(nanmaximum(G.radii) 
 grid_select
 
 # ╔═╡ 03586347-83ee-429d-ab29-505754c66734
-plot(plot(G; aspect_ratio=1, title="radii\nresolution=$(size(G.grid))"), heatmap(isnan.(G.radii), aspect_ratio=1, title="nan locations"))
+plot(plot(G; aspect_ratio=1, title="radii\nresolution=$(size(G.grid))"), heatmap(isnan.(G.radii)', aspect_ratio=1, title="nan locations"))
+
+# ╔═╡ bfa6143b-e86e-4376-a5d3-1a11839edbe5
+G.radii
 
 # ╔═╡ 7c03a7aa-3181-4b3d-9dc6-0eb8e8689023
 md"""
@@ -152,7 +155,7 @@ md"""
 unit_select = @bind unit PlutoUI.Slider(sort(unique(spikes.unit)), show_value=true)
 
 # ╔═╡ 44abcbd4-5f71-4924-b77d-9680cc96044f
-plot(units[(;unit=unit)], aspect_ratio=5)
+plot(units[(;unit=unit)], aspect_ratio=1)
 
 # ╔═╡ 4d814c3e-97e1-491a-b1d8-c7ca9c628afd
 μ_firing = begin
@@ -223,7 +226,7 @@ S = Timeshift.ShiftedField(get(plot_obj, :, shift_unit))
 # ╟─37d7f4fd-80a7-47d0-8912-7f002620109f
 # ╠═44dde9e4-f9ca-11ec-1348-d968780f671c
 # ╠═165e0caa-b491-43d2-b468-3456c660dd02
-# ╠═a1ad6173-5ead-4559-bddb-9aee6119b9d0
+# ╟─a1ad6173-5ead-4559-bddb-9aee6119b9d0
 # ╟─2f8ac703-417c-4360-a619-e799d8bb594f
 # ╟─31082fe7-ed61-4d37-a025-77420da3f24a
 # ╠═d51ce0f2-03bf-4c88-9302-9fd4bc8621eb
@@ -234,15 +237,16 @@ S = Timeshift.ShiftedField(get(plot_obj, :, shift_unit))
 # ╟─9e635078-bfdb-41bf-8730-e08a968d5e71
 # ╟─92b1c56a-1738-43ba-96c9-8c70c6713c39
 # ╟─03586347-83ee-429d-ab29-505754c66734
+# ╠═bfa6143b-e86e-4376-a5d3-1a11839edbe5
 # ╟─7c03a7aa-3181-4b3d-9dc6-0eb8e8689023
-# ╟─890fe951-19bb-4c9a-a905-d798bb36c57e
+# ╠═890fe951-19bb-4c9a-a905-d798bb36c57e
 # ╠═592d79b4-edf6-4a0c-af73-1d2805d6410e
 # ╟─2c794dc4-4920-4274-ab2b-6bb60251112b
 # ╠═bef016cd-26d1-4de8-a970-182fe2b92e88
 # ╟─fca06c75-a137-411c-9bd8-74d33ad93183
 # ╟─410128bf-2332-4aa2-91cb-441e0235cc4a
 # ╟─c23ee21a-b3d4-42e5-a4f1-b703008eda1a
-# ╟─b88c0ec1-b150-49be-828f-6c32bb770c48
+# ╠═b88c0ec1-b150-49be-828f-6c32bb770c48
 # ╟─38cff24f-bbc1-42fd-98ae-385323c2480e
 # ╟─7b150cd8-ada8-46bc-b3ea-1f10c1aea9d8
 # ╟─7c6cfeb1-2c78-4480-852b-aa06cc818f76

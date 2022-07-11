@@ -22,13 +22,24 @@ module adaptive
     using Statistics
     
 
-    function max_radii(centers::Tuple)
+    """
+        default_radii
+
+    Determines how much to expand a hyperphere to fit the corners of the grid
+    tagent to the sphere
+    """
+    function default_radii(centers::Tuple)::Union{Float32, Vector{Float32}}
         C = Vector{Float32}()
+        # Push the max diff of each dimension
         for center in centers
             c = maximum(diff([center...]))
             push!(C, c)
         end
+        # Turn diameter into radius
+        @infiltrate
         C ./= 2
+        # Return the euclidean distance to a corner of the hypercube from the
+        # center
         sqrt(sum(C.^2))
     end
 
@@ -46,7 +57,7 @@ module adaptive
                 props = String.(props)
             end
             centers = centers isa Array ? Tuple(centers) : centers
-            radii = max_radii(centers)
+            radii = default_radii(centers)
             GridAdaptive(props,centers, radii)
         end
         function GridAdaptive(props::Vector, centers::Union{<:AbstractArray,Tuple}, radii::Real)
@@ -77,7 +88,7 @@ module adaptive
         end
     end
 
-    @recipe function plot_adaptiveocc(grid::GridAdaptive, val::Symbol=:radii)
+    @recipe function plot_adaptivegrid(grid::GridAdaptive, val::Symbol=:radii)
         colorbar_title --> String(val)
         seriestype --> :heatmap
         c --> :thermal
@@ -87,7 +98,7 @@ module adaptive
             Y = [grid.centers[2]...]
             y --> Y
         end
-        (X, Y, getproperty(grid, val))
+        (X, Y, getproperty(grid, val)')
     end
 
     struct AdaptiveOcc <: Occupancy
@@ -130,6 +141,7 @@ module adaptive
     function converge_to_radius(vals::Matrix{Float32}, center::Vector{Float32},
             radius::Float32; dt::Float32, thresh::Float32,
             maxrad::Float32, radiusinc::Float32, kws...)::Float32
+        radiusinc += 1 
         while get_samptime(vals, center, radius; dt) < thresh
             radius += radiusinc
             if radius > maxrad
@@ -143,8 +155,9 @@ module adaptive
             radius::Vector{Float32}; dt::Float32, thresh::Float32,
             maxrad::Union{Float32,Vector{Float32}},
             radiusinc::Vector{Float32}, kws...)::Vector{Float32}
+        radiusinc .+= 1
         while get_samptime(vals, center, radius; dt) < thresh
-            radius .+= radiusinc
+            radius .*= radiusinc
             if any(radius .> maxrad)
                 radius = NaN
                 break
@@ -200,11 +213,15 @@ module adaptive
         get_grid
 
     obtains the dynamic sampling grid from only the animals behavior
+
+    ### Notes
+    if radiusinc is vector, then it will instead expand a hyperbox instead 
+    of a hypersphere
     """
     function get_grid_bounded(behavior, props; 
             thresh::Float32=1.25f0, # Threshold in seconds
             dt::Union{Nothing,Float32}=nothing, # Total time of sample
-            radiusinc::Union{Float32,Vector{Float32}}=0.5f0, # Spatial unit of RF
+            radiusinc::Union{Float32,Vector{Float32}}=0.1f0, # Spatial unit of RF
             ϵ::Float32=0.1f0,
             maxrad::Union{Float32,Nothing}=nothing,
             method::Symbol=:converge_to_radius,
@@ -226,7 +243,6 @@ module adaptive
         Threads.@threads for (index, (center, radius)) in collect(enumerate(G))
             radius = method(vals, center, radius; dt, thresh, maxrad,
                             radiusinc, ϵ)
-            @infiltrate radius !== NaN32
             R[index] = radius
         end
         G.radii .= reshape(R, size(G))

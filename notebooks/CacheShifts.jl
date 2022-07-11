@@ -8,7 +8,6 @@ using InteractiveUtils
 begin
 	
 	using DrWatson, Revise
-	using PlutoUI
 	quickactivate(expanduser("~/Projects/goal-code"))
 	using DataFrames, DataFramesMeta
 	using DataStructures: OrderedDict
@@ -73,15 +72,29 @@ begin
      PROPS = ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
      IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
 	 shifts=2:0.05:2
+
+	shuffle_type = :dotson
+	
 end
 
 # ╔═╡ c99b4903-464d-44fb-b5e5-d7724b25afea
-PlutoUI.TableOfContents(title="Caching Mains and Shuffles")
+begin
+	using PlutoUI
+	PlutoUI.TableOfContents(title="Caching Mains and Shuffles")
+end
 
 # ╔═╡ 823b1bff-d922-4c2b-8a50-179af24094bd
 begin
 	@time spikes, beh, ripples, cells = Load.load("RY16", 36);
 	_, spikes = Load.register(beh, spikes; transfer=["velVec"], on="time")
+	if shuffle_type == :dotson
+	    nbins = 50
+	    Munge.behavior.annotate_relative_xtime!(beh)
+	    beh.trajreltime_bin = floor.(beh.trajreltime * (nbins-1))
+	    _, spikes = Load.register(beh, spikes;
+	                             transfer=["trajreltime","trajreltime_bin"],
+	                             on="time")
+	end
 end;
 
 # ╔═╡ 7ff3160c-fbf4-4740-8b24-5e3a2f130f70
@@ -113,6 +126,8 @@ md"## Cache results"
 
 # ╔═╡ 673b09d2-5dd4-4b6c-897e-2fc43f04ab8f
 # ╠═╡ show_logs = false
+# ╠═╡ disabled = true
+#=╠═╡
 begin
     @progress "Datacut iteration" for datacut ∈ datacuts
         finished_batch = false
@@ -130,6 +145,7 @@ begin
     end
 
 end
+  ╠═╡ =#
 
 # ╔═╡ 08b1ac9b-58e8-41de-994f-a05609df3b2c
 keys(I)
@@ -140,23 +156,27 @@ md"""
 Works for a single key?"""
 
 # ╔═╡ 135856f2-6c6b-4bc4-9e7a-ca678d5e729d
-# ╠═╡ disabled = true
-#=╠═╡
 datacut, props = first(datacuts), first(prop_set)
-  ╠═╡ =#
 
 # ╔═╡ 2f11999f-5d6e-4807-8bce-49791e7a0211
-# ╠═╡ disabled = true
-#=╠═╡
 marginal=get_shortcutnames(props)
-  ╠═╡ =#
 
 # ╔═╡ ae54aa7a-3afb-43c9-b083-0908b1f02d18
-#=╠═╡
 key = get_key(;marginal, datacut, shifts)
-  ╠═╡ =#
+
+# ╔═╡ 93a9beb2-084d-4fe7-937c-39d74740cade
+typeof(shifts)
+
+# ╔═╡ 5941ed8d-62c0-4d11-b897-30fc24f25b78
+Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts, props; 
+fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=3,
+widths=2.50f0)
+
+# ╔═╡ f8f1c3e8-ed99-4a37-8faa-82ec1f946898
+
 
 # ╔═╡ dde2b892-eae4-4dfd-8735-b533e8a5ae68
+# ╠═╡ disabled = true
 #=╠═╡
 Timeshift.shifted_fields(beh, spikes, shifts, props; widths=2.50f0)
   ╠═╡ =#
@@ -179,6 +199,30 @@ begin
 end
 
 # ╔═╡ 2696b1df-e52c-497c-b62f-a0932da6c8a4
+# ╠═╡ disabled = true
+#=╠═╡
+begin
+    @progress "Datacut iteration" for datacut ∈ datacuts
+        finished_batch = false
+        @progress "Props" for props ∈ prop_set
+            marginal = get_shortcutnames(props)
+            key = get_key(;marginal, datacut, shifts)
+    		if keymessage(I, key); continue; end
+            S[key] = Timeshift.shifted_fields(beh, spikes, shifts, props; widths=2.50f0)
+            finished_batch = true
+        end
+        if finished_batch
+            Timeshift.save_shuffles(S)
+        end
+    end
+
+end
+  ╠═╡ =#
+
+# ╔═╡ 0da7796d-0169-45f0-a56f-30a92d9dcc29
+Field.adaptive.max_radii()
+
+# ╔═╡ eb7eb4ca-6088-487c-9017-6b7988188c20
 
 
 # ╔═╡ Cell order:
@@ -196,7 +240,12 @@ end
 # ╠═135856f2-6c6b-4bc4-9e7a-ca678d5e729d
 # ╠═2f11999f-5d6e-4807-8bce-49791e7a0211
 # ╠═ae54aa7a-3afb-43c9-b083-0908b1f02d18
+# ╠═93a9beb2-084d-4fe7-937c-39d74740cade
+# ╠═5941ed8d-62c0-4d11-b897-30fc24f25b78
+# ╠═f8f1c3e8-ed99-4a37-8faa-82ec1f946898
 # ╠═dde2b892-eae4-4dfd-8735-b533e8a5ae68
 # ╟─835d1acf-95f6-47c1-9bdd-0b0a75034353
 # ╠═29497f7b-795e-433f-b772-72191f52dc24
 # ╠═2696b1df-e52c-497c-b62f-a0932da6c8a4
+# ╠═0da7796d-0169-45f0-a56f-30a92d9dcc29
+# ╠═eb7eb4ca-6088-487c-9017-6b7988188c20

@@ -1,19 +1,10 @@
 """
-`plot`
-
-# proposed structure
-
-`show_fieldgroups` : plot a group of Field collections, who are indexed by group keys
-
-`show_fields` : plot a collection of fields indexed by keys
-
-`show_field`  : plot a single Field and its key
-
+`rf`
 """
-module plot
+module rf
 
-    using ..Field
-    using ..Field: ReceptiveField, Grid, Occupancy
+    using Field
+    using Field: ReceptiveField, Grid, Occupancy
     import Utils
     using Plots, LaTeXStrings, Measures
     using Statistics
@@ -272,28 +263,32 @@ module plot
     @recipe function plot_adaptiverf(field::ReceptiveField, val::Symbol=:rate)
         colorbar_title --> String(val)
         seriestype --> :heatmap
-        x --> [field.grid.centers[1]...]
-        if length(field.grid.centers) > 1
-            y --> [field.grid.centers[2]...]
-        end
         title --> string(field.metrics)
-        getproperty(field, val)
+        X = [field.grid.centers[1]...]
+        x --> X
+        if length(field.grid.centers) > 1
+            Y = [field.grid.centers[2]...]
+            y --> Y
+        end
+        (X, Y, getproperty(field, val)')
     end
 
     @recipe function plot_adaptiveocc(field::T where T<:Occupancy, val::Symbol=:prob)
         seriestype --> :heatmap
         colorbar_title --> String(val)
         seriestype --> :heatmap
-        x := [field.grid.centers[1]...]
-        y := length(field.grid.centers) > 1 ?
-             [field.grid.centers[2]...] : nothing
+        X = [field.grid.centers[1]...]
+        x --> X
+        if length(field.grid.centers) > 1
+            Y = [field.grid.centers[2]...]
+            y --> Y
+        end
         z := if val==:prob
-            reshape(getproperty(field, val), size(field.grid))
+            (X, Y, reshape(getproperty(field, val), size(field.grid))')
         else
-            getproperty(field, val)
+            (X, Y, getproperty(grid, val)')
         end
     end
 
 end
 
-export plot
