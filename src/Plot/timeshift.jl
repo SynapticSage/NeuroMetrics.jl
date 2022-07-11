@@ -1,14 +1,18 @@
 module timeshift
 
-    using StatsPlots: @df
-    using Plots
-    using Infiltrator
+
     import Shuffle
     import Table
     import Utils
+    import Timeshift: ShiftedField, ShiftedFields
+
+    using Plots
+    using Infiltrator
+    using StatsPlots: @df
     using Statistics, NaNStatistics
     using DataFrames, DataFramesMeta
     using StatsBase
+    using RecipesBase
 
     export plot_shifts
     export plot_shift_versus_info

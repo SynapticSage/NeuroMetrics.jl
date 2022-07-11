@@ -167,17 +167,6 @@ module legacy
         return out
     end
 
-    function center_to_edge(grid::AbstractVector)
-        grid = collect(grid)
-        Δ = median(diff(grid))
-        δ = Δ/2
-        grid = collect(minimum(grid)-δ:Δ:maximum(grid)+δ)
-    end
-
-    function edge_to_center(grid::AbstractArray)
-        grid = collect(grid)
-        grid = dropdims(mean([vec(grid[1:end-1]) vec(grid[2:end])], dims=2), dims=2)
-    end
     function to_density(field::AbstractArray)
         field = field./nansum(vec(field))
     end

@@ -3,9 +3,11 @@ module adaptive
     using ..Field
     import ..Field: Grid, ReceptiveField, Occupancy, Metrics
     import ..Field: get_boundary, resolution_to_width, return_vals
+    import ..Field.metrics: Metrics
     import Utils
     import Table
     import Table: CItype, CItype_plusNull
+    import Munge
 
     using DataStructures
     using DataFrames
@@ -13,7 +15,7 @@ module adaptive
     import Base
     using LoopVectorization
     using Infiltrator
-    using ProgressMeter
+    using ProgressLogging, ProgressMeter
     using Entropies: Probabilities
     using ProgressLogging
     using RecipesBase
@@ -111,6 +113,14 @@ module adaptive
     #AdaptiveFieldDict(x) = OrderedDict{NamedTuple,   AdaptiveRF}(x)
     #AdaptiveFieldDict()  = OrderedDict{NamedTuple,   AdaptiveRF}()
     
+    """
+        converge_to_radius
+
+    simple converge to radius. it expands a circle/sphere until a certain
+    amount of sample time is acheived. it stops when threshold is reached.
+    if it reaches maxrad radius before that threshold, this radius becomes
+    NaN, nullifying this sample.
+    """
     function converge_to_radius(vals::Matrix{Float32}, center::Vector{Float32},
             radius::Float32; sampletime::Float32, thresh::Float32,
             maxrad::Float32, radiusinc::Real, kws...)::Float32
@@ -177,24 +187,25 @@ module adaptive
             sampletime::Union{Nothing,Float32}=nothing, # Total time of sample
             radiusinc::Float32=0.5f0, # Spatial unit of RF
             ϵ::Float32=0.1f0,
-            maxrad::Float32=5f0,
+            maxrad::Union{Float32,Nothing}=nothing,
             method::Symbol=:converge_to_radius,
             widths::OrderedDict, boundary::OrderedDict)::GridAdaptive
+        behavior = Munge.chrono.ensureTimescale(behavior)
         sampletime = sampletime === nothing ? 
-                     1/median(diff(behavior.time)) : sampletime
+                     median(diff(behavior.time)) : sampletime
+        maxrad = maxrad === nothing ? 3*maximum(values(widths)) : maxrad
         vals = Field.return_vals(behavior, props)
         cv(x) = collect(values(x))
         G = GridAdaptive(props;width=cv(widths), boundary=cv(boundary))
-        P = Progress(length(G), desc="grid")
         R = Vector{Float32}(undef, length(G))
         if method == :converge_to_radius_w_inertia
-            sampletime += ϵ
+            thresh += ϵ
         end
+        @info "state" thresh sampletime maxrad
         method = eval(method)
         Threads.@threads for (index, (center, radius)) in collect(enumerate(G))
             radius = method(vals, center, radius; sampletime, thresh, maxrad,
                             radiusinc, ϵ)
-            next!(P)
             R[index] = radius
         end
         G.radii .= reshape(R, size(G))
@@ -203,7 +214,7 @@ module adaptive
 
     function get_grid(behavior::DataFrame, props::Vector;
             widths::Union{<:Float32, Vector{<:Float32}, OrderedDict},
-            other_kws=(;))::GridAdaptive
+            other_kws...)::GridAdaptive
         if typeof(widths) <: Float32
             widths = OrderedDict{}(prop=>widths for prop in props)
         elseif typeof(widths) <: AbstractVector
@@ -241,6 +252,7 @@ module adaptive
     end
     function yartsev(spikes::DataFrame, grid::GridAdaptive, occ::AdaptiveOcc;
             splitby::CItype_plusNull=[:unit], 
+            #metricfuncs::Union{Nothing,Vector{Function},Function}=nothing,
             grid_kws...)::Union{AdaptiveFieldDict, AdaptiveRF}
         if splitby !== nothing
             spikes = groupby(spikes, splitby)
@@ -291,17 +303,15 @@ module adaptive
             #next!(prog)
         end
         count = reshape(count, size(grid))
-        AdaptiveRF(grid, occ, count, occ.camerarate*Float32.(count./occ.count), 
+        field = AdaptiveRF(grid, occ, count, occ.camerarate*Float32.(count./occ.count), 
                    Metrics())
     end
 
     function get_occupancy(behavior::DataFrame, grid::GridAdaptive)::AdaptiveOcc
         vals = Field.return_vals(behavior, grid.props)
         count = zeros(Int32, size(grid))
-        prog = Progress(length(grid);desc="occupancy")
         Threads.@threads for (index, (center, radius)) in collect(enumerate(grid))
             count[index] = sum(inside(vals, center, radius))
-            next!(prog)
         end
         count = reshape(count, size(grid))
         prob = Probabilities(Float32.(vec(count)))

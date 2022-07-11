@@ -31,24 +31,6 @@ module Field
     abstract type ReceptiveField end
     abstract type Occupancy end
 
-    # Collection types
-    abstract type FieldCollection end
-    abstract type FieldDict  <: FieldCollection end
-    abstract type FieldArray <: FieldCollection end
-
-    mutable struct Metrics
-        data::AbstractDict{Symbol, Any}
-        Metrics() = new(Dict{Symbol,Any}())
-        Metrics(x) = new(x)
-    end
-    function Base.getindex(M::Metrics, index...)
-        Base.getindex(M.data, index...)
-    end
-    function Base.setindex!(M::Metrics, val, index::Symbol)
-        M.data[index] = val
-    end
-    Base.push!(M::Metrics, p::Pair{Symbol, <:Any}) = push!(M.data, p)
-    Base.pop!(M::Metrics, key)::Any = pop!(M.data, key)
     function Base.push!(R::ReceptiveField, measurement_name::Symbol, measurement_value)
         push!(R.metrics, measurement_name => measurement_value)
     end
@@ -56,11 +38,18 @@ module Field
         M = ["$k=$(round(v;sigdigits))" for (k,v) in S.metrics]
         join(M, " ")
     end
-    Base.iterate(M::Metrics) = iterate(M.data)
-    Base.iterate(M::Metrics, i::Int64) = iterate(M.data, i)
-    Base.length(M::Metrics)  = length(M.data)
+    function Table.to_dataframe(F::ReceptiveField, pos...; kws...)
+        F = Utils.to_dict(F)
+        grid  = pop!(F, :grid_centers)
+        props = pop!(F, :props)
+        F = NamedTuple(F)
+        Table.to_dataframe(F, pos...; grid=grid, props=props, kws...)
+    end
 
-
+    # Collection types
+    abstract type FieldCollection end
+    abstract type FieldDict  <: FieldCollection end
+    abstract type FieldArray <: FieldCollection end
     sparse_to_full(G::Vector...) = [g for g in zip(ndgrid(G...)...)]
     sparse_to_full(G::Tuple{Vector}) = [g for g in zip(ndgrid(G...)...)]
     function sparse_to_full(C::Tuple...)::Array{Tuple}
@@ -114,6 +103,16 @@ module Field
         end
         boundary
     end
+    function center_to_edge(grid::AbstractVector)
+        grid = collect(grid)
+        Δ = median(diff(grid))
+        δ = Δ/2
+        grid = collect(minimum(grid)-δ:Δ:maximum(grid)+δ)
+    end
+    function edge_to_center(grid::AbstractArray)
+        grid = collect(grid)
+        grid = dropdims(mean([vec(grid[1:end-1]) vec(grid[2:end])], dims=2), dims=2)
+    end
 
     """
         return_vals
@@ -127,13 +126,6 @@ module Field
         Float32.(hcat([Y[!,prop] for prop in props]...))
     end
     
-    function Table.to_dataframe(F::ReceptiveField, pos...; kws...)
-        F = Utils.to_dict(F)
-        grid  = pop!(F, :grid_centers)
-        props = pop!(F, :props)
-        F = NamedTuple(F)
-        Table.to_dataframe(F, pos...; grid=grid, props=props, kws...)
-    end
 
     # Field-related submodules
     using Reexport

@@ -9,9 +9,11 @@ module Timeshift
 
     # Parent libary
     import Field
+    import Field: adaptive, fixed
     import Load: register, filterAndRegister
     import Field.preset: field_presets, return_preset_funcs
-    adaptive = Field.adaptive
+    import Table: to_dataframe
+    import Munge.chrono: ensureTimescale
 
     # Julia packages
     using DataStructures
@@ -20,9 +22,6 @@ module Timeshift
     using Distributions
     using NaNStatistics
 
-    macro identity(n)
-        return n
-    end
 
     # Exports
     export Field
@@ -63,7 +62,7 @@ module Timeshift
     types
     """
     function shifted_fields(beh::DataFrame, data::DataFrame,
-            shifts::Union{StepRangeLen,Vector{T}} where T <: Real,
+            shifts::Union{StepRangeLen,StepRange,Vector{T}} where T <: Real,
             props::Vector; 
             filters::Union{OrderedDict, Nothing}=nothing,
             splitby::Vector=[:unit],
@@ -76,11 +75,12 @@ module Timeshift
                            Vector{Symbol},Vector{Function},Nothing}=nothing,
             multi::Union{Bool, Symbol}=true,
             result_dict::AbstractDict=ThreadSafeDict(),
+            progress::Bool=true,
             grid_kws...)::OrderedDict
 
         # Process preset options
         if fieldpreset !== nothing
-            fieldfunc, occfunc, gridfunc, metricfuncs, postfunc =
+            fieldfunc, gridfunc, occfunc, metricfuncs, postfunc =
                 return_preset_funcs(fieldpreset)
         else
             fieldfunc   = fieldfunc isa Symbol ? eval(fieldfunc) : fieldfunc
@@ -103,14 +103,8 @@ module Timeshift
         occ  = occfunc(beh, grid)
         data = dropmissing(data, grid.props)
 
-        if maximum(abs.(shifts)) >= 0.25 && median(diff(beh.time)) < (1/30)
-            shift_correct = true
-            @info "correcting shifts for minutes"
-            shifts = collect(shifts)
-            shifts ./= 60
-        else
-            shift_correct = false
-        end
+        data = ensureTimescale(data)
+        beh  = ensureTimescale(beh)
 
         prog = Progress(length(shifts), desc="Field shift calculations")
         for shift in shifts
@@ -123,15 +117,16 @@ module Timeshift
             if postfunc !== nothing
                 result = postfunc(result)
             end
-            shift = shift_correct ? shift*60 : shift
             push!(result_dict, shift=>result)
             if metricfuncs !== nothing
                 for (unit,metricfuncs) in Iterators.product(keys(result), metricfuncs)
                     name, calculation = Symbol(metricfuncs), metricfuncs(result[unit])
-                    push!(result[unit].metricfuncs, name=>calculation)
+                    push!(result[unit].metrics, name=>calculation)
                 end
             end
-            next!(prog)
+            if !(isdefined(Main, :PlutoRunner)) && progress
+                next!(prog)
+            end
         end
         result_dict = Dict(result_dict...)
         out = OrderedDict(
@@ -150,19 +145,29 @@ module Timeshift
     #function Base.get(S::AbsDictOfShiftOfUnit)
     #    S.data
     #end
-    function Base.get(S::T where T<:AbsDictOfShiftOfUnit, shift::Float64, index...) 
+    function Base.get(S::T where T<:AbsDictOfShiftOfUnit, shift::T where T<:Real, index...) 
         s = S[shift]
+        getindex(s, index...)
+    end
+    function getindex(s::AbstractDict{NamedTuple,<:Any}, index...)
         index = [index...]
         while !(isempty(index))
             k = collect(keys(s))
             kk = [k[1] for k in Tuple.(k)]
             select = kk .== pop!(index)
+            #@info "select = $select"
             if !(any(select))
                 @error "No matches"
             end
             s = s[k[select][1]]
         end
         return s
+    end
+    function Base.get(S::T where T<:AbsDictOfShiftOfUnit, shift::Colon, index...) 
+        OrderedDict(k=>getindex(v,index...) for (k,v) in S)
+    end
+    function Base.get(S::T where T<:AbsDictOfShiftOfUnit, shift::T where T<:Real) 
+        S[shift]
     end
     Base.get(S::AbsDictOfShiftOfUnit, shift::Float64, index::NamedTuple) = 
                                                             S[shift][index]
@@ -179,10 +184,15 @@ module Timeshift
         metrics::DataFrame
         function ShiftedField(data::OrderedDict)
             shifts = collect(keys(data))
-            new(data, shifts)
+            metrics = OrderedDict(k=>v.metrics for (k,v) in data)
+            metrics = to_dataframe(metrics)
+            new(data, shifts, metrics)
         end
-        ShiftedField(data::OrderedDict, shifts::Vector{<:Real}) = new(data, 
-                                                                      shifts)
+        function ShiftedField(data::OrderedDict, shifts::Vector{<:Real}) 
+            metrics = OrderedDict(k=>v.metrics for (k,v) in data)
+            metrics = to_dataframe(metrics)
+            new(data, shifts, metrics)
+        end
     end
 
     mutable struct ShiftedFields

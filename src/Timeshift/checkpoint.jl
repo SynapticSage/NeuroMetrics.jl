@@ -45,9 +45,9 @@ module checkpoint
         name = joinpath(parent_folder, "mains")
     end
 
-    function save_mains(M::AbstractDict)
+    function save_mains(M::AbstractDict; overwrite::Bool=false)
         name = mainspath()
-        if isfile(name)
+        if isfile(name) && !(overwrite)
             @info "Preloading existing $name"
             D = deserialize(name)
         else
@@ -65,9 +65,9 @@ module checkpoint
         Arrow.write(name, M)
     end
 
-    function save_fields(M::AbstractDict)
+    function save_fields(M::AbstractDict; overwrite::Bool=false)
         name = fieldspath()
-        if isfile(name)
+        if isfile(name) && !(overwrite)
             @info "Preloading existing $name"
             D = deserialize(name)
         else
@@ -116,9 +116,9 @@ module checkpoint
         name = joinpath(parent_folder, "shuffles")
     end
 
-    function save_shuffles(S::AbstractDict)
+    function save_shuffles(S::AbstractDict; overwrite::Bool=false)
         name = shufflespath()
-        if isfile(name)
+        if isfile(name) && !(overwrite)
             @info "Preloading existing $name"
             D = deserialize(name)
         else

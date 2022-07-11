@@ -276,6 +276,7 @@ module plot
         if length(field.grid.centers) > 1
             y --> [field.grid.centers[2]...]
         end
+        title --> string(field.metrics)
         getproperty(field, val)
     end
 

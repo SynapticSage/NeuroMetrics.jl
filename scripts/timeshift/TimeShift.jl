@@ -203,6 +203,30 @@ end
     end
 end
 
+# Posthoc adding labels to namped-tuples
+I, S, F = Timeshift.load_mains(),
+          Timeshift.load_shuffles(),
+          Timeshift.load_fields()
+          
+getfirstkey(x) = x[first(keys(x))]
+firstkey(x)    = first(keys(x))
+function add_namedtuple_fields(X::AbstractDict, detail::NamedTuple)
+    for key in keys(X)
+        x = pop!(X, key)
+        key = (;key..., detail...)
+        X[key] = x
+    end
+end
+
+detail = (;grid=:fixed, resolution=40)
+add_namedtuple_fields(I, detail)
+add_namedtuple_fields(S, detail)
+add_namedtuple_fields(F, detail)
+
+Timeshift.save_mains(I, overwrite=true)
+Timeshift.save_shuffles(S, overwrite=true)
+Timeshift.save_fields(F, overwrite=true)
+
 # Compare FIELDS AT BEST-(𝛕)
 ui = @manipulate for i ∈ 1:size(imax,1)
     row = imax[i,:]

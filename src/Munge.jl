@@ -4,6 +4,8 @@ module Munge
     using Reexport
     using DrWatson
 
+    include(srcdir("Munge","chrono.jl"))
+    @reexport using .chrono
     include(srcdir("Munge","behavior.jl"))
     @reexport using .behavior
     include(srcdir("Munge","lfp.jl"))

@@ -29,7 +29,7 @@ module preset
          fieldfunc   = adaptive.yartsev,
          gridfunc    = adaptive.get_grid,
          occfunc     = adaptive.get_occupancy,
-         metricfuncs = metrics.information,
+         metricfuncs = [metrics.information],
          postfunc    = nothing,
          grid_kws    = (;width=4)
         ),
@@ -49,7 +49,8 @@ module preset
 
     function return_preset_funcs(p::Symbol)
         Tuple(field_presets[p][func] for func in [:fieldfunc, :gridfunc, 
-                                                  :occfunc, :metricsfuncs])
+                                                  :occfunc, :metricfuncs, 
+                                                  :postfunc])
     end
 
 end

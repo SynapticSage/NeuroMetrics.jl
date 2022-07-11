@@ -3,6 +3,7 @@ module fixed
     using ..Field
     import ..Field: Grid, ReceptiveField, Occupancy, Metrics
     import ..Field: get_boundary, resolution_to_width, return_vals
+    import ..Field.metrics: Metrics
     import Utils
     import Table
     import Table: CItype, CItype_plusNull

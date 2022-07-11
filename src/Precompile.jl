@@ -11,6 +11,9 @@ module Precompile
                        "ProgressMeter", "Glob", "Printf", "StatsPlots",
                        "StatsBase", "Distributions", "Shuffle", "VideoIO",
                        "DataStructures", "Gadfly", "TableView", "LazyGrids",
+                       "GeometricalPredicates", "RecipesBase", "Reexport",
+                       "LoopVectorization", 
+                       "Infiltrator",
                        "Random", "Colors", "ColorSchemes", "ImageFiltering",
                        "ProtoStructs", "KernelDensity"]   
 

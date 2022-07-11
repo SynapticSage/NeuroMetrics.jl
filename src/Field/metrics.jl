@@ -2,7 +2,29 @@ module metrics
     using Entropies: Probabilities
     using NaNStatistics
     import ..Field
+    import ..Field: ReceptiveField
     using Infiltrator
+
+    mutable struct Metrics
+        data::AbstractDict{Symbol, Any}
+        Metrics() = new(Dict{Symbol,Any}())
+        Metrics(x) = new(x)
+    end
+    function Base.getindex(M::Metrics, index...)
+        Base.getindex(M.data, index...)
+    end
+    function Base.setindex!(M::Metrics, val, index::Symbol)
+        M.data[index] = val
+    end
+    Base.push!(M::Metrics, p::Pair{Symbol, <:Any}) = push!(M.data, p)
+    Base.pop!(M::Metrics, key)::Any = pop!(M.data, key)
+    Base.iterate(M::Metrics) = iterate(M.data)
+    Base.iterate(M::Metrics, i::Int64) = iterate(M.data, i)
+    Base.length(M::Metrics)  = length(M.data)
+    function Base.string(S::T where T<:Metrics; sigdigits=2)
+        M = ["$k=$(round(v;sigdigits))" for (k,v) in S]
+        join(M, " ")
+    end
 
     skipnan(x) = Iterators.filter(!isnan, x)
     function _convert_to_prob(behProb::AbstractArray)
@@ -16,27 +38,9 @@ module metrics
 
     computes the spatial coherence of a field
     """
-    function coherence(F::Field.ReceptiveField)
+    function coherence(F::ReceptiveField)
     end
-
-    """
-    `information`
-
-    computes the `information` of a receptive field ... general dispatcher for
-    a number of information metrics
-
-    see yartsev dotson 2021 supp
-    """
-    function information(F::Field.ReceptiveField; method=:spatialinformation)
-        return information(F.rate, F.occ.prob; method)
-    end
-    function information(F::NamedTuple; method=:spatialinformation)
-        return information(F.Rₕ, F.occR; method)
-    end
-    function information(F::Dict, behProb::AbstractArray, method=:spatialinformation)
-        behProb = info._convert_to_prob(behProb)
-        information(F, behProb; method)
-    end
+    information(F::T where T <: ReceptiveField; method=:spatialinformation) = information(F.rate, F.occ.prob; method)
     function information(F::Dict, behProb::Probabilities; method=:spatialinformation)
         I = Dict()
         method = eval(method)
@@ -45,9 +49,7 @@ module metrics
         end
         return I
     end
-    function information(F::Array, behProb::Probabilities; method=:spatialinformation)
-        eval(method)(F, behProb)
-    end
+    information(F::Array, behProb::Probabilities; method=:spatialinformation) = eval(method)(F, behProb)
 
 
     function bitsperspike(firingrate::AbstractArray, behProb::Probabilities)
