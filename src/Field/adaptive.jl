@@ -33,11 +33,14 @@ module adaptive
     end
 
     struct GridAdaptive <: Grid
+
         props::Array{String}
         centers::Tuple
         edges::Tuple
         grid::Array{Array{Float32}}
-        radii::Array{Float32}
+        radii::Union{Array{Float32},
+                     Array{Vector{Float32}}}
+
         function GridAdaptive(props::Vector, centers::Union{Array,Tuple}) 
             if eltype(props) == Symbol
                 props = String.(props)
@@ -51,11 +54,12 @@ module adaptive
                 props = String.(props)
             end
             centers = centers isa Array ? Tuple(centers) : centers
+            centers = Tuple(Float32.(c) for c in centers)
             grid = Field.sparse_to_full(centers)
-            radii = ones(size(grid))*radii
+            radii = Float32.(ones(size(grid))*radii)
             edges = Field.center_to_edge.([[c...] for c in centers])
             edges = Tuple((e...,) for e in edges)
-            new(props,centers, edges, grid, radii)
+            new(props, centers, edges, grid, radii)
         end
         function GridAdaptive(props::Vector, centers::Tuple, grid::Array, radii::Array)
             if eltype(props) == Symbol
@@ -69,7 +73,7 @@ module adaptive
         function GridAdaptive(props::Vector; width::Vector, boundary::Vector)
             centers = Tuple(Tuple(collect(s:w:e))
                             for (w, (s, e)) in zip(width, boundary))
-            GridAdaptive(props,centers)
+            GridAdaptive(props, centers)
         end
     end
 
@@ -77,11 +81,13 @@ module adaptive
         colorbar_title --> String(val)
         seriestype --> :heatmap
         c --> :thermal
-        x --> [grid.centers[1]...]
+        X = [grid.centers[1]...]
+        x --> X
         if length(grid.centers) > 1
-            y --> [grid.centers[2]...]
+            Y = [grid.centers[2]...]
+            y --> Y
         end
-        getproperty(grid, val)
+        (X, Y, getproperty(grid, val))
     end
 
     struct AdaptiveOcc <: Occupancy
@@ -122,9 +128,9 @@ module adaptive
     NaN, nullifying this sample.
     """
     function converge_to_radius(vals::Matrix{Float32}, center::Vector{Float32},
-            radius::Float32; sampletime::Float32, thresh::Float32,
-            maxrad::Float32, radiusinc::Real, kws...)::Float32
-        while get_samptime(vals, center, radius; sampletime) < thresh
+            radius::Float32; dt::Float32, thresh::Float32,
+            maxrad::Float32, radiusinc::Float32, kws...)::Float32
+        while get_samptime(vals, center, radius; dt) < thresh
             radius += radiusinc
             if radius > maxrad
                 radius = NaN
@@ -133,13 +139,26 @@ module adaptive
         end
         radius
     end
+    function converge_to_radius(vals::Matrix{Float32}, center::Vector{Float32},
+            radius::Vector{Float32}; dt::Float32, thresh::Float32,
+            maxrad::Union{Float32,Vector{Float32}},
+            radiusinc::Vector{Float32}, kws...)::Vector{Float32}
+        while get_samptime(vals, center, radius; dt) < thresh
+            radius .+= radiusinc
+            if any(radius .> maxrad)
+                radius = NaN
+                break
+            end
+        end
+        radius
+    end
 
     function converge_to_radius_w_inertia(vals::Matrix{Float32},
-            center::Vector{Float32}, radius::Float32; sampletime::Float32,
+            center::Vector{Float32}, radius::Float32; dt::Float32,
             thresh::Float32, maxrad::Float32, radiusinc::Float32,
             ϵ::Float32, kws...)::Float32
         Δ = []
-        tₛ = get_samptime(vals, center, radius; sampletime)
+        tₛ = get_samptime(vals, center, radius; dt)
         δ = tₛ - thresh
         push!(Δ, δ)
         s = sign(δ)
@@ -157,7 +176,7 @@ module adaptive
                 else
                     radiusinc /= 2
                 end
-                tₛ = get_samptime(vals, center, radius; sampletime)
+                tₛ = get_samptime(vals, center, radius; dt)
                 δ = tₛ - thresh
                 push!(Δ, δ)
                 s = sign(δ)
@@ -184,15 +203,16 @@ module adaptive
     """
     function get_grid_bounded(behavior, props; 
             thresh::Float32=1.25f0, # Threshold in seconds
-            sampletime::Union{Nothing,Float32}=nothing, # Total time of sample
-            radiusinc::Float32=0.5f0, # Spatial unit of RF
+            dt::Union{Nothing,Float32}=nothing, # Total time of sample
+            radiusinc::Union{Float32,Vector{Float32}}=0.5f0, # Spatial unit of RF
             ϵ::Float32=0.1f0,
             maxrad::Union{Float32,Nothing}=nothing,
             method::Symbol=:converge_to_radius,
             widths::OrderedDict, boundary::OrderedDict)::GridAdaptive
         behavior = Munge.chrono.ensureTimescale(behavior)
-        sampletime = sampletime === nothing ? 
-                     median(diff(behavior.time)) : sampletime
+        dt = dt === nothing ? 
+                     median(diff(behavior.time)) : dt
+        widths = OrderedDict(prop=>widths[prop] for prop in props)
         maxrad = maxrad === nothing ? 3*maximum(values(widths)) : maxrad
         vals = Field.return_vals(behavior, props)
         cv(x) = collect(values(x))
@@ -201,11 +221,12 @@ module adaptive
         if method == :converge_to_radius_w_inertia
             thresh += ϵ
         end
-        @info "state" thresh sampletime maxrad
+        @info "grid" thresh dt maxrad
         method = eval(method)
         Threads.@threads for (index, (center, radius)) in collect(enumerate(G))
-            radius = method(vals, center, radius; sampletime, thresh, maxrad,
+            radius = method(vals, center, radius; dt, thresh, maxrad,
                             radiusinc, ϵ)
+            @infiltrate radius !== NaN32
             R[index] = radius
         end
         G.radii .= reshape(R, size(G))
@@ -322,7 +343,10 @@ module adaptive
         AdaptiveOcc(grid, count, prob, camerarate)
     end
 
-    # Helper fucntions
+    # ----------------
+    # Helper functions
+    # ----------------
+    # Radius measurements
     function vector_dist(vals::Array, center::Array)::Vector{Float32}
         sqrt.(sum((vals .- center[Utils.na, :]).^2,dims=2)[:,1])
     end
@@ -330,8 +354,19 @@ module adaptive
         vector_dist(vals, center) .< radius
     end
     function get_samptime(vals::Array, center::Array, radius::Float32;
-            sampletime::Float32=1/30)::Float32
-        sum(inside(vals, center, radius)) * sampletime
+            dt::Float32=1/30)::Float32
+        sum(inside(vals, center, radius)) * dt
+    end
+    # Vector radius measurments
+    function indiv_dist(vals::Array, center::Array)::Matrix{Float32}
+        abs.(vals .- center[Utils.na, :])
+    end
+    function inside(vals::Array, center::Array, radius::Vector{Float32})::BitVector
+        Utils.squeeze(all(indiv_dist(vals, center) .< radius[Utils.na, :], dims=2))
+    end
+    function get_samptime(vals::Array, center::Array, radius::Vector{Float32};
+            dt::Float32=1/30)::Float32
+        sum(inside(vals, center, radius)) * dt
     end
     ## --------
     ## UTILITIES
@@ -365,14 +400,14 @@ module adaptive
     #end
     #function skaggs_get_grid(spikes, behavior, props; 
     #        thresh::Real=1, # Threshold in seconds
-    #        sampletime=1/30, # Total time of sample
+    #        dt=1/30, # Total time of sample
     #        radiusinc=0.1, # Spatial unit of RF
     #        width::OrderedDict, boundary::OrderedDict)
     #    vals_behavior = return_vals(behavior, props)
     #    vals_spikes   = return_vals(spikes, props)
     #    G = GridAdaptive(width, boundary, width)
     #    @avx for (index, center, radius) in cenumerate(G)
-    #        while (sum(vals .< (center .+ radius)) * sampletime) < thresh
+    #        while (sum(vals .< (center .+ radius)) * dt) < thresh
     #            radius += radiusinc
     #        end
     #        G.radii[index] = radius

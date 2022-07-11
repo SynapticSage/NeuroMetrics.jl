@@ -32,6 +32,15 @@ module recon_process
                                  "stopWell"            => "G")
     const var_shortcut_names = shortcut_names
 
+
+    get_shortcutnames(items)  = [replace(item, recon_process.var_shortcut_names...)
+                             for item in items]
+    """
+    UnTranslate from shorcut names
+    """
+    inv_shortcutnames(items)  = [replace(item, Dict(kv[2]=>kv[1] for
+                                 kv in shortcut_names)...) for item in items]
+
     """
     𝕀
 

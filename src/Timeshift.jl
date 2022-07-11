@@ -4,7 +4,7 @@ module Timeshift
     using DrWatson
     using Revise
     using Infiltrator
-    using ProgressMeter
+    using ProgressMeter, ProgressLogging
     using DataStructures: OrderedDict
 
     # Parent libary
@@ -46,19 +46,24 @@ module Timeshift
     end
 
     """
-        function shifted_fields(beh::DataFrame, data::DataFrame,
-                shifts::Union{StepRangeLen,Vector{T}} where T <: Real,
-                props::Vector; 
-                splitby::Vector=[:unit],
-                fieldfunc::Union{Function, Symbol}=adaptive.ulanovsky,
-                gridfunc::Union{Function, Symbol}=adaptive.get_grid,
-                occfunc::Union{Function, Symbol}=adaptive.get_occupancy,
-                postfunc::Union{Function,Nothing}=nothing,
-                multi::Union{Bool, Symbol}=true,
-                safe_dict::AbstractDict=ThreadSafeDict(),
-                grid_kws...)::OrderedDict
+        shifted_fields(beh::DataFrame, data::DataFrame,
+            shifts::Union{StepRangeLen,StepRange,Vector{T}} where T <: Real,
+            props::Vector; 
+            filters::Union{OrderedDict, Nothing}=nothing,
+            splitby::Vector=[:unit],
+            fieldpreset::Union{Nothing,Symbol}=:yartsev,
+            fieldfunc::Union{Function, Symbol,Nothing}=nothing,
+            gridfunc::Union{Function, Symbol,Nothing}=nothing,
+            occfunc::Union{Function, Symbol,Nothing}=nothing,
+            postfunc::Union{Function,Nothing}=nothing,
+            metricfuncs::Union{Function,Symbol,
+                           Vector{Symbol},Vector{Function},Nothing}=nothing,
+            multi::Union{Bool, Symbol}=true,
+            result_dict::AbstractDict=ThreadSafeDict(),
+            progress::Bool=true,
+            grid_kws...)::OrderedDict
 
-    Newer versioin of get_field_shift that works with new adaptive and fixed
+    Newer versioin of `get_field_shift` that works with new adaptive and fixed
     types
     """
     function shifted_fields(beh::DataFrame, data::DataFrame,
@@ -101,19 +106,19 @@ module Timeshift
 
         grid = gridfunc(beh, props; grid_kws...)
         occ  = occfunc(beh, grid)
-        data = dropmissing(data, grid.props)
 
         data = ensureTimescale(data)
         beh  = ensureTimescale(beh)
 
         prog = Progress(length(shifts), desc="Field shift calculations")
-        for shift in shifts
+        @progress for shift in shifts
             if shift ∈ keys(result_dict)
                 continue
             end
-            _, data = filterAndRegister(σ(beh, shift), data; on="time",
+            _, data_filt = filterAndRegister(σ(beh, shift), data; on="time",
                                transfer=grid.props, filters)
-            result = fieldfunc(data, grid, occ; splitby)
+            data_filt = dropmissing(data_filt, grid.props)
+            result = fieldfunc(data_filt, grid, occ; splitby)
             if postfunc !== nothing
                 result = postfunc(result)
             end
