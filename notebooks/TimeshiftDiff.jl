@@ -99,7 +99,14 @@ We have some choices to make. This worksheet will compare any *two* checked data
 """
 
 # ╔═╡ e8221624-f6fd-11ec-0151-cf9da8e7d639
-datasets=@bind datacut PlutoUI.MultiCheckBox(String.(unique(I.datacut)), default=["all"])
+begin
+	dataset₁ = @bind datacut₁ PlutoUI.MultiSelect(String.(unique(I.datacut)), default=["all"])
+	 dataset₂ = @bind datacut₂ PlutoUI.MultiSelect(String.(unique(I.datacut)), default=["all"])
+	dataset₁, dataset₂
+end
+
+# ╔═╡ 948387de-df9e-4dde-b616-4fa54e13738d
+datacut = [datacut₁..., datacut₂...]
 
 # ╔═╡ b38a32ff-9b95-416c-be82-3d7371d51932
 @bind marginal PlutoUI.Radio(String.(unique(I.marginal)), default="x-y")
@@ -183,11 +190,12 @@ end
 # ╟─68f79249-c6f2-4f54-b3b6-e0559f9bb7b5
 # ╟─49896b0c-19d3-4c51-8e54-2f046e6d8382
 # ╟─e8221624-f6fd-11ec-0151-cf9da8e7d639
+# ╟─948387de-df9e-4dde-b616-4fa54e13738d
 # ╟─b38a32ff-9b95-416c-be82-3d7371d51932
 # ╟─b741339a-8a3b-416d-9a59-33624595f56f
 # ╟─4c670dcd-25ff-43d1-b78f-2b60fc5878d5
 # ╟─48c22294-fc9d-44ff-b2ea-b2c59e795da0
-# ╟─61f417ed-a4c9-42a3-b858-17dc170dfea0
-# ╟─a7727c6b-b284-4862-876d-591051ce5a2d
+# ╠═61f417ed-a4c9-42a3-b858-17dc170dfea0
+# ╠═a7727c6b-b284-4862-876d-591051ce5a2d
 # ╟─ee2ce4a3-f36f-4814-9853-1dddf1984b56
-# ╟─11704bde-db87-4469-97cf-e2a4fc5c4c76
+# ╠═11704bde-db87-4469-97cf-e2a4fc5c4c76

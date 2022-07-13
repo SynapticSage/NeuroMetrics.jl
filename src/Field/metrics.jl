@@ -3,6 +3,7 @@ module metrics
     using NaNStatistics
     import ..Field
     import ..Field: ReceptiveField
+    import Table
     using Infiltrator
 
     mutable struct Metrics
@@ -24,6 +25,10 @@ module metrics
     function Base.string(S::T where T<:Metrics; sigdigits=2)
         M = ["$k=$(round(v;sigdigits))" for (k,v) in S]
         join(M, " ")
+    end
+    function Table.to_dataframe(M::Metrics; kws...) 
+        kws = (;kws..., key_name="metric")
+        Table.to_dataframe(M.data; kws...)
     end
 
     skipnan(x) = Iterators.filter(!isnan, x)

@@ -74,6 +74,14 @@ module convert_types
         D = to_dataframe(Utils.namedtuple_to_dict(fields); kws...) 
         return D
     end
+    function to_dataframe(X::DataFrame; other_labels=nothing, kws...)
+        if other_labels !== nothing
+            for (k,v) in other_labels
+                X[!,k] .= v
+            end
+        end
+        X
+    end
 
     """
     field_to_dataframe(field::AbstractArray; other_labels=Dict())

@@ -22,7 +22,6 @@ module Timeshift
     using Distributions
     using NaNStatistics
 
-
     # Exports
     export Field
     export get_field_shift
@@ -147,77 +146,6 @@ module Timeshift
     AbsDictOfShiftOfUnit =
                      OrderedDict{<:Union{<:Real, NamedTuple}, OrderedDict} 
 
-    #function Base.get(S::AbsDictOfShiftOfUnit)
-    #    S.data
-    #end
-    function Base.get(S::T where T<:AbsDictOfShiftOfUnit, shift::T where T<:Real, index...) 
-        s = S[shift]
-        getindex(s, index...)
-    end
-    function getindex(s::AbstractDict{NamedTuple,<:Any}, index...)
-        index = [index...]
-        while !(isempty(index))
-            k = collect(keys(s))
-            kk = [k[1] for k in Tuple.(k)]
-            select = kk .== pop!(index)
-            #@info "select = $select"
-            if !(any(select))
-                @error "No matches"
-            end
-            s = s[k[select][1]]
-        end
-        return s
-    end
-    function Base.get(S::T where T<:AbsDictOfShiftOfUnit, shift::Colon, index...) 
-        OrderedDict(k=>getindex(v,index...) for (k,v) in S)
-    end
-    function Base.get(S::T where T<:AbsDictOfShiftOfUnit, shift::T where T<:Real) 
-        S[shift]
-    end
-    Base.get(S::AbsDictOfShiftOfUnit, shift::Float64, index::NamedTuple) = 
-                                                            S[shift][index]
-    function getshifts(S::AbsDictOfShiftOfUnit)
-        collect(keys(S))
-    end
-    function getunits(S::AbsDictOfShiftOfUnit)
-        collect(keys(S[1]))
-    end
-
-    mutable struct ShiftedField
-        data::OrderedDict{<:Real,<:Field.ReceptiveField}
-        shifts::Vector{<:Real}
-        metrics::DataFrame
-        function ShiftedField(data::OrderedDict)
-            shifts = collect(keys(data))
-            metrics = OrderedDict(k=>v.metrics for (k,v) in data)
-            metrics = to_dataframe(metrics)
-            new(data, shifts, metrics)
-        end
-        function ShiftedField(data::OrderedDict, shifts::Vector{<:Real}) 
-            metrics = OrderedDict(k=>v.metrics for (k,v) in data)
-            metrics = to_dataframe(metrics)
-            new(data, shifts, metrics)
-        end
-    end
-
-    mutable struct ShiftedFields
-        data::AbstractDict{<:NamedTuple, <:ShiftedField}
-        metrics::DataFrame
-        function ShiftedFields(S::AbsDictOfShiftOfUnit)
-            shifts = getshifts(S)
-            units  = getunits(S)
-            fields = OrderedDict{NamedTuple, ShiftedField}()
-            for unit in units
-                @infiltrate
-                SF = ShiftedField(OrderedDict(shift=>get(S, shift, unit) for shift in shifts))
-                fields[unit] = SF
-            end
-            new(fields)
-        end
-    end
-
-    #@recipte plot_shiftedfields(S::ShiftedFields, shifts::Int, neurons::Int)
-    #end
 
     using Reexport
     include(srcdir("Timeshift", "checkpoint.jl"))
@@ -232,5 +160,7 @@ module Timeshift
     @reexport using .crossval
     include(srcdir("Timeshift", "Keys.jl"))
     @reexport using .Keys
+    include(srcdir("Timeshift", "types.jl"))
+    @reexport using .types
 
 end

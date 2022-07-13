@@ -4,7 +4,7 @@ module timeshift
     import Shuffle
     import Table
     import Utils
-    import Timeshift: ShiftedField, ShiftedFields
+    import Timeshift: ShiftedField, ShiftedFields, AbsDictOfShiftOfUnit, DictOfShiftOfUnit
 
     using Plots
     using Infiltrator
@@ -14,8 +14,8 @@ module timeshift
     using StatsBase
     using RecipesBase
 
-    export plot_shifts
-    export plot_shift_versus_info
+    export plot_shifts, plot_shift_versus_info
+    export shiftedfieldplot
 
     dosave = true
 
@@ -298,6 +298,38 @@ module timeshift
         @df sig_shape plot!(:shift*60, :upper, style=:dash, c=:black, label="upper")
         hline!([0], c=:black, label="")
         p
+    end
+
+    @userplot ShiftedFieldPlot
+    @recipe function plot_shiftedfields(S::ShiftedFieldPlot)
+
+        if length(S.args) == 1
+            SF, shifts = S.args[1], nothing
+        elseif length(S.args) == 2
+            SF, shifts = S.args[1], S.args[2]
+        else
+            @error "Wrong argument number"
+        end
+        @assert SF isa ShiftedField
+        @assert shifts isa Union{Vector, Nothing}
+
+        shifts = shifts === nothing ? shifts.keys : shifts
+        D = SF.values
+
+        legend := false
+        layout := @layout [ grid(1, length(shifts)) ]
+        grid := false
+        aspect_ratio --> 1
+        @info length(shifts)
+
+        for (i,(s,d)) in enumerate(zip(shifts, D))
+            @series begin
+                subplot    := i
+                seriestype := :heatmap
+                c := :linear_kryw_5_100_c67_n256
+                [d.grid.centers[1]...], [d.grid.centers[2]...], d.rate'
+            end
+        end
     end
 
 end

@@ -83,6 +83,11 @@ begin
 	PlutoUI.TableOfContents(title="Caching Mains and Shuffles")
 end
 
+# ╔═╡ 0f48f044-fd14-4b15-bf0c-b39c1843f9db
+md"""
+This notebook functions to cache shifted fields and shifted field shuffles under certain settings.
+"""
+
 # ╔═╡ 823b1bff-d922-4c2b-8a50-179af24094bd
 begin
 	@time spikes, beh, ripples, cells = Load.load("RY16", 36);
@@ -125,9 +130,6 @@ end
 md"## Cache results"
 
 # ╔═╡ 673b09d2-5dd4-4b6c-897e-2fc43f04ab8f
-# ╠═╡ show_logs = false
-# ╠═╡ disabled = true
-#=╠═╡
 begin
     @progress "Datacut iteration" for datacut ∈ datacuts
         finished_batch = false
@@ -145,7 +147,6 @@ begin
     end
 
 end
-  ╠═╡ =#
 
 # ╔═╡ 08b1ac9b-58e8-41de-994f-a05609df3b2c
 keys(I)
@@ -165,7 +166,9 @@ marginal=get_shortcutnames(props)
 key = get_key(;marginal, datacut, shifts)
 
 # ╔═╡ 93a9beb2-084d-4fe7-937c-39d74740cade
-typeof(shifts)
+md"""
+### Shuffle
+"""
 
 # ╔═╡ 5941ed8d-62c0-4d11-b897-30fc24f25b78
 Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts, props; 
@@ -173,7 +176,9 @@ fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=3,
 widths=2.50f0)
 
 # ╔═╡ f8f1c3e8-ed99-4a37-8faa-82ec1f946898
-
+md"""
+### Main
+"""
 
 # ╔═╡ dde2b892-eae4-4dfd-8735-b533e8a5ae68
 # ╠═╡ disabled = true
@@ -199,8 +204,6 @@ begin
 end
 
 # ╔═╡ 2696b1df-e52c-497c-b62f-a0932da6c8a4
-# ╠═╡ disabled = true
-#=╠═╡
 begin
     @progress "Datacut iteration" for datacut ∈ datacuts
         finished_batch = false
@@ -208,7 +211,8 @@ begin
             marginal = get_shortcutnames(props)
             key = get_key(;marginal, datacut, shifts)
     		if keymessage(I, key); continue; end
-            S[key] = Timeshift.shifted_fields(beh, spikes, shifts, props; widths=2.50f0)
+            S[key] = Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts, props; fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=100,
+widths=2.50f0)
             finished_batch = true
         end
         if finished_batch
@@ -217,15 +221,12 @@ begin
     end
 
 end
-  ╠═╡ =#
-
-# ╔═╡ 0da7796d-0169-45f0-a56f-30a92d9dcc29
-Field.adaptive.max_radii()
 
 # ╔═╡ eb7eb4ca-6088-487c-9017-6b7988188c20
 
 
 # ╔═╡ Cell order:
+# ╟─0f48f044-fd14-4b15-bf0c-b39c1843f9db
 # ╟─c99b4903-464d-44fb-b5e5-d7724b25afea
 # ╟─fc614ab8-00cb-11ed-0f62-f751ef056b39
 # ╟─823b1bff-d922-4c2b-8a50-179af24094bd
@@ -236,7 +237,7 @@ Field.adaptive.max_radii()
 # ╟─c820cf54-fa0a-4112-8e76-8f76839b7a49
 # ╠═673b09d2-5dd4-4b6c-897e-2fc43f04ab8f
 # ╠═08b1ac9b-58e8-41de-994f-a05609df3b2c
-# ╟─cfb3aaab-2166-43ce-9fdf-586b98fe8272
+# ╠═cfb3aaab-2166-43ce-9fdf-586b98fe8272
 # ╠═135856f2-6c6b-4bc4-9e7a-ca678d5e729d
 # ╠═2f11999f-5d6e-4807-8bce-49791e7a0211
 # ╠═ae54aa7a-3afb-43c9-b083-0908b1f02d18
@@ -247,5 +248,4 @@ Field.adaptive.max_radii()
 # ╟─835d1acf-95f6-47c1-9bdd-0b0a75034353
 # ╠═29497f7b-795e-433f-b772-72191f52dc24
 # ╠═2696b1df-e52c-497c-b62f-a0932da6c8a4
-# ╠═0da7796d-0169-45f0-a56f-30a92d9dcc29
 # ╠═eb7eb4ca-6088-487c-9017-6b7988188c20

@@ -20,7 +20,9 @@ module adaptive
     using ProgressLogging
     using RecipesBase
     using Statistics
+    using Polyester
     
+    using Plots
 
     """
         default_radii
@@ -36,11 +38,14 @@ module adaptive
             push!(C, c)
         end
         # Turn diameter into radius
-        @infiltrate
         C ./= 2
         # Return the euclidean distance to a corner of the hypercube from the
         # center
-        sqrt(sum(C.^2))
+        if length(unique(C)) == 1
+            sqrt(sum(C.^2))
+        else
+            C
+        end
     end
 
     struct GridAdaptive <: Grid
@@ -60,14 +65,15 @@ module adaptive
             radii = default_radii(centers)
             GridAdaptive(props,centers, radii)
         end
-        function GridAdaptive(props::Vector, centers::Union{<:AbstractArray,Tuple}, radii::Real)
+        function GridAdaptive(props::Vector, centers::Union{<:AbstractArray,Tuple}, 
+                radii::Union{Float32, Vector{Float32}})
             if eltype(props) == Symbol
                 props = String.(props)
             end
             centers = centers isa Array ? Tuple(centers) : centers
             centers = Tuple(Float32.(c) for c in centers)
             grid = Field.sparse_to_full(centers)
-            radii = Float32.(ones(size(grid))*radii)
+            radii = fill(radii, size(grid))
             edges = Field.center_to_edge.([[c...] for c in centers])
             edges = Tuple((e...,) for e in edges)
             new(props, centers, edges, grid, radii)
@@ -98,7 +104,11 @@ module adaptive
             Y = [grid.centers[2]...]
             y --> Y
         end
-        (X, Y, getproperty(grid, val)')
+        Z = getproperty(grid, val)
+        if eltype(Z) == Vector
+            Z = reshape([sqrt(sum(z.^2)) for z in Z], size(Z))
+        end
+        (X, Y, Z')
     end
 
     struct AdaptiveOcc <: Occupancy
@@ -141,28 +151,36 @@ module adaptive
     function converge_to_radius(vals::Matrix{Float32}, center::Vector{Float32},
             radius::Float32; dt::Float32, thresh::Float32,
             maxrad::Float32, radiusinc::Float32, kws...)::Float32
-        radiusinc += 1 
+        #list = []
+        #push!(list, radius)
         while get_samptime(vals, center, radius; dt) < thresh
-            radius += radiusinc
+            radius = radius * radiusinc
+            #push!(list, radius)
             if radius > maxrad
-                radius = NaN
+                radius = NaN32
                 break
             end
         end
+        #@infiltrate
         radius
     end
     function converge_to_radius(vals::Matrix{Float32}, center::Vector{Float32},
             radius::Vector{Float32}; dt::Float32, thresh::Float32,
             maxrad::Union{Float32,Vector{Float32}},
-            radiusinc::Vector{Float32}, kws...)::Vector{Float32}
-        radiusinc .+= 1
+            radiusinc::Union{Float32,Vector{Float32}}, kws...)::Vector{Float32}
+        #list = []
+        #push!(list, radius)
+        #radius = copy(radius)
         while get_samptime(vals, center, radius; dt) < thresh
-            radius .*= radiusinc
-            if any(radius .> maxrad)
-                radius = NaN
+            #@info radius
+            radius = radius .* radiusinc
+            #push!(list, radius)
+            if any(radius .> maxrad) || any(radius .=== NaN32)
+                radius .= NaN32
                 break
             end
         end
+        #@infiltrate
         radius
     end
 
@@ -210,7 +228,7 @@ module adaptive
     end
 
     """
-        get_grid
+        get_grid_bounded
 
     obtains the dynamic sampling grid from only the animals behavior
 
@@ -218,10 +236,10 @@ module adaptive
     if radiusinc is vector, then it will instead expand a hyperbox instead 
     of a hypersphere
     """
-    function get_grid_bounded(behavior, props; 
+    function get_grid_bounded(behavior::DataFrame, props::Vector; 
             thresh::Float32=1.25f0, # Threshold in seconds
             dt::Union{Nothing,Float32}=nothing, # Total time of sample
-            radiusinc::Union{Float32,Vector{Float32}}=0.1f0, # Spatial unit of RF
+            radiusinc::Union{Float32,Vector{Float32}}=0.2f0, # Spatial unit of RF
             ϵ::Float32=0.1f0,
             maxrad::Union{Float32,Nothing}=nothing,
             method::Symbol=:converge_to_radius,
@@ -233,17 +251,27 @@ module adaptive
         maxrad = maxrad === nothing ? 3*maximum(values(widths)) : maxrad
         vals = Field.return_vals(behavior, props)
         cv(x) = collect(values(x))
-        G = GridAdaptive(props;width=cv(widths), boundary=cv(boundary))
-        R = Vector{Float32}(undef, length(G))
+        G = GridAdaptive(props; width=cv(widths), boundary=cv(boundary))
+        radiusinc = ((valtype(G.radii) <: Vector) && !(typeof(radiusinc) <: Vector)) ?
+                fill(radiusinc, length(G.centers)) : radiusinc
+        R = Vector{valtype(G.radii)}(undef, length(G))
         if method == :converge_to_radius_w_inertia
             thresh += ϵ
         end
-        @info "grid" thresh dt maxrad
+        @info "grid" thresh dt maxrad radiusinc
         method = eval(method)
+        radiusinc = radiusinc .+ 1
+        P = Progress(length(G); desc="Grid")
+        #i = 0
         Threads.@threads for (index, (center, radius)) in collect(enumerate(G))
-            radius = method(vals, center, radius; dt, thresh, maxrad,
+            #i+=1
+            #@info "pre $(i)" radius G.radii
+            newradius = method(vals, center, radius; dt, thresh, maxrad,
                             radiusinc, ϵ)
-            R[index] = radius
+            #@info "post $(i)" newradius G.radii
+            #@infiltrate
+            R[index] = newradius
+            next!(P)
         end
         G.radii .= reshape(R, size(G))
         return G

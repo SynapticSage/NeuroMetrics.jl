@@ -12,6 +12,7 @@ module tensor
     using DataStructures: OrderedDict
     using StatsBase
     using Statistics
+    using Infiltrator
 
     import Utils
 
@@ -45,19 +46,23 @@ module tensor
     """
     function tensor_continuous(X::DataFrame, dims::Vector, var::T where T<:SymStr;
             quantilebin::Dict{<:SymStr, <:Int}=Dict{Symbol,Int}(),
-            relative::Vector{<:SymStr},
+            relative::Union{Vector{<:SymStr},Nothing}=nothing,
             TensType::Type=Float64)
 
         X = copy(X)
         
         # Clean
         X = dropmissing(X, [dims...])
-        notisnan = Utils.notisnan(X[!,dims])
-        notisnan = all(notisnan, dims=2)
+        notisnan = hcat(Utils.notisnan.(eachcol(X[!,dims]))...)
+        notisnan = Utils.squeeze(all(notisnan, dims=2))
         X = X[notisnan, :]
 
-        X = quantilize(X, quantilebin)
-        X = relativize(X, dims, relative)
+        if isempty(quantilebin) != true
+            X = quantilize(X, quantilebin)
+        end
+        if relative !== nothing
+            X = relativize(X, dims, relative)
+        end
         G = groupby(X[!, [dims..., var]], dims)
         counts = combine(G, nrow)
         if !(all(counts.nrow .== 1))
@@ -67,11 +72,12 @@ module tensor
             singular = true
         end
 
-        axes = OrderedDict(dim=>sort(unique(X[!,dim])) for dim in dims)
-        sz   = [length(ax) for ax in axes]
+        axs = OrderedDict(dim=>sort(unique(X[!,dim])) for dim in dims)
+        sz   = [length(ax) for ax in axs]
         T = Array{TensType}(undef,sz...)
+        @infiltrate
         for g in G
-            searches = map((dim, ax) -> first(g)[dim] .== ax, zip(dims, axes))
+            searches = map((dim, ax) -> first(g)[dim] .== ax, zip(dims, axs))
             overall = (accumulate(.&, searches))[end]
             for i = 1:length(searches)
                 searches[i] .&= overall
