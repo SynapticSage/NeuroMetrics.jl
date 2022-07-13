@@ -4,6 +4,7 @@ module Filt
     using DataStructures
     export get_filters
     using Base: merge
+    using Infiltrator
 
     function SPEED(x)
         abs.(x) .> 4
@@ -144,17 +145,20 @@ module Filt
 
     # Create a set of predefined filter combinations
     function get_filters()
-        filters = OrderedDict(:all => merge(speed_lib, spikecount))
-        filters[:task]        = merge(filters[:all], task)
-        filters[:correct]     = merge(filters[:all], correct)
-        filters[:error]       = merge(filters[:all], error)
-        filters[:nontask]     = merge(filters[:all], nontask)
-        filters[:memory]      = merge(filters[:all], mem)
-        filters[:cue]         = merge(filters[:all], cue)
-        filters[:cue_correct] = merge(filters[:all], cue)
-        filters[:cue_error]   = merge(filters[:all], cue, error)
-        filters[:mem_correct] = merge(filters[:all], mem, correct)
-        filters[:mem_error]   = merge(filters[:all], mem, error)
+        initial = merge(speed_lib, spikecount)
+        filters = OrderedDict{Symbol,Union{OrderedDict,Nothing}}()
+        filters[:all]         = initial
+        filters[:task]        = merge(filters[:all], Filt.task)
+        filters[:correct]     = merge(filters[:all], Filt.correct)
+        filters[:error]       = merge(filters[:all], Filt.error)
+        filters[:nontask]     = merge(filters[:all], Filt.nontask)
+        filters[:memory]      = merge(filters[:all], Filt.mem)
+        filters[:cue]         = merge(filters[:all], Filt.cue)
+        filters[:cue_correct] = merge(filters[:all], Filt.cue)
+        filters[:cue_error]   = merge(filters[:all], Filt.cue, Filt.error)
+        filters[:mem_correct] = merge(filters[:all], Filt.mem, Filt.correct)
+        filters[:mem_error]   = merge(filters[:all], Filt.mem, Filt.error)
+        filters[:none]        = nothing
         filters
     end
 
