@@ -224,7 +224,10 @@ First, we run the shifted field calculation
 
 # ╔═╡ 39737bd9-f38a-408d-a0c0-99b9e2bd0045
 # ╠═╡ show_logs = false
-shifted = Timeshift.shifted_fields(beh, spikes, -1:1:1, props; widths=width, thresh);
+# ╠═╡ disabled = true
+#=╠═╡
+shifted = Timeshift.shifted_fields(beh, spikes, -2:0.05:2, props; widths=width, thresh);
+  ╠═╡ =#
 
 # ╔═╡ be6048d8-6f30-4d48-a755-5537c3b0b104
 md"""
@@ -232,18 +235,22 @@ md"""
 """
 
 # ╔═╡ 5acf0a77-9e40-4117-83fa-4a0791849265
+#=╠═╡
 begin
 	unit_sel = @bind shift_unit PlutoUI.Slider(sort(unique(spikes.unit)), show_value=true)
 	 shift_sel = @bind shift_shift PlutoUI.Slider(sort(collect(keys(shifted))), show_value=true,default=0)
 	(;unit_sel, shift_sel)
 end
+  ╠═╡ =#
 
 # ╔═╡ 94930aab-8bb0-4da0-b26b-35ddb3efde3b
+#=╠═╡
 begin
     plot_obj = Timeshift.DictOfShiftOfUnit{Float64}(shifted)
     plot(get(plot_obj,shift_shift, shift_unit); aspect_ratio, ylims=ylim,
 		title=string(get(plot_obj, shift_shift, shift_unit)))
 end
+  ╠═╡ =#
 
 # ╔═╡ 47af1633-99bd-4dc2-9d91-9073ec327f27
 md"""
@@ -251,13 +258,19 @@ md"""
 """
 
 # ╔═╡ 5f15dc20-cf30-4088-a173-9c084ac2809a
+#=╠═╡
 SF = Timeshift.ShiftedField(get(plot_obj, :, shift_unit))
+  ╠═╡ =#
 
 # ╔═╡ ac9cddcb-097c-42a8-bd59-19fced23bf5a
+#=╠═╡
 SF.metrics
+  ╠═╡ =#
 
 # ╔═╡ 6f7f46ac-8acd-415b-9516-ed262d5b5cb4
+#=╠═╡
 SFs = Timeshift.ShiftedField(shifted)
+  ╠═╡ =#
 
 # ╔═╡ Cell order:
 # ╟─ff1db172-c3ab-41ea-920c-1dbf831c1336

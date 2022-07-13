@@ -4,7 +4,9 @@
 using Markdown
 using InteractiveUtils
 
-# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
+# This Pluto notebook uses @bind for interactivity. When running this notebook
+# outside of Pluto, the following 'mock version' of @bind gives bound variables
+# a default value (instead of an error).
 macro bind(def, element)
     quote
         local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
@@ -100,7 +102,7 @@ We have some choices to make. This worksheet will compare any *two* checked data
 
 # ╔═╡ e8221624-f6fd-11ec-0151-cf9da8e7d639
 begin
-	dataset₁ = @bind datacut₁ PlutoUI.MultiSelect(String.(unique(I.datacut)), default=["all"])
+    dataset₁ = @bind datacut₁ PlutoUI.MultiSelect(String.(unique(I.datacut)), default=["all"])
 	 dataset₂ = @bind datacut₂ PlutoUI.MultiSelect(String.(unique(I.datacut)), default=["all"])
 	dataset₁, dataset₂
 end

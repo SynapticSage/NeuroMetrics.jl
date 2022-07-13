@@ -4,11 +4,17 @@
 using Markdown
 using InteractiveUtils
 
-# ╔═╡ fc614ab8-00cb-11ed-0f62-f751ef056b39
+# ╔═╡ c99b4903-464d-44fb-b5e5-d7724b25afea
 begin
-	
 	using DrWatson, Revise
 	quickactivate(expanduser("~/Projects/goal-code"))
+	using PlutoUI
+	PlutoUI.TableOfContents(title="Caching Mains and Shuffles")
+end
+
+# ╔═╡ fc614ab8-00cb-11ed-0f62-f751ef056b39
+# ╠═╡ show_logs = false
+begin
 	using DataFrames, DataFramesMeta
 	using DataStructures: OrderedDict
 	using KernelDensity, Distributions
@@ -71,24 +77,21 @@ begin
      end
      PROPS = ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
      IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
-	 shifts=2:0.05:2
+	 shifts=-2:0.05:2
 
 	shuffle_type = :dotson
-	
-end
-
-# ╔═╡ c99b4903-464d-44fb-b5e5-d7724b25afea
-begin
-	using PlutoUI
-	PlutoUI.TableOfContents(title="Caching Mains and Shuffles")
-end
+	datacuts = collect(keys(filts))
+end;
 
 # ╔═╡ 0f48f044-fd14-4b15-bf0c-b39c1843f9db
 md"""
-This notebook functions to cache shifted fields and shifted field shuffles under certain settings.
+### Caching Mains and Shuffles
+
+Purpose: This notebook functions to cache shifted fields and shifted field shuffles under certain settings.
 """
 
 # ╔═╡ 823b1bff-d922-4c2b-8a50-179af24094bd
+# ╠═╡ show_logs = false
 begin
 	@time spikes, beh, ripples, cells = Load.load("RY16", 36);
 	_, spikes = Load.register(beh, spikes; transfer=["velVec"], on="time")
@@ -102,11 +105,37 @@ begin
 	end
 end;
 
-# ╔═╡ 7ff3160c-fbf4-4740-8b24-5e3a2f130f70
+# ╔═╡ f6add475-5405-42d1-a71c-e309aaf0121e
+md"""
+### Parameter description
+
+Running shifting procedure w/:
+"""
+
+# ╔═╡ 0bf4d984-bd18-4dd2-905b-04cb5d682556
 begin
-	datacuts = collect(keys(filts))
-	(;prop_set, datacuts)
+	tab="""
+\\begin{aligned}
+&\\begin{array}{cc}
+\\hline \\hline \\text { Param } & \\text { Values } \\\\
+\\hline 
+\\text {shifts} & $shifts \\\\
+\\text {shuffle type} & \\text {$(String(shuffle_type))} \\\\
+\\text {prop set} & \\text {$(Symbol(prop_set))}\\\\
+\\hline
+\\end{array}
+\\end{aligned}
+""";
+	md"$(Markdown.LaTeX(tab))"
 end
+
+# ╔═╡ 698f5a55-2daf-4ca5-9f84-a889a491acc5
+md"""
+### Filtration conditions for data cuts
+"""
+
+# ╔═╡ 690df6ec-71ec-46cd-8699-960217bd4f06
+filts
 
 # ╔═╡ a0574649-00a6-4883-9a87-0dac3fc5f8a5
 md"""
@@ -114,7 +143,9 @@ md"""
 """
 
 # ╔═╡ caaff430-fa09-4bbd-b106-95e36d9203a3
-md"## Load checkpoint"
+md"""## Load checkpoint
+Obtain mains checkpoint data
+"""
 
 # ╔═╡ 90dfe32b-0930-4067-8936-6f1e1e922a35
 begin
@@ -137,15 +168,16 @@ begin
             marginal = get_shortcutnames(props)
             key = get_key(;marginal, datacut, shifts)
 			#@info key
-    		if keymessage(I, key); continue; end
-            I[key] = Timeshift.shifted_fields(beh, spikes, shifts, props; widths=2.50f0)
+			filt = filts[datacut]
+    		#if keymessage(I, key); continue; end
+            I[key] = Timeshift.shifted_fields(beh, spikes, shifts, props; widths=2.50f0, filters=filt)
             finished_batch = true
         end
         if finished_batch
             Timeshift.save_mains(I)
         end
+		@info "Finished $datacut"
     end
-
 end
 
 # ╔═╡ 08b1ac9b-58e8-41de-994f-a05609df3b2c
@@ -165,15 +197,22 @@ marginal=get_shortcutnames(props)
 # ╔═╡ ae54aa7a-3afb-43c9-b083-0908b1f02d18
 key = get_key(;marginal, datacut, shifts)
 
+# ╔═╡ d92dc54e-2ba6-4fa1-bd43-7d06c5d9cb6f
+single_filt = filts[datacut]
+
 # ╔═╡ 93a9beb2-084d-4fe7-937c-39d74740cade
 md"""
 ### Shuffle
 """
 
 # ╔═╡ 5941ed8d-62c0-4d11-b897-30fc24f25b78
+# ╠═╡ show_logs = false
+# ╠═╡ disabled = true
+#=╠═╡
 Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts, props; 
 fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=3,
 widths=2.50f0)
+  ╠═╡ =#
 
 # ╔═╡ f8f1c3e8-ed99-4a37-8faa-82ec1f946898
 md"""
@@ -183,7 +222,7 @@ md"""
 # ╔═╡ dde2b892-eae4-4dfd-8735-b533e8a5ae68
 # ╠═╡ disabled = true
 #=╠═╡
-Timeshift.shifted_fields(beh, spikes, shifts, props; widths=2.50f0)
+@time Timeshift.shifted_fields(beh, spikes, shifts, props; widths=2.50f0, filters=single_filt)
   ╠═╡ =#
 
 # ╔═╡ 835d1acf-95f6-47c1-9bdd-0b0a75034353
@@ -230,17 +269,21 @@ end
 # ╟─c99b4903-464d-44fb-b5e5-d7724b25afea
 # ╟─fc614ab8-00cb-11ed-0f62-f751ef056b39
 # ╟─823b1bff-d922-4c2b-8a50-179af24094bd
-# ╟─7ff3160c-fbf4-4740-8b24-5e3a2f130f70
+# ╟─f6add475-5405-42d1-a71c-e309aaf0121e
+# ╟─0bf4d984-bd18-4dd2-905b-04cb5d682556
+# ╟─698f5a55-2daf-4ca5-9f84-a889a491acc5
+# ╟─690df6ec-71ec-46cd-8699-960217bd4f06
 # ╟─a0574649-00a6-4883-9a87-0dac3fc5f8a5
 # ╟─caaff430-fa09-4bbd-b106-95e36d9203a3
 # ╠═90dfe32b-0930-4067-8936-6f1e1e922a35
 # ╟─c820cf54-fa0a-4112-8e76-8f76839b7a49
 # ╠═673b09d2-5dd4-4b6c-897e-2fc43f04ab8f
 # ╠═08b1ac9b-58e8-41de-994f-a05609df3b2c
-# ╠═cfb3aaab-2166-43ce-9fdf-586b98fe8272
+# ╟─cfb3aaab-2166-43ce-9fdf-586b98fe8272
 # ╠═135856f2-6c6b-4bc4-9e7a-ca678d5e729d
 # ╠═2f11999f-5d6e-4807-8bce-49791e7a0211
 # ╠═ae54aa7a-3afb-43c9-b083-0908b1f02d18
+# ╠═d92dc54e-2ba6-4fa1-bd43-7d06c5d9cb6f
 # ╠═93a9beb2-084d-4fe7-937c-39d74740cade
 # ╠═5941ed8d-62c0-4d11-b897-30fc24f25b78
 # ╠═f8f1c3e8-ed99-4a37-8faa-82ec1f946898
