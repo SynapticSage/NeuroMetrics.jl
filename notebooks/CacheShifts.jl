@@ -78,6 +78,7 @@ begin
      PROPS = ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
      IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
 	 shifts=-2:0.05:2
+	 widths = 4.0f0
 
 	shuffle_type = :dotson
 	datacuts = collect(keys(filts))
@@ -120,6 +121,7 @@ begin
 \\hline \\hline \\text { Param } & \\text { Values } \\\\
 \\hline 
 \\text {shifts} & $shifts \\\\
+\\text {widths} & $widths \\\\
 \\text {shuffle type} & \\text {$(String(shuffle_type))} \\\\
 \\text {prop set} & \\text {$(Symbol(prop_set))}\\\\
 \\hline
@@ -161,24 +163,26 @@ end
 md"## Cache results"
 
 # ╔═╡ 673b09d2-5dd4-4b6c-897e-2fc43f04ab8f
+# ╠═╡ disabled = true
+#=╠═╡
 begin
     @progress "Datacut iteration" for datacut ∈ datacuts
         finished_batch = false
-        @progress "Props" for props ∈ prop_set
+        for props ∈ prop_set
             marginal = get_shortcutnames(props)
-            key = get_key(;marginal, datacut, shifts)
+            key = get_key(;marginal, datacut, shifts, widths)
 			#@info key
 			filt = filts[datacut]
     		#if keymessage(I, key); continue; end
-            I[key] = Timeshift.shifted_fields(beh, spikes, shifts, props; widths=2.50f0, filters=filt)
+            I[key] = Timeshift.shifted_fields(beh, spikes, shifts, props; widths, filters=filt)
             finished_batch = true
         end
         if finished_batch
             Timeshift.save_mains(I)
         end
-		@info "Finished $datacut"
     end
 end
+  ╠═╡ =#
 
 # ╔═╡ 08b1ac9b-58e8-41de-994f-a05609df3b2c
 keys(I)
@@ -233,6 +237,8 @@ md"""
 """
 
 # ╔═╡ 29497f7b-795e-433f-b772-72191f52dc24
+# ╠═╡ disabled = true
+#=╠═╡
 begin
     if isfile(Timeshift.mainspath())
         S = Timeshift.load_shuffles()
@@ -241,8 +247,10 @@ begin
     end
 	keys(S)
 end
+  ╠═╡ =#
 
 # ╔═╡ 2696b1df-e52c-497c-b62f-a0932da6c8a4
+#=╠═╡
 begin
     @progress "Datacut iteration" for datacut ∈ datacuts
         finished_batch = false
@@ -260,6 +268,7 @@ widths=2.50f0)
     end
 
 end
+  ╠═╡ =#
 
 # ╔═╡ eb7eb4ca-6088-487c-9017-6b7988188c20
 
@@ -278,7 +287,7 @@ end
 # ╠═90dfe32b-0930-4067-8936-6f1e1e922a35
 # ╟─c820cf54-fa0a-4112-8e76-8f76839b7a49
 # ╠═673b09d2-5dd4-4b6c-897e-2fc43f04ab8f
-# ╠═08b1ac9b-58e8-41de-994f-a05609df3b2c
+# ╟─08b1ac9b-58e8-41de-994f-a05609df3b2c
 # ╟─cfb3aaab-2166-43ce-9fdf-586b98fe8272
 # ╠═135856f2-6c6b-4bc4-9e7a-ca678d5e729d
 # ╠═2f11999f-5d6e-4807-8bce-49791e7a0211
