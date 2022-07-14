@@ -10,7 +10,7 @@ module Timeshift
     # Parent libary
     import Field
     import Field: adaptive, fixed
-    import Load: register, filterAndRegister
+    import Load: utils
     import Field.preset: field_presets, return_preset_funcs
     import Table: to_dataframe
     import Munge.chrono: ensureTimescale
@@ -28,6 +28,12 @@ module Timeshift
     export shifted_fields
     export getshifts, getunits
     export ShiftedField, ShiftedFields, DictOfShiftOfUnit
+
+
+    
+    function _functionalize(x::Union{Symbol,Function,Nothing})::Union{Nothing,Function}
+        x !== nothing && x isa Symbol ? eval(x) : x
+    end
 
     # -------------------- SHIFTING TYPES ---------------------------
     shift_func(data::DataFrame, shift::Real) = 
@@ -86,12 +92,11 @@ module Timeshift
         if fieldpreset !== nothing
             fieldfunc, gridfunc, occfunc, metricfuncs, postfunc =
                 return_preset_funcs(fieldpreset)
-        else
-            fieldfunc   = fieldfunc isa Symbol ? eval(fieldfunc) : fieldfunc
-            occfunc     = occfunc isa Symbol ? eval(occfunc) : occfunc
-            gridfunc    = gridfunc isa Symbol ? eval(gridfunc) : gridfunc
-            postfunc    = postfunc isa Symbol ? eval(postfunc) : postfunc
         end
+        fieldfunc   = _functionalize(fieldfunc)
+        occfunc     = _functionalize(occfunc)
+        gridfunc    = _functionalize(gridfunc)
+        postfunc    = _functionalize(postfunc)
         if metricfuncs isa Symbol
             metricfuncs = [eval(metricfuncs)]
         elseif metricfuncs isa Function
@@ -103,21 +108,25 @@ module Timeshift
             multi = multi ? :thread : :single
         end
 
+        beh  = utils.filter(beh; filters, filter_skipmissingcols=true)[1]
         grid = gridfunc(beh, props; grid_kws...)
         occ  = occfunc(beh, grid)
 
         data = ensureTimescale(data)
         beh  = ensureTimescale(beh)
 
-        prog = Progress(length(shifts), desc="Field shift calculations")
-        @progress for shift in shifts
+        if !(isdefined(Main, :PlutoRunner)) && progress
+            prog = Progress(length(shifts), desc="Field shift calculations")
+        end
+        for shift in shifts
             if shift ∈ keys(result_dict)
                 continue
             end
-            _, data_filt = filterAndRegister(σ(beh, shift), data; on="time",
-                               transfer=grid.props, filters)
+            shift_beh    = σ(beh, shift)
+            _, data_filt = utils.register(shift_beh, data; on="time",
+                               transfer=grid.props)
             data_filt = dropmissing(data_filt, grid.props)
-            result = fieldfunc(data_filt, grid, occ; splitby)
+            result    = fieldfunc(data_filt, grid, occ; splitby)
             if postfunc !== nothing
                 result = postfunc(result)
             end
