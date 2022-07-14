@@ -25,7 +25,10 @@ module convert_types
 
         D = DataFrame()
         for key in keys(fields)
+            #@infiltrate
 
+            #@info "nested key:" level level_names fields key key_name
+            kn = "unnamed"
             if (key isa NamedTuple) || (key isa Dict)
                 key_dict = Dict(string(k)=>v for (k, v) in pairs(key))
                 other_labels = merge(other_labels, key_dict)
@@ -33,7 +36,14 @@ module convert_types
             elseif key_name !== nothing #&& (key isa NamedTuple || key isa Dict)
 
                 if (typeof(key_name) <: Vector)
-                    kn = pop!(key_name)
+                    if level ∉ keys(level_names)
+                        if !(isempty(key_name))
+                            kn = popfirst!(key_name)
+                            level_names[level] = kn
+                        end
+                    else
+                        kn = level_names[level]
+                    end
                 elseif (key_name == :keyboard)
                     if level ∉ keys(level_names)
                         println("Name key for key=$key, typeof(key)=$key")
@@ -43,24 +53,27 @@ module convert_types
                         kn = level_names[level]
                     end
                 else
-                    if level-1 ∈ keys(level_names) && 
-                       level_names[level-1] == "__key_level"
-                        key_name = nothing
-                    else
+                    if !(level-1 ∈ keys(level_names) && 
+                         level_names[level-1] == "__key_level")
                         level_names[level] = "__key_level"
+                        kn = key_name
                     end
-                    kn = key_name
                 end
-                other_labels[kn] = key
-
-            else
-                @warn "unhandled key_name=$key"
-                other_labels["unnamed"] = key
             end
+            if kn == "unnamed"
+                @warn "unhandled key_name" level key
+            end
+
+            other_labels[kn] = key
+            
             if fields[key] !== nothing
                 try
-                    df = to_dataframe(fields[key]; key_name=key_name,
-                                      other_labels=other_labels, kws...)
+                    if key_name !== nothing || (key_name isa Vector &&
+                                                !(isempty(key_name)))
+                        kws = (;kws..., key_name)
+                    end
+                    df = to_dataframe(fields[key]; other_labels, level,
+                                      level_names, kws...)
                     append!(D, df , cols=:union)
                 catch
                     @warn "Hiccup"
@@ -110,7 +123,6 @@ module convert_types
                 grid = edge_to_center.(grid)
             end
             if explode
-                @info "ndgrid of grid"
                 grid = ndgrid(grid...)
             end
         end
