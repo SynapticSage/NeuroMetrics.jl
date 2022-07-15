@@ -226,8 +226,23 @@ First, we run the shifted field calculation
 # ╠═╡ show_logs = false
 # ╠═╡ disabled = true
 #=╠═╡
-shifted = Timeshift.shifted_fields(beh, spikes, -2:0.05:2, props; widths=width, thresh);
+shifted2 = Timeshift.shifted_fields(beh, spikes, -2:0.05:2, props; widths=width, thresh);
   ╠═╡ =#
+
+# ╔═╡ cb4d5494-24a6-4dfc-980b-23ec48fca7cc
+I = Timeshift.load_mains();
+
+# ╔═╡ 6b8666fc-1e1f-48bf-88bf-b51eb07ad3ce
+begin
+	keysets = string.(collect(filter(k->k.grid .== :adaptive .&& k.first.==-2.0 && :Widths ∉ propertynames(k), keys(I))))
+	dataset_pick = @bind k PlutoUI.Radio(keysets, default=keysets[2])
+end
+
+# ╔═╡ a097ba99-df43-4884-bc93-5d17a82aaeaf
+begin
+	key = collect(keys(I))[findall(k .== string.(collect(keys(I))))][1]
+		shifted = I[key]
+end
 
 # ╔═╡ be6048d8-6f30-4d48-a755-5537c3b0b104
 md"""
@@ -235,22 +250,18 @@ md"""
 """
 
 # ╔═╡ 5acf0a77-9e40-4117-83fa-4a0791849265
-#=╠═╡
 begin
 	unit_sel = @bind shift_unit PlutoUI.Slider(sort(unique(spikes.unit)), show_value=true)
 	 shift_sel = @bind shift_shift PlutoUI.Slider(sort(collect(keys(shifted))), show_value=true,default=0)
 	(;unit_sel, shift_sel)
 end
-  ╠═╡ =#
 
 # ╔═╡ 94930aab-8bb0-4da0-b26b-35ddb3efde3b
-#=╠═╡
 begin
     plot_obj = Timeshift.DictOfShiftOfUnit{Float64}(shifted)
     plot(get(plot_obj,shift_shift, shift_unit); aspect_ratio, ylims=ylim,
 		title=string(get(plot_obj, shift_shift, shift_unit)))
 end
-  ╠═╡ =#
 
 # ╔═╡ 47af1633-99bd-4dc2-9d91-9073ec327f27
 md"""
@@ -258,19 +269,13 @@ md"""
 """
 
 # ╔═╡ 5f15dc20-cf30-4088-a173-9c084ac2809a
-#=╠═╡
 SF = Timeshift.ShiftedField(get(plot_obj, :, shift_unit))
-  ╠═╡ =#
 
 # ╔═╡ ac9cddcb-097c-42a8-bd59-19fced23bf5a
-#=╠═╡
 SF.metrics
-  ╠═╡ =#
 
 # ╔═╡ 6f7f46ac-8acd-415b-9516-ed262d5b5cb4
-#=╠═╡
 SFs = Timeshift.ShiftedField(shifted)
-  ╠═╡ =#
 
 # ╔═╡ Cell order:
 # ╟─ff1db172-c3ab-41ea-920c-1dbf831c1336
@@ -312,6 +317,9 @@ SFs = Timeshift.ShiftedField(shifted)
 # ╟─34b5441c-add2-4272-b384-67994daf7745
 # ╟─b2436c80-7290-416f-87c9-137cfb601588
 # ╠═39737bd9-f38a-408d-a0c0-99b9e2bd0045
+# ╠═cb4d5494-24a6-4dfc-980b-23ec48fca7cc
+# ╠═6b8666fc-1e1f-48bf-88bf-b51eb07ad3ce
+# ╠═a097ba99-df43-4884-bc93-5d17a82aaeaf
 # ╟─be6048d8-6f30-4d48-a755-5537c3b0b104
 # ╠═5acf0a77-9e40-4117-83fa-4a0791849265
 # ╠═94930aab-8bb0-4da0-b26b-35ddb3efde3b

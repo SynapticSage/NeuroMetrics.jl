@@ -532,23 +532,18 @@ Use the sliders to examine different neurons 🧠 at different shifts 🏃
 """
 
 # ╔═╡ 2bb18fdc-9080-4f0a-9d09-c2cbe0e6404a
-@bind unit_field_select PlutoUI.Slider(sort(unique(Fs.unit)), show_value=true)
-
-# ╔═╡ ef189310-69cc-4ed6-ad45-9ee6a6f6371b
-
-
-# ╔═╡ 398a837c-4710-4eb6-9f78-786d7173bc49
-@bind shift_select PlutoUI.Slider(sort(unique(Fs.shift)), show_value=true, default=0)
-
-# ╔═╡ 49bb383c-b3cf-448f-9906-ab1eabae3f75
-md"Neuron 🧠 $unit_field_select", md"Shift 🏃 $shift_select"
+begin
+ufs = @bind unit_field_select PlutoUI.Slider(sort(unique(Fs.unit)), show_value=true)
+sfs = @bind shift_select PlutoUI.Slider(sort(unique(Fs.shift)), show_value=true, default=0)
+	(;ufs,sfs)
+end
 
 # ╔═╡ 54d550c9-0e83-4cdb-bb27-88d4c6dffe83
 Logging.with_logger(Logging.NullLogger()) do
 	Fi = @subset(Fs, :unit .== unit_field_select, :shift .== shift_select)[1,:]
 	cell_ratemap = @subset(cells, :unit .== unit_field_select)[1,:]
 	title_ratemap = "μ(Fr) = $(round(cell_ratemap.meanrate,sigdigits=2))"
-	heatmap(Fi.mat; title=title_ratemap, aspect_ratio=1)
+	heatmap(Fi.mat; title="Neuron $unit_field_select, Shift $shift_select\n $title_ratemap", aspect_ratio=1)
 end
 
 # ╔═╡ 5df33da9-bb8d-4356-99b0-a4742a20c87e
@@ -650,10 +645,7 @@ md"""
 # ╟─3b6aaa97-aee1-46cf-b4cf-79d7312056eb
 # ╟─c42b9721-f30f-45b0-a6ab-60413eee9876
 # ╠═cd3925de-dbb0-4e57-9a1e-48bf8fbb109f
-# ╟─2bb18fdc-9080-4f0a-9d09-c2cbe0e6404a
-# ╟─ef189310-69cc-4ed6-ad45-9ee6a6f6371b
-# ╠═398a837c-4710-4eb6-9f78-786d7173bc49
-# ╟─49bb383c-b3cf-448f-9906-ab1eabae3f75
+# ╠═2bb18fdc-9080-4f0a-9d09-c2cbe0e6404a
 # ╠═54d550c9-0e83-4cdb-bb27-88d4c6dffe83
 # ╟─5df33da9-bb8d-4356-99b0-a4742a20c87e
 # ╟─9c886791-db14-489e-a286-3430805e590d

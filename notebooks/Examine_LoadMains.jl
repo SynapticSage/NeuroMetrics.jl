@@ -20,7 +20,7 @@ begin
       quickactivate(expanduser("~/Projects/goal-code"))
       using Plots
       using Revise
-      using DataFrames
+      using DataFrames, DataFramesMeta
       using NaNStatistics
       import ProgressLogging
       using PlutoUI
@@ -44,9 +44,10 @@ end
 I = Timeshift.load_mains()
 
 # ╔═╡ 502701a1-9c58-48ca-b85b-b580b6fecde7
-@bind k PlutoUI.Radio(string.(collect(
-	filter(k->k.grid .== :adaptive .&& k.first.==-2.0, keys(I))
-)))
+begin
+	keysets = string.(collect(filter(k->k.grid .== :adaptive .&& k.first.==-2.0 .&& :widths ∈ propertynames(k), keys(I))))
+	dataset_pick = @bind k PlutoUI.Radio(keysets, default=keysets[2])
+end
 
 # ╔═╡ cc0b81ac-f2d4-4d90-89e9-c266537df98a
 key = collect(keys(I))[findall(k .== string.(collect(keys(I))))][1]
@@ -67,14 +68,36 @@ Threads.nthreads()=16
 unstack(SF.metrics, :unit, :shift, :value)
 
 # ╔═╡ b2cbd98b-e847-4249-8220-885cd00c7cf2
-bSF = Timeshift.operation.add_best_shift(
-	transform(SF.metrics, :shift=> (x-> x .* -1) => :shift))
+bSF = sort(Timeshift.operation.add_best_shift(
+	transform(SF.metrics, :shift=> (x-> x .* -1) => :shift)), :unit)
 
 # ╔═╡ 31b8564a-f92e-4a89-8077-03bd9cf600c5
-Plot.timeshift.heatmap_unitshift(bSF, clim=(0,10))
+Plot.timeshift.heatmap_unitshift(bSF, clim=(0,40))
+
+# ╔═╡ 231d579e-23d6-4ac7-a96d-e37366277965
+dataset_pick
 
 # ╔═╡ 196addfa-d81e-4100-83c3-35c33e7869b6
-Plot.timeshift.heatmap_unitshift(Timeshift.operation.norm_information(bSF))
+Plot.timeshift.heatmap_unitshift(Timeshift.operation.norm_information(bSF),
+title="$(key.datacut), info normalized"
+)
+
+# ╔═╡ 23b184e3-af82-4020-ab87-c82f69459ebd
+@bind unit PlutoUI.Slider(sort(unique(bSF.unit)), show_value=true)
+
+# ╔═╡ 220fff65-a5f0-4643-b0d8-cf67ef2c9683
+begin
+	L = @layout  [a 
+				 [b c d e f]] 
+	plot(
+		Plot.timeshift.shiftedfieldplot(SF[unit], collect(-2:1:2)),
+		plot(@subset(bSF, :unit .== unit).value,  label="unit $unit"),
+		layout=L
+	) 
+end
+
+# ╔═╡ 305dda42-217e-4bbb-b683-45e5acc016bf
+SF[unit]
 
 # ╔═╡ Cell order:
 # ╠═e8c8870a-0271-11ed-2ac4-317a38722303
@@ -88,4 +111,8 @@ Plot.timeshift.heatmap_unitshift(Timeshift.operation.norm_information(bSF))
 # ╠═3079567e-7fb0-4269-a01e-74be600b459f
 # ╠═b2cbd98b-e847-4249-8220-885cd00c7cf2
 # ╠═31b8564a-f92e-4a89-8077-03bd9cf600c5
+# ╠═231d579e-23d6-4ac7-a96d-e37366277965
 # ╠═196addfa-d81e-4100-83c3-35c33e7869b6
+# ╠═23b184e3-af82-4020-ab87-c82f69459ebd
+# ╠═220fff65-a5f0-4643-b0d8-cf67ef2c9683
+# ╠═305dda42-217e-4bbb-b683-45e5acc016bf

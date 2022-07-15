@@ -4,9 +4,7 @@
 using Markdown
 using InteractiveUtils
 
-# This Pluto notebook uses @bind for interactivity. When running this notebook
-# outside of Pluto, the following 'mock version' of @bind gives bound variables
-# a default value (instead of an error).
+# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
 macro bind(def, element)
     quote
         local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
@@ -122,17 +120,24 @@ comparison_name = "Δ $(datacut[1])-$(datacut[2])"
 # ╔═╡ 48c22294-fc9d-44ff-b2ea-b2c59e795da0
 datacut
 
-# ╔═╡ 61f417ed-a4c9-42a3-b858-17dc170dfea0
+# ╔═╡ f5817112-3b0a-43a4-b3ae-28c94be89580
 Is = begin
-	Is = OrderedDict{Symbol,DataFrame}()
+	tmpIs = OrderedDict{Symbol,DataFrame}()
 	for cut in datacut
 		tmp = transform(DataFramesMeta.@subset(I, :datacut .== Symbol(cut), :marginal .== marginal), :shift => (x->x*60) => :shift)
 		if area != "CA1-PFC"
 			@subset!(tmp, :area .== area)
 		end
-		Is[Symbol(cut)] = tmp
+		tmpIs[Symbol(cut)] = tmp
 	end
-	
+	tmpIs
+end;
+
+# ╔═╡ 6c0bc43e-5f22-4007-8f00-317f67f3e31b
+Is
+
+# ╔═╡ 61f417ed-a4c9-42a3-b858-17dc170dfea0
+begin
 	TT = Table.group.multitable_groupby([:unit, :shift], values(Is)...);
 	dfDiff = DataFrame()
 	for (a,b) in eachrow(TT)
@@ -197,6 +202,8 @@ end
 # ╟─b741339a-8a3b-416d-9a59-33624595f56f
 # ╟─4c670dcd-25ff-43d1-b78f-2b60fc5878d5
 # ╟─48c22294-fc9d-44ff-b2ea-b2c59e795da0
+# ╠═f5817112-3b0a-43a4-b3ae-28c94be89580
+# ╠═6c0bc43e-5f22-4007-8f00-317f67f3e31b
 # ╠═61f417ed-a4c9-42a3-b858-17dc170dfea0
 # ╠═a7727c6b-b284-4862-876d-591051ce5a2d
 # ╟─ee2ce4a3-f36f-4814-9853-1dddf1984b56
