@@ -17,6 +17,7 @@ module tensor
     using ProgressMeter
     using Missings
     using AxisArrays
+    import AxisArrays: axisname
     using Interpolations
     using DynamicAxisWarping
     using TensorToolbox
@@ -182,6 +183,15 @@ module tensor
         szx[dim] = target_num
         return matten(x, dim, szx)
         
+    end
+    function equalize(x::AxisArray, dim; missval=missing, thresh=minimum)
+        axs = x.axes
+        data = equalize(x.data, dim; missval, thresh)
+        axs = Tuple(i != dim ? axs[i] : 
+                    Axis{axisname(axs[i])}(axs[i][1:size(data,dim)]) 
+               for i in 1:length(axs))
+        
+        AxisArray(data, axs)
     end
 
     function quantilize(X::DataFrame, dims::Vector{<:SymStr},
