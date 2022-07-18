@@ -4,6 +4,9 @@ module checkpoint
     using DataFrames
     using DrWatson
     import Arrow
+    import ..Timeshift: DictOfShiftOfUnit, ShiftedFields
+    import Field: ReceptiveField
+    import Table: to_dataframe
 
     export ts_plotdir
     export save_mains, save_shuffles, save_fields
@@ -45,7 +48,12 @@ module checkpoint
         name = joinpath(parent_folder, "mains")
     end
 
+    """
+    old = OrderedCollections.OrderedDict{Float64, Dict{Any(NamedTuple), Any}} 
+    new = OrderedCollections.OrderedDict{Float64, OrderedCollections.OrderedDict{NamedTuple,AdaptiveRF}}
+    """
     function save_mains(M::AbstractDict; overwrite::Bool=false)
+        M = mains_cut_the_fat(M)
         name = mainspath()
         if isfile(name) && !(overwrite)
             @info "Preloading existing $name"
@@ -64,6 +72,42 @@ module checkpoint
         name = mainspath() * "_dataframe.arrow"
         Arrow.write(name, M)
     end
+    save_mains(M::T where T<:DictOfShiftOfUnit) = save_mains(ShiftedFields(M))
+
+    """
+        mains_cut_the_fat
+
+    In case new strutures like (ReceptiveField and ShiftedFields and DictOfShiftOfUnit)
+    exist in our dict of results, transform those into raw metrics. Mains only include
+    main effect metrics, not full on receptive fields.
+    """
+    function mains_cut_the_fat(M::AbstractDict)
+        if valtype(M) <: ReceptiveField
+            R = Dict{keytype(M), DataFrame}()
+        else
+            R = copy(M)
+        end
+        for (k,v) in M
+            if v isa AbstractDict
+                R[k] = mains_cut_the_fat(M[k])
+            elseif v isa ShiftedFields || typeof(v) <: ReceptiveField
+                R[k] = to_dataframe(v.metrics)
+            else
+                R[k] = v
+            end
+        end
+        R
+    end
+    function load_mains(;dataframe::Bool=false)
+        if dataframe
+            name = mainspath() * "_dataframe.arrow"
+            DataFrame(Arrow.Table(name))
+        else
+            name = mainspath()
+            D = deserialize(name)
+        end
+    end
+
 
     function save_fields(M::AbstractDict; overwrite::Bool=false)
         name = fieldspath()
@@ -84,22 +128,10 @@ module checkpoint
         name = fieldspath() * "_dataframe.arrow"
         Arrow.write(name, F)
     end
-
-    function load_mains(;dataframe::Bool=false)
-        if dataframe
-            name = mainspath() * "_dataframe.arrow"
-            DataFrame(Arrow.Table(name))
-        else
-            name = mainspath()
-            D = deserialize(name)
-        end
-    end
-
     function fieldspath()
         parent_folder = datadir("exp_pro", "timeshift")
         name = joinpath(parent_folder, "fields")
     end
-
     function load_fields(;dataframe::Bool=false)
         if dataframe
             name = fieldspath() * "_dataframe.arrow"
@@ -110,11 +142,52 @@ module checkpoint
         end
     end
 
+    function shufflefieldspath()
+        parent_folder = datadir("exp_pro", "timeshift")
+        name = joinpath(parent_folder, "shufflefields")
+    end
+
 
     function shufflespath()
         parent_folder = datadir("exp_pro", "timeshift")
         name = joinpath(parent_folder, "shuffles")
     end
+    function save_shufflefields(S::AbstractDict; overwrite::Bool=false,
+        num_examples::Int=3)
+        name = shufflefieldspath()
+        S = collect_examples(S)
+        if isfile(name) && !(overwrite)
+            @info "Preloading existing $name"
+            D = deserialize(name)
+        else
+            D = Dict()
+        end
+        D = merge(D, S)
+        @info "Saving $name"
+        serialize(name, D)
+    end
+    function load_shufflefields(;dataframe::Bool=false)
+        if dataframe
+            name = shufflefieldspath() * "_dataframe.arrow"
+            DataFrame(Arrow.Table(name))
+        else
+            name = shufflefieldspath()
+            D = deserialize(name)
+        end
+    end
+    function collect_examples(S::AbstractDict, key_lambda::Function, num_examples::Int)
+        @error "Not implemented!"
+        if any(key_lambda.(collect(keys(S))))
+            
+        else
+
+        end
+        R = typeof(S){valtype(S)}{keytype(S)}()
+        for (k,v) in S
+            R[k] = v
+        end
+    end
+
 
     function save_shuffles(S::AbstractDict; overwrite::Bool=false)
         name = shufflespath()
