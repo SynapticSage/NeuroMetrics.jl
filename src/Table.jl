@@ -331,7 +331,7 @@ module Table
         if props isa String
             props = [props]
         end
-        if normalize_cols == nothing
+        if normalize_cols === nothing
             normalize_cols = Not(props)
         end
         uProps = [unique(beh[!,prop]) for prop in props]

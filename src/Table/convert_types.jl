@@ -25,13 +25,14 @@ module convert_types
 
         D = DataFrame()
         for key in keys(fields)
-            #@infiltrate
 
             #@info "nested key:" level level_names fields key key_name
             kn = "unnamed"
+
             if (key isa NamedTuple) || (key isa Dict)
                 key_dict = Dict(string(k)=>v for (k, v) in pairs(key))
                 other_labels = merge(other_labels, key_dict)
+                kn = nothing
 
             elseif key_name !== nothing #&& (key isa NamedTuple || key isa Dict)
 
@@ -60,11 +61,15 @@ module convert_types
                     end
                 end
             end
+
             if kn == "unnamed"
                 @warn "unhandled key_name" level key
+                @infiltrate
             end
 
-            other_labels[kn] = key
+            if kn !== nothing
+                other_labels[kn] = key
+            end
             
             if fields[key] !== nothing
                 try
@@ -87,7 +92,7 @@ module convert_types
         D = to_dataframe(Utils.namedtuple_to_dict(fields); kws...) 
         return D
     end
-    function to_dataframe(X::DataFrame; other_labels=nothing, kws...)
+    function to_dataframe(X::DataFrame; other_labels=nothing, kws...)::DataFrame
         if other_labels !== nothing
             for (k,v) in other_labels
                 X[!,k] .= v
@@ -160,4 +165,5 @@ module convert_types
             end
         end
     end
+
 end
