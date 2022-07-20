@@ -3,7 +3,7 @@ module adaptive
     using ..Field
     import ..Field: Grid, ReceptiveField, Occupancy, Metrics
     import ..Field: get_boundary, resolution_to_width, return_vals
-    import ..Field.metrics: Metrics
+    import ..Field.metrics: Metrics, push_metric!, pop_metric!
     import Utils
     import Table
     import Table: CItype, CItype_plusNull
@@ -11,7 +11,7 @@ module adaptive
 
     using DataStructures
     using DataFrames
-    import Load.utils: filterAndRegister
+    import Load.utils: filterAndRegister, register
     import Base
     using LoopVectorization
     using Infiltrator
@@ -21,8 +21,14 @@ module adaptive
     using RecipesBase
     using Statistics
     using Polyester
+    import ..Field: metrics
+
+    metric_def = [metrics.bitsperspike, metrics.totalcount, metrics.maxrate,
+                  metrics.maxcount, metrics.meanrate]
     
     using Plots
+
+    export yartsev
 
     """
         default_radii
@@ -139,6 +145,7 @@ module adaptive
     AdaptiveFieldDict    = OrderedDict{<:NamedTuple, AdaptiveRF}
     #AdaptiveFieldDict(x) = OrderedDict{NamedTuple,   AdaptiveRF}(x)
     #AdaptiveFieldDict()  = OrderedDict{NamedTuple,   AdaptiveRF}()
+
     
     """
         converge_to_radius
@@ -243,6 +250,7 @@ module adaptive
             ϵ::Float32=0.1f0,
             maxrad::Union{Float32,Nothing}=nothing,
             method::Symbol=:converge_to_radius,
+            info::Bool=false,
             widths::OrderedDict, boundary::OrderedDict)::GridAdaptive
         behavior = Munge.chrono.ensureTimescale(behavior)
         dt = dt === nothing ? 
@@ -258,10 +266,12 @@ module adaptive
         if method == :converge_to_radius_w_inertia
             thresh += ϵ
         end
-        @info "grid" thresh dt maxrad radiusinc
         method = eval(method)
         radiusinc = radiusinc .+ 1
-        P = Progress(length(G); desc="Grid")
+        if info || !(isdefined(Main, :PlutoRunner))
+            @info "grid" thresh dt maxrad radiusinc
+            prog = P = Progress(length(G); desc="Grid")
+        end
         #i = 0
         Threads.@threads for (index, (center, radius)) in collect(enumerate(G))
             #i+=1
@@ -271,7 +281,9 @@ module adaptive
             #@info "post $(i)" newradius G.radii
             #@infiltrate
             R[index] = newradius
-            next!(P)
+            if !(isdefined(Main, :PlutoRunner))
+                next!(P)
+            end
         end
         G.radii .= reshape(R, size(G))
         return G
@@ -304,26 +316,35 @@ module adaptive
     function yartsev(behavior::DataFrame, spikes::DataFrame, props::Vector;
             splitby::CItype_plusNull=[:unit], 
             filters::Union{<:AbstractDict, Nothing}=nothing, 
+            metrics::Union{Function, Vector{Function}, Nothing}=metric_def, 
             grid_kws...)::Union{AdaptiveFieldDict, AdaptiveRF}
         if filters !== nothing
             behavior, spikes = filterAndRegister(behavior, spikes; filters,
                                                  on="time",transfer=props,
                                                  filter_skipmissingcols=true)
+        else
+            exists = intersect(Symbol.(props), 
+                                 propertynames(spikes))
+            if length(exists) != length(props)
+                behavior, spikes = register(behavior, spikes; 
+                                            on="time",transfer=String.(props))
+                                                     
+            end
         end
         grid = get_grid(behavior, props; grid_kws...)
         occ  = get_occupancy(behavior, grid)
         spikes = dropmissing(spikes, props)
-        yartsev(spikes, grid, occ; splitby, grid_kws...)
+        yartsev(spikes, grid, occ; splitby, metrics, grid_kws...)
     end
     function yartsev(spikes::DataFrame, grid::GridAdaptive, occ::AdaptiveOcc;
-            splitby::CItype_plusNull=[:unit], 
-            #metricfuncs::Union{Nothing,Vector{Function},Function}=nothing,
+            splitby::CItype_plusNull=[:unit],
+            metrics::Union{Function, Vector{Function}, Nothing}=metric_def,
             grid_kws...)::Union{AdaptiveFieldDict, AdaptiveRF}
         if splitby !== nothing
             spikes = groupby(spikes, splitby)
-            fields = get_adaptivefields(spikes, grid, occ)
+            fields = get_adaptivefields(spikes, grid, occ; metrics)
         else
-            fields = get_adaptivefield(spikes, grid, occ)
+            fields = get_adaptivefield(spikes, grid, occ; metrics)
         end
         return fields 
     end
@@ -335,41 +356,40 @@ module adaptive
     computes adaptive ratema based on a fixed grid derived from behavior
     """
     function get_adaptivefields(spikeGroups::GroupedDataFrame, 
-            grid::GridAdaptive, occ::AdaptiveOcc)::AdaptiveFieldDict
+            grid::GridAdaptive, occ::AdaptiveOcc; 
+            metrics::Union{Function, Vector{Function}, Nothing}=metric_def)::AdaptiveFieldDict
         D = OrderedDict{NamedTuple, AdaptiveRF}()
-        #V = []
         keys_and_groups = collect(zip(Table.group.nt_keys(spikeGroups),
                                       spikeGroups))
-        #Prog = Progress(length(keys_and_groups); desc="units")
         for (nt, group) in keys_and_groups
-            #push!(V, Dagger.spawn(get_adaptivefield, DataFrame(group), props, grid, occ))
-            D[nt] = get_adaptivefield(DataFrame(group), grid, occ)
+            D[nt] = get_adaptivefield(DataFrame(group), grid, occ; metrics)
         end
-        #for (i, (nt, group)) in enumerate(keys_and_groups)
-        #    @infiltrate
-        #    D[nt] = fetch(V[i])
-        #end
         return D
     end
 
     """
         get_adaptivefield(X::DataFrame, props::Vector,
-                          grid::GridAdaptive, occ::AdaptiveOcc)::AdaptiveRF
+                          grid::GridAdaptive, occ::AdaptiveOc)::AdaptiveRF
 
     computes adaptive ratemap based on a fixed grid derived from behavior
     """
     function get_adaptivefield(spikes::DataFrame, 
-            grid::GridAdaptive, occ::AdaptiveOcc)::AdaptiveRF
+            grid::GridAdaptive, occ::AdaptiveOcc;
+            metrics::Union{Function, Vector{Function}, Nothing}=metric_def)::AdaptiveRF
         vals = Field.return_vals(spikes, grid.props)
         count = zeros(Int32, size(grid))
-        #prog = Progress(length(grid))
         Threads.@threads for (index, (center, radius)) in collect(enumerate(grid))
             count[index] = sum(inside(vals, center, radius))
-            #next!(prog)
         end
         count = reshape(count, size(grid))
         field = AdaptiveRF(grid, occ, count, occ.camerarate*Float32.(count./occ.count), 
                    Metrics())
+        if metrics !== nothing
+            for metric in metrics
+                push_metric!(field, metric)
+            end
+        end
+        field
     end
 
     function get_occupancy(behavior::DataFrame, grid::GridAdaptive)::AdaptiveOcc
