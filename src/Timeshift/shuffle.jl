@@ -135,7 +135,6 @@ module shuffle
             if skipproc && (;shuffle=s) ∈ keys(safe_dict)
                 continue
             end
-            @infiltrate
             data   = shuffle_data_generator()
             safe_dict[(;shuffle=s)] = Timeshift.shifted_fields(beh, data, shifts, props; 
                                                      field_kws...)

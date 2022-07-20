@@ -87,13 +87,18 @@ Loadup (spikes,beh) dataframes and transfer $(join(props,"-")) to spikes structu
 
 # ╔═╡ d51ce0f2-03bf-4c88-9302-9fd4bc8621eb
 grid_select = begin
-	width_select =  @bind width  Slider(0f0:0.2f0:2f0, show_value=true, default=1f0)
+	width_select =  @bind width  Slider(0f0:0.2f0:2f0, show_value=true, default=2f0)
 	thresh_select = @bind thresh Slider(1f0:1f0:6f0, show_value=true, default=1.5f0)
 	(;width_select, thresh_select)
 end
 
 # ╔═╡ ff355ad4-42da-4493-ae56-3bc9f0d8627c
-widths = OrderedDict(zip(keys(WIDTHS), values(WIDTHS).*width))
+begin
+    widths = OrderedDict(zip(keys(WIDTHS), values(WIDTHS).*width))
+    md"""
+    widths = $widths
+    """
+end
 
 # ╔═╡ 04eec95d-b5cf-47a5-a880-3146088cab00
 begin
@@ -114,7 +119,7 @@ maxrad = nothing
 
 # ╔═╡ 6bdcf863-9946-4ca3-ab02-fa6aebe4b91d
 # ╠═╡ show_logs = false
-G = adaptive.get_grid(beh, props; widths, thresh, maxrad, radiusinc);
+@time G = adaptive.get_grid(beh, props; widths, thresh, maxrad, radiusinc);
 
 # ╔═╡ 9e635078-bfdb-41bf-8730-e08a968d5e71
 md"""
@@ -160,6 +165,7 @@ grab all spikes as single multiunit field
 # ╔═╡ bef016cd-26d1-4de8-a970-182fe2b92e88
 # Test field abilities
 @time multiunit = @time adaptive.get_adaptivefield(spikes, G, O);
+# @benchmark adaptive.get_adaptivefield(spikes, G, O);
 
 # ╔═╡ fca06c75-a137-411c-9bd8-74d33ad93183
 grid_select

@@ -174,6 +174,12 @@ module Utils
         (!).(isnan.(X))
     end
 
+    function getind(val, pos, nd)
+        ans = [Colon() for _ in 1:nd]
+        ans[pos] = val
+        ans
+    end
+
     include(srcdir("Utils", "dict.jl"))
     include(srcdir("Utils", "namedtup.jl"))
     include(srcdir("Utils", "plot.jl"))

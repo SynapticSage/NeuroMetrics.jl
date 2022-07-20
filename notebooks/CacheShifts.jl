@@ -25,8 +25,8 @@ begin
 	using ThreadSafeDicts, NaNStatistics
 	
 
-	using GoalFetchAnalysis
-	import Timeshift
+	using GoalFetchAnalysis 
+    import Timeshift
 	using Timeshift.dataframe: info_to_dataframe
 	using Field.recon_process: get_shortcutnames, inv_shortcutnames
 	import Load
@@ -79,6 +79,7 @@ begin
      IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
 	 shifts=-2:0.05:2
 	 widths = 4.0f0
+	 thresh = 1.25f0
 
 	shuffle_type = :dotson
 	datacuts = collect(keys(filts))
@@ -124,6 +125,7 @@ begin
 \\text {widths} & $widths \\\\
 \\text {shuffle type} & \\text {$(String(shuffle_type))} \\\\
 \\text {prop set} & \\text {$(Symbol(prop_set))}\\\\
+\\text {seconds of sample req} & \\text {$(Symbol(thresh))}\\\\
 \\hline
 \\end{array}
 \\end{aligned}
@@ -163,18 +165,19 @@ end
 md"## Cache results"
 
 # ╔═╡ 673b09d2-5dd4-4b6c-897e-2fc43f04ab8f
-# ╠═╡ disabled = true
-#=╠═╡
 begin
     @progress "Datacut iteration" for datacut ∈ datacuts
         finished_batch = false
         for props ∈ prop_set
             marginal = get_shortcutnames(props)
-            key = get_key(;marginal, datacut, shifts, widths)
+            key = get_key(;marginal, datacut, shifts, widths, thresh)
 			#@info key
 			filt = filts[datacut]
+			if filt === nothing
+				continue
+			end
     		#if keymessage(I, key); continue; end
-            I[key] = Timeshift.shifted_fields(beh, spikes, shifts, props; widths, filters=filt)
+            I[key] = Timeshift.shifted_fields(beh, spikes, shifts, props; widths, filters=filt, thresh)
             finished_batch = true
         end
         if finished_batch
@@ -182,7 +185,6 @@ begin
         end
     end
 end
-  ╠═╡ =#
 
 # ╔═╡ 08b1ac9b-58e8-41de-994f-a05609df3b2c
 keys(I)
@@ -199,7 +201,7 @@ datacut, props = first(datacuts), first(prop_set)
 marginal=get_shortcutnames(props)
 
 # ╔═╡ ae54aa7a-3afb-43c9-b083-0908b1f02d18
-key = get_key(;marginal, datacut, shifts)
+key = get_key(;marginal, datacut, shifts, widths, thresh)
 
 # ╔═╡ d92dc54e-2ba6-4fa1-bd43-7d06c5d9cb6f
 single_filt = filts[datacut]
@@ -226,8 +228,11 @@ md"""
 # ╔═╡ dde2b892-eae4-4dfd-8735-b533e8a5ae68
 # ╠═╡ disabled = true
 #=╠═╡
-@time Timeshift.shifted_fields(beh, spikes, shifts, props; widths=2.50f0, filters=single_filt)
+@time Timeshift.shifted_fields(beh, spikes, shifts, props; widths=2.50f0, filters=single_filt, thresh);
   ╠═╡ =#
+
+# ╔═╡ e4acf92a-3242-4579-a046-95649f835c36
+;
 
 # ╔═╡ 835d1acf-95f6-47c1-9bdd-0b0a75034353
 md"""
@@ -240,7 +245,7 @@ md"""
 # ╠═╡ disabled = true
 #=╠═╡
 begin
-    if isfile(Timeshift.mainspath())
+    if isfile(Timeshift.shufflespath())
         S = Timeshift.load_shuffles()
     else
         S = OrderedDict()
@@ -252,21 +257,19 @@ end
 # ╔═╡ 2696b1df-e52c-497c-b62f-a0932da6c8a4
 #=╠═╡
 begin
-    @progress "Datacut iteration" for datacut ∈ datacuts
+    @showprogress "Datacut iteration" for datacut ∈ datacuts
         finished_batch = false
-        @progress "Props" for props ∈ prop_set
+        @showprogress "Props" for props ∈ prop_set
             marginal = get_shortcutnames(props)
-            key = get_key(;marginal, datacut, shifts)
+            key = get_key(;marginal, datacut, shifts, widths, thresh)
     		if keymessage(I, key); continue; end
-            S[key] = Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts, props; fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=100,
-widths=2.50f0)
+            @time S[key] = Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts, props; fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=100, widths, thresh)
             finished_batch = true
         end
         if finished_batch
             Timeshift.save_shuffles(S)
         end
     end
-
 end
   ╠═╡ =#
 
@@ -297,6 +300,7 @@ end
 # ╠═5941ed8d-62c0-4d11-b897-30fc24f25b78
 # ╠═f8f1c3e8-ed99-4a37-8faa-82ec1f946898
 # ╠═dde2b892-eae4-4dfd-8735-b533e8a5ae68
+# ╠═e4acf92a-3242-4579-a046-95649f835c36
 # ╟─835d1acf-95f6-47c1-9bdd-0b0a75034353
 # ╠═29497f7b-795e-433f-b772-72191f52dc24
 # ╠═2696b1df-e52c-497c-b62f-a0932da6c8a4

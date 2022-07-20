@@ -1,6 +1,9 @@
 ### A Pluto.jl notebook ###
 # v0.19.9
 
+#> [frontmatter]
+#> title = "Timeshift: Compare mains"
+
 using Markdown
 using InteractiveUtils
 
@@ -40,20 +43,58 @@ begin
       )
 end
 
+# ╔═╡ 5005402b-4d25-41a3-916b-4c814faa9065
+"""
+### Compare Mains
+Purupose: This notebook exists to do some quick comparisons between datasets. Not intended to be an analysis workhorse.
+"""
+
+# ╔═╡ e4174f16-1628-4e7c-8d30-840690422582
+md"""
+# Load
+"""
+
 # ╔═╡ 99b0eff5-6d22-4948-91ae-5080d838580e
 I = Timeshift.load_mains()
 
 # ╔═╡ 502701a1-9c58-48ca-b85b-b580b6fecde7
+# ╠═╡ disabled = true
+#=╠═╡
 begin
 	keysets = string.(collect(filter(k->k.grid .== :adaptive .&& k.first.==-2.0 .&& :widths ∈ propertynames(k), keys(I))))
-	dataset_pick = @bind k PlutoUI.Radio(keysets, default=keysets[2])
+	dataset_pick1 = @bind k1 PlutoUI.Radio(keysets, default=keysets[2])
+		keysets = string.(collect(filter(k->k.grid .== :adaptive .&& k.first.==-2.0 .&& :widths ∈ propertynames(k), keys(I))))
 end
+  ╠═╡ =#
+
+# ╔═╡ d600f8bf-555b-4972-94b3-fc0a07a241c0
+#=╠═╡
+begin
+	dataset_pick2 = @bind k2 PlutoUI.Radio(keysets, default=keysets[2])
+	(;dataset_pick1, dataset_pick2)
+end
+  ╠═╡ =#
 
 # ╔═╡ cc0b81ac-f2d4-4d90-89e9-c266537df98a
-key = collect(keys(I))[findall(k .== string.(collect(keys(I))))][1]
+#=╠═╡
+key1 = collect(keys(I))[findall(k1 .== string.(collect(keys(I))))][1]
+  ╠═╡ =#
 
 # ╔═╡ 63772ff9-2b0c-4d30-a084-3369e3e809e0
-SF = ShiftedFields( I[key] )
+#=╠═╡
+SF1 = ShiftedFields( I[key1] )
+  ╠═╡ =#
+
+# ╔═╡ fc2e1f34-776b-4e4d-89b8-ce088b6b6e0f
+# ╠═╡ disabled = true
+#=╠═╡
+key2 = collect(keys(I))[findall(k2 .== string.(collect(keys(I))))][1]
+  ╠═╡ =#
+
+# ╔═╡ 4902ca06-9f29-48c7-a3f3-8a6178ddaa4c
+#=╠═╡
+SF2 = ShiftedFields( I[key1] )
+  ╠═╡ =#
 
 # ╔═╡ 075199b3-7a90-4ce6-b931-f84849ca0d94
 keys(I[key])
@@ -100,11 +141,17 @@ end
 SF[unit]
 
 # ╔═╡ Cell order:
+# ╠═5005402b-4d25-41a3-916b-4c814faa9065
+# ╠═cdb6641d-8604-4d32-93f7-cd2b8e65d10f
 # ╠═e8c8870a-0271-11ed-2ac4-317a38722303
-# ╠═99b0eff5-6d22-4948-91ae-5080d838580e
+# ╟─e4174f16-1628-4e7c-8d30-840690422582
+# ╟─99b0eff5-6d22-4948-91ae-5080d838580e
 # ╠═502701a1-9c58-48ca-b85b-b580b6fecde7
+# ╠═d600f8bf-555b-4972-94b3-fc0a07a241c0
 # ╠═cc0b81ac-f2d4-4d90-89e9-c266537df98a
 # ╠═63772ff9-2b0c-4d30-a084-3369e3e809e0
+# ╠═fc2e1f34-776b-4e4d-89b8-ce088b6b6e0f
+# ╠═4902ca06-9f29-48c7-a3f3-8a6178ddaa4c
 # ╠═075199b3-7a90-4ce6-b931-f84849ca0d94
 # ╠═69f9406d-7a28-4a15-a121-c4ae733a32c6
 # ╠═16daa369-cce3-412e-bc59-133182400b8b

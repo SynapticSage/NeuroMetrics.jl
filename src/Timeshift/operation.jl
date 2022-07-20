@@ -8,6 +8,14 @@ module operation
     import Table
     using ProgressMeter
 
+
+    ########                                                        ####### 
+    ########    ,---.|        |                   |    o            #######
+    ########    |   ||    ,---|    ,---.,---.,---.|--- .,---.,---.  #######
+    ########    |   ||    |   |    `---.|---'|    |    ||   ||   |  #######
+    ########    `---'`---'`---'    `---'`---'`---'`---'``---'`   '  #######
+    ########                                                      
+
     """
     func
 
@@ -144,6 +152,19 @@ Examine fields that are significant
         for unit in I
             max_ = argmax(unit[:, value])
             unit[!, :bestshift] .= unit[max_, :shift]
+        end
+        I = combine(I, identity)
+        return I
+    end
+    """
+             add_worst_shift(I; value=:value)
+    Sorts by best shift and adds best shift columns if they don't exist
+    """
+    function add_worst_shift(I; value=:value)
+        I = groupby(I, :unit)
+        for unit in I
+            max_ = argmin(unit[:, value])
+            unit[!, :worstshift] .= unit[max_, :shift]
         end
         I = combine(I, identity)
         return I

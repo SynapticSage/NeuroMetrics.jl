@@ -122,22 +122,33 @@ module tensor
         end
         X
     end
+    
+    function tdtw(templates::AxisArray, X::AxisArray; kws...)
+    end
+    function tdtw(templates::AbstractArray, X::AxisArray, dims; kws...)
+    end
+    function tdtw(templates::AbstractArray, X::AbstractArray, dims; kws...)
+    end
 
     """
         median
 
     get median of all values
     """
-    function tmedian(X::AbstractArray)
-        X = X[:]
-        X = hcat(X...)
-        Statistics.median(X; dims=2)
+    function tmedian(X::AxisArray; dims)
     end
+    function tmedian(X::AbstractArray; dims)
+        X = tenmat(X, row=setdiff(1:ndims(X)), col=dims)
+        [Statistics.median(hcat(x...); dims=1) for x in eachrow(X)]
+    end
+
     """
         mean
 
     get median of all values
     """
+    function tmean(X::AxisArray; dims)
+    end
     function tmean(X::AbstractArray)
         X = X[:]
         X = hcat(X...)
@@ -186,6 +197,9 @@ module tensor
     end
     function equalize(x::AxisArray, dim; missval=missing, thresh=minimum)
         axs = x.axes
+        if !(dim isa Int)
+            dim = findfirst(dim .== axisnames(x))
+        end
         data = equalize(x.data, dim; missval, thresh)
         axs = Tuple(i != dim ? axs[i] : 
                     Axis{axisname(axs[i])}(axs[i][1:size(data,dim)]) 

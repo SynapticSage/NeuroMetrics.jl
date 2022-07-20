@@ -145,9 +145,10 @@ module Field
     @reexport using .adaptive
     include(srcdir("Field","fixed.jl"))
     @reexport using .fixed
-
     include(srcdir("Field","preset.jl"))
     @reexport using .preset
+    include(srcdir("Field","coactivity.jl"))
+    @reexport using .coactivity
 
     #include(srcdir("Field","legacy.jl"))
     #import .legacy

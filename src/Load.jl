@@ -204,7 +204,7 @@ module Load
         if type == "csv"
             data |> CSV.write(path)
         elseif type == "arrow"
-            Arrow.write(path, data)
+            Arrow.write(path, data; save_kws...)
         end
     end
     function save_table(data::AbstractDataFrame, pos...; tablepath=nothing, kws...)

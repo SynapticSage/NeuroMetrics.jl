@@ -108,7 +108,7 @@ module Timeshift
             multi = multi ? :thread : :single
         end
 
-        beh  = utils.filter(beh; filters, filter_skipmissingcols=true)[1]
+        beh  = filters !== nothing ? utils.filter(beh; filters, filter_skipmissingcols=true)[1] : beh
         grid = gridfunc(beh, props; grid_kws...)
         occ  = occfunc(beh, grid)
 

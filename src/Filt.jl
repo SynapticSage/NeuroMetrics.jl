@@ -2,9 +2,12 @@ module Filt
 
     using DataFrames
     using DataStructures
-    export get_filters, get_filters_precache, get_filter_req
+    export get_filters, get_filters_precache, get_filter_req, 
+             required_precache_functions, get_filter_prereq, precache
     using Base: merge
     using Infiltrator
+
+    import Load.utils: register
 
     function SPEED(x)
         abs.(x) .> 4
@@ -61,31 +64,14 @@ module Filt
                                                   x->x.spikecount .> req_spikes, # > 50 spikes
                                                   nrow=>:spikecount))
     spikecount = cellcount
-    spikecountcached = OrderedDict(:spikecount => x -> x .> req_spikes)
-    function cachespikecount(spikes::DataFrame)
-          groupby_summary_condition_column(spikes, :unit,
-                                  x->x.spikecount .> req_spikes, # > 50 spikes
-                                  nrow=>:spikecount)
-    end
 
-    req_traj = 3
+    req_traj = 4
     trajectory_diversity  = OrderedDict([:unit, :period] => 
             x -> groupby_summary_cond(x, :unit,
                                     x->x.trajdiversity .>= req_traj, # >= 3 trajectories
                                     :period =>
                                     (x->length(unique(x))) => :trajdiversity)
            )
-    function cachetrajdiversity(spikes::DataFrame)
-        groupby_summary_condition_column(spikes, :unit,
-                                x -> x.percount.>=req_traj, 
-                                :period => (x->length(unique(x))) =>
-                                :trajdiversity)
-    end
-    trajdiversitycached       = OrderedDict(:trajdiversity =>
-                                         x -> x .> req_traj)
-
-    precache_step = Dict(:trajdiversity => cachetrajdiversity, 
-                         :spikecount    => cachespikecount)
 
 
     function test_filt(spikes)
@@ -155,21 +141,32 @@ module Filt
         end
     end
     function groupby_summary_condition_column(df::DataFrame, splitby,
-            summary_condition, name=:condition, combine_args...)::BitVector
+            summary_condition, combine_args...; name=:condition,
+            store_summary_stats::Bool=false)::DataFrame
         columns = names(df)
         if splitby isa Vector{Symbol} || splitby isa Symbol
             columns = Symbol.(columns)
         end
         if all(in.(splitby, [columns]))
-            df.condition = BitVector(zeros(size(df,1)))
+            df[!, name] = BitVector(zeros(size(df,1)))
             df[!,:index] = 1:size(df,1)
             groups = groupby(df, splitby, sort=true)
             summaries = combine(groups, combine_args...)
             summaries[!,name] = summary_condition(summaries)
             summaries = groupby(summaries, splitby)
+            splitby_str = typeof(splitby) <: Vector ?
+                    String.(splitby) : [String(splitby)]
             for (summary,group) in zip(summaries,groups)
                 @assert summary[1,splitby] == group[1,splitby]
-                if summary.condition[1]
+                if store_summary_stats
+                    for col in setdiff(names(summary), splitby_str)
+                        val = summary[!,col][1]
+                        if !(ismissing(val))
+                            group[!,col] .= val
+                        end
+                    end
+                end
+                if summary[!, name][1]
                     group[!,name] .= true
                 else
                     group[!,name] .= false
@@ -201,6 +198,13 @@ module Filt
         filters
     end
 
+                                                              
+    #            ,---.                         |    o          
+    #            |---',---.,---.,---.,---.,---.|---..,---.,---.
+    #            |    |    |---'|    ,---||    |   |||   ||   |
+    #            `    `    `---'`---'`---^`---'`   '``   '`---|
+    #                                                     `---'
+
     function get_filters_precache()
         initial = merge(speed_lib, spikecountcached, trajdiversitycached)
         filters = OrderedDict{Symbol,Union{OrderedDict,Nothing}}()
@@ -224,17 +228,76 @@ module Filt
 
     Gets the fields required by the set of filters to operate
     """
-    function get_filter_req(F::AbstractDict)
-        sets = [String.(f) for f ∈ keys(F)]
+    function get_filter_req(filts::AbstractDict)
+        sets = [String.(f) for f ∈ keys(filts)]
         sets = [s isa Vector ? s : [s] for s in sets]
         unique(collect(Iterators.flatten(sets)))
     end
 
-    function get_filter_req(F::AbstractDict)
-        sets = [String.(f) for f ∈ keys(F)]
-        sets = [s isa Vector ? s : [s] for s in sets]
-        unique(collect(Iterators.flatten(sets)))
+    function get_filter_prereq(filts::AbstractDict)
+        [item for item in get_filter_req(filts)
+         if Symbol(item) ∈ keys(precache_funcs)]
     end
+
+    function required_precache_functions(filts::AbstractDict)
+        [precache_funcs[Symbol(item)] for item in get_filter_prereq(filts)]
+    end
+
+    function required_precache_fields(filts::AbstractDict)
+        Iterators.flatten([precache_field_reqs[Symbol(item)] for item in get_filter_prereq(filts)
+                           if Symbol(item) ∈ keys(precache_field_reqs)])
+    end
+
+    """
+        precache
+
+    Precaches any filters that support precaching
+    """
+    function precache(spikes::DataFrame, beh::DataFrame, filts::AbstractDict; 
+            kws...)
+        reqfields = String.(required_precache_fields(filts))
+        _, spikes = register(beh,spikes; 
+                             transfer=reqfields)
+        precache(spikes, filts; kws...)
+    end
+    function precache(spikes::DataFrame, filts::AbstractDict; kws...)
+        funcs = required_precache_functions(filts)
+        for func in funcs
+            spikes = func(spikes; kws...)
+        end
+        spikes
+    end
+
+    # Cache version
+    function cachespikecount(spikes::DataFrame; kws...)
+          groupby_summary_condition_column(spikes, :unit,
+                                  x->x.spikecount .> req_spikes, # > 50 spikes
+                                  nrow=>:spikecount; name=:spikecount_cache, kws...)
+    end
+    spikecountcached = OrderedDict(:spikecount_cache => x -> x) # stored true or false
+
+    # Cache version
+    function cachetrajdiversity(spikes::DataFrame; kws...)
+        groupby_summary_condition_column(spikes, :unit,
+                                x -> x.trajdiversity .>= req_traj, 
+                                :period => (x->length(unique(x))) => :trajdiversity
+                                ; name=:trajdiversity_cache, kws...)
+    end
+    trajdiversitycached       = OrderedDict(:trajdiversity_cache =>
+                                         x -> x) # stored true or false
+
+    """
+    stores functions used to precache each field
+    """
+    precache_funcs = Dict(:trajdiversity_cache => cachetrajdiversity, 
+                         :spikecount_cache     => cachespikecount)
+    """
+        precache_field_reqs
+
+    stores the fields required to precache
+    """
+    precache_field_reqs = Dict(:trajdiversity_cache => [:period])
+
 
 end
 
