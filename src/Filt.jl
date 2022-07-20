@@ -2,7 +2,7 @@ module Filt
 
     using DataFrames
     using DataStructures
-    export get_filters
+    export get_filters, get_filters_precache, get_filter_req
     using Base: merge
     using Infiltrator
 
@@ -55,25 +55,37 @@ module Filt
     """
     This is kind of more of a spike count filter than a cell count
     """
+    req_spikes = 50
     cellcount       = OrderedDict([:time,:unit] =>
-                          x->groupby_summary_cond(x, :unit,
-                                                  x->x.count.>50, # > 50 spikes
-                                                  nrow=>:count))
+                          x -> groupby_summary_cond(x, :unit,
+                                                  x->x.spikecount .> req_spikes, # > 50 spikes
+                                                  nrow=>:spikecount))
     spikecount = cellcount
-
-    trajectory_diversity  = OrderedDict([:unit, :period] => 
-            x->groupby_summary_cond(x, :unit,
-                                    x->x.percount.>=3, # >= 3 trajectories
-                                    :period =>
-                                    (x->length(unique(x))) =>
-                                    :percount))
-    """
-    fieldrate
-
-    filter by rate of a sample in a field
-    """
-    function fieldcount(x, pos...; kws...)
+    spikecountcached = OrderedDict(:spikecount => x -> x .> req_spikes)
+    function cachespikecount(spikes::DataFrame)
+          groupby_summary_condition_column(spikes, :unit,
+                                  x->x.spikecount .> req_spikes, # > 50 spikes
+                                  nrow=>:spikecount)
     end
+
+    req_traj = 3
+    trajectory_diversity  = OrderedDict([:unit, :period] => 
+            x -> groupby_summary_cond(x, :unit,
+                                    x->x.trajdiversity .>= req_traj, # >= 3 trajectories
+                                    :period =>
+                                    (x->length(unique(x))) => :trajdiversity)
+           )
+    function cachetrajdiversity(spikes::DataFrame)
+        groupby_summary_condition_column(spikes, :unit,
+                                x -> x.percount.>=req_traj, 
+                                :period => (x->length(unique(x))) =>
+                                :trajdiversity)
+    end
+    trajdiversitycached       = OrderedDict(:trajdiversity =>
+                                         x -> x .> req_traj)
+
+    precache_step = Dict(:trajdiversity => cachetrajdiversity, 
+                         :spikecount    => cachespikecount)
 
 
     function test_filt(spikes)
@@ -142,10 +154,55 @@ module Filt
             return BitVector(ones(size(df,1)))
         end
     end
+    function groupby_summary_condition_column(df::DataFrame, splitby,
+            summary_condition, name=:condition, combine_args...)::BitVector
+        columns = names(df)
+        if splitby isa Vector{Symbol} || splitby isa Symbol
+            columns = Symbol.(columns)
+        end
+        if all(in.(splitby, [columns]))
+            df.condition = BitVector(zeros(size(df,1)))
+            df[!,:index] = 1:size(df,1)
+            groups = groupby(df, splitby, sort=true)
+            summaries = combine(groups, combine_args...)
+            summaries[!,name] = summary_condition(summaries)
+            summaries = groupby(summaries, splitby)
+            for (summary,group) in zip(summaries,groups)
+                @assert summary[1,splitby] == group[1,splitby]
+                if summary.condition[1]
+                    group[!,name] .= true
+                else
+                    group[!,name] .= false
+                end
+            end
+            sort(combine(groups, identity), :index)[:, Not(:index)]
+        else
+            df[!, name] =  BitVector(ones(size(df,1)))
+            df
+        end
+    end
 
     # Create a set of predefined filter combinations
     function get_filters()
         initial = merge(speed_lib, spikecount)
+        filters = OrderedDict{Symbol,Union{OrderedDict,Nothing}}()
+        filters[:all]         = initial
+        filters[:task]        = merge(filters[:all], Filt.task)
+        filters[:correct]     = merge(filters[:all], Filt.correct)
+        filters[:error]       = merge(filters[:all], Filt.error)
+        filters[:nontask]     = merge(filters[:all], Filt.nontask)
+        filters[:memory]      = merge(filters[:all], Filt.mem)
+        filters[:cue]         = merge(filters[:all], Filt.cue)
+        filters[:cue_correct] = merge(filters[:all], Filt.cue)
+        filters[:cue_error]   = merge(filters[:all], Filt.cue, Filt.error)
+        filters[:mem_correct] = merge(filters[:all], Filt.mem, Filt.correct)
+        filters[:mem_error]   = merge(filters[:all], Filt.mem, Filt.error)
+        filters[:none]        = nothing
+        filters
+    end
+
+    function get_filters_precache()
+        initial = merge(speed_lib, spikecountcached, trajdiversitycached)
         filters = OrderedDict{Symbol,Union{OrderedDict,Nothing}}()
         filters[:all]         = initial
         filters[:task]        = merge(filters[:all], Filt.task)
@@ -167,6 +224,12 @@ module Filt
 
     Gets the fields required by the set of filters to operate
     """
+    function get_filter_req(F::AbstractDict)
+        sets = [String.(f) for f ∈ keys(F)]
+        sets = [s isa Vector ? s : [s] for s in sets]
+        unique(collect(Iterators.flatten(sets)))
+    end
+
     function get_filter_req(F::AbstractDict)
         sets = [String.(f) for f ∈ keys(F)]
         sets = [s isa Vector ? s : [s] for s in sets]
