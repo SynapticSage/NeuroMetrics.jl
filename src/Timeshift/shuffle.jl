@@ -4,6 +4,7 @@ module shuffle
     using ..Timeshift: σ, shift_func
     import Field
     import Field.preset: field_presets, return_preset_funcs
+    import Field: adaptive
     import Shuf
 
     using ThreadSafeDicts
@@ -122,6 +123,8 @@ module shuffle
             exfiltrateAfter::Real=Inf,
             skipproc::Bool=false,
             thread_field::Bool=true,
+            precomputegridocc::Union{Bool,Nothing}=nothing,
+            shiftbeh::Bool=false,
             field_kws...)
 
 
@@ -132,17 +135,27 @@ module shuffle
             shuffle_sets = collect(enumerate(nShuffle))
         end
         nShuffle = nShuffle isa Int ? (1:nShuffle) : nShuffle
+
+        if precomputegridocc === nothing
+            precomputegridocc = shiftbeh ? false : true
+        end
+        if precomputegridocc
+            grid = adaptive.get_grid(beh, props; field_kws...) # TODO these would be different for fixed
+            occ  = adaptive.get_occupancy(beh, grid)
+            field_kws = (;field_kws..., grid, occ)
+        end
+
         @showprogress "Shuffle" for s in nShuffle
             if skipproc && (;shuffle=s) ∈ keys(safe_dict)
                 continue
             end
             data   = shuffle_data_generator()
             safe_dict[(;shuffle=s)] = Timeshift.shifted_fields(beh, data, shifts,
-                                                               props;
-                                                               overwrite_precache=true,
-                                                               thread_field,
-                                                               field_kws...)
-            if mod(s, exfiltrateAfter) == 0
+                                                       props;
+                                                       overwrite_precache=true,
+                                                       thread_field,
+                                                       field_kws...)
+            if mod(s, exfiltrateAfter)==0
                 @exfiltrate
             end
         end

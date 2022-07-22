@@ -180,6 +180,8 @@ md"""
 
 # ╔═╡ b88c0ec1-b150-49be-828f-6c32bb770c48
 @time units = adaptive.yartsev(spikes, G, O; widths=width, thresh);
+@time units = adaptive.yartsev(spikes, G, O; widths=width, thresh, 
+                               filters=filts[:all]);
 
 # ╔═╡ 38cff24f-bbc1-42fd-98ae-385323c2480e
 grid_select
@@ -281,7 +283,20 @@ SF = Timeshift.ShiftedField(get(plot_obj, :, shift_unit))
 SF.metrics
 
 # ╔═╡ 6f7f46ac-8acd-415b-9516-ed262d5b5cb4
+begin
 SFs = Timeshift.ShiftedField(shifted)
+
+nbins = 50
+Munge.behavior.annotate_relative_xtime!(beh)
+beh.trajreltime_bin = floor.(beh.trajreltime * (nbins-1))
+_, spikes = Load.register(beh, spikes;
+                         transfer=["trajreltime","trajreltime_bin"],
+                         on="time")
+
+Timeshift.shuffle.shifted_field_shuffles(beh, spikes, [-1, 0, 1], props; 
+fieldpreset=:yartsev, shufflepreset=:dotson, nShuffle=3, widths=width)
+
+end
 
 # ╔═╡ Cell order:
 # ╟─ff1db172-c3ab-41ea-920c-1dbf831c1336

@@ -14,6 +14,7 @@ module Timeshift
     import Field.preset: field_presets, return_preset_funcs
     import Table
     import Munge.chrono: ensureTimescale
+    import Filt
 
     # Julia packages
     using DataStructures
@@ -46,7 +47,7 @@ module Timeshift
             postfunc::Union{Nothing,Function}=nothing,
             field_kws...)
         fieldfunc = fieldfunc isa Symbol ? eval(fieldfunc) : fieldfunc
-        fieldobj = fieldfunc(σ(beh, shift), data; field_kws...)
+        fieldobj  = fieldfunc(σ(beh, shift), data; field_kws...)
         postfunc !== nothing ? fieldobj = postfunc(fieldobj) : fieldobj
     end
 
@@ -77,6 +78,8 @@ module Timeshift
             filters::Union{OrderedDict, Nothing}=nothing,
             splitby::Vector=[:unit],
             fieldpreset::Union{Nothing,Symbol}=:yartsev,
+            grid=nothing,
+            occ=nothing,
             fieldfunc::Union{Function, Symbol,Nothing}=nothing,
             gridfunc::Union{Function, Symbol,Nothing}=nothing,
             occfunc::Union{Function, Symbol,Nothing}=nothing,
@@ -86,8 +89,9 @@ module Timeshift
             multi::Union{Bool, Symbol}=true,
             result_dict::AbstractDict=ThreadSafeDict(),
             progress::Bool=true,
-            thread_field::Bool=false,
-            thread_fields::Bool=false,
+            shiftbeh::Bool=true,
+            thread_field::Bool=adaptive.thread_field_default,
+            thread_fields::Bool=adaptive.thread_fields_default,
             overwrite_precache::Bool=false,
             grid_kws...)::OrderedDict
 
@@ -120,8 +124,8 @@ module Timeshift
             end
             beh  = utils.filter(beh; filters, filter_skipmissingcols=true)[1]
         end
-        grid = gridfunc(beh, props; grid_kws...)
-        occ  = occfunc(beh, grid)
+        grid = grid === nothing ? gridfunc(beh, props; grid_kws...) : grid
+        occ  = occ === nothing ? occfunc(beh, grid) : occ
 
         data = ensureTimescale(data)
         beh  = ensureTimescale(beh)
@@ -133,8 +137,12 @@ module Timeshift
             if shift ∈ keys(result_dict)
                 continue
             end
-            shift_beh    = σ(beh, shift)
-            _, data_filt = utils.register(shift_beh, data; on="time",
+            if shiftbeh
+                B, D, shift = σ(beh, shift), data, shift*-1
+            else
+                B, D  = beh, σ(data, shift)
+            end
+            _, data_filt = utils.register(B, D; on="time",
                                           transfer=grid.props)
             data_filt = dropmissing(data_filt, grid.props)
             result    = fieldfunc(data_filt, grid, occ; splitby, 

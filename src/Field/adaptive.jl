@@ -161,8 +161,8 @@ module adaptive
             maxrad::Float32, radiusinc::Float32, kws...)::Float32
         #list = []
         #push!(list, radius)
-        while get_samptime(vals, center, radius; dt) < thresh
-            radius = radius * radiusinc
+        @inbounds while get_samptime(vals, center, radius; dt) < thresh
+            @fastmath radius = radius * radiusinc
             #push!(list, radius)
             if radius > maxrad
                 radius = NaN32
@@ -179,9 +179,9 @@ module adaptive
         #list = []
         #push!(list, radius)
         #radius = copy(radius)
-        while get_samptime(vals, center, radius; dt) < thresh
+        @inbounds while get_samptime(vals, center, radius; dt) < thresh
             #@info radius
-            radius = radius .* radiusinc
+            @fastmath radius = radius .* radiusinc
             #push!(list, radius)
             if any(radius .> maxrad) || any(radius .=== NaN32)
                 radius .= NaN32
@@ -252,7 +252,7 @@ module adaptive
             maxrad::Union{Float32,Nothing}=nothing,
             method::Symbol=:converge_to_radius,
             info::Bool=false,
-            widths::OrderedDict, boundary::OrderedDict)::GridAdaptive
+            widths::OrderedDict, boundary::OrderedDict, kws...)::GridAdaptive
         behavior = Munge.chrono.ensureTimescale(behavior)
         dt = dt === nothing ? 
                      median(diff(behavior.time)) : dt
@@ -270,7 +270,8 @@ module adaptive
         method = eval(method)
         radiusinc = radiusinc .+ 1
         if info || !(isdefined(Main, :PlutoRunner))
-            @info "grid" thresh dt maxrad radiusinc
+            @info "grid" thresh dt maxrad radiusinc 
+            @info widths
             prog = P = Progress(length(G); desc="Grid")
         end
         #i = 0
@@ -308,6 +309,8 @@ module adaptive
     #################################################
     ##### yartsev paper based  ####################
     #################################################
+    thread_field_default  = true
+    thread_fields_default = false
 
     """
         yartsev(spikes, behavior, props; kws...)
@@ -318,6 +321,8 @@ module adaptive
             splitby::CItype_plusNull=[:unit], 
             filters::Union{<:AbstractDict, Nothing}=nothing, 
             metrics::Union{Function, Vector{Function}, Nothing}=metric_def, 
+            thread_field::Bool=thread_field_default,
+            thread_fields::Bool=thread_fields_default,
             grid_kws...)::Union{AdaptiveFieldDict, AdaptiveRF}
         if filters !== nothing
             if Filt.filters_use_precache(filters) &&
@@ -344,8 +349,8 @@ module adaptive
     function yartsev(spikes::DataFrame, grid::GridAdaptive, occ::AdaptiveOcc;
             splitby::CItype_plusNull=[:unit],
             metrics::Union{Function, Vector{Function}, Nothing}=metric_def,
-            thread_field::Bool=false,
-            thread_fields::Bool=false,
+            thread_field::Bool=thread_field_default,
+            thread_fields::Bool=thread_fields_default,
             grid_kws...)::Union{AdaptiveFieldDict, AdaptiveRF}
         if splitby !== nothing
             spikes = groupby(spikes, splitby)
@@ -366,7 +371,7 @@ module adaptive
     """
     function get_adaptivefields(spikeGroups::GroupedDataFrame, 
             grid::GridAdaptive, occ::AdaptiveOcc; 
-            thread_fields::Bool=false,
+            thread_fields::Bool=thread_fields_default,
             metrics::Union{Function, Vector{Function}, Nothing}=metric_def,
         kws...)::AdaptiveFieldDict
         keys_and_groups = collect(zip(Table.group.nt_keys(spikeGroups),
@@ -395,24 +400,24 @@ module adaptive
     function get_adaptivefield(spikes::DataFrame, 
             grid::GridAdaptive, occ::AdaptiveOcc;
             metrics::Union{Function, Vector{Function}, Nothing}=metric_def,
-            thread_field::Bool=false,
+            thread_field::Bool=thread_field_default,
         )::AdaptiveRF
         vals = Field.return_vals(spikes, grid.props)
         count = zeros(Int32, size(grid))
         if thread_field
             Threads.@threads for (index, (center, radius)) in
                 collect(enumerate(grid))
-                count[index] = sum(inside(vals, center, radius))
+                @inbounds count[index] = sum(inside(vals, center, radius))
             end
         else
-            for (index, (center, radius)) in
+            @inbounds for (index, (center, radius)) in
                 collect(enumerate(grid))
                 count[index] = sum(inside(vals, center, radius))
             end
         end
         count = reshape(count, size(grid))
-        field = AdaptiveRF(grid, occ, count, occ.camerarate*Float32.(count./occ.count), 
-                   Metrics())
+        rate  = @fastmath occ.camerarate*Float32.(count./occ.count)
+        field = AdaptiveRF(grid, occ, count, rate, Metrics())
         if metrics !== nothing
             for metric in metrics
                 push_metric!(field, metric)
@@ -425,10 +430,10 @@ module adaptive
         vals = Field.return_vals(behavior, grid.props)
         count = zeros(Int32, size(grid))
         Threads.@threads for (index, (center, radius)) in collect(enumerate(grid))
-            count[index] = sum(inside(vals, center, radius))
+            @inbounds count[index] = sum(inside(vals, center, radius))
         end
         count = reshape(count, size(grid))
-        prob = Probabilities(Float32.(vec(count)))
+        prob  = Probabilities(Float32.(vec(count)))
         camerarate = Float32(1/median(diff(behavior.time)))
         if camerarate > 300
             camerarate /= 60
@@ -441,14 +446,14 @@ module adaptive
     # ----------------
     # Radius measurements
     function vector_dist(vals::Array, center::Array)::Vector{Float32}
-        @fastmath sqrt.(sum((vals .- center[Utils.na, :]).^2,dims=2)[:,1])
+        @inbounds @fastmath sqrt.(sum((vals .- center[Utils.na, :]).^2,dims=2)[:,1]) # HUGE SAVINGS FAST MATH HERE
     end
     function inside(vals::Array, center::Array, radius::Float32)::BitVector
         vector_dist(vals, center) .< radius
     end
     function get_samptime(vals::Array, center::Array, radius::Float32;
             dt::Float32=1/30)::Float32
-        sum(inside(vals, center, radius)) * dt
+        @fastmath sum(inside(vals, center, radius)) * dt
     end
     # Vector radius measurments
     function indiv_dist(vals::Array, center::Array)::Matrix{Float32}
@@ -459,7 +464,7 @@ module adaptive
     end
     function get_samptime(vals::Array, center::Array, radius::Vector{Float32};
             dt::Float32=1/30)::Float32
-        sum(inside(vals, center, radius)) * dt
+        @fastmath sum(inside(vals, center, radius)) * dt
     end
     ## --------
     ## UTILITIES

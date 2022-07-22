@@ -168,8 +168,8 @@ badd +153 src/Load.jl
 badd +16 src/Load/spikes.jl
 badd +2 src/Load/behavior.jl
 badd +8 src/Load/ripples.jl
-badd +242 src/Load/utils.jl
-badd +89 src/Timeshift.jl
+badd +197 src/Load/utils.jl
+badd +122 src/Timeshift.jl
 badd +81 src/Timeshift/checkpoint.jl
 badd +98 src/Table/convert_types.jl
 badd +1 src/Table.jl
@@ -199,15 +199,15 @@ badd +15 src/Load/task.jl
 badd +5 src/Munge/task.jl
 badd +1 scripts/fields/PlaceField.jl
 badd +69 _research/test_enforce_bound.jl
-badd +1 src/Field/adaptive.jl
+badd +350 src/Field/adaptive.jl
 badd +26 ~/tmp.jl
 badd +16 src/Precompile.jl
-badd +2 notebooks/TestAdaptive.jl
-badd +143 src/Timeshift/shuffle.jl
+badd +263 notebooks/TestAdaptive.jl
+badd +142 src/Timeshift/shuffle.jl
 badd +11497 ~/.cache/nvim/lsp.log
 badd +4 src/Field/fixed.jl
 badd +21 src/Utils/plot.jl
-badd +175 src/Shuf.jl
+badd +290 src/Shuf.jl
 badd +310 src/Filt.jl
 badd +1 src/Field/model.jl
 badd +1 src/Field/operation.jl
@@ -224,7 +224,7 @@ badd +1 src/Timeshift/crossval.jl
 badd +89 notebooks/TimeshiftDiff.jl
 badd +26 src/Munge/chrono.jl
 badd +11 src/Utils/macros.jl
-badd +267 notebooks/CacheShifts.jl
+badd +103 notebooks/CacheShifts.jl
 badd +19 scripts/timeshift/TimeShift_setsOfInterest.jl
 badd +293 src/Plot/rf.jl
 badd +52 src/Timeshift/types.jl
@@ -233,6 +233,7 @@ badd +27 src/Utils.jl
 badd +4 src/Munge/spikes.m
 argglobal
 %argdel
+tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
@@ -262,8 +263,8 @@ let s:save_splitbelow = &splitbelow
 let s:save_splitright = &splitright
 set splitbelow splitright
 wincmd _ | wincmd |
-split
-1wincmd k
+vsplit
+1wincmd h
 wincmd w
 let &splitbelow = s:save_splitbelow
 let &splitright = s:save_splitright
@@ -274,63 +275,58 @@ set winminheight=0
 set winheight=1
 set winminwidth=0
 set winwidth=1
-exe '1resize ' . ((&lines * 22 + 27) / 55)
-exe '2resize ' . ((&lines * 22 + 27) / 55)
+exe 'vert 1resize ' . ((&columns * 128 + 74) / 149)
+exe 'vert 2resize ' . ((&columns * 20 + 74) / 149)
 argglobal
-balt src/Field/adaptive.jl
-let s:l = 15 - ((14 * winheight(0) + 11) / 22)
+balt src/Timeshift/shuffle.jl
+let s:l = 1 - ((0 * winheight(0) + 27) / 54)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 15
-normal! 030|
+keepjumps 1
+normal! 0
 wincmd w
 argglobal
 if bufexists(fnamemodify("src/Field/adaptive.jl", ":p")) | buffer src/Field/adaptive.jl | else | edit src/Field/adaptive.jl | endif
 if &buftype ==# 'terminal'
   silent file src/Field/adaptive.jl
 endif
-balt src/Utils/namedtup.jl
-let s:l = 272 - ((16 * winheight(0) + 11) / 22)
+balt src/Timeshift/shuffle.jl
+let s:l = 296 - ((9 * winheight(0) + 27) / 54)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 272
-normal! 018|
+keepjumps 296
+normal! 019|
 wincmd w
-exe '1resize ' . ((&lines * 22 + 27) / 55)
-exe '2resize ' . ((&lines * 22 + 27) / 55)
+exe 'vert 1resize ' . ((&columns * 128 + 74) / 149)
+exe 'vert 2resize ' . ((&columns * 20 + 74) / 149)
 tabnext
-edit src/Timeshift/shuffle.jl
-let s:save_splitbelow = &splitbelow
-let s:save_splitright = &splitright
-set splitbelow splitright
-let &splitbelow = s:save_splitbelow
-let &splitright = s:save_splitright
-wincmd t
-let s:save_winminheight = &winminheight
-let s:save_winminwidth = &winminwidth
-set winminheight=0
-set winheight=1
-set winminwidth=0
-set winwidth=1
+edit notebooks/TestAdaptive.jl
 argglobal
-balt notebooks/CacheShifts.jl
-let s:l = 1 - ((0 * winheight(0) + 19) / 39)
+balt src/Timeshift/shuffle.jl
+let s:l = 1 - ((0 * winheight(0) + 27) / 54)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
 keepjumps 1
 normal! 0
-tabnext 4
+tabnext
+edit notebooks/CacheShifts.jl
+argglobal
+let s:l = 103 - ((26 * winheight(0) + 27) / 54)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 103
+normal! 0
+tabnext 3
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
 endif
 unlet! s:wipebuf
 set winheight=1 winwidth=20
 let &shortmess = s:shortmess_save
-let &winminheight = s:save_winminheight
-let &winminwidth = s:save_winminwidth
 let s:sx = expand("<sfile>:p:r")."x.vim"
 if filereadable(s:sx)
   exe "source " . fnameescape(s:sx)
