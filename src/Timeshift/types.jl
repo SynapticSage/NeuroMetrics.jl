@@ -10,7 +10,7 @@ module types
     using Infiltrator
 
     export ShiftedField, ShiftedFields
-    export getindex, getshifts, getunits
+    export getshifts, getunits
 
     function Base.get(S::T where T<:AbsDictOfShiftOfUnit, shift::T where T<:Real, index...) 
         s = S[shift]
@@ -49,6 +49,36 @@ module types
         OrderedDict(k=>getindex(v,index...) for (k,v) in S)
     end
     function Base.get(S::T where T<:AbsDictOfShiftOfUnit, shift::T where T<:Real) 
+    # Cache version
+    function cachespikecount(spikes::DataFrame)
+          groupby_summary_condition_column(spikes, :unit,
+                                  x->x.spikecount .> req_spikes, # > 50 spikes
+                                  nrow=>:spikecount; name=:spikecount_cache)
+    end
+    spikecountcached = OrderedDict(:spikecount_cache => x -> x) # stored true or false
+
+    # Cache version
+    function cachetrajdiversity(spikes::DataFrame)
+        groupby_summary_condition_column(spikes, :unit,
+                                x -> x.percount.>=req_traj, 
+                                :period => (x->length(unique(x))) =>
+                                :trajdiversity; name=:trajdiversity_cache)
+    end
+    trajdiversitycached       = OrderedDict(:trajdiversity_cache =>
+                                         x -> x) # stored true or false
+
+    """
+    stores functions used to precache each field
+    """
+    precache_funcs = Dict(:trajdiversity_cache => cachetrajdiversity, 
+                         :spikecount_cache     => cachespikecount)
+    """
+        precache_field_reqs
+
+    stores the fields required to precache
+    """
+    precache_field_reqs = Dict(:trajdiversity_cache => [:period])
+
         S[shift]
     end
     function Base.get(S::AbsDictOfShiftOfUnit, shift::Float64, index::NamedTuple)

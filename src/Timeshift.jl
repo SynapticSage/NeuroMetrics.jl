@@ -12,7 +12,7 @@ module Timeshift
     import Field: adaptive, fixed
     import Load: utils
     import Field.preset: field_presets, return_preset_funcs
-    import Table: to_dataframe
+    import Table
     import Munge.chrono: ensureTimescale
 
     # Julia packages
@@ -82,10 +82,13 @@ module Timeshift
             occfunc::Union{Function, Symbol,Nothing}=nothing,
             postfunc::Union{Function,Nothing}=nothing,
             metricfuncs::Union{Function,Symbol,
-                           Vector{Symbol},Vector{Function},Nothing}=nothing,
+                         Vector{Symbol},Vector{Function},Nothing}=adaptive.metric_def,
             multi::Union{Bool, Symbol}=true,
             result_dict::AbstractDict=ThreadSafeDict(),
             progress::Bool=true,
+            thread_field::Bool=false,
+            thread_fields::Bool=false,
+            overwrite_precache::Bool=false,
             grid_kws...)::OrderedDict
 
         # Process preset options
@@ -108,7 +111,15 @@ module Timeshift
             multi = multi ? :thread : :single
         end
 
-        beh  = filters !== nothing ? utils.filter(beh; filters, filter_skipmissingcols=true)[1] : beh
+
+        if filters !== nothing
+            if Filt.filters_use_precache(filters) &&
+                (overwrite_precache || Filt.missing_precache_col(data,
+                                                                 filters))
+                data = Filt.precache(data, beh, filters)
+            end
+            beh  = utils.filter(beh; filters, filter_skipmissingcols=true)[1]
+        end
         grid = gridfunc(beh, props; grid_kws...)
         occ  = occfunc(beh, grid)
 
@@ -124,19 +135,16 @@ module Timeshift
             end
             shift_beh    = σ(beh, shift)
             _, data_filt = utils.register(shift_beh, data; on="time",
-                               transfer=grid.props)
+                                          transfer=grid.props)
             data_filt = dropmissing(data_filt, grid.props)
-            result    = fieldfunc(data_filt, grid, occ; splitby)
+            result    = fieldfunc(data_filt, grid, occ; splitby, 
+                                  metrics=metricfuncs,
+                                  filters=nothing,
+                                  thread_field, thread_fields)
             if postfunc !== nothing
                 result = postfunc(result)
             end
             push!(result_dict, shift=>result)
-            if metricfuncs !== nothing
-                for (unit,metricfuncs) in Iterators.product(keys(result), metricfuncs)
-                    name, calculation = Symbol(metricfuncs), metricfuncs(result[unit])
-                    push!(result[unit].metrics, name=>calculation)
-                end
-            end
             if !(isdefined(Main, :PlutoRunner)) && progress
                 next!(prog)
             end

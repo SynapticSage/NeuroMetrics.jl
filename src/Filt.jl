@@ -5,9 +5,7 @@ module Filt
     export get_filters, get_filters_precache, get_filter_req, 
              required_precache_functions, get_filter_prereq, precache
     using Base: merge
-    using Infiltrator
-
-    import Load.utils: register
+    import Load
 
     function SPEED(x)
         abs.(x) .> 4
@@ -248,6 +246,16 @@ module Filt
                            if Symbol(item) ∈ keys(precache_field_reqs)])
     end
 
+    function filters_use_precache(filts::AbstractDict)::Bool
+        any(x -> Symbol(x) ∈ keys(precache_funcs), keys(filts))
+    end
+
+    function missing_precache_col(spikes::DataFrame,
+                                  filts::AbstractDict)::Bool
+        any(key -> key ∉ propertynames(spikes), 
+            required_precache_fields(filts))
+    end
+
     """
         precache
 
@@ -256,7 +264,7 @@ module Filt
     function precache(spikes::DataFrame, beh::DataFrame, filts::AbstractDict; 
             kws...)
         reqfields = String.(required_precache_fields(filts))
-        _, spikes = register(beh,spikes; 
+        _, spikes = Load.register(beh,spikes; 
                              transfer=reqfields)
         precache(spikes, filts; kws...)
     end
@@ -271,8 +279,9 @@ module Filt
     # Cache version
     function cachespikecount(spikes::DataFrame; kws...)
           groupby_summary_condition_column(spikes, :unit,
-                                  x->x.spikecount .> req_spikes, # > 50 spikes
-                                  nrow=>:spikecount; name=:spikecount_cache, kws...)
+                                  x -> x.spikecount .> req_spikes, # > 50 spikes
+                                  nrow => :spikecount; name=:spikecount_cache, 
+                                  kws...)
     end
     spikecountcached = OrderedDict(:spikecount_cache => x -> x) # stored true or false
 
@@ -300,4 +309,3 @@ module Filt
 
 
 end
-

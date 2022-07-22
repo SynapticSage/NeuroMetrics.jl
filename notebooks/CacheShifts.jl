@@ -31,7 +31,7 @@ begin
 	using Field.recon_process: get_shortcutnames, inv_shortcutnames
 	import Load
 	import Filt
-	filts = Filt.get_filters()
+	filts = Filt.get_filters_precache()
 
 	function ingredients(path::String)
 		# this is from the Julia source code (evalfile in base/loading.jl)
@@ -56,8 +56,9 @@ begin
 				   step=Float64(shifts.step)) 
     end
     function keymessage(I::AbstractDict, key)
+        @info key
         docontinue=false
-        if key ∈ keys(I)
+        if Utils.namedtup.orderlessmatch(key, keys(I))
             if I[key] isa Task && !(istaskfailed(I[key]))
                 #@info "task key=$key already exists"
                 printstyled("SKIPPING...\n", blink=true)
@@ -262,8 +263,8 @@ begin
         @showprogress "Props" for props ∈ prop_set
             marginal = get_shortcutnames(props)
             key = get_key(;marginal, datacut, shifts, widths, thresh)
-    		if keymessage(I, key); continue; end
-            @time S[key] = Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts, props; fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=100, widths, thresh)
+    		if keymessage(S, key); continue; end
+            @time S[key] = Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts, props; fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=100, widths, thresh, exfiltrateAfter=10)
             finished_batch = true
         end
         if finished_batch

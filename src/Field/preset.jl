@@ -29,7 +29,7 @@ module preset
          fieldfunc   = adaptive.yartsev,
          gridfunc    = adaptive.get_grid,
          occfunc     = adaptive.get_occupancy,
-         metricfuncs = [metrics.information],
+         metricfuncs = adaptive.metric_def,
          postfunc    = nothing,
          grid_kws    = (;width=4)
         ),

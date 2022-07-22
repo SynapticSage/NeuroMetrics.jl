@@ -1,7 +1,7 @@
 module fixed
 
     using ..Field
-    import ..Field: Grid, ReceptiveField, Occupancy, Metrics
+    import ..Field: Grid, ReceptiveField, Occupancy
     import ..Field: get_boundary, resolution_to_width, return_vals
     import ..Field.metrics: Metrics
     import Utils

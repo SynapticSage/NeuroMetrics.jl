@@ -1,9 +1,10 @@
 module adaptive
 
-    using ..Field
-    import ..Field: Grid, ReceptiveField, Occupancy, Metrics
+    using  ..Field
+    import ..Field: Grid, ReceptiveField, Occupancy
     import ..Field: get_boundary, resolution_to_width, return_vals
     import ..Field.metrics: Metrics, push_metric!, pop_metric!
+    import ..Field: metrics
     import Utils
     import Table
     import Table: CItype, CItype_plusNull
@@ -21,7 +22,7 @@ module adaptive
     using RecipesBase
     using Statistics
     using Polyester
-    import ..Field: metrics
+    using ThreadSafeDicts
 
     metric_def = [metrics.bitsperspike, metrics.totalcount, metrics.maxrate,
                   metrics.maxcount, metrics.meanrate]
@@ -319,8 +320,12 @@ module adaptive
             metrics::Union{Function, Vector{Function}, Nothing}=metric_def, 
             grid_kws...)::Union{AdaptiveFieldDict, AdaptiveRF}
         if filters !== nothing
+            if Filt.filters_use_precache(filters) &&
+                Filt.missing_precache_col(spikes, filters)
+                spikes = Filt.precache(spikes, beh, filters)
+            end
             behavior, spikes = filterAndRegister(behavior, spikes; filters,
-                                                 on="time",transfer=props,
+                                                 on="time", transfer=props,
                                                  filter_skipmissingcols=true)
         else
             exists = intersect(Symbol.(props), 
@@ -339,12 +344,16 @@ module adaptive
     function yartsev(spikes::DataFrame, grid::GridAdaptive, occ::AdaptiveOcc;
             splitby::CItype_plusNull=[:unit],
             metrics::Union{Function, Vector{Function}, Nothing}=metric_def,
+            thread_field::Bool=false,
+            thread_fields::Bool=false,
             grid_kws...)::Union{AdaptiveFieldDict, AdaptiveRF}
         if splitby !== nothing
             spikes = groupby(spikes, splitby)
-            fields = get_adaptivefields(spikes, grid, occ; metrics)
+            fields = get_adaptivefields(spikes, grid, occ; metrics, 
+                                        thread_field, thread_fields)
         else
-            fields = get_adaptivefield(spikes, grid, occ; metrics)
+            fields = get_adaptivefield(spikes, grid, occ; metrics,
+                                      thread_field)
         end
         return fields 
     end
@@ -357,12 +366,22 @@ module adaptive
     """
     function get_adaptivefields(spikeGroups::GroupedDataFrame, 
             grid::GridAdaptive, occ::AdaptiveOcc; 
-            metrics::Union{Function, Vector{Function}, Nothing}=metric_def)::AdaptiveFieldDict
-        D = OrderedDict{NamedTuple, AdaptiveRF}()
+            thread_fields::Bool=false,
+            metrics::Union{Function, Vector{Function}, Nothing}=metric_def,
+        kws...)::AdaptiveFieldDict
         keys_and_groups = collect(zip(Table.group.nt_keys(spikeGroups),
                                       spikeGroups))
-        for (nt, group) in keys_and_groups
-            D[nt] = get_adaptivefield(DataFrame(group), grid, occ; metrics)
+        if thread_fields
+            D = ThreadSafeDict{NamedTuple, AdaptiveRF}()
+            Threads.@threads for (nt, group) in keys_and_groups
+                D[nt] = get_adaptivefield(DataFrame(group), grid, occ; metrics, kws...)
+            end
+            D = OrderedDict(D)
+        else
+            D = OrderedDict{NamedTuple, AdaptiveRF}()
+            for (nt, group) in keys_and_groups
+                D[nt] = get_adaptivefield(DataFrame(group), grid, occ; metrics, kws...)
+            end
         end
         return D
     end
@@ -375,11 +394,21 @@ module adaptive
     """
     function get_adaptivefield(spikes::DataFrame, 
             grid::GridAdaptive, occ::AdaptiveOcc;
-            metrics::Union{Function, Vector{Function}, Nothing}=metric_def)::AdaptiveRF
+            metrics::Union{Function, Vector{Function}, Nothing}=metric_def,
+            thread_field::Bool=false,
+        )::AdaptiveRF
         vals = Field.return_vals(spikes, grid.props)
         count = zeros(Int32, size(grid))
-        Threads.@threads for (index, (center, radius)) in collect(enumerate(grid))
-            count[index] = sum(inside(vals, center, radius))
+        if thread_field
+            Threads.@threads for (index, (center, radius)) in
+                collect(enumerate(grid))
+                count[index] = sum(inside(vals, center, radius))
+            end
+        else
+            for (index, (center, radius)) in
+                collect(enumerate(grid))
+                count[index] = sum(inside(vals, center, radius))
+            end
         end
         count = reshape(count, size(grid))
         field = AdaptiveRF(grid, occ, count, occ.camerarate*Float32.(count./occ.count), 
@@ -412,7 +441,7 @@ module adaptive
     # ----------------
     # Radius measurements
     function vector_dist(vals::Array, center::Array)::Vector{Float32}
-        sqrt.(sum((vals .- center[Utils.na, :]).^2,dims=2)[:,1])
+        @fastmath sqrt.(sum((vals .- center[Utils.na, :]).^2,dims=2)[:,1])
     end
     function inside(vals::Array, center::Array, radius::Float32)::BitVector
         vector_dist(vals, center) .< radius

@@ -24,6 +24,7 @@ module Utils
     export squeeze
     export searchsortednext, searchsortednearest
     export remove_key_item
+    export thropt
 
     skipnan(x) = Iterators.filter(!isnan, x)
     na = [CartesianIndex()]
@@ -183,8 +184,10 @@ module Utils
     include(srcdir("Utils", "dict.jl"))
     include(srcdir("Utils", "namedtup.jl"))
     include(srcdir("Utils", "plot.jl"))
+    include(srcdir("Utils", "macros.jl"))
     @reexport using .dict
     @reexport using .namedtup
     @reexport using .plot
+    @reexport using .macros
 
 end

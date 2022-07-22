@@ -121,6 +121,7 @@ module shuffle
             safe_dict::AbstractDict=ThreadSafeDict{NamedTuple,Any}(),
             exfiltrateAfter::Real=Inf,
             skipproc::Bool=false,
+            thread_field::Bool=true,
             field_kws...)
 
 
@@ -131,13 +132,16 @@ module shuffle
             shuffle_sets = collect(enumerate(nShuffle))
         end
         nShuffle = nShuffle isa Int ? (1:nShuffle) : nShuffle
-        for s in nShuffle
+        @showprogress "Shuffle" for s in nShuffle
             if skipproc && (;shuffle=s) ∈ keys(safe_dict)
                 continue
             end
             data   = shuffle_data_generator()
-            safe_dict[(;shuffle=s)] = Timeshift.shifted_fields(beh, data, shifts, props; 
-                                                     field_kws...)
+            safe_dict[(;shuffle=s)] = Timeshift.shifted_fields(beh, data, shifts,
+                                                               props;
+                                                               overwrite_precache=true,
+                                                               thread_field,
+                                                               field_kws...)
             if mod(s, exfiltrateAfter) == 0
                 @exfiltrate
             end

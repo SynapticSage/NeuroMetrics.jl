@@ -5,7 +5,7 @@ module checkpoint
     using DrWatson
     import Arrow
     import Timeshift
-    import ..Timeshift: DictOfShiftOfUnit, ShiftedFields
+    import ..Timeshift: DictOfShiftOfUnit
     import Field: ReceptiveField
     import Table: to_dataframe
 
@@ -74,7 +74,7 @@ module checkpoint
         Arrow.write(name, M)
     end
     save_mains(M::T where T<: Timeshift.DictOfShiftOfUnit) =
-                                                save_mains(ShiftedFields(M))
+                                                save_mains(Timeshift.ShiftedFields(M))
 
     """
         cut_the_fat
