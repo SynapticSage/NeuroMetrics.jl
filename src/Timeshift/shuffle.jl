@@ -145,19 +145,24 @@ module shuffle
             field_kws = (;field_kws..., grid, occ)
         end
 
-        @showprogress "Shuffle" for s in nShuffle
+        P = Progress(length(nShuffle); desc="Shuffle")
+        P.showspeed = true
+        for s in nShuffle
             if skipproc && (;shuffle=s) ∈ keys(safe_dict)
                 continue
             end
             data   = shuffle_data_generator()
-            safe_dict[(;shuffle=s)] = Timeshift.shifted_fields(beh, data, shifts,
-                                                       props;
+            safe_dict[(;shuffle=s)] = Timeshift.shifted_fields(beh, data, 
+                                                               shifts, props;
                                                        overwrite_precache=true,
                                                        thread_field,
                                                        field_kws...)
+            isdefined(Main, :PlutoRunner) ? @info("finished 1 shuf") : nothing
             if mod(s, exfiltrateAfter)==0
-                @exfiltrate
+                @info "Exfiltrating"
+                @time @exfiltrate
             end
+            next!(P)
         end
 
         safe_dict = Dict(safe_dict...)

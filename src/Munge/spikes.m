@@ -1,4 +1,4 @@
-module spikes
+module spiking
     function nonlocal()
     end
 end

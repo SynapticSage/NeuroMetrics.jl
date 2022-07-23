@@ -37,7 +37,7 @@ module metrics
         join(M, " ")
     end
     function Table.to_dataframe(M::Metrics; kws...) 
-        kws = (;kws..., key_name="metric")
+        kws = (;kws..., key_name=["metric"])
         Table.to_dataframe(M.data; kws...)
     end
 
@@ -131,16 +131,23 @@ module metrics
     computes the spatial coherence of a field
     """
     function coherence(F::ReceptiveField)
-        summation = Vector{Float32}(undef, length(vec(F.rate)))
-        interaction_mat = get_interaction_mat(ndims(F.rate))
-        for (i,ind) in enumerate(eachindex(F.rate))
-            subject = F.rate[ind]
-            interactions = collect(Tuple(ind)) .+ interaction_mat
-            interactions[:,1] = max(min(interactions[:,1], 1), size(F.rate,1))
-            interactions[:,2] = max(min(interactions[:,2], 1), size(F.rate,2))
-            int_samples = F.rate[eachrow(interactions)]
-            summation[i] = sum(int_samples * subject)
+        rate = F.rate
+        rate = (rate .- nanmean(rate))./nanstd(rate)
+        neighbors = Vector{Float32}(undef, length(vec(rate)))
+        subjects     = Vector{Float32}(undef, length(vec(rate)))
+        interaction_mat = get_interaction_mat(ndims(rate))
+        interaction_mat = get_interaction_mat(ndims(rate))
+        for (i,ind) in enumerate(CartesianIndices(rate))
+            subject = rate[ind]
+            interactions = collect(Tuple(ind))[Utils.na,:] .+ interaction_mat
+            interactions[:,1] = max.(1, min.(size(rate,1), interactions[:,1]))
+            interactions[:,2] = max.(1, min.(size(rate,2), interactions[:,2]))
+            int_samples = [rate[row...] for row in eachrow(interactions)]
+            neighbors[i] = nanmean(int_samples)
+            subjects[i] = subject
         end
+        pearson = nancor(subjects, neighbors)
+        0.5 * log( (1+pearson) / (1-pearson) )
     end
 
     function get_interaction_mat(n::Int)
@@ -175,6 +182,7 @@ function xcorr(rate::Array, cell1::Int, cell2::Int; lags=-200:200)
     x, y = rate[:,1], rate[:,2]
     StatsBase.crosscorr(x,y,lags)
 end
+
 function xcorr(spikes::DataFrame)
     units1 = unique(spikes.unit)
     units2 = unique(spikes.unit)

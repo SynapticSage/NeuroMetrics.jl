@@ -15,6 +15,7 @@ end
 # ╔═╡ fc614ab8-00cb-11ed-0f62-f751ef056b39
 # ╠═╡ show_logs = false
 begin
+
 	using DataFrames, DataFramesMeta
 	using DataStructures: OrderedDict
 	using KernelDensity, Distributions
@@ -24,7 +25,6 @@ begin
 	import Base.Threads: @spawn
 	using ThreadSafeDicts, NaNStatistics
 	
-
 	using GoalFetchAnalysis 
     import Timeshift
 	using Timeshift.dataframe: info_to_dataframe
@@ -79,11 +79,12 @@ begin
      PROPS = ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
      IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
 	 shifts=-2:0.05:2
-	 widths = 4.0f0
-	 thresh = 1.25f0
+	 widths = 5.0f0
+	 thresh = 1.5f0
 
 	shuffle_type = :dotson
 	datacuts = collect(keys(filts))
+
 end;
 
 # ╔═╡ 0f48f044-fd14-4b15-bf0c-b39c1843f9db
@@ -263,8 +264,9 @@ begin
         @showprogress "Props" for props ∈ prop_set
             marginal = get_shortcutnames(props)
             key = get_key(;marginal, datacut, shifts, widths, thresh)
+            filt = filts[datacut]
     		if keymessage(S, key); continue; end
-            @time S[key] = Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts, props; fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=100, widths, thresh, exfiltrateAfter=10)
+            @time S[key] = Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts, props; fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=100, widths, thresh, exfiltrateAfter=10, shiftbeh=false, filters=filt)
             finished_batch = true
         end
         if finished_batch

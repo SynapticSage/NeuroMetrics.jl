@@ -9,6 +9,8 @@ module rf
     using Plots, LaTeXStrings, Measures
     using Statistics
     using ProgressMeter
+    using NaNStatistics
+    using Infiltrator
 
     function transform_key(key; splitter::String="\n")
         tk(key) = replace(string(key), "("=>"",",)"=>"",", "=>splitter,
@@ -116,10 +118,14 @@ module rf
         end
         kws = (;extrakwargs..., kws...)
         l = func(grid..., FF; kws...)
-        annotate_field(l; key=key, keyappend=keyappend, keyprepend=keyprepend,
-                       grid=grid, textcolor=textcolor,
+        annotate_field(l; key=key,
+                       keyappend=keyappend,
+                       keyprepend=keyprepend,
+                       grid=grid,
+                       textcolor=textcolor,
                        justification=justification,
-                       location=location,nplots=nplots,
+                       location=location,
+                       nplots=nplots,
                        nplots_factor=nplots_factor)
     end
 
@@ -260,8 +266,8 @@ module rf
     end
 
 
-    @recipe function plot_adaptiverf(field::ReceptiveField, val::Symbol=:rate)
-        colorbar_title --> String(val)
+    @recipe function plot_adaptiverf(field::ReceptiveField, val::Symbol=:rate;
+            ztransform::Bool=false, mfunc::Function=nanmean, sfunc::Function=nanstd)
         seriestype --> :heatmap
         title --> string(field.metrics)
         X = [field.grid.centers[1]...]
@@ -270,7 +276,15 @@ module rf
             Y = [field.grid.centers[2]...]
             y --> Y
         end
-        (X, Y, getproperty(field, val)')
+        Z = getproperty(field, val)
+        if ztransform
+            Z = (Z .- mfunc(Z))./sfunc(Z)
+            colorbar_title --> String(val) * " Z-transform"
+        else
+            colorbar_title --> String(val)
+        end
+
+        (X, Y, Z')
     end
 
     @recipe function plot_adaptiveocc(field::T where T<:Occupancy, val::Symbol=:prob)

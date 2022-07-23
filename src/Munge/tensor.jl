@@ -37,7 +37,7 @@ module tensor
 
     create a tensor of a point process arrayed with some set of N-dimensions
     """
-    function tensor_pointproc(X::DataFrame)::Array
+    function tensorize_pointproc(X::DataFrame)::Array
     end
 
     """
@@ -55,7 +55,7 @@ module tensor
     `T` -- Tensor; either a square array or stacked arrays of unequal dim
      
     """
-    function tensor_continuous(X::DataFrame, dims::Vector, 
+    function tensorize(X::DataFrame, dims::Vector, 
             var::Union{T, Vector{T}} where T<:SymStr;
             TensType::Type=Float64)::AllTensor
 

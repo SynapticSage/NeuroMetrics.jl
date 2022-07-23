@@ -25,7 +25,7 @@ module adaptive
     using ThreadSafeDicts
 
     metric_def = [metrics.bitsperspike, metrics.totalcount, metrics.maxrate,
-                  metrics.maxcount, metrics.meanrate]
+                  metrics.maxcount, metrics.meanrate, metrics.coherence]
     
     using Plots
 
@@ -405,6 +405,7 @@ module adaptive
         vals = Field.return_vals(spikes, grid.props)
         count = zeros(Int32, size(grid))
         if thread_field
+            #@info "thread single field"
             Threads.@threads for (index, (center, radius)) in
                 collect(enumerate(grid))
                 @inbounds count[index] = sum(inside(vals, center, radius))

@@ -38,6 +38,7 @@ begin
 		  "x"=>2.5f0, "y"=>2.5f0, "currentPathLength"=>1f0,
           "currentAngle"=>Float32(2pi/80)
 	  )
+      filts = Filt.get_filters_precache()
 end
 
 # ╔═╡ ff1db172-c3ab-41ea-920c-1dbf831c1336
@@ -234,7 +235,7 @@ First, we run the shifted field calculation
 # ╠═╡ show_logs = false
 # ╠═╡ disabled = true
 #=╠═╡
-shifted2 = Timeshift.shifted_fields(beh, spikes, -2:0.05:2, props; widths=width, thresh);
+shifted2 = Timeshift.shifted_fields(beh, spikes, -2:0.05:2, props; widths=widths, thresh);
   ╠═╡ =#
 
 # ╔═╡ cb4d5494-24a6-4dfc-980b-23ec48fca7cc
@@ -284,18 +285,22 @@ SF.metrics
 
 # ╔═╡ 6f7f46ac-8acd-415b-9516-ed262d5b5cb4
 begin
-SFs = Timeshift.ShiftedField(shifted)
+    SFs = Timeshift.ShiftedField(shifted)
+    nbins = 50
+    Munge.behavior.annotate_relative_xtime!(beh)
+    beh.trajreltime_bin = floor.(beh.trajreltime * (nbins-1))
+    _, spikes = Load.register(beh, spikes;
+                             transfer=["trajreltime","trajreltime_bin"],
+                             on="time")
 
-nbins = 50
-Munge.behavior.annotate_relative_xtime!(beh)
-beh.trajreltime_bin = floor.(beh.trajreltime * (nbins-1))
-_, spikes = Load.register(beh, spikes;
-                         transfer=["trajreltime","trajreltime_bin"],
-                         on="time")
-
-Timeshift.shuffle.shifted_field_shuffles(beh, spikes, [-1, 0, 1], props; 
-fieldpreset=:yartsev, shufflepreset=:dotson, nShuffle=3, widths=width)
-
+    @time Timeshift.shuffle.shifted_field_shuffles(beh, spikes, [-1, 0, 1], props; 
+    fieldpreset=:yartsev, shufflepreset=:dotson, nShuffle=3, widths=widths,
+    shiftbeh=true)
+    @time Timeshift.shuffle.shifted_field_shuffles(beh, spikes, [-1, 0, 1], props; 
+    fieldpreset=:yartsev, shufflepreset=:dotson, nShuffle=3, widths=widths,
+    shiftbeh=false)
+    Timeshift.shuffle.shifted_field_shuffles(beh, spikes, -2:0.05:2, props; 
+    fieldpreset=:yartsev, shufflepreset=:dotson, nShuffle=3, widths=widths)
 end
 
 # ╔═╡ Cell order:

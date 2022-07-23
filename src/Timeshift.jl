@@ -120,9 +120,11 @@ module Timeshift
             if Filt.filters_use_precache(filters) &&
                 (overwrite_precache || Filt.missing_precache_col(data,
                                                                  filters))
-                data = Filt.precache(data, beh, filters)
+                @info "precaching"
+                @time data = Filt.precache(data, beh, filters)
             end
-            beh  = utils.filter(beh; filters, filter_skipmissingcols=true)[1]
+            @info "filtering"
+            @time beh  = utils.filter(beh; filters, filter_skipmissingcols=true)[1]
         end
         grid = grid === nothing ? gridfunc(beh, props; grid_kws...) : grid
         occ  = occ === nothing ? occfunc(beh, grid) : occ
@@ -132,20 +134,25 @@ module Timeshift
 
         if !(isdefined(Main, :PlutoRunner)) && progress
             prog = Progress(length(shifts), desc="Field shift calculations")
+            prog.showspeed = true
         end
         for shift in shifts
             if shift ∈ keys(result_dict)
                 continue
             end
-            if shiftbeh
+            @info "shifting"
+            @time if shiftbeh
                 B, D, shift = σ(beh, shift), data, shift*-1
             else
                 B, D  = beh, σ(data, shift)
             end
-            _, data_filt = utils.register(B, D; on="time",
+            @info "register"
+            @time _, data_filt = utils.register(B, D; on="time",
                                           transfer=grid.props)
-            data_filt = dropmissing(data_filt, grid.props)
-            result    = fieldfunc(data_filt, grid, occ; splitby, 
+            @info "dropmissing"
+            @time data_filt = dropmissing(data_filt, grid.props)
+            @info "fieldfunc" thread_field thread_fields
+            @time result    = fieldfunc(data_filt, grid, occ; splitby, 
                                   metrics=metricfuncs,
                                   filters=nothing,
                                   thread_field, thread_fields)
@@ -157,6 +164,10 @@ module Timeshift
                 next!(prog)
             end
         end
+        if !(isdefined(Main, :PlutoRunner)) && progress
+            finish!(prog)
+        end
+
         result_dict = Dict(result_dict...)
         out = OrderedDict(
                           key=>pop!(result_dict, key) 
