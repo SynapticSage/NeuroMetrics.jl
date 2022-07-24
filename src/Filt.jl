@@ -119,7 +119,7 @@ module Filt
             columns = Symbol.(columns)
         end
         if all(in.(splitby, [columns]))
-            df.condition = BitVector(zeros(size(df,1)))
+            df.condition = falses(size(df,1))
             df[!,:index] = 1:size(df,1)
             groups = groupby(df, splitby, sort=true)
             summaries = combine(groups, combine_args...)
@@ -135,7 +135,7 @@ module Filt
             end
             return sort(combine(groups, identity), :index)[!,:condition]
         else
-            return BitVector(ones(size(df,1)))
+            return trues(size(df,1))
         end
     end
     function groupby_summary_condition_column(df::DataFrame, splitby,
@@ -146,7 +146,7 @@ module Filt
             columns = Symbol.(columns)
         end
         if all(in.(splitby, [columns]))
-            df[!, name] = BitVector(zeros(size(df,1)))
+            df[!, name] = falses(size(df,1))
             df[!,:index] = 1:size(df,1)
             groups = groupby(df, splitby, sort=true)
             summaries = combine(groups, combine_args...)
@@ -172,7 +172,7 @@ module Filt
             end
             sort(combine(groups, identity), :index)[:, Not(:index)]
         else
-            df[!, name] =  BitVector(ones(size(df,1)))
+            df[!, name] =  trues(size(df,1))
             df
         end
     end
@@ -268,7 +268,7 @@ module Filt
                              transfer=reqfields)
         precache(spikes, filts; kws...)
     end
-    function precache(spikes::DataFrame, filts::AbstractDict; kws...)
+    function precache(spikes::DataFrame, filts::AbstractDict; kws...)::DataFrame
         funcs = required_precache_functions(filts)
         for func in funcs
             spikes = func(spikes; kws...)
