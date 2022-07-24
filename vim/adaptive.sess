@@ -168,11 +168,11 @@ badd +153 src/Load.jl
 badd +16 src/Load/spikes.jl
 badd +2 src/Load/behavior.jl
 badd +8 src/Load/ripples.jl
-badd +197 src/Load/utils.jl
+badd +1 src/Load/utils.jl
 badd +152 src/Timeshift.jl
 badd +93 src/Timeshift/checkpoint.jl
 badd +98 src/Table/convert_types.jl
-badd +1 src/Table.jl
+badd +30 src/Table.jl
 badd +16 src/Utils/dict.jl
 badd +1 src/Utils/namedtup.jl
 badd +1 src/Timeshift/Keys.jl
@@ -208,7 +208,7 @@ badd +11497 ~/.cache/nvim/lsp.log
 badd +4 src/Field/fixed.jl
 badd +2 src/Utils/plot.jl
 badd +290 src/Shuf.jl
-badd +310 src/Filt.jl
+badd +6 src/Filt.jl
 badd +1 src/Field/model.jl
 badd +1 src/Field/operation.jl
 badd +1 _research/tensor_test.jl
@@ -272,7 +272,7 @@ normal! zt
 keepjumps 256
 normal! 03|
 tabnext
-edit src/Load/utils.jl
+edit src/Filt.jl
 let s:save_splitbelow = &splitbelow
 let s:save_splitright = &splitright
 set splitbelow splitright
@@ -286,13 +286,13 @@ set winheight=1
 set winminwidth=0
 set winwidth=1
 argglobal
-balt src/Utils.jl
-let s:l = 1 - ((0 * winheight(0) + 24) / 48)
+balt src/Load/utils.jl
+let s:l = 6 - ((5 * winheight(0) + 24) / 49)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 1
-normal! 0
+keepjumps 6
+normal! 05|
 tabnext
 edit notebooks/CacheShifts.jl
 argglobal
