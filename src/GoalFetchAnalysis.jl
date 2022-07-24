@@ -34,15 +34,15 @@ module GoalFetchAnalysis
     import Timeshift
     import Decode, Munge, Utils
 
-    export Load
     export Utils
     export Table 
+    export Filt
+    export Load
     export Field
     export Timeshift
     export Decode
-    export Filt
-    export Plot
     export Munge
+    export Plot
 
     Utils.plot.set_theme_timebased(23)
 

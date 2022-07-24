@@ -24,7 +24,7 @@ module tensor
 
     import Utils
 
-    export tensor_continuous
+    export tensorize, tensorize_continuous
     export quantilize, relativize
 
     SymStr = Union{Symbol, String}

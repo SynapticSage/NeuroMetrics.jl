@@ -185,9 +185,11 @@ module Utils
     include(srcdir("Utils", "namedtup.jl"))
     include(srcdir("Utils", "plot.jl"))
     include(srcdir("Utils", "macros.jl"))
+    include(srcdir("Utils", "binning.jl"))
     @reexport using .dict
     @reexport using .namedtup
     @reexport using .plot
     @reexport using .macros
+    @reexport using .binning
 
 end

@@ -6,6 +6,8 @@ module shuffle
     import Field.preset: field_presets, return_preset_funcs
     import Field: adaptive
     import Shuf
+    import Load: utils
+    import Filt
 
     using ThreadSafeDicts
     using DataFrames
@@ -47,11 +49,31 @@ module shuffle
                 compute::Symbol=:single,
                 postfunc::Union{Function,Nothing}=nothing,
                 safe_dict::AbstractDict=ThreadSafeDict(),
+                prefilter::Bool=true,
                 exfiltrateAfter::Real=Inf,
                 get_field_kws...)::AbstractDict
 
         @info "Applying shufflepreset=$shufflepreset"
         initial_data_partials = Shuf.applyStandardShuffle(shufflepreset)
+
+        if prefilter && :filters ∈ keys(get_field_kws)
+            filters = get_field_kws[:filters]
+           overwrite_precache = if :overwrite_precache ∈ keys(get_field_kws)
+               overwrite_precache = pop!(get_field_kws, :overwrite_precache)
+           else
+               overwrite_precache = true
+           end
+            if Filt.filters_use_precache(filters) &&
+                (overwrite_precache || Filt.missing_precache_col(data,
+                                                                 filters))
+                @info "shuffle data precaching"
+                @time data = Filt.precache(data, beh, filters)
+            end
+            @info "shuffle data pre filtering"
+            @time beh  = utils.filter(beh; filters, filter_skipmissingcols=true)[1]
+            get_field_kws = (;get_field_kws..., filters=nothing)
+        end
+
         _apply_partials(beh, data, shifts, props, initial_data_partials;
                         nShuffle, compute, postfunc,
                         safe_dict, exfiltrateAfter, get_field_kws...)
@@ -74,7 +96,7 @@ module shuffle
                 postfunc::Union{Function,Nothing}=nothing,
                 safe_dict::AbstractDict=ThreadSafeDict(),
                 exfiltrateAfter::Real=Inf,
-                get_field_kws...)::AbstractDict
+                field_kws...)::AbstractDict
 
         partial, dist = initial_data_partials
         distribution  = dist(data)
@@ -82,7 +104,7 @@ module shuffle
 
         _run_partial_functional(beh, data, shifts, shuffle_data_generator;
                                       compute, nShuffle, postfunc, safe_dict,
-                                      exfiltrateAfter, get_field_kws...)
+                                      exfiltrateAfter, field_kws...)
     end
 
     """
@@ -119,9 +141,9 @@ module shuffle
             shuffle_data_generator::Function,
             compute::Symbol, 
             nShuffle::Union{StepRangeLen, Int},
-            safe_dict::AbstractDict=ThreadSafeDict{NamedTuple,Any}(),
+            safe_dict::AbstractDict=OrderedDict{NamedTuple,Any}(),
             exfiltrateAfter::Real=Inf,
-            skipproc::Bool=false,
+            skipproc::Bool=true,
             thread_field::Bool=true,
             precomputegridocc::Union{Bool,Nothing}=nothing,
             shiftbeh::Bool=false,
@@ -152,11 +174,13 @@ module shuffle
                 continue
             end
             data   = shuffle_data_generator()
-            safe_dict[(;shuffle=s)] = Timeshift.shifted_fields(beh, data, 
+            tmp = Timeshift.shifted_fields(beh, data, 
                                                                shifts, props;
                                                        overwrite_precache=true,
                                                        thread_field,
+                                                       shiftbeh,
                                                        field_kws...)
+            safe_dict[(;shuffle=s)] = tmp
             isdefined(Main, :PlutoRunner) ? @info("finished 1 shuf") : nothing
             if mod(s, exfiltrateAfter)==0
                 @info "Exfiltrating"

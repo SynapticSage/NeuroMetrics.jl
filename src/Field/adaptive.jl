@@ -347,20 +347,14 @@ module adaptive
         yartsev(spikes, grid, occ; splitby, metrics, grid_kws...)
     end
     function yartsev(spikes::DataFrame, grid::GridAdaptive, occ::AdaptiveOcc;
-            splitby::CItype_plusNull=[:unit],
+            splitby::CItype=[:unit],
             metrics::Union{Function, Vector{Function}, Nothing}=metric_def,
             thread_field::Bool=thread_field_default,
             thread_fields::Bool=thread_fields_default,
             grid_kws...)::Union{AdaptiveFieldDict, AdaptiveRF}
-        if splitby !== nothing
-            spikes = groupby(spikes, splitby)
-            fields = get_adaptivefields(spikes, grid, occ; metrics, 
-                                        thread_field, thread_fields)
-        else
-            fields = get_adaptivefield(spikes, grid, occ; metrics,
-                                      thread_field)
-        end
-        return fields 
+
+        get_adaptivefields(groupby(spikes, splitby), grid, occ;
+                                    metrics, thread_field, thread_fields)
     end
 
     """

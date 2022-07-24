@@ -97,6 +97,7 @@ Purpose: This notebook functions to cache shifted fields and shifted field shuff
 # ╔═╡ 823b1bff-d922-4c2b-8a50-179af24094bd
 # ╠═╡ show_logs = false
 begin
+
 	@time spikes, beh, ripples, cells = Load.load("RY16", 36);
 	_, spikes = Load.register(beh, spikes; transfer=["velVec"], on="time")
 	if shuffle_type == :dotson
@@ -107,6 +108,7 @@ begin
 	                             transfer=["trajreltime","trajreltime_bin"],
 	                             on="time")
 	end
+
 end;
 
 # ╔═╡ f6add475-5405-42d1-a71c-e309aaf0121e
@@ -200,7 +202,10 @@ Works for a single key?"""
 datacut, props = first(datacuts), first(prop_set)
 
 # ╔═╡ 2f11999f-5d6e-4807-8bce-49791e7a0211
-marginal=get_shortcutnames(props)
+begin
+    marginal=get_shortcutnames(props)
+    shifts_tmp = [-1, 1]
+end
 
 # ╔═╡ ae54aa7a-3afb-43c9-b083-0908b1f02d18
 key = get_key(;marginal, datacut, shifts, widths, thresh)
@@ -217,9 +222,9 @@ md"""
 # ╠═╡ show_logs = false
 # ╠═╡ disabled = true
 #=╠═╡
-Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts, props; 
-fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=3,
-widths=2.50f0)
+Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts_tmp, props; 
+fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=2,
+filters=single_filt, widths=20.0f0)
   ╠═╡ =#
 
 # ╔═╡ f8f1c3e8-ed99-4a37-8faa-82ec1f946898
@@ -230,7 +235,7 @@ md"""
 # ╔═╡ dde2b892-eae4-4dfd-8735-b533e8a5ae68
 # ╠═╡ disabled = true
 #=╠═╡
-@time Timeshift.shifted_fields(beh, spikes, shifts, props; widths=2.50f0, filters=single_filt, thresh);
+@time Timeshift.shifted_fields(beh, spikes, shifts_tmp, props; widths=2.50f0, filters=single_filt, thresh);
   ╠═╡ =#
 
 # ╔═╡ e4acf92a-3242-4579-a046-95649f835c36
@@ -259,6 +264,7 @@ end
 # ╔═╡ 2696b1df-e52c-497c-b62f-a0932da6c8a4
 #=╠═╡
 begin
+
     @showprogress "Datacut iteration" for datacut ∈ datacuts
         finished_batch = false
         @showprogress "Props" for props ∈ prop_set
@@ -273,6 +279,7 @@ begin
             Timeshift.save_shuffles(S)
         end
     end
+
 end
   ╠═╡ =#
 

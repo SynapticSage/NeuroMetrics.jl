@@ -37,8 +37,12 @@ module Timeshift
     end
 
     # -------------------- SHIFTING TYPES ---------------------------
-    shift_func(data::DataFrame, shift::Real) = 
-             transform(data, :time => (t->t.+shift) =>:time, copycols=false)
+    function shift_func(data::DataFrame, shift::Real) 
+        if :time_copy ∉ propertynames(data)
+            data[!, :time_copy] = data[:, :time]
+        end
+        transform(data, :time_copy => (t->t.+shift) =>:time, copycols=false)
+    end
     const σ = shift_func
 
     # -------------------- SHIFTED Receptive Fields --------------------------
@@ -115,7 +119,6 @@ module Timeshift
             multi = multi ? :thread : :single
         end
 
-
         if filters !== nothing
             if Filt.filters_use_precache(filters) &&
                 (overwrite_precache || Filt.missing_precache_col(data,
@@ -140,26 +143,35 @@ module Timeshift
             if shift ∈ keys(result_dict)
                 continue
             end
-            @info "shifting"
-            @time if shiftbeh
-                B, D, shift = σ(beh, shift), data, shift*-1
+            if shiftbeh
+                @info "shifting beh"
+                beh, shift = σ(beh, shift), shift*-1
+                @info "register"
+                @time beh, data = utils.register(beh, data; on="time",
+                                              transfer=grid.props)
             else
-                B, D  = beh, σ(data, shift)
+                @info "Shifting spike"
+                data  = σ(data, shift)
+                @info "register"
+                @time beh, data = utils.register(beh, data; on="time",
+                                              transfer=grid.props)
             end
-            @info "register"
-            @time _, data_filt = utils.register(B, D; on="time",
-                                          transfer=grid.props)
-            @info "dropmissing"
-            @time data_filt = dropmissing(data_filt, grid.props)
             @info "fieldfunc" thread_field thread_fields
-            @time result    = fieldfunc(data_filt, grid, occ; splitby, 
-                                  metrics=metricfuncs,
-                                  filters=nothing,
-                                  thread_field, thread_fields)
-            if postfunc !== nothing
-                result = postfunc(result)
+            if postfunc === nothing
+                @time push!(result_dict, shift =>
+                            fieldfunc(data, grid, occ; splitby, 
+                                      metrics=metricfuncs,
+                                      filters=nothing,
+                                      thread_field, thread_fields)
+                           )
+            else
+                @time push!(result_dict, shift =>
+                            postfunc(fieldfunc(data, grid, occ; splitby, 
+                                      metrics=metricfuncs,
+                                      filters=nothing,
+                                      thread_field, thread_fields))
+                           )
             end
-            push!(result_dict, shift=>result)
             if !(isdefined(Main, :PlutoRunner)) && progress
                 next!(prog)
             end
