@@ -6,10 +6,12 @@ using InteractiveUtils
 
 # ╔═╡ c99b4903-464d-44fb-b5e5-d7724b25afea
 begin
+
 	using DrWatson, Revise
 	quickactivate(expanduser("~/Projects/goal-code"))
 	using PlutoUI
 	PlutoUI.TableOfContents(title="Caching Mains and Shuffles")
+
 end
 
 # ╔═╡ fc614ab8-00cb-11ed-0f62-f751ef056b39
@@ -271,8 +273,13 @@ begin
             marginal = get_shortcutnames(props)
             key = get_key(;marginal, datacut, shifts, widths, thresh)
             filt = filts[datacut]
-    		if keymessage(S, key); continue; end
-            @time S[key] = Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts, props; fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=100, widths, thresh, exfiltrateAfter=10, shiftbeh=false, filters=filt)
+    		#if keymessage(S, key); continue; end
+            if key ∈ keys(S)
+                result_dict = S[key]
+            else
+                result_dict = OrderedDict{NamedTuple, Any}()
+            end
+            @time S[key] = Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts, props; fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=100, widths, thresh, shiftbeh=false, filters=filt, result_dict)
             finished_batch = true
         end
         if finished_batch

@@ -1,7 +1,6 @@
 module shuffle
 
     import ..Timeshift
-    using ..Timeshift: σ, shift_func
     import Field
     import Field.preset: field_presets, return_preset_funcs
     import Field: adaptive
@@ -141,7 +140,7 @@ module shuffle
             shuffle_data_generator::Function,
             compute::Symbol, 
             nShuffle::Union{StepRangeLen, Int},
-            safe_dict::AbstractDict=OrderedDict{NamedTuple,Any}(),
+            result_dict::AbstractDict=OrderedDict{NamedTuple,Any}(),
             exfiltrateAfter::Real=Inf,
             skipproc::Bool=true,
             thread_field::Bool=true,
@@ -170,7 +169,7 @@ module shuffle
         P = Progress(length(nShuffle); desc="Shuffle")
         P.showspeed = true
         for s in nShuffle
-            if skipproc && (;shuffle=s) ∈ keys(safe_dict)
+            if skipproc && (;shuffle=s) ∈ keys(result_dict)
                 continue
             end
             data   = shuffle_data_generator()
@@ -180,7 +179,7 @@ module shuffle
                                                        thread_field,
                                                        shiftbeh,
                                                        field_kws...)
-            safe_dict[(;shuffle=s)] = tmp
+            result_dict[(;shuffle=s)] = tmp
             isdefined(Main, :PlutoRunner) ? @info("finished 1 shuf") : nothing
             if mod(s, exfiltrateAfter)==0
                 @info "Exfiltrating"
@@ -189,9 +188,10 @@ module shuffle
             next!(P)
         end
 
-        safe_dict = Dict(safe_dict...)
-        OrderedDict(key=>pop!(safe_dict, key) 
-                          for key in sort([keys(safe_dict)...]))
+        #safe_dict = Dict(result_dict...)
+        #OrderedDict(key=>pop!(safe_dict, key) 
+        #                  for key in sort([keys(safe_dict)...]))
+        result_dict
     end
 
 end

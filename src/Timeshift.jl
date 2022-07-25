@@ -29,6 +29,7 @@ module Timeshift
     export shifted_fields
     export getshifts, getunits
     export ShiftedField, ShiftedFields, DictOfShiftOfUnit
+    export shift_func!, reset_shift!
 
 
     
@@ -37,13 +38,19 @@ module Timeshift
     end
 
     # -------------------- SHIFTING TYPES ---------------------------
-    function shift_func(data::DataFrame, shift::Real) 
+    function shift_func!(data::DataFrame, shift::Real) 
         if :time_copy ∉ propertynames(data)
             data[!, :time_copy] = data[:, :time]
         end
-        transform(data, :time_copy => (t->t.+shift) =>:time, copycols=false)
+        transform!(data, :time_copy => (t->t.+shift) =>:time)
     end
-    const σ = shift_func
+    const σ = shift_func!
+
+    function reset_shift!(data::DataFrame) 
+        if :time_copy ∈ propertynames(data)
+            data[!, :time] = data[!, :time_copy]
+        end
+    end
 
     # -------------------- SHIFTED Receptive Fields --------------------------
     function get_field_shift(beh::DataFrame, data::DataFrame, shift::Real; 
@@ -134,6 +141,7 @@ module Timeshift
 
         data = ensureTimescale(data)
         beh  = ensureTimescale(beh)
+        shiftbeh ? reset_shift!(beh) : reset_shift!(data)
 
         if !(isdefined(Main, :PlutoRunner)) && progress
             prog = Progress(length(shifts), desc="Field shift calculations")
@@ -151,7 +159,7 @@ module Timeshift
                                               transfer=grid.props)
             else
                 @info "Shifting spike"
-                data  = σ(data, shift)
+                data = σ(data, shift)
                 @info "register"
                 @time beh, data = utils.register(beh, data; on="time",
                                               transfer=grid.props)
@@ -179,6 +187,7 @@ module Timeshift
         if !(isdefined(Main, :PlutoRunner)) && progress
             finish!(prog)
         end
+        shiftbeh ? reset_shift!(beh) : reset_shift!(data)
 
         result_dict = Dict(result_dict...)
         out = OrderedDict(
