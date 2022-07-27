@@ -10,6 +10,8 @@ module metrics
     import Utils
     import Load.utils: register
     import Load: keep_overlapping_times
+    using ImageSegmentation
+    using LazySets
     using Infiltrator
 
     export Metrics
@@ -122,7 +124,73 @@ module metrics
     function meanrate(F::ReceptiveField)
         nanmean(F.rate)
     end
-    function convexhull(F::ReceptiveField)
+
+    function hull_withimages(X::BitMatrix)::Vector{CartesianIndex}
+        convexhull(X)
+    end
+    function hull_withlazysets(X::BitMatrix)::Vector{Vector{Float32}}
+        collect(convex_hull(array_of_arrays(findall(X))))
+        #[convert(Vector{Float32}, x) for x in h]
+    end
+    function centroid(X::BitArray)::Vector{Int32}
+        round.(mean(array_of_arrays(findall(X))))
+    end
+    function centroid(X::BitArray, grid::Field.adaptive.GridAdaptive)::Vector{Float32}
+        grid.grid[ centroid(X)... ]
+    end
+    array_of_tuples(X::Vector{<:CartesianIndex}) = [x.I for x in X]
+    array_of_arrays(X::Vector{<:CartesianIndex}) = [collect(x.I) for x in X]
+    array_of_singleton(X::Vector{<:CartesianIndex}) = [Singleton(collect(x.I)) for x in X]
+    
+    loopup_coord(c::Tuple, F::Field.ReceptiveField) = F.grid.grid[c...]
+    to_grid(X::Vector{<:Union{Tuple,Vector}}, grid::T where T <: Field.adaptive.GridAdaptive) = [grid.grid[Int32.(x)...] for x in X]
+
+    struct HullSet
+    end
+    function Base.∈(x, H::HullSet)::Bool
+    end
+    function Base.∉(x, H::HullSet)::Bool
+    end
+
+    function convexhull(field::ReceptiveField; gthresh=0.85)
+
+        halfmast = nanquantile(vec(field.rate), qthresh)
+        bw = field.rate .> halfmast
+        dist = 1 .- distance_transform(feature_transform(bw))
+        markers = label_components( (!).(dist .< 0))
+
+        mets = Dict()
+        mets[:hullzone] = hullzones
+        mets[:hullseg]  = segments
+        ordered_seg = sort(collect(keys(segments.segment_pixel_count)))
+        mets[:hullsegsizes] = OrderedDict(k=>segments.segment_pixel_count[k]
+                                for k in ordered_seg)
+            
+
+        zones = 1:maximum(hullzones)
+        mets[:hullseg_inds] = Dict{Union{Int, Symbol},Any}()
+        mets[:hullseg_grid] = Dict{Union{Int, Symbol},Any}()
+        mets[:hullseg_inds_cent] = Dict{Union{Int, Symbol},Any}()
+        mets[:hullseg_grid_cent] = Dict{Union{Int, Symbol},Any}()
+            
+        for zone in zones
+            iszone = hullzones .== zone
+            mets[:hullseg_inds][zone] = hull_withlazysets(iszone)
+            mets[:hullseg_grid][zone] = to_grid(mets[:hullseg_inds][zone], 
+                field.grid)
+            mets[:hullseg_inds_cent][zone] = centroid(iszone)
+            mets[:hullseg_grid_cent][zone] = centroid(iszone, field.grid)
+        end
+
+        iszone = hullzones .== ordered_seg[1] .||
+                                    hullzones .== ordered_seg[2]
+        mets[:hullseg_inds][:toptwohull]  = hull_withlazysets(iszone)
+        mets[:hullseg_grid][:toptwohull] = to_grid(mets[:hullseg_inds][:toptwohull], 												field.grid)
+        
+        mets[:hullseg_grid_cent][:toptwohull] = centroid(iszone, field.grid)
+        mets[:hullseg_inds_cent][:toptwohull] = centroid(iszone)
+        mets
+
     end
 
     """
@@ -146,7 +214,8 @@ module metrics
             neighbors[i] = nanmean(int_samples)
             subjects[i] = subject
         end
-        pearson = nancor(subjects, neighbors)
+        pearson = min(nancor(subjects, neighbors), 1f0)
+        #@info pearson # sometimes, we get values BARELY above 1
         0.5 * log( (1+pearson) / (1-pearson) )
     end
 

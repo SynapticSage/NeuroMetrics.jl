@@ -31,6 +31,7 @@ begin
 	  import Utils
 	  import Timeshift
 	  import Plot
+	  using Field.metrics
 	  
 	  adaptive = Field.adaptive
       metrics = Field.metrics
@@ -39,6 +40,11 @@ begin
           "currentAngle"=>Float32(2pi/80)
 	  )
       filts = Filt.get_filters_precache()
+end
+
+# ╔═╡ 348e8178-ae24-4217-93a5-54d979b47d92
+begin
+	using ImageSegmentation, Images, LazySets, Statistics
 end
 
 # ╔═╡ ff1db172-c3ab-41ea-920c-1dbf831c1336
@@ -136,6 +142,9 @@ plot(
 	heatmap([collect(x) for x in G.centers]..., (G.radii .=== NaN32)'; aspect_ratio, title="nan locations")
 	, ylims=ylim)
 
+# ╔═╡ bf5ec1fc-0443-49df-b90a-164bdd4e8b1b
+G.centers
+
 # ╔═╡ 93b3a5c7-6c6f-4e80-91e7-01f83d292c9a
 G.radii
 
@@ -180,9 +189,10 @@ md"""
 """
 
 # ╔═╡ b88c0ec1-b150-49be-828f-6c32bb770c48
-@time units = adaptive.yartsev(spikes, G, O; widths=width, thresh);
-@time units = adaptive.yartsev(spikes, G, O; widths=width, thresh, 
-                               filters=filts[:all]);
+begin
+	@time units = adaptive.yartsev(spikes, G, O; widths=width, thresh, 
+	                               filters=filts[:all]);
+end;
 
 # ╔═╡ 38cff24f-bbc1-42fd-98ae-385323c2480e
 grid_select
@@ -193,7 +203,7 @@ md"""
 """
 
 # ╔═╡ 7c6cfeb1-2c78-4480-852b-aa06cc818f76
-unit_select = @bind unit PlutoUI.Slider(sort(unique(spikes.unit)), show_value=true)
+unit_select = @bind unit PlutoUI.Slider(sort(unique(spikes.unit)), default=31, show_value=true)
 
 # ╔═╡ 44abcbd4-5f71-4924-b77d-9680cc96044f
 plot(units[(;unit=unit)]; aspect_ratio, ylims=ylim)
@@ -205,7 +215,7 @@ plot(units[(;unit=unit)]; aspect_ratio, ylims=ylim)
 end
 
 # ╔═╡ eefa56cc-f303-40ee-aa44-dc758eac750b
-units[(;unit=unit)]
+field = units[(;unit=unit)]
 
 # ╔═╡ f9378d49-2f86-4088-bc6d-3b5b227b7c66
 md"""
@@ -239,19 +249,26 @@ shifted2 = Timeshift.shifted_fields(beh, spikes, -2:0.05:2, props; widths=widths
   ╠═╡ =#
 
 # ╔═╡ cb4d5494-24a6-4dfc-980b-23ec48fca7cc
-I = Timeshift.load_mains();
+# ╠═╡ disabled = true
+#=╠═╡
+I = Timeshift.load_fields();
+  ╠═╡ =#
 
 # ╔═╡ 6b8666fc-1e1f-48bf-88bf-b51eb07ad3ce
+#=╠═╡
 begin
 	keysets = string.(collect(filter(k->k.grid .== :adaptive .&& k.first.==-2.0 && :Widths ∉ propertynames(k), keys(I))))
 	dataset_pick = @bind k PlutoUI.Radio(keysets, default=keysets[2])
 end
+  ╠═╡ =#
 
 # ╔═╡ a097ba99-df43-4884-bc93-5d17a82aaeaf
+#=╠═╡
 begin
 	key = collect(keys(I))[findall(k .== string.(collect(keys(I))))][1]
 		shifted = I[key]
 end
+  ╠═╡ =#
 
 # ╔═╡ be6048d8-6f30-4d48-a755-5537c3b0b104
 md"""
@@ -259,18 +276,33 @@ md"""
 """
 
 # ╔═╡ 5acf0a77-9e40-4117-83fa-4a0791849265
+#=╠═╡
 begin
 	unit_sel = @bind shift_unit PlutoUI.Slider(sort(unique(spikes.unit)), show_value=true)
 	 shift_sel = @bind shift_shift PlutoUI.Slider(sort(collect(keys(shifted))), show_value=true,default=0)
 	(;unit_sel, shift_sel)
 end
+  ╠═╡ =#
+
+# ╔═╡ 2331218a-bc76-4adf-82e3-8e5b52aef0ca
+#=╠═╡
+plot_obj = Timeshift.DictOfShiftOfUnit{Float64}(shifted)
+  ╠═╡ =#
+
+# ╔═╡ 3afa8aae-bf3e-4364-8ad9-76fd50ca5ac9
+#=╠═╡
+single_shifted_field = get(plot_obj,shift_shift, shift_unit)
+  ╠═╡ =#
 
 # ╔═╡ 94930aab-8bb0-4da0-b26b-35ddb3efde3b
+#=╠═╡
 begin
-    plot_obj = Timeshift.DictOfShiftOfUnit{Float64}(shifted)
-    plot(get(plot_obj,shift_shift, shift_unit); aspect_ratio, ylims=ylim,
-		title=string(get(plot_obj, shift_shift, shift_unit)))
+    plot(get(plot_obj,shift_shift, shift_unit); 
+			aspect_ratio, ylims=ylim,
+			title=string(get(plot_obj, shift_shift, shift_unit))
+	)
 end
+  ╠═╡ =#
 
 # ╔═╡ 47af1633-99bd-4dc2-9d91-9073ec327f27
 md"""
@@ -278,18 +310,23 @@ md"""
 """
 
 # ╔═╡ 5f15dc20-cf30-4088-a173-9c084ac2809a
+#=╠═╡
 SF = Timeshift.ShiftedField(get(plot_obj, :, shift_unit))
+  ╠═╡ =#
 
 # ╔═╡ ac9cddcb-097c-42a8-bd59-19fced23bf5a
+#=╠═╡
 SF.metrics
+  ╠═╡ =#
 
 # ╔═╡ 6f7f46ac-8acd-415b-9516-ed262d5b5cb4
+#=╠═╡
 begin
     SFs = Timeshift.ShiftedField(shifted)
     nbins = 50
     Munge.behavior.annotate_relative_xtime!(beh)
     beh.trajreltime_bin = floor.(beh.trajreltime * (nbins-1))
-    _, spikes = Load.register(beh, spikes;
+    Load.register(beh, spikes;
                              transfer=["trajreltime","trajreltime_bin"],
                              on="time")
 
@@ -301,6 +338,200 @@ begin
     shiftbeh=false)
     Timeshift.shuffle.shifted_field_shuffles(beh, spikes, -2:0.05:2, props; 
     fieldpreset=:yartsev, shufflepreset=:dotson, nShuffle=3, widths=widths)
+end
+  ╠═╡ =#
+
+# ╔═╡ 588bff56-6518-4410-b19a-dc745cf067e7
+md"""
+# Metric Development
+
+## Convex Hull
+
+Wnat to ensure that watershed segmentation followed by hull of the largest thresholded segments give a good hull
+"""
+
+# ╔═╡ f02a79c9-01b8-4550-b321-7b5a6f0d5a28
+md"""
+### Examine hull creation process
+"""
+
+# ╔═╡ 0941a2f5-047f-4a30-823f-fafc53f18b38
+segmentation_thresh = @bind qthresh PlutoUI.Slider(0.05:0.05:1; show_value=true, default=0.85)
+
+# ╔═╡ 9405b2bd-c10c-4ba7-aeda-b9f56e2b33ee
+begin
+	halfmast = nanquantile(vec(field.rate), qthresh)
+	bw = field.rate .> halfmast
+	dist = 1 .- distance_transform(feature_transform(bw))
+	markers = label_components( (!).(dist .< 0))
+end;
+
+# ╔═╡ 99c12e94-8d3e-4700-ab50-146165f654bd
+plot(
+	plot(field, 	 title="field"), 
+	heatmap(bw', 	 title="thresholded"), 
+	heatmap(dist', 	 title="distance computation"),
+	heatmap(markers',title="markers"),
+	aspect_ratio=1)
+
+# ╔═╡ ce81a2d1-7ba8-44fb-b401-760411421a71
+segments = watershed(dist, markers)
+
+# ╔═╡ 794aae46-914a-4da3-a093-d76f1308c55b
+hullzones = bw .* labels_map(segments);
+
+# ╔═╡ 35da24ff-42c3-455e-9a43-7d74d01f3265
+segmentation_thresh
+
+# ╔═╡ 0f80805a-76c8-4d8d-91bc-c013575d3a10
+heatmap(plot(field, title="field"), heatmap(Int8.(hullzones)', title="segments"), aspect_ratio=1)
+
+# ╔═╡ 8bfb8c40-942d-41b8-a441-5a71f6bbafb7
+sortperm(collect(values(segments.segment_pixel_count)))
+
+
+
+# ╔═╡ d67ba5d1-ca84-4a8b-97ec-54213f60a092
+md"""
+### Parcellate hull data into metrics
+"""
+
+# ╔═╡ d48e9bc9-4d67-4e7b-a0f7-25b975813ccd
+begin
+	
+	mets = Dict()
+	mets[:hullzone] = hullzones
+	mets[:hullseg]  = segments
+	ordered_seg = sort(collect(keys(segments.segment_pixel_count)))
+	mets[:hullsegsizes] = OrderedDict(k=>segments.segment_pixel_count[k]
+							for k in ordered_seg)
+		
+	array_of_tuples(X::Vector{<:CartesianIndex}) = [x.I for x in X]
+	array_of_arrays(X::Vector{<:CartesianIndex}) = [collect(x.I) for x in X]
+	array_of_singleton(X::Vector{<:CartesianIndex}) = [Singleton(collect(x.I)) for x in X]
+	
+	loopup_coord(c::Tuple, F::Field.ReceptiveField) = F.grid.grid[c...]
+	to_grid(X::Vector{<:Union{Tuple,Vector}}, grid::T where T <: Field.adaptive.GridAdaptive) = [grid.grid[Int32.(x)...] for x in X]
+
+	function hull_withimages(X::BitMatrix)::Vector{CartesianIndex}
+		convexhull(X)
+	end
+	function hull_withlazysets(X::BitMatrix)::Vector{Vector{Float32}}
+		collect(convex_hull(array_of_arrays(findall(X))))
+		#[convert(Vector{Float32}, x) for x in h]
+	end
+	function centroid(X::BitArray)::Vector{Int32}
+		round.(mean(array_of_arrays(findall(X))))
+	end
+	function centroid(X::BitArray, grid::Field.adaptive.GridAdaptive)::Vector{Float32}
+		grid.grid[ centroid(X)... ]
+	end
+
+	zones = 1:maximum(hullzones)
+	mets[:hullseg_inds] = Dict{Union{Int, Symbol},Any}()
+	mets[:hullseg_grid] = Dict{Union{Int, Symbol},Any}()
+	mets[:hullseg_inds_cent] = Dict{Union{Int, Symbol},Any}()
+	mets[:hullseg_grid_cent] = Dict{Union{Int, Symbol},Any}()
+		
+	for zone in zones
+		iszone = hullzones .== zone
+		mets[:hullseg_inds][zone] = hull_withlazysets(iszone)
+		mets[:hullseg_grid][zone] = to_grid(mets[:hullseg_inds][zone], 
+			field.grid)
+		mets[:hullseg_inds_cent][zone] = centroid(iszone)
+		mets[:hullseg_grid_cent][zone] = centroid(iszone, field.grid)
+	end
+
+	iszone = hullzones .== ordered_seg[1] .||
+								hullzones .== ordered_seg[2]
+	mets[:hullseg_inds][:toptwohull]  = hull_withlazysets(iszone)
+	mets[:hullseg_grid][:toptwohull] = to_grid(mets[:hullseg_inds][:toptwohull], 												field.grid)
+	
+	mets[:hullseg_grid_cent][:toptwohull] = centroid(iszone, field.grid)
+	mets[:hullseg_inds_cent][:toptwohull] = centroid(iszone)
+	mets
+	
+end;
+
+
+# ╔═╡ 8b502338-14ff-4f3d-87cb-3e3de1f5e723
+instruction = OrderedDict(sort([k=>sum(hullzones .== k) for k in 1:maximum(hullzones)], by=x->x[2], rev=true))
+
+# ╔═╡ 97f2daad-1190-46a2-8c1a-288e0177a29b
+function resort_zones(hullzones, instruction::OrderedDict)
+	newhullzones = copy(hullzones)
+	for (new, (current, count)) = 1:length(instruction)
+		hzinds = hullzones .== current
+		@info hzinds
+		newhullzones[hzinds] .= new 
+	end
+	return newhullzones, OrderedDict(zip(1:length(instruction, 
+								     values(instruction))))
+end
+
+# ╔═╡ efd65ca8-457c-4f83-9aaf-162c089404c5
+resort_zones(hullzones, instruction)
+
+# ╔═╡ 346a2e86-47be-47ca-9895-fbf4806fc17a
+ordered_seg
+
+# ╔═╡ b5e2ef6a-942a-4782-9c36-cd2778de2c66
+unique(hullzones)
+
+# ╔═╡ 70d62e08-77b4-407d-bad8-4850abf5f00a
+h = hull_withlazysets(hullzones .== 1)
+
+# ╔═╡ 8ce9d392-b7bd-483f-b87a-78c6f7657024
+typeof(h), typeof([h...])
+
+# ╔═╡ ce3c4a7c-47d1-4564-bc5c-4c4b20c0820a
+
+
+# ╔═╡ 0dd5dfe7-321d-466e-9799-ac6c40cc8fb0
+begin
+	plot(VPolygon(h))
+	plot!([Singleton(hh) for hh in h], markersize=20)
+	plot!(Singleton([3.2f0,8.2f0]), markersize=20)
+end
+
+# ╔═╡ 9b9ca9f0-6cce-4f5c-8194-9cd9a2262aa6
+md"""
+We can either test a set of points for subset relationship
+"""
+
+# ╔═╡ b6b7f2e0-68f7-4324-a78b-197b4143339c
+Singleton([3.2f0,8.2f0]) ⊆ VPolygon(h)
+
+# ╔═╡ 30af0459-297b-4c57-95f9-24436d57209c
+Singleton([3.2f0,8.2f0]) ⊇ VPolygon(h)
+
+# ╔═╡ 865e9584-6dd9-4d98-bd86-cd918d23379c
+md"""
+Or single points for set membership
+"""
+
+# ╔═╡ 05d6904a-1dfa-4a2f-a385-aaafacc80b0a
+element(Singleton([3.2f0,8.2f0])) ∈ VPolygon(h)
+
+# ╔═╡ d5569288-bc83-408f-8219-5d945cbc6871
+segmentation_thresh
+
+# ╔═╡ 0030f529-dd82-4269-aa50-02cc832b9f07
+begin
+	p_with_seghulls = plot(field, aspect_ratio=1)
+	for i in sort(collect(filter(x-> x isa Int, keys(mets[:hullseg_grid]))))
+		plot!(VPolygon(mets[:hullseg_grid][i]))
+		annotate!(mets[:hullseg_grid_cent][i]..., text(string(i), :white))
+	end
+	p_with_seghulls
+end
+
+# ╔═╡ e06ae752-f36b-465c-9303-74d406b915bf
+begin
+	p_with_seghulls_top = plot(field, aspect_ratio=1)
+	plot!(VPolygon(mets[:hullseg_grid][:toptwohull]))
+	annotate!(mets[:hullseg_grid_cent][:toptwohull]..., text(string(:toptwohull), :white))
+	p_with_seghulls_top
 end
 
 # ╔═╡ Cell order:
@@ -315,11 +546,12 @@ end
 # ╟─ff355ad4-42da-4493-ae56-3bc9f0d8627c
 # ╟─04eec95d-b5cf-47a5-a880-3146088cab00
 # ╟─efcdc2f1-5e26-4534-953e-defae4bd8603
-# ╟─6104813f-e8cf-42fe-8f28-16cacf11cce3
+# ╠═6104813f-e8cf-42fe-8f28-16cacf11cce3
 # ╠═6bdcf863-9946-4ca3-ab02-fa6aebe4b91d
 # ╟─9e635078-bfdb-41bf-8730-e08a968d5e71
 # ╟─92b1c56a-1738-43ba-96c9-8c70c6713c39
 # ╠═03586347-83ee-429d-ab29-505754c66734
+# ╠═bf5ec1fc-0443-49df-b90a-164bdd4e8b1b
 # ╠═93b3a5c7-6c6f-4e80-91e7-01f83d292c9a
 # ╠═5550e97c-a33e-4ae4-b888-90f782506bc2
 # ╟─7c03a7aa-3181-4b3d-9dc6-0eb8e8689023
@@ -331,13 +563,13 @@ end
 # ╟─fca06c75-a137-411c-9bd8-74d33ad93183
 # ╟─410128bf-2332-4aa2-91cb-441e0235cc4a
 # ╟─c23ee21a-b3d4-42e5-a4f1-b703008eda1a
-# ╟─b88c0ec1-b150-49be-828f-6c32bb770c48
+# ╠═b88c0ec1-b150-49be-828f-6c32bb770c48
 # ╟─38cff24f-bbc1-42fd-98ae-385323c2480e
 # ╟─7b150cd8-ada8-46bc-b3ea-1f10c1aea9d8
 # ╟─7c6cfeb1-2c78-4480-852b-aa06cc818f76
 # ╟─44abcbd4-5f71-4924-b77d-9680cc96044f
 # ╟─4d814c3e-97e1-491a-b1d8-c7ca9c628afd
-# ╟─eefa56cc-f303-40ee-aa44-dc758eac750b
+# ╠═eefa56cc-f303-40ee-aa44-dc758eac750b
 # ╟─f9378d49-2f86-4088-bc6d-3b5b227b7c66
 # ╟─52854f4d-1cb2-4a3f-8d48-91aea9c3c45a
 # ╟─34b5441c-add2-4272-b384-67994daf7745
@@ -348,8 +580,40 @@ end
 # ╠═a097ba99-df43-4884-bc93-5d17a82aaeaf
 # ╟─be6048d8-6f30-4d48-a755-5537c3b0b104
 # ╠═5acf0a77-9e40-4117-83fa-4a0791849265
-# ╠═94930aab-8bb0-4da0-b26b-35ddb3efde3b
+# ╟─2331218a-bc76-4adf-82e3-8e5b52aef0ca
+# ╟─3afa8aae-bf3e-4364-8ad9-76fd50ca5ac9
+# ╟─94930aab-8bb0-4da0-b26b-35ddb3efde3b
 # ╟─47af1633-99bd-4dc2-9d91-9073ec327f27
 # ╠═5f15dc20-cf30-4088-a173-9c084ac2809a
 # ╠═ac9cddcb-097c-42a8-bd59-19fced23bf5a
 # ╠═6f7f46ac-8acd-415b-9516-ed262d5b5cb4
+# ╟─588bff56-6518-4410-b19a-dc745cf067e7
+# ╠═348e8178-ae24-4217-93a5-54d979b47d92
+# ╟─f02a79c9-01b8-4550-b321-7b5a6f0d5a28
+# ╠═9405b2bd-c10c-4ba7-aeda-b9f56e2b33ee
+# ╠═0941a2f5-047f-4a30-823f-fafc53f18b38
+# ╠═99c12e94-8d3e-4700-ab50-146165f654bd
+# ╠═ce81a2d1-7ba8-44fb-b401-760411421a71
+# ╠═794aae46-914a-4da3-a093-d76f1308c55b
+# ╠═35da24ff-42c3-455e-9a43-7d74d01f3265
+# ╠═0f80805a-76c8-4d8d-91bc-c013575d3a10
+# ╟─8bfb8c40-942d-41b8-a441-5a71f6bbafb7
+# ╟─d67ba5d1-ca84-4a8b-97ec-54213f60a092
+# ╠═d48e9bc9-4d67-4e7b-a0f7-25b975813ccd
+# ╠═8b502338-14ff-4f3d-87cb-3e3de1f5e723
+# ╠═97f2daad-1190-46a2-8c1a-288e0177a29b
+# ╠═efd65ca8-457c-4f83-9aaf-162c089404c5
+# ╠═346a2e86-47be-47ca-9895-fbf4806fc17a
+# ╠═b5e2ef6a-942a-4782-9c36-cd2778de2c66
+# ╠═70d62e08-77b4-407d-bad8-4850abf5f00a
+# ╠═8ce9d392-b7bd-483f-b87a-78c6f7657024
+# ╟─ce3c4a7c-47d1-4564-bc5c-4c4b20c0820a
+# ╟─0dd5dfe7-321d-466e-9799-ac6c40cc8fb0
+# ╟─9b9ca9f0-6cce-4f5c-8194-9cd9a2262aa6
+# ╠═b6b7f2e0-68f7-4324-a78b-197b4143339c
+# ╠═30af0459-297b-4c57-95f9-24436d57209c
+# ╟─865e9584-6dd9-4d98-bd86-cd918d23379c
+# ╠═05d6904a-1dfa-4a2f-a385-aaafacc80b0a
+# ╠═d5569288-bc83-408f-8219-5d945cbc6871
+# ╟─0030f529-dd82-4269-aa50-02cc832b9f07
+# ╟─e06ae752-f36b-465c-9303-74d406b915bf
