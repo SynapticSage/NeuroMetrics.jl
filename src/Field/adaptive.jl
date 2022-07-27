@@ -9,6 +9,7 @@ module adaptive
     import Table
     import Table: CItype, CItype_plusNull
     import Munge
+    import Filt
 
     using DataStructures
     using DataFrames
@@ -326,10 +327,12 @@ module adaptive
             grid_kws...)::Union{AdaptiveFieldDict, AdaptiveRF}
         if filters !== nothing
             if Filt.filters_use_precache(filters) &&
-                Filt.missing_precache_col(spikes, filters)
-                spikes = Filt.precache(spikes, beh, filters)
+                Filt.missing_precache_output_cols(spikes, filters)
+                @info "yartsev preacaching"
+                spikes = Filt.precache(spikes, behavior, filters)
             end
-            behavior, spikes = filterAndRegister(behavior, spikes; filters,
+            @info "filter and reg"
+            @time behavior, spikes = filterAndRegister(behavior, spikes; filters,
                                                  on="time", transfer=props,
                                                  filter_skipmissingcols=true)
         else
@@ -341,10 +344,14 @@ module adaptive
                                                      
             end
         end
-        grid = get_grid(behavior, props; grid_kws...)
-        occ  = get_occupancy(behavior, grid)
-        spikes = dropmissing(spikes, props)
-        yartsev(spikes, grid, occ; splitby, metrics, grid_kws...)
+        @info "grid"
+        @time grid = get_grid(behavior, props; grid_kws...)
+        @info "occupancy"
+        @time occ  = get_occupancy(behavior, grid)
+        @info "dropmissing"
+        @time spikes = dropmissing(spikes, props)
+        @info "fields"
+        @time yartsev(spikes, grid, occ; splitby, metrics, grid_kws...)
     end
     function yartsev(spikes::DataFrame, grid::GridAdaptive, occ::AdaptiveOcc;
             splitby::CItype=[:unit],

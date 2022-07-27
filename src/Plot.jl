@@ -8,7 +8,7 @@ module Plot
     include(srcdir("Plot","timeshift.jl"))
     @reexport using .timeshift
     include(srcdir("Plot","rf.jl"))
-    @reexport using .rf
+    @reexport using .receptivefield
     include(srcdir("Plot","table.jl"))
     @reexport using .table
 

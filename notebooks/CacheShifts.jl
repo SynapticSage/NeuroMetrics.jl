@@ -35,6 +35,7 @@ begin
 	import Filt
 	filts = Filt.get_filters_precache()
 
+    # source:  https://github.com/fonsp/Pluto.jl/issues/115  
 	function ingredients(path::String)
 		# this is from the Julia source code (evalfile in base/loading.jl)
 		# but with the modification that it returns the module instead of the last object
@@ -161,8 +162,10 @@ Obtain mains checkpoint data
 begin
     if isfile(Timeshift.mainspath())
         I = Timeshift.load_mains()
+        F = Timeshift.load_fields()
     else
         I = OrderedDict()
+        F = OrderedDict()
     end
 	keys(I)
 end
@@ -183,10 +186,12 @@ begin
 				continue
 			end
     		#if keymessage(I, key); continue; end
-            I[key] = Timeshift.shifted_fields(beh, spikes, shifts, props; widths, filters=filt, thresh)
+            tmp = Timeshift.shifted_fields(beh, spikes, shifts, props; widths, filters=filt, thresh)
+            F[key] = I[key] = tmp
             finished_batch = true
         end
         if finished_batch
+            Timeshift.save_fields(F)
             Timeshift.save_mains(I)
         end
     end
@@ -206,7 +211,7 @@ datacut, props = first(datacuts), first(prop_set)
 # ╔═╡ 2f11999f-5d6e-4807-8bce-49791e7a0211
 begin
     marginal=get_shortcutnames(props)
-    shifts_tmp = [-1, 1]
+    shifts_tmp = -1:0.1:1
 end
 
 # ╔═╡ ae54aa7a-3afb-43c9-b083-0908b1f02d18
@@ -237,7 +242,8 @@ md"""
 # ╔═╡ dde2b892-eae4-4dfd-8735-b533e8a5ae68
 # ╠═╡ disabled = true
 #=╠═╡
-@time Timeshift.shifted_fields(beh, spikes, shifts_tmp, props; widths=2.50f0, filters=single_filt, thresh);
+@time Field.adaptive.yartsev(beh, spikes, props; widths=5.0f0, filters=single_filt, thresh);
+@time shifted = Timeshift.shifted_fields(beh, spikes, shifts_tmp, props; widths=5.0f0, filters=single_filt, thresh);
   ╠═╡ =#
 
 # ╔═╡ e4acf92a-3242-4579-a046-95649f835c36
@@ -279,7 +285,11 @@ begin
             else
                 result_dict = OrderedDict{NamedTuple, Any}()
             end
-            @time S[key] = Timeshift.shuffle.shifted_field_shuffles(beh, spikes, shifts, props; fieldpreset=:yartsev, shufflepreset=shuffle_type, nShuffle=100, widths, thresh, shiftbeh=false, filters=filt, result_dict)
+            @time S[key] = Timeshift.shuffle.shifted_field_shuffles(beh, spikes,
+                            shifts, props; fieldpreset=:yartsev,
+                            shufflepreset=shuffle_type, nShuffle=100,
+                            widths, thresh, shiftbeh=false, filters=filt,
+                            result_dict)
             finished_batch = true
         end
         if finished_batch

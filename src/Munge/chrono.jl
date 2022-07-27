@@ -3,7 +3,7 @@ module chrono
     using DataFrames
     using Statistics, NaNStatistics
     import Utils
-    export isminutes, ensureTimescale
+    export isminutes, ensureTimescale, ensureTimescale!
 
     function isminutes(X::DataFrame)
         Utils.dextrema(X.time)[1] < 1440.0 # assumes less than 24 hour recording
@@ -21,12 +21,21 @@ module chrono
         end
     end
 
+    function ensureTimescale!(X::DataFrame; kws...)
+        if isminutes(X; kws...)
+            transform!(X, :time => (x->x.*60) => :time)
+        else
+            X
+        end
+
+    end
     function ensureTimescale(X::DataFrame; kws...)
         if isminutes(X; kws...)
-            X = transform(X, :time => (x->x.*60) => :time, copycols=false)
+            transform!(X, :time => (x->x.*60) => :time)
         else
             X
         end
     end
+
 
 end

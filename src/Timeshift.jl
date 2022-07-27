@@ -13,7 +13,7 @@ module Timeshift
     import Load: utils
     import Field.preset: field_presets, return_preset_funcs
     import Table
-    import Munge.chrono: ensureTimescale
+    import Munge.chrono: ensureTimescale, ensureTimescale!
     import Filt
 
     # Julia packages
@@ -76,7 +76,7 @@ module Timeshift
             metricfuncs::Union{Function,Symbol,
                            Vector{Symbol},Vector{Function},Nothing}=nothing,
             multi::Union{Bool, Symbol}=true,
-            result_dict::AbstractDict=ThreadSafeDict(),
+            result_dict::AbstractDict=OrderedDict(),
             progress::Bool=true,
             grid_kws...)::OrderedDict
 
@@ -98,7 +98,7 @@ module Timeshift
             metricfuncs::Union{Function,Symbol,
                          Vector{Symbol},Vector{Function},Nothing}=adaptive.metric_def,
             multi::Union{Bool, Symbol}=true,
-            result_dict::AbstractDict=ThreadSafeDict(),
+            result_dict::AbstractDict=OrderedDict(),
             progress::Bool=true,
             shiftbeh::Bool=true,
             thread_field::Bool=adaptive.thread_field_default,
@@ -128,19 +128,19 @@ module Timeshift
 
         if filters !== nothing
             if Filt.filters_use_precache(filters) &&
-                (overwrite_precache || Filt.missing_precache_col(data,
+                (overwrite_precache || Filt.missing_precache_input_cols(data,
                                                                  filters))
-                @info "precaching"
-                @time data = Filt.precache(data, beh, filters)
+                @debug "precaching"
+                Filt.precache!(data, beh, filters)
             end
-            @info "filtering"
-            @time beh  = utils.filter(beh; filters, filter_skipmissingcols=true)[1]
+            @debug "filtering"
+            beh  = utils.filter(beh; filters, filter_skipmissingcols=true)[1]
         end
         grid = grid === nothing ? gridfunc(beh, props; grid_kws...) : grid
         occ  = occ === nothing ? occfunc(beh, grid) : occ
 
-        data = ensureTimescale(data)
-        beh  = ensureTimescale(beh)
+        ensureTimescale!(data)
+        ensureTimescale!(beh)
         shiftbeh ? reset_shift!(beh) : reset_shift!(data)
 
         if !(isdefined(Main, :PlutoRunner)) && progress
@@ -152,32 +152,32 @@ module Timeshift
                 continue
             end
             if shiftbeh
-                @info "shifting beh"
+                @debug "shifting beh"
                 beh, shift = σ(beh, shift), shift*-1
-                @info "register"
-                @time beh, data = utils.register(beh, data; on="time",
+                @debug "register"
+                beh, data = utils.register(beh, data; on="time",
                                               transfer=grid.props)
             else
-                @info "Shifting spike"
+                @debug "Shifting spike"
                 data = σ(data, shift)
-                @info "register"
-                @time beh, data = utils.register(beh, data; on="time",
+                @debug "register"
+                beh, data = utils.register(beh, data; on="time",
                                               transfer=grid.props)
             end
-            @info "fieldfunc" thread_field thread_fields
+            @debug "fieldfunc" thread_field thread_fields
             if postfunc === nothing
-                @time push!(result_dict, shift =>
-                            fieldfunc(data, grid, occ; splitby, 
-                                      metrics=metricfuncs,
+                push!(result_dict, shift =>
+                            fieldfunc(data, grid, occ;
+                                      splitby, metrics=metricfuncs,
                                       filters=nothing,
                                       thread_field, thread_fields)
                            )
             else
-                @time push!(result_dict, shift =>
-                            postfunc(fieldfunc(data, grid, occ; splitby, 
-                                      metrics=metricfuncs,
-                                      filters=nothing,
-                                      thread_field, thread_fields))
+                push!(result_dict, shift =>
+                            postfunc(fieldfunc(data, grid, occ;
+                                     splitby, metrics=metricfuncs,
+                                     filters=nothing,
+                                     thread_field, thread_fields))
                            )
             end
             if !(isdefined(Main, :PlutoRunner)) && progress
@@ -189,7 +189,7 @@ module Timeshift
         end
         shiftbeh ? reset_shift!(beh) : reset_shift!(data)
 
-        result_dict = Dict(result_dict...)
+        #result_dict = Dict(result_dict...)
         out = OrderedDict(
                           key=>pop!(result_dict, key) 
                           for key in sort([keys(result_dict)...])

@@ -99,14 +99,6 @@ grid_select = begin
 	(;width_select, thresh_select)
 end
 
-# ╔═╡ ff355ad4-42da-4493-ae56-3bc9f0d8627c
-begin
-    widths = OrderedDict(zip(keys(WIDTHS), values(WIDTHS).*width))
-    md"""
-    widths = $widths
-    """
-end
-
 # ╔═╡ 04eec95d-b5cf-47a5-a880-3146088cab00
 begin
 	aspect_ratio = prop_str == "y-x" ? 1 : :none
@@ -124,32 +116,8 @@ Let's try making a grid object
 # ╔═╡ 6104813f-e8cf-42fe-8f28-16cacf11cce3
 maxrad = nothing
 
-# ╔═╡ 6bdcf863-9946-4ca3-ab02-fa6aebe4b91d
-# ╠═╡ show_logs = false
-@time G = adaptive.get_grid(beh, props; widths, thresh, maxrad, radiusinc);
-
-# ╔═╡ 9e635078-bfdb-41bf-8730-e08a968d5e71
-md"""
-Implied linear width of maxrad[$(nanmaximum(G.radii))] => $(nanmaximum(G.radii) * sqrt(2)) 
-"""
-
 # ╔═╡ 92b1c56a-1738-43ba-96c9-8c70c6713c39
 grid_select
-
-# ╔═╡ 03586347-83ee-429d-ab29-505754c66734
-plot(
-	plot(G; aspect_ratio, title="radii\nresolution=$(size(G.grid))", ylims=ylim), 
-	heatmap([collect(x) for x in G.centers]..., (G.radii .=== NaN32)'; aspect_ratio, title="nan locations")
-	, ylims=ylim)
-
-# ╔═╡ bf5ec1fc-0443-49df-b90a-164bdd4e8b1b
-G.centers
-
-# ╔═╡ 93b3a5c7-6c6f-4e80-91e7-01f83d292c9a
-G.radii
-
-# ╔═╡ 5550e97c-a33e-4ae4-b888-90f782506bc2
-unique(G.radii)
 
 # ╔═╡ 7c03a7aa-3181-4b3d-9dc6-0eb8e8689023
 md"""
@@ -157,42 +125,19 @@ md"""
 And an occupancy object
 """
 
-# ╔═╡ 890fe951-19bb-4c9a-a905-d798bb36c57e
-O = @time adaptive.get_occupancy(beh, G);
-
-# ╔═╡ 592d79b4-edf6-4a0c-af73-1d2805d6410e
-plot(O, clim=(0,0.01), ylims=ylim)
-
-# ╔═╡ d7175827-7528-4cfe-bf3f-d9971f682f49
-O
-
 # ╔═╡ 2c794dc4-4920-4274-ab2b-6bb60251112b
 md"""
 # Single adaptive field
 grab all spikes as single multiunit field
 """
 
-# ╔═╡ bef016cd-26d1-4de8-a970-182fe2b92e88
-# Test field abilities
-@time multiunit = @time adaptive.get_adaptivefield(spikes, G, O);
-# @benchmark adaptive.get_adaptivefield(spikes, G, O);
-
 # ╔═╡ fca06c75-a137-411c-9bd8-74d33ad93183
 grid_select
-
-# ╔═╡ 410128bf-2332-4aa2-91cb-441e0235cc4a
-plot(multiunit)
 
 # ╔═╡ c23ee21a-b3d4-42e5-a4f1-b703008eda1a
 md"""
 # 🔥 Field dict of all cells
 """
-
-# ╔═╡ b88c0ec1-b150-49be-828f-6c32bb770c48
-begin
-	@time units = adaptive.yartsev(spikes, G, O; widths=width, thresh, 
-	                               filters=filts[:all]);
-end;
 
 # ╔═╡ 38cff24f-bbc1-42fd-98ae-385323c2480e
 grid_select
@@ -204,18 +149,6 @@ md"""
 
 # ╔═╡ 7c6cfeb1-2c78-4480-852b-aa06cc818f76
 unit_select = @bind unit PlutoUI.Slider(sort(unique(spikes.unit)), default=31, show_value=true)
-
-# ╔═╡ 44abcbd4-5f71-4924-b77d-9680cc96044f
-plot(units[(;unit=unit)]; aspect_ratio, ylims=ylim)
-
-# ╔═╡ 4d814c3e-97e1-491a-b1d8-c7ca9c628afd
-μ_firing = begin
-    Q = units[(;unit=unit)]
-    nansum(reshape(Q.occ.prob, size(Q.occ.count)) .* Q.rate)
-end
-
-# ╔═╡ eefa56cc-f303-40ee-aa44-dc758eac750b
-field = units[(;unit=unit)]
 
 # ╔═╡ f9378d49-2f86-4088-bc6d-3b5b227b7c66
 md"""
@@ -241,17 +174,222 @@ md"""
 First, we run the shifted field calculation
 """
 
+# ╔═╡ cb4d5494-24a6-4dfc-980b-23ec48fca7cc
+# ╠═╡ disabled = true
+#=╠═╡
+I = Timeshift.load_fields();
+  ╠═╡ =#
+
+# ╔═╡ be6048d8-6f30-4d48-a755-5537c3b0b104
+md"""
+## Visualize timeshifted fields
+"""
+
+# ╔═╡ 47af1633-99bd-4dc2-9d91-9073ec327f27
+md"""
+## ShiftedField and ShiftedFields objects
+"""
+
+# ╔═╡ 588bff56-6518-4410-b19a-dc745cf067e7
+md"""
+# Metric Development
+
+## Convex Hull
+
+Wnat to ensure that watershed segmentation followed by hull of the largest thresholded segments give a good hull
+"""
+
+# ╔═╡ f02a79c9-01b8-4550-b321-7b5a6f0d5a28
+md"""
+### Examine hull creation process
+"""
+
+# ╔═╡ 0941a2f5-047f-4a30-823f-fafc53f18b38
+segmentation_thresh = @bind qthresh PlutoUI.Slider(0.05:0.05:1; show_value=true, default=0.85)
+
+# ╔═╡ 35da24ff-42c3-455e-9a43-7d74d01f3265
+segmentation_thresh
+
+# ╔═╡ d67ba5d1-ca84-4a8b-97ec-54213f60a092
+md"""
+### Parcellate hull data into metrics
+"""
+
+# ╔═╡ 97f2daad-1190-46a2-8c1a-288e0177a29b
+function resort_zones(hullzones, instruction::OrderedDict)
+	newhullzones = copy(hullzones)
+	segsizes = Vector{Int32}(undef, length(instruction))
+	for (new, (curr, count)) in enumerate(instruction)
+		#if current != new
+		#	@info "different"
+		#end
+		hzinds = hullzones .== Int64(curr)
+		#@info curr any(hzinds)
+		segsizes[new]         = sum(convert(Array{Int32}, hzinds))
+		newhullzones[hzinds] .= new
+	end
+	return newhullzones, 
+		   OrderedDict(zip(1:length(instruction), 
+					   values(instruction))),
+		   OrderedDict(zip(1:length(instruction),
+						   segsizes))
+end
+
+# ╔═╡ 87a82eb9-cd22-47f8-acf6-317a794d70ea
+segmentation_thresh
+
+# ╔═╡ ce3c4a7c-47d1-4564-bc5c-4c4b20c0820a
+
+
+# ╔═╡ 3d525c52-6615-4a00-beb6-8c3228f32c6c
+md"""
+### Hull set operations
+Testing about the ability to compute with hulls -- can I see if something is inside a place field
+"""
+
+# ╔═╡ 9b9ca9f0-6cce-4f5c-8194-9cd9a2262aa6
+md"""
+We can either test a set of points for subset relationship
+"""
+
+# ╔═╡ 865e9584-6dd9-4d98-bd86-cd918d23379c
+md"""
+Or single points for set membership
+"""
+
+# ╔═╡ c558fd36-5377-4a16-a174-62b8959c4fdc
+begin
+	struct HullSet
+		hulls::Dict
+	end
+	function Base.:∈(H::HullSet, x)
+		any([x ∈ v for v in values(H)])
+	end
+	function Base.:⊆(H::HullSet, x)
+		any([x ⊆ v for v in values(H)])
+	end
+	Base.iterate(H::HullSet) = Base.iterate(H.hulls)
+	Base.iterate(H::HullSet, i::Int64) = Base.iterate(H.hulls, i::Int64)
+	Base.keys(H::HullSet) = Base.keys(H.hulls)
+	function plothullset!(H::HullSet)
+		for i in sort(collect(filter(x-> x isa Int, keys(H))))
+			plot!(VPolygon(H.hulls[i]))
+			loc = Iterators.flatten(mean(H.hulls[i],dims=1))
+			@info loc
+			annotate!(loc..., 
+					  text(string(i), :white))
+		end
+	end
+end
+
+# ╔═╡ ff355ad4-42da-4493-ae56-3bc9f0d8627c
+begin
+    widths = OrderedDict(zip(keys(WIDTHS), values(WIDTHS).*width))
+    md"""
+    widths = $widths
+    """
+end
+
+# ╔═╡ 6bdcf863-9946-4ca3-ab02-fa6aebe4b91d
+# ╠═╡ show_logs = false
+@time G = adaptive.get_grid(beh, props; widths, thresh, maxrad, radiusinc);
+
+# ╔═╡ 9e635078-bfdb-41bf-8730-e08a968d5e71
+md"""
+Implied linear width of maxrad[$(nanmaximum(G.radii))] => $(nanmaximum(G.radii) * sqrt(2)) 
+"""
+
+# ╔═╡ 03586347-83ee-429d-ab29-505754c66734
+plot(
+	plot(G; aspect_ratio, title="radii\nresolution=$(size(G.grid))", ylims=ylim), 
+	heatmap([collect(x) for x in G.centers]..., (G.radii .=== NaN32)'; aspect_ratio, title="nan locations")
+	, ylims=ylim)
+
+# ╔═╡ bf5ec1fc-0443-49df-b90a-164bdd4e8b1b
+G.centers
+
+# ╔═╡ 93b3a5c7-6c6f-4e80-91e7-01f83d292c9a
+G.radii
+
+# ╔═╡ 5550e97c-a33e-4ae4-b888-90f782506bc2
+unique(G.radii)
+
+# ╔═╡ 890fe951-19bb-4c9a-a905-d798bb36c57e
+O = @time adaptive.get_occupancy(beh, G);
+
+# ╔═╡ 592d79b4-edf6-4a0c-af73-1d2805d6410e
+plot(O, clim=(0,0.01), ylims=ylim)
+
+# ╔═╡ d7175827-7528-4cfe-bf3f-d9971f682f49
+O
+
+# ╔═╡ bef016cd-26d1-4de8-a970-182fe2b92e88
+# Test field abilities
+@time multiunit = @time adaptive.get_adaptivefield(spikes, G, O);
+# @benchmark adaptive.get_adaptivefield(spikes, G, O);
+
+# ╔═╡ 410128bf-2332-4aa2-91cb-441e0235cc4a
+plot(multiunit)
+
+# ╔═╡ b88c0ec1-b150-49be-828f-6c32bb770c48
+begin
+	@time units = adaptive.yartsev(spikes, G, O; widths=width, thresh, 
+	                               filters=filts[:all]);
+end;
+
+# ╔═╡ 44abcbd4-5f71-4924-b77d-9680cc96044f
+plot(units[(;unit=unit)]; aspect_ratio, ylims=ylim)
+
+# ╔═╡ 4d814c3e-97e1-491a-b1d8-c7ca9c628afd
+μ_firing = begin
+    Q = units[(;unit=unit)]
+    nansum(reshape(Q.occ.prob, size(Q.occ.count)) .* Q.rate)
+end
+
+# ╔═╡ eefa56cc-f303-40ee-aa44-dc758eac750b
+field = units[(;unit=unit)]
+
+# ╔═╡ 9405b2bd-c10c-4ba7-aeda-b9f56e2b33ee
+begin
+	halfmast = nanquantile(vec(field.rate), qthresh)
+	bw = field.rate .> halfmast
+	dist = 1 .- distance_transform(feature_transform(bw))
+	markers = label_components( (!).(dist .< 0))
+end;
+
+# ╔═╡ ce81a2d1-7ba8-44fb-b401-760411421a71
+segments = watershed(dist, markers)
+
+# ╔═╡ 8bfb8c40-942d-41b8-a441-5a71f6bbafb7
+sortperm(collect(values(segments.segment_pixel_count)))
+
+
+
+# ╔═╡ 794aae46-914a-4da3-a093-d76f1308c55b
+hullzones = bw .* labels_map(segments);
+
+# ╔═╡ 3ce5d298-62eb-4c78-93d8-aa12671fbdce
+hullzones
+
+# ╔═╡ b5e2ef6a-942a-4782-9c36-cd2778de2c66
+unique(hullzones)
+
+# ╔═╡ 99c12e94-8d3e-4700-ab50-146165f654bd
+plot(
+	plot(field, 	 title="field"), 
+	heatmap(bw', 	 title="thresholded"), 
+	heatmap(dist', 	 title="distance computation"),
+	heatmap(markers',title="markers"),
+	aspect_ratio=1)
+
+# ╔═╡ 0f80805a-76c8-4d8d-91bc-c013575d3a10
+heatmap(plot(field, title="field"), heatmap(Int8.(hullzones)', title="segments"), aspect_ratio=1)
+
 # ╔═╡ 39737bd9-f38a-408d-a0c0-99b9e2bd0045
 # ╠═╡ show_logs = false
 # ╠═╡ disabled = true
 #=╠═╡
 shifted2 = Timeshift.shifted_fields(beh, spikes, -2:0.05:2, props; widths=widths, thresh);
-  ╠═╡ =#
-
-# ╔═╡ cb4d5494-24a6-4dfc-980b-23ec48fca7cc
-# ╠═╡ disabled = true
-#=╠═╡
-I = Timeshift.load_fields();
   ╠═╡ =#
 
 # ╔═╡ 6b8666fc-1e1f-48bf-88bf-b51eb07ad3ce
@@ -270,53 +408,9 @@ begin
 end
   ╠═╡ =#
 
-# ╔═╡ be6048d8-6f30-4d48-a755-5537c3b0b104
-md"""
-## Visualize timeshifted fields
-"""
-
-# ╔═╡ 5acf0a77-9e40-4117-83fa-4a0791849265
-#=╠═╡
-begin
-	unit_sel = @bind shift_unit PlutoUI.Slider(sort(unique(spikes.unit)), show_value=true)
-	 shift_sel = @bind shift_shift PlutoUI.Slider(sort(collect(keys(shifted))), show_value=true,default=0)
-	(;unit_sel, shift_sel)
-end
-  ╠═╡ =#
-
 # ╔═╡ 2331218a-bc76-4adf-82e3-8e5b52aef0ca
 #=╠═╡
 plot_obj = Timeshift.DictOfShiftOfUnit{Float64}(shifted)
-  ╠═╡ =#
-
-# ╔═╡ 3afa8aae-bf3e-4364-8ad9-76fd50ca5ac9
-#=╠═╡
-single_shifted_field = get(plot_obj,shift_shift, shift_unit)
-  ╠═╡ =#
-
-# ╔═╡ 94930aab-8bb0-4da0-b26b-35ddb3efde3b
-#=╠═╡
-begin
-    plot(get(plot_obj,shift_shift, shift_unit); 
-			aspect_ratio, ylims=ylim,
-			title=string(get(plot_obj, shift_shift, shift_unit))
-	)
-end
-  ╠═╡ =#
-
-# ╔═╡ 47af1633-99bd-4dc2-9d91-9073ec327f27
-md"""
-## ShiftedField and ShiftedFields objects
-"""
-
-# ╔═╡ 5f15dc20-cf30-4088-a173-9c084ac2809a
-#=╠═╡
-SF = Timeshift.ShiftedField(get(plot_obj, :, shift_unit))
-  ╠═╡ =#
-
-# ╔═╡ ac9cddcb-097c-42a8-bd59-19fced23bf5a
-#=╠═╡
-SF.metrics
   ╠═╡ =#
 
 # ╔═╡ 6f7f46ac-8acd-415b-9516-ed262d5b5cb4
@@ -341,77 +435,64 @@ begin
 end
   ╠═╡ =#
 
-# ╔═╡ 588bff56-6518-4410-b19a-dc745cf067e7
-md"""
-# Metric Development
-
-## Convex Hull
-
-Wnat to ensure that watershed segmentation followed by hull of the largest thresholded segments give a good hull
-"""
-
-# ╔═╡ f02a79c9-01b8-4550-b321-7b5a6f0d5a28
-md"""
-### Examine hull creation process
-"""
-
-# ╔═╡ 0941a2f5-047f-4a30-823f-fafc53f18b38
-segmentation_thresh = @bind qthresh PlutoUI.Slider(0.05:0.05:1; show_value=true, default=0.85)
-
-# ╔═╡ 9405b2bd-c10c-4ba7-aeda-b9f56e2b33ee
+# ╔═╡ 5acf0a77-9e40-4117-83fa-4a0791849265
+#=╠═╡
 begin
-	halfmast = nanquantile(vec(field.rate), qthresh)
-	bw = field.rate .> halfmast
-	dist = 1 .- distance_transform(feature_transform(bw))
-	markers = label_components( (!).(dist .< 0))
-end;
+	unit_sel = @bind shift_unit PlutoUI.Slider(sort(unique(spikes.unit)), show_value=true)
+	 shift_sel = @bind shift_shift PlutoUI.Slider(sort(collect(keys(shifted))), show_value=true,default=0)
+	(;unit_sel, shift_sel)
+end
+  ╠═╡ =#
 
-# ╔═╡ 99c12e94-8d3e-4700-ab50-146165f654bd
-plot(
-	plot(field, 	 title="field"), 
-	heatmap(bw', 	 title="thresholded"), 
-	heatmap(dist', 	 title="distance computation"),
-	heatmap(markers',title="markers"),
-	aspect_ratio=1)
+# ╔═╡ 3afa8aae-bf3e-4364-8ad9-76fd50ca5ac9
+#=╠═╡
+single_shifted_field = get(plot_obj,shift_shift, shift_unit)
+  ╠═╡ =#
 
-# ╔═╡ ce81a2d1-7ba8-44fb-b401-760411421a71
-segments = watershed(dist, markers)
+# ╔═╡ 94930aab-8bb0-4da0-b26b-35ddb3efde3b
+#=╠═╡
+begin
+    plot(get(plot_obj,shift_shift, shift_unit); 
+			aspect_ratio, ylims=ylim,
+			title=string(get(plot_obj, shift_shift, shift_unit))
+	)
+end
+  ╠═╡ =#
 
-# ╔═╡ 794aae46-914a-4da3-a093-d76f1308c55b
-hullzones = bw .* labels_map(segments);
+# ╔═╡ 5f15dc20-cf30-4088-a173-9c084ac2809a
+#=╠═╡
+SF = Timeshift.ShiftedField(get(plot_obj, :, shift_unit))
+  ╠═╡ =#
 
-# ╔═╡ 35da24ff-42c3-455e-9a43-7d74d01f3265
-segmentation_thresh
-
-# ╔═╡ 0f80805a-76c8-4d8d-91bc-c013575d3a10
-heatmap(plot(field, title="field"), heatmap(Int8.(hullzones)', title="segments"), aspect_ratio=1)
-
-# ╔═╡ 8bfb8c40-942d-41b8-a441-5a71f6bbafb7
-sortperm(collect(values(segments.segment_pixel_count)))
-
-
-
-# ╔═╡ d67ba5d1-ca84-4a8b-97ec-54213f60a092
-md"""
-### Parcellate hull data into metrics
-"""
+# ╔═╡ ac9cddcb-097c-42a8-bd59-19fced23bf5a
+#=╠═╡
+SF.metrics
+  ╠═╡ =#
 
 # ╔═╡ d48e9bc9-4d67-4e7b-a0f7-25b975813ccd
 begin
 	
 	mets = Dict()
-	mets[:hullzone] = hullzones
-	mets[:hullseg]  = segments
+
+	# Instruction for how to resort by number of pixels
+	instruction = OrderedDict(sort([k=>sum(hullzones .== k) for k in 									1:maximum(hullzones)], by=x->x[2], rev=true))
+	
+	newhullzones, resorted, segsizes = resort_zones(hullzones, instruction)
+	
+	mets[:hullzone]      = newhullzones
+	mets[:hullsegsizes]  = segsizes
+	
 	ordered_seg = sort(collect(keys(segments.segment_pixel_count)))
 	mets[:hullsegsizes] = OrderedDict(k=>segments.segment_pixel_count[k]
-							for k in ordered_seg)
+									  for k in ordered_seg)
 		
-	array_of_tuples(X::Vector{<:CartesianIndex}) = [x.I for x in X]
-	array_of_arrays(X::Vector{<:CartesianIndex}) = [collect(x.I) for x in X]
+	array_of_tuples(X::Vector{<:CartesianIndex})    = [x.I for x in X]
+	array_of_arrays(X::Vector{<:CartesianIndex})    = [collect(x.I) for x in X]
 	array_of_singleton(X::Vector{<:CartesianIndex}) = [Singleton(collect(x.I)) for x in X]
 	
 	loopup_coord(c::Tuple, F::Field.ReceptiveField) = F.grid.grid[c...]
-	to_grid(X::Vector{<:Union{Tuple,Vector}}, grid::T where T <: Field.adaptive.GridAdaptive) = [grid.grid[Int32.(x)...] for x in X]
+	to_grid(X::Vector{<:Union{Tuple,Vector}}, grid::T 
+		where T <: Field.adaptive.GridAdaptive) = [grid.grid[Int32.(x)...] for x in X]
 
 	function hull_withimages(X::BitMatrix)::Vector{CartesianIndex}
 		convexhull(X)
@@ -427,14 +508,14 @@ begin
 		grid.grid[ centroid(X)... ]
 	end
 
-	zones = 1:maximum(hullzones)
+	zones = 1:maximum(newhullzones)
 	mets[:hullseg_inds] = Dict{Union{Int, Symbol},Any}()
 	mets[:hullseg_grid] = Dict{Union{Int, Symbol},Any}()
 	mets[:hullseg_inds_cent] = Dict{Union{Int, Symbol},Any}()
 	mets[:hullseg_grid_cent] = Dict{Union{Int, Symbol},Any}()
 		
 	for zone in zones
-		iszone = hullzones .== zone
+		iszone = newhullzones .== zone
 		mets[:hullseg_inds][zone] = hull_withlazysets(iszone)
 		mets[:hullseg_grid][zone] = to_grid(mets[:hullseg_inds][zone], 
 			field.grid)
@@ -442,8 +523,8 @@ begin
 		mets[:hullseg_grid_cent][zone] = centroid(iszone, field.grid)
 	end
 
-	iszone = hullzones .== ordered_seg[1] .||
-								hullzones .== ordered_seg[2]
+	iszone = newhullzones .== ordered_seg[1] .||
+								newhullzones .== ordered_seg[2]
 	mets[:hullseg_inds][:toptwohull]  = hull_withlazysets(iszone)
 	mets[:hullseg_grid][:toptwohull] = to_grid(mets[:hullseg_inds][:toptwohull], 												field.grid)
 	
@@ -454,38 +535,20 @@ begin
 end;
 
 
-# ╔═╡ 8b502338-14ff-4f3d-87cb-3e3de1f5e723
-instruction = OrderedDict(sort([k=>sum(hullzones .== k) for k in 1:maximum(hullzones)], by=x->x[2], rev=true))
-
-# ╔═╡ 97f2daad-1190-46a2-8c1a-288e0177a29b
-function resort_zones(hullzones, instruction::OrderedDict)
-	newhullzones = copy(hullzones)
-	for (new, (current, count)) = 1:length(instruction)
-		hzinds = hullzones .== current
-		@info hzinds
-		newhullzones[hzinds] .= new 
-	end
-	return newhullzones, OrderedDict(zip(1:length(instruction, 
-								     values(instruction))))
-end
+# ╔═╡ 333fe5bf-4168-4931-8856-987d7e76e265
+instruction
 
 # ╔═╡ efd65ca8-457c-4f83-9aaf-162c089404c5
-resort_zones(hullzones, instruction)
+plot(heatmap(newhullzones'),heatmap(hullzones'))
 
 # ╔═╡ 346a2e86-47be-47ca-9895-fbf4806fc17a
 ordered_seg
-
-# ╔═╡ b5e2ef6a-942a-4782-9c36-cd2778de2c66
-unique(hullzones)
 
 # ╔═╡ 70d62e08-77b4-407d-bad8-4850abf5f00a
 h = hull_withlazysets(hullzones .== 1)
 
 # ╔═╡ 8ce9d392-b7bd-483f-b87a-78c6f7657024
 typeof(h), typeof([h...])
-
-# ╔═╡ ce3c4a7c-47d1-4564-bc5c-4c4b20c0820a
-
 
 # ╔═╡ 0dd5dfe7-321d-466e-9799-ac6c40cc8fb0
 begin
@@ -494,21 +557,11 @@ begin
 	plot!(Singleton([3.2f0,8.2f0]), markersize=20)
 end
 
-# ╔═╡ 9b9ca9f0-6cce-4f5c-8194-9cd9a2262aa6
-md"""
-We can either test a set of points for subset relationship
-"""
-
-# ╔═╡ b6b7f2e0-68f7-4324-a78b-197b4143339c
-Singleton([3.2f0,8.2f0]) ⊆ VPolygon(h)
-
 # ╔═╡ 30af0459-297b-4c57-95f9-24436d57209c
 Singleton([3.2f0,8.2f0]) ⊇ VPolygon(h)
 
-# ╔═╡ 865e9584-6dd9-4d98-bd86-cd918d23379c
-md"""
-Or single points for set membership
-"""
+# ╔═╡ b6b7f2e0-68f7-4324-a78b-197b4143339c
+Singleton([3.2f0,8.2f0]) ⊆ VPolygon(h)
 
 # ╔═╡ 05d6904a-1dfa-4a2f-a385-aaafacc80b0a
 element(Singleton([3.2f0,8.2f0])) ∈ VPolygon(h)
@@ -519,10 +572,7 @@ segmentation_thresh
 # ╔═╡ 0030f529-dd82-4269-aa50-02cc832b9f07
 begin
 	p_with_seghulls = plot(field, aspect_ratio=1)
-	for i in sort(collect(filter(x-> x isa Int, keys(mets[:hullseg_grid]))))
-		plot!(VPolygon(mets[:hullseg_grid][i]))
-		annotate!(mets[:hullseg_grid_cent][i]..., text(string(i), :white))
-	end
+	plothullset!(HullSet(mets[:hullseg_grid]))
 	p_with_seghulls
 end
 
@@ -533,6 +583,9 @@ begin
 	annotate!(mets[:hullseg_grid_cent][:toptwohull]..., text(string(:toptwohull), :white))
 	p_with_seghulls_top
 end
+
+# ╔═╡ b101021d-e065-4593-b39a-3fee7dbbaf83
+element(Singleton([50,125])) ∈ HullSet(mets[:hullseg_grid])
 
 # ╔═╡ Cell order:
 # ╟─ff1db172-c3ab-41ea-920c-1dbf831c1336
@@ -599,21 +652,26 @@ end
 # ╠═0f80805a-76c8-4d8d-91bc-c013575d3a10
 # ╟─8bfb8c40-942d-41b8-a441-5a71f6bbafb7
 # ╟─d67ba5d1-ca84-4a8b-97ec-54213f60a092
-# ╠═d48e9bc9-4d67-4e7b-a0f7-25b975813ccd
-# ╠═8b502338-14ff-4f3d-87cb-3e3de1f5e723
+# ╠═3ce5d298-62eb-4c78-93d8-aa12671fbdce
+# ╠═333fe5bf-4168-4931-8856-987d7e76e265
 # ╠═97f2daad-1190-46a2-8c1a-288e0177a29b
+# ╠═d48e9bc9-4d67-4e7b-a0f7-25b975813ccd
+# ╠═87a82eb9-cd22-47f8-acf6-317a794d70ea
 # ╠═efd65ca8-457c-4f83-9aaf-162c089404c5
 # ╠═346a2e86-47be-47ca-9895-fbf4806fc17a
 # ╠═b5e2ef6a-942a-4782-9c36-cd2778de2c66
 # ╠═70d62e08-77b4-407d-bad8-4850abf5f00a
 # ╠═8ce9d392-b7bd-483f-b87a-78c6f7657024
 # ╟─ce3c4a7c-47d1-4564-bc5c-4c4b20c0820a
+# ╟─3d525c52-6615-4a00-beb6-8c3228f32c6c
 # ╟─0dd5dfe7-321d-466e-9799-ac6c40cc8fb0
 # ╟─9b9ca9f0-6cce-4f5c-8194-9cd9a2262aa6
 # ╠═b6b7f2e0-68f7-4324-a78b-197b4143339c
 # ╠═30af0459-297b-4c57-95f9-24436d57209c
 # ╟─865e9584-6dd9-4d98-bd86-cd918d23379c
 # ╠═05d6904a-1dfa-4a2f-a385-aaafacc80b0a
+# ╠═c558fd36-5377-4a16-a174-62b8959c4fdc
 # ╠═d5569288-bc83-408f-8219-5d945cbc6871
 # ╟─0030f529-dd82-4269-aa50-02cc832b9f07
-# ╟─e06ae752-f36b-465c-9303-74d406b915bf
+# ╠═e06ae752-f36b-465c-9303-74d406b915bf
+# ╠═b101021d-e065-4593-b39a-3fee7dbbaf83

@@ -4,14 +4,14 @@ module metrics
     using Entropies: Probabilities
     using NaNStatistics
     using DataFrames
+    import DataStructures: OrderedDict
     import ..Field
     import ..Field: ReceptiveField
     import Table
     import Utils
     import Load.utils: register
     import Load: keep_overlapping_times
-    using ImageSegmentation
-    using LazySets
+    using Images, ImageSegmentation, LazySets
     using Infiltrator
 
     export Metrics
@@ -46,9 +46,14 @@ module metrics
     function push_metric!(R::ReceptiveField, F::Function; 
             name::Union{Symbol,Nothing}=nothing)
         name = name === nothing ? Symbol(F) : name
-        push!(R.metrics, name=>F(R))
+        push!(R.metrics, name => F(R))
     end
     pop_metric!(R::ReceptiveField, name::Symbol) = pop!(R.metrics, name)
+    function push_metric!(R::ReceptiveField, metrics::AbstractDict)
+        for (k, v) in metrics
+            push!(R.metrics, k => v)
+        end
+    end
 
     skipnan(x) = Iterators.filter(!isnan, x)
     function _convert_to_prob(behProb::AbstractArray)
@@ -145,53 +150,6 @@ module metrics
     loopup_coord(c::Tuple, F::Field.ReceptiveField) = F.grid.grid[c...]
     to_grid(X::Vector{<:Union{Tuple,Vector}}, grid::T where T <: Field.adaptive.GridAdaptive) = [grid.grid[Int32.(x)...] for x in X]
 
-    struct HullSet
-    end
-    function Base.∈(x, H::HullSet)::Bool
-    end
-    function Base.∉(x, H::HullSet)::Bool
-    end
-
-    function convexhull(field::ReceptiveField; gthresh=0.85)
-
-        halfmast = nanquantile(vec(field.rate), qthresh)
-        bw = field.rate .> halfmast
-        dist = 1 .- distance_transform(feature_transform(bw))
-        markers = label_components( (!).(dist .< 0))
-
-        mets = Dict()
-        mets[:hullzone] = hullzones
-        mets[:hullseg]  = segments
-        ordered_seg = sort(collect(keys(segments.segment_pixel_count)))
-        mets[:hullsegsizes] = OrderedDict(k=>segments.segment_pixel_count[k]
-                                for k in ordered_seg)
-            
-
-        zones = 1:maximum(hullzones)
-        mets[:hullseg_inds] = Dict{Union{Int, Symbol},Any}()
-        mets[:hullseg_grid] = Dict{Union{Int, Symbol},Any}()
-        mets[:hullseg_inds_cent] = Dict{Union{Int, Symbol},Any}()
-        mets[:hullseg_grid_cent] = Dict{Union{Int, Symbol},Any}()
-            
-        for zone in zones
-            iszone = hullzones .== zone
-            mets[:hullseg_inds][zone] = hull_withlazysets(iszone)
-            mets[:hullseg_grid][zone] = to_grid(mets[:hullseg_inds][zone], 
-                field.grid)
-            mets[:hullseg_inds_cent][zone] = centroid(iszone)
-            mets[:hullseg_grid_cent][zone] = centroid(iszone, field.grid)
-        end
-
-        iszone = hullzones .== ordered_seg[1] .||
-                                    hullzones .== ordered_seg[2]
-        mets[:hullseg_inds][:toptwohull]  = hull_withlazysets(iszone)
-        mets[:hullseg_grid][:toptwohull] = to_grid(mets[:hullseg_inds][:toptwohull], 												field.grid)
-        
-        mets[:hullseg_grid_cent][:toptwohull] = centroid(iszone, field.grid)
-        mets[:hullseg_inds_cent][:toptwohull] = centroid(iszone)
-        mets
-
-    end
 
     """
         coherence(F::Field.ReceptiveField)
@@ -216,6 +174,7 @@ module metrics
         end
         pearson = min(nancor(subjects, neighbors), 1f0)
         #@info pearson # sometimes, we get values BARELY above 1
+        # project pearson to gaussian for sig
         0.5 * log( (1+pearson) / (1-pearson) )
     end
 
@@ -227,39 +186,140 @@ module metrics
         vcat([collect(x)[Utils.na, :] for x in all_possible_neighbors]...)
     end
 
-                                                                
-# ,---.               o                            |              
-# |---',---.,---..   ..,---.,---.,---.    ,---..  ,|--- ,---.,---.
-# |  \ |---'|   ||   |||    |---'`---.    |---' >< |    |    ,---|
-# `   ``---'`---|`---'``    `---'`---'    `---''  ``---'`    `---^
-#               |                                                 
-#                 
-#               o     ,---.     
-#               .,---.|__. ,---.
-#               ||   ||    |   |
-#               ``   '`    `---'
-#               beyond just the fields
+    #                                                                  
+    #            ,---.                             |         |    |    
+    #            |    ,---.,---..    ,,---..  ,    |---..   .|    |    
+    #            |    |   ||   | \  / |---' ><     |   ||   ||    |    
+    #            `---'`---'`   '  `'  `---''  `    `   '`---'`---'`---'
+    #                                                                  
 
-trajdiversity(spikes::AbstractDataFrame, cell::Int) = length(unique(spikes.traj))
-function trajdiversity(spikes::DataFrame, beh::DataFrame)
-    _, spikes = register(beh,spikes;transfer=["traj"])
-    combine(groupby(spikes, :traj), trajdiversity)
-end
-
-# CELL COFIRING
-function xcorr(rate::Array, cell1::Int, cell2::Int; lags=-200:200)
-    x, y = rate[:,1], rate[:,2]
-    StatsBase.crosscorr(x,y,lags)
-end
-
-function xcorr(spikes::DataFrame)
-    units1 = unique(spikes.unit)
-    units2 = unique(spikes.unit)
-    results = []
-    for (cell1,cell2) in Iterators.product(units1,units2)
-        push!(results,xcorr(spikes, cell1, cell2))
+	struct HullSet
+		hulls::Dict
+	end
+	function Base.:∈(H::HullSet, x)
+		any([x ∈ v for v in values(H)])
+	end
+	function Base.:⊆(H::HullSet, x)
+		any([x ⊆ v for v in values(H)])
+	end
+	Base.iterate(H::HullSet) = Base.iterate(H.hulls)
+	Base.iterate(H::HullSet, i::Int64) = Base.iterate(H.hulls, i::Int64)
+	Base.keys(H::HullSet) = Base.keys(H.hulls)
+	function plothullset!(H::HullSet)
+		for i in sort(collect(filter(x-> x isa Int, keys(H))))
+			plot!(VPolygon(H.hulls[i]))
+			loc = Iterators.flatten(mean(H.hulls[i],dims=1))
+			annotate!(loc..., text(string(i), :white))
+		end
     end
-end
+
+    function resort_zones(hullzones, instruction::OrderedDict)
+        newhullzones = copy(hullzones)
+        segsizes = Vector{Int32}(undef, length(instruction))
+        for (new, (curr, count)) in enumerate(instruction)
+            #if current != new
+            #	@info "different"
+            #end
+            hzinds = hullzones .== Int64(curr)
+            #@info curr any(hzinds)
+            segsizes[new]         = sum(convert(Array{Int32}, hzinds))
+            newhullzones[hzinds] .= new
+        end
+        return newhullzones, 
+               OrderedDict(zip(1:length(instruction), 
+                           values(instruction))),
+               OrderedDict(zip(1:length(instruction),
+                               segsizes))
+    end
+
+
+    function convexhull(field::ReceptiveField;
+            thresh=0.85, tophull=Inf, toptwohulls::Bool=false)
+
+        halfmast  = nanquantile(vec(field.rate), thresh)
+        bw        = field.rate .> halfmast
+        dist      = 1 .- distance_transform(feature_transform(bw))
+        markers   = label_components( (!).(dist .< 0))
+        segments  = watershed(dist, markers)
+        hullzones = bw .* labels_map(segments)
+
+        # Instruction for how to resort by number of pixels
+        instruction = OrderedDict(sort([k=>sum(hullzones .== k) for k in 									                1:maximum(hullzones)], by=x->x[2], rev=true))
+        
+        newhullzones, resorted, segsizes = resort_zones(hullzones, instruction)
+        
+        mets = Dict()
+        mets[:hullzone]      = newhullzones
+        mets[:hullsegsizes]  = segsizes
+        
+        ordered_seg = sort(collect(keys(segments.segment_pixel_count)))
+        zones = 1:maximum(newhullzones)
+        mets[:hullsegsizes] = OrderedDict(k=>segments.segment_pixel_count[k]
+                                          for k in ordered_seg)
+        mets[:hullseg_inds] = Dict{Union{Int, Symbol},Any}()
+        mets[:hullseg_grid] = Dict{Union{Int, Symbol},Any}()
+        mets[:hullseg_inds_cent] = Dict{Union{Int, Symbol},Any}()
+        mets[:hullseg_grid_cent] = Dict{Union{Int, Symbol},Any}()
+            
+        for zone in filter(zone->zone < tophull, zones)
+            iszone = newhullzones .== zone
+            mets[:hullseg_inds][zone] = hull_withlazysets(iszone)
+            mets[:hullseg_grid][zone] = to_grid(mets[:hullseg_inds][zone], 
+                                                field.grid)
+            mets[:hullseg_inds_cent][zone] = centroid(iszone)
+            mets[:hullseg_grid_cent][zone] = centroid(iszone, field.grid)
+        end
+
+        # Combine the top two hulls
+        if toptwohulls
+            iszone = newhullzones .== ordered_seg[1] .||
+                     newhullzones .== ordered_seg[2]
+
+            mets[:hullseg_inds][:toptwohull] = hull_withlazysets(iszone)
+            mets[:hullseg_grid][:toptwohull] = to_grid(mets[:hullseg_inds][:toptwohull], 												field.grid)
+            
+            mets[:hullseg_grid_cent][:toptwohull] = centroid(iszone, field.grid)
+            mets[:hullseg_inds_cent][:toptwohull] = centroid(iszone)
+        end
+
+        mets
+    end
+
+
+                                                                    
+    # ,---.               o                            |              
+    # |---',---.,---..   ..,---.,---.,---.    ,---..  ,|--- ,---.,---.
+    # |  \ |---'|   ||   |||    |---'`---.    |---' >< |    |    ,---|
+    # `   ``---'`---|`---'``    `---'`---'    `---''  ``---'`    `---^
+    #               |                                                 
+    #                 
+    #               o     ,---.     
+    #               .,---.|__. ,---.
+    #               ||   ||    |   |
+    #               ``   '`    `---'
+    #               beyond just the fields
+
+    trajdiversity(spikes::AbstractDataFrame, cell::Int) = length(unique(spikes.traj))
+    function trajdiversity(spikes::DataFrame, beh::DataFrame)
+        _, spikes = register(beh,spikes;transfer=["traj"])
+        combine(groupby(spikes, :traj), trajdiversity)
+    end
+
+    # CELL COFIRING
+    function xcorr(rate::Array, cell1::Int, cell2::Int; lags=-200:200)
+        x, y = rate[:,1], rate[:,2]
+        StatsBase.crosscorr(x,y,lags)
+    end
+
+    function xcorr(spikes::DataFrame)
+        units1 = unique(spikes.unit)
+        units2 = unique(spikes.unit)
+        results = []
+        for (cell1,cell2) in Iterators.product(units1,units2)
+            push!(results,xcorr(spikes, cell1, cell2))
+        end
+    end
+
 
 
 end

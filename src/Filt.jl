@@ -6,6 +6,7 @@ module Filt
              required_precache_functions, get_filter_prereq, precache
     using Base: merge
     import Load
+    using Infiltrator
 
     function SPEED(x)
         abs.(x) .> 4
@@ -72,10 +73,35 @@ module Filt
            )
 
 
-    function test_filt(spikes)
-        println(all(combine(groupby(spikes[cellcount(spikes),:],:unit),nrow=>:count)[:,:count] .> 50))
-        x = groupby_summary_filt(spikes, :unit, x->x.count.>50, nrow=>:count)
-        println(all(combine(groupby(x,:unit),nrow=>:count)[:,:count] .> 50))
+    #function test_filt(spikes)
+    #    println(all(combine(groupby(spikes[cellcount(spikes),:],:unit),nrow=>:count)[:,:count] .> 50))
+    #    x = groupby_summary_filt(spikes, :unit, x->x.count.>50, nrow=>:count)
+    #    println(all(combine(groupby(x,:unit),nrow=>:count)[:,:count] .> 50))
+    #end
+
+    """
+    CROSS-VALIDATION BASED
+    """
+    function FIRSTHALF(x)
+        1:size(x,1) .< round(size(x,1)/2)
+    end
+    function LASTHALF(x)
+        1:size(x,1) .> round(size(x,1)/2)
+    end
+    function MOD(x, n::Int, v::Int)
+        mod.(1:size(x,1), n) .== v
+    end
+    firsthalf      = OrderedDict("time" => FIRSTHALF)
+    lasthalf       =  OrderedDict("time" => LASTHALF)
+    evens          =  OrderedDict("time" => x->MOD(x, 2, 0))
+    odds           =  OrderedDict("time" => x->MOD(x, 2, 1))
+
+    function apply(filt::OrderedDict, x::DataFrame)
+        x = copy(x)
+        for (k,v) in filt
+            x = x[v(x[!,k]), :]
+        end
+        x
     end
 
     """
@@ -138,7 +164,7 @@ module Filt
             return trues(size(df,1))
         end
     end
-    function groupby_summary_condition_column(df::DataFrame, splitby,
+    function groupby_summary_condition_column!(df::DataFrame, splitby,
             summary_condition, combine_args...; name=:condition,
             store_summary_stats::Bool=false)::DataFrame
         columns = names(df)
@@ -170,7 +196,8 @@ module Filt
                     group[!,name] .= false
                 end
             end
-            sort(combine(groups, identity), :index)[:, Not(:index)]
+            sort!(df, :index)
+            select!(df, Not(:index))
         else
             df[!, name] =  trues(size(df,1))
             df
@@ -192,6 +219,10 @@ module Filt
         filters[:cue_error]   = merge(filters[:all], Filt.cue, Filt.error)
         filters[:mem_correct] = merge(filters[:all], Filt.mem, Filt.correct)
         filters[:mem_error]   = merge(filters[:all], Filt.mem, Filt.error)
+        filters[:firsthalf]   = merge(filters[:all], Filt.firsthalf)
+        filters[:firsthalf]   = merge(filters[:all], Filt.lasthalf)
+        filters[:evens]       = merge(filters[:all], Filt.evens)
+        filters[:odds]        = merge(filters[:all], Filt.odds)
         filters[:none]        = nothing
         filters
     end
@@ -217,6 +248,10 @@ module Filt
         filters[:cue_error]   = merge(filters[:all], Filt.cue, Filt.error)
         filters[:mem_correct] = merge(filters[:all], Filt.mem, Filt.correct)
         filters[:mem_error]   = merge(filters[:all], Filt.mem, Filt.error)
+        filters[:firsthalf]   = merge(filters[:all], Filt.firsthalf)
+        filters[:firsthalf]   = merge(filters[:all], Filt.lasthalf)
+        filters[:evens]       = merge(filters[:all], Filt.evens)
+        filters[:odds]        = merge(filters[:all], Filt.odds)
         filters[:none]        = nothing
         filters
     end
@@ -241,6 +276,10 @@ module Filt
         [precache_funcs[Symbol(item)] for item in get_filter_prereq(filts)]
     end
 
+    """
+
+    returns the fields that are *required* to execute precaching faithfully
+    """
     function required_precache_fields(filts::AbstractDict)
         Iterators.flatten([precache_field_reqs[Symbol(item)] for item in get_filter_prereq(filts)
                            if Symbol(item) ∈ keys(precache_field_reqs)])
@@ -250,10 +289,24 @@ module Filt
         any(x -> Symbol(x) ∈ keys(precache_funcs), keys(filts))
     end
 
-    function missing_precache_col(spikes::DataFrame,
+    """
+    
+    are precache inputs missing?
+    """
+    function missing_precache_input_cols(spikes::DataFrame,
                                   filts::AbstractDict)::Bool
         any(key -> key ∉ propertynames(spikes), 
             required_precache_fields(filts))
+    end
+
+    """
+    
+    are precache outputs missing?
+    """
+    function missing_precache_output_cols(spikes::DataFrame,
+                                  filts::AbstractDict)::Bool
+        any(key -> key ∉ propertynames(spikes), 
+            intersect(keys(filts), keys(precache_funcs)))
     end
 
     """
@@ -270,15 +323,20 @@ module Filt
     end
     function precache(spikes::DataFrame, filts::AbstractDict; kws...)::DataFrame
         funcs = required_precache_functions(filts)
+        sp = spikes
+        @assert spikes === sp
         for func in funcs
             spikes = func(spikes; kws...)
+            @assert spikes === sp
         end
+        @assert spikes === sp
         spikes
     end
+    precache! = precache
 
     # Cache version
     function cachespikecount(spikes::DataFrame; kws...)
-          groupby_summary_condition_column(spikes, :unit,
+          groupby_summary_condition_column!(spikes, :unit,
                                   x -> x.spikecount .> req_spikes, # > 50 spikes
                                   nrow => :spikecount; name=:spikecount_cache, 
                                   kws...)
@@ -287,7 +345,7 @@ module Filt
 
     # Cache version
     function cachetrajdiversity(spikes::DataFrame; kws...)
-        groupby_summary_condition_column(spikes, :unit,
+        groupby_summary_condition_column!(spikes, :unit,
                                 x -> x.trajdiversity .>= req_traj, 
                                 :period => (x->length(unique(x))) => :trajdiversity
                                 ; name=:trajdiversity_cache, kws...)
