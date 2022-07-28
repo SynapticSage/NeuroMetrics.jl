@@ -12,10 +12,6 @@ module Plot
     include(srcdir("Plot","table.jl"))
     @reexport using .table
 
-    function hello3()
-        "🍎"
-    end
-
     export raster, table
 
 end

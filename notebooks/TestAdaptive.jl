@@ -49,7 +49,7 @@ end
 
 # ╔═╡ ff1db172-c3ab-41ea-920c-1dbf831c1336
 md"""
-#### **Test Adaptive**
+#### 🚀 **Adaptive receptive fields**
 
 Purpose: Test out my base adaptive field codes. Make sure the various steps (grid, occupancy, and fields) are working. Also make sure downstream shifted objects are working.
 
@@ -66,7 +66,7 @@ Purpose: Test out my base adaptive field codes. Make sure the various steps (gri
 """
 
 # ╔═╡ 0be7ba01-a316-41ce-8df3-a5ae028c74e7
-PlutoUI.TableOfContents(title="📚 Test adaptive" )
+PlutoUI.TableOfContents(title="🚀 Adaptive RFs" )
 
 # ╔═╡ 37d7f4fd-80a7-47d0-8912-7f002620109f
 md"""
@@ -180,10 +180,34 @@ First, we run the shifted field calculation
 I = Timeshift.load_fields();
   ╠═╡ =#
 
+# ╔═╡ b2c8eeb3-9ef7-45ea-926f-26851c7088a4
+md"Select a key from prior data?"
+
+# ╔═╡ afcb55f9-ed2d-4860-a997-c272bece208f
+md"grab that key, or if no key, compute with our settings above"
+
+# ╔═╡ 955c7b75-00d4-4116-9242-92a7df8a0f87
+#=╠═╡
+shifted = if hasproperty(Main, :I)
+	I[key]
+else
+	Timeshift.shifted_fields(beh, spikes, -2:0.05:2, props; widths=widths, thresh)
+end;
+  ╠═╡ =#
+
 # ╔═╡ be6048d8-6f30-4d48-a755-5537c3b0b104
 md"""
 ## Visualize timeshifted fields
 """
+
+# ╔═╡ 5731b325-0d82-4141-9122-3b67650ca2a5
+md"Select out a unit and a shift"
+
+# ╔═╡ 2a213e93-eaca-416d-9771-788e115e4081
+md"Pull out a single shifted field"
+
+# ╔═╡ 15e359aa-6ce2-4479-87cc-4ec3c7a5dfa2
+md"plot out a unit at a shift"
 
 # ╔═╡ 47af1633-99bd-4dc2-9d91-9073ec327f27
 md"""
@@ -192,11 +216,11 @@ md"""
 
 # ╔═╡ 588bff56-6518-4410-b19a-dc745cf067e7
 md"""
-# Metric Development
+# Single cell 🦠 metric Development
 
 ## Convex Hull
 
-Wnat to ensure that watershed segmentation followed by hull of the largest thresholded segments give a good hull
+Want to ensure that watershed segmentation followed by hull of the largest thresholded segments give a good hull
 """
 
 # ╔═╡ f02a79c9-01b8-4550-b321-7b5a6f0d5a28
@@ -350,46 +374,56 @@ end
 field = units[(;unit=unit)]
 
 # ╔═╡ 9405b2bd-c10c-4ba7-aeda-b9f56e2b33ee
+# ╠═╡ disabled = true
+#=╠═╡
 begin
 	halfmast = nanquantile(vec(field.rate), qthresh)
 	bw = field.rate .> halfmast
 	dist = 1 .- distance_transform(feature_transform(bw))
 	markers = label_components( (!).(dist .< 0))
 end;
+  ╠═╡ =#
 
 # ╔═╡ ce81a2d1-7ba8-44fb-b401-760411421a71
+#=╠═╡
 segments = watershed(dist, markers)
+  ╠═╡ =#
 
 # ╔═╡ 8bfb8c40-942d-41b8-a441-5a71f6bbafb7
+#=╠═╡
 sortperm(collect(values(segments.segment_pixel_count)))
 
 
+  ╠═╡ =#
 
 # ╔═╡ 794aae46-914a-4da3-a093-d76f1308c55b
+#=╠═╡
 hullzones = bw .* labels_map(segments);
+  ╠═╡ =#
 
 # ╔═╡ 3ce5d298-62eb-4c78-93d8-aa12671fbdce
+#=╠═╡
 hullzones
+  ╠═╡ =#
 
 # ╔═╡ b5e2ef6a-942a-4782-9c36-cd2778de2c66
+#=╠═╡
 unique(hullzones)
+  ╠═╡ =#
 
 # ╔═╡ 99c12e94-8d3e-4700-ab50-146165f654bd
+#=╠═╡
 plot(
 	plot(field, 	 title="field"), 
 	heatmap(bw', 	 title="thresholded"), 
 	heatmap(dist', 	 title="distance computation"),
 	heatmap(markers',title="markers"),
 	aspect_ratio=1)
+  ╠═╡ =#
 
 # ╔═╡ 0f80805a-76c8-4d8d-91bc-c013575d3a10
-heatmap(plot(field, title="field"), heatmap(Int8.(hullzones)', title="segments"), aspect_ratio=1)
-
-# ╔═╡ 39737bd9-f38a-408d-a0c0-99b9e2bd0045
-# ╠═╡ show_logs = false
-# ╠═╡ disabled = true
 #=╠═╡
-shifted2 = Timeshift.shifted_fields(beh, spikes, -2:0.05:2, props; widths=widths, thresh);
+heatmap(plot(field, title="field"), heatmap(Int8.(hullzones)', title="segments"), aspect_ratio=1)
   ╠═╡ =#
 
 # ╔═╡ 6b8666fc-1e1f-48bf-88bf-b51eb07ad3ce
@@ -404,7 +438,6 @@ end
 #=╠═╡
 begin
 	key = collect(keys(I))[findall(k .== string.(collect(keys(I))))][1]
-		shifted = I[key]
 end
   ╠═╡ =#
 
@@ -470,6 +503,7 @@ SF.metrics
   ╠═╡ =#
 
 # ╔═╡ d48e9bc9-4d67-4e7b-a0f7-25b975813ccd
+#=╠═╡
 begin
 	
 	mets = Dict()
@@ -534,58 +568,83 @@ begin
 	
 end;
 
+  ╠═╡ =#
 
 # ╔═╡ 333fe5bf-4168-4931-8856-987d7e76e265
+#=╠═╡
 instruction
+  ╠═╡ =#
 
 # ╔═╡ efd65ca8-457c-4f83-9aaf-162c089404c5
+#=╠═╡
 plot(heatmap(newhullzones'),heatmap(hullzones'))
+  ╠═╡ =#
 
 # ╔═╡ 346a2e86-47be-47ca-9895-fbf4806fc17a
+#=╠═╡
 ordered_seg
+  ╠═╡ =#
 
 # ╔═╡ 70d62e08-77b4-407d-bad8-4850abf5f00a
+#=╠═╡
 h = hull_withlazysets(hullzones .== 1)
+  ╠═╡ =#
 
 # ╔═╡ 8ce9d392-b7bd-483f-b87a-78c6f7657024
+#=╠═╡
 typeof(h), typeof([h...])
+  ╠═╡ =#
 
 # ╔═╡ 0dd5dfe7-321d-466e-9799-ac6c40cc8fb0
+#=╠═╡
 begin
 	plot(VPolygon(h))
 	plot!([Singleton(hh) for hh in h], markersize=20)
 	plot!(Singleton([3.2f0,8.2f0]), markersize=20)
 end
+  ╠═╡ =#
 
 # ╔═╡ 30af0459-297b-4c57-95f9-24436d57209c
+#=╠═╡
 Singleton([3.2f0,8.2f0]) ⊇ VPolygon(h)
+  ╠═╡ =#
 
 # ╔═╡ b6b7f2e0-68f7-4324-a78b-197b4143339c
+#=╠═╡
 Singleton([3.2f0,8.2f0]) ⊆ VPolygon(h)
+  ╠═╡ =#
 
 # ╔═╡ 05d6904a-1dfa-4a2f-a385-aaafacc80b0a
+#=╠═╡
 element(Singleton([3.2f0,8.2f0])) ∈ VPolygon(h)
+  ╠═╡ =#
 
 # ╔═╡ d5569288-bc83-408f-8219-5d945cbc6871
 segmentation_thresh
 
 # ╔═╡ 0030f529-dd82-4269-aa50-02cc832b9f07
+#=╠═╡
 begin
 	p_with_seghulls = plot(field, aspect_ratio=1)
 	plothullset!(HullSet(mets[:hullseg_grid]))
 	p_with_seghulls
 end
+  ╠═╡ =#
 
 # ╔═╡ e06ae752-f36b-465c-9303-74d406b915bf
+#=╠═╡
 begin
 	p_with_seghulls_top = plot(field, aspect_ratio=1)
 	plot!(VPolygon(mets[:hullseg_grid][:toptwohull]))
 	annotate!(mets[:hullseg_grid_cent][:toptwohull]..., text(string(:toptwohull), :white))
 	p_with_seghulls_top
 end
+  ╠═╡ =#
 
 # ╔═╡ b101021d-e065-4593-b39a-3fee7dbbaf83
+#=╠═╡
 element(Singleton([50,125])) ∈ HullSet(mets[:hullseg_grid])
+  ╠═╡ =#
 
 # ╔═╡ Cell order:
 # ╟─ff1db172-c3ab-41ea-920c-1dbf831c1336
@@ -627,14 +686,19 @@ element(Singleton([50,125])) ∈ HullSet(mets[:hullseg_grid])
 # ╟─52854f4d-1cb2-4a3f-8d48-91aea9c3c45a
 # ╟─34b5441c-add2-4272-b384-67994daf7745
 # ╟─b2436c80-7290-416f-87c9-137cfb601588
-# ╠═39737bd9-f38a-408d-a0c0-99b9e2bd0045
 # ╠═cb4d5494-24a6-4dfc-980b-23ec48fca7cc
+# ╟─b2c8eeb3-9ef7-45ea-926f-26851c7088a4
 # ╠═6b8666fc-1e1f-48bf-88bf-b51eb07ad3ce
 # ╠═a097ba99-df43-4884-bc93-5d17a82aaeaf
+# ╟─afcb55f9-ed2d-4860-a997-c272bece208f
+# ╠═955c7b75-00d4-4116-9242-92a7df8a0f87
 # ╟─be6048d8-6f30-4d48-a755-5537c3b0b104
-# ╠═5acf0a77-9e40-4117-83fa-4a0791849265
+# ╟─5731b325-0d82-4141-9122-3b67650ca2a5
+# ╟─5acf0a77-9e40-4117-83fa-4a0791849265
 # ╟─2331218a-bc76-4adf-82e3-8e5b52aef0ca
+# ╟─2a213e93-eaca-416d-9771-788e115e4081
 # ╟─3afa8aae-bf3e-4364-8ad9-76fd50ca5ac9
+# ╟─15e359aa-6ce2-4479-87cc-4ec3c7a5dfa2
 # ╟─94930aab-8bb0-4da0-b26b-35ddb3efde3b
 # ╟─47af1633-99bd-4dc2-9d91-9073ec327f27
 # ╠═5f15dc20-cf30-4088-a173-9c084ac2809a

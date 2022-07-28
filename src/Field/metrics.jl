@@ -6,7 +6,7 @@ module metrics
     using DataFrames
     import DataStructures: OrderedDict
     import ..Field
-    import ..Field: ReceptiveField
+    import ..Field: ReceptiveField, Grid
     import Table
     import Utils
     import Load.utils: register
@@ -140,7 +140,7 @@ module metrics
     function centroid(X::BitArray)::Vector{Int32}
         round.(mean(array_of_arrays(findall(X))))
     end
-    function centroid(X::BitArray, grid::Field.adaptive.GridAdaptive)::Vector{Float32}
+    function centroid(X::BitArray, grid::Grid)::Vector{Float32}
         grid.grid[ centroid(X)... ]
     end
     array_of_tuples(X::Vector{<:CartesianIndex}) = [x.I for x in X]
@@ -148,7 +148,7 @@ module metrics
     array_of_singleton(X::Vector{<:CartesianIndex}) = [Singleton(collect(x.I)) for x in X]
     
     loopup_coord(c::Tuple, F::Field.ReceptiveField) = F.grid.grid[c...]
-    to_grid(X::Vector{<:Union{Tuple,Vector}}, grid::T where T <: Field.adaptive.GridAdaptive) = [grid.grid[Int32.(x)...] for x in X]
+    to_grid(X::Vector{<:Union{Tuple,Vector}}, grid::T where T <: Grid) = [grid.grid[Int32.(x)...] for x in X]
 
 
     """
@@ -304,22 +304,6 @@ module metrics
         _, spikes = register(beh,spikes;transfer=["traj"])
         combine(groupby(spikes, :traj), trajdiversity)
     end
-
-    # CELL COFIRING
-    function xcorr(rate::Array, cell1::Int, cell2::Int; lags=-200:200)
-        x, y = rate[:,1], rate[:,2]
-        StatsBase.crosscorr(x,y,lags)
-    end
-
-    function xcorr(spikes::DataFrame)
-        units1 = unique(spikes.unit)
-        units2 = unique(spikes.unit)
-        results = []
-        for (cell1,cell2) in Iterators.product(units1,units2)
-            push!(results,xcorr(spikes, cell1, cell2))
-        end
-    end
-
 
 
 end

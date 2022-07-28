@@ -169,7 +169,7 @@ badd +16 src/Load/spikes.jl
 badd +2 src/Load/behavior.jl
 badd +8 src/Load/ripples.jl
 badd +277 src/Load/utils.jl
-badd +135 src/Timeshift.jl
+badd +124 src/Timeshift.jl
 badd +93 src/Timeshift/checkpoint.jl
 badd +98 src/Table/convert_types.jl
 badd +30 src/Table.jl
@@ -186,10 +186,10 @@ badd +1 scripts/timeshift/plot_examine_set_of_fields.jl
 badd +80 src/Table/group.jl
 badd +51 src/Timeshift/operation.jl
 badd +23 src/Plot/timeshift.jl
-badd +11 src/Plot.jl
+badd +1 src/Plot.jl
 badd +2 src/Plot/raster.jl
 badd +1 src/Plot/table.jl
-badd +14 src/Munge.jl
+badd +20 src/Munge.jl
 badd +25 scripts/timeshift/notebook/Initialize_plot_experimentation_pluto.jl
 badd +3197 Manifest.toml
 badd +127 Project.toml
@@ -199,26 +199,26 @@ badd +15 src/Load/task.jl
 badd +5 src/Munge/task.jl
 badd +1 scripts/fields/PlaceField.jl
 badd +69 _research/test_enforce_bound.jl
-badd +351 src/Field/adaptive.jl
+badd +26 src/Field/adaptive.jl
 badd +26 ~/tmp.jl
-badd +16 src/Precompile.jl
-badd +116 notebooks/TestAdaptive.jl
+badd +20 src/Precompile.jl
+badd +2 notebooks/TestAdaptive.jl
 badd +142 src/Timeshift/shuffle.jl
 badd +11497 ~/.cache/nvim/lsp.log
 badd +4 src/Field/fixed.jl
 badd +2 src/Utils/plot.jl
 badd +290 src/Shuf.jl
-badd +335 src/Filt.jl
+badd +93 src/Filt.jl
 badd +1 src/Field/model.jl
 badd +1 src/Field/operation.jl
 badd +1 _research/tensor_test.jl
-badd +8 _research/test_filt.jl
-badd +42 _research/test_shifting_timediff.jl
+badd +3 _research/test_filt.jl
+badd +19 _research/test_shifting_timediff.jl
 badd +1 plots/fields/shift.shorter/GOAL_TRAJ_LEN_heatmap_x=shift,y=cellsort_by=area.pdf
 badd +32 src/Field/preset.jl
 badd +170 src/Field/legacy.jl
 badd +1 src/Timeshift/legacy.jl
-badd +66 src/Field/metrics.jl
+badd +307 src/Field/metrics.jl
 badd +55 src/Field/recon_process.jl
 badd +1 src/Timeshift/crossval.jl
 badd +89 notebooks/TimeshiftDiff.jl
@@ -232,16 +232,20 @@ badd +118 notebooks/Examine_LoadMains.jl
 badd +181 src/Utils.jl
 badd +25 src/Munge/tensor.jl
 badd +3 src/Munge/spikes.m
-badd +23 src/Munge/spiking.jl
+badd +63 src/Munge/spiking.jl
 badd +173 ~/Code/utilities/+units/getRateMatrix.m
 badd +118 ~/Code/utilities/+units/sparseToDense.m
 badd +3 src/Utils/filtreg.jl
 badd +4 src/Utils/binning.jl
 badd +1 _research/test_convexhull.jl
-badd +79 ~/Code/projects/goal-code/scripts/decode/StillRipplePlots.jl
-badd +1 ~/Code/projects/goal-code/scripts/decode/VideoPerRipple.jl
-badd +1 ~/Code/projects/goal-code/scripts/decode/InitializeCairo.jl
+badd +79 scripts/decode/StillRipplePlots.jl
+badd +1 scripts/decode/VideoPerRipple.jl
+badd +1 scripts/decode/InitializeCairo.jl
+badd +31 src/Field/coactivity.jl
 badd +9 src/Plot/receptivefield.jl
+badd +3 _research/test_coactivity.jl
+badd +17 src/Timeshift/metrics.jl
+badd +288 ~/.julia/packages/StatsBase/OpnQp/src/signalcorr.jl
 argglobal
 %argdel
 tabnew +setlocal\ bufhidden=wipe
@@ -290,22 +294,10 @@ normal! zt
 keepjumps 354
 normal! 09|
 tabnext
-edit src/Field/metrics.jl
-let s:save_splitbelow = &splitbelow
-let s:save_splitright = &splitright
-set splitbelow splitright
-let &splitbelow = s:save_splitbelow
-let &splitright = s:save_splitright
-wincmd t
-let s:save_winminheight = &winminheight
-let s:save_winminwidth = &winminwidth
-set winminheight=0
-set winheight=1
-set winminwidth=0
-set winwidth=1
+edit _research/test_coactivity.jl
 argglobal
-balt src/Plot/receptivefield.jl
-let s:l = 1 - ((0 * winheight(0) + 19) / 38)
+balt src/Field/coactivity.jl
+let s:l = 1 - ((0 * winheight(0) + 23) / 46)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt

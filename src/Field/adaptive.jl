@@ -16,7 +16,6 @@ module adaptive
     import Load.utils: filterAndRegister, register
     import Base
     using LoopVectorization
-    using Infiltrator
     using ProgressLogging, ProgressMeter
     using Entropies: Probabilities
     using ProgressLogging
@@ -24,6 +23,7 @@ module adaptive
     using Statistics
     using Polyester
     using ThreadSafeDicts
+    using Infiltrator
 
     metric_def = [metrics.bitsperspike, metrics.totalcount, metrics.maxrate,
                   metrics.maxcount, metrics.meanrate, metrics.coherence]
