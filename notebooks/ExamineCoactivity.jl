@@ -46,7 +46,11 @@ begin
 end;
 
 # ╔═╡ 548340c3-378b-47df-aa4a-14a805be3df8
+# ╠═╡ disabled = true
+#=╠═╡
 out = deserialize(datadir("exp_pro", "RY16_36_coactivity_fields.serial"))
+╠═╡ =#
+
 
 # ╔═╡ 98df2272-8ef6-4f38-8f0e-15b0cf0ed873
 @bind k PlutoUI.Slider(1:length(keys(out)), default=1)

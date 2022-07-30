@@ -52,13 +52,21 @@ module spiking
         neuronax = T.axes
         AxisArray(M, timeax..., neuronax...)
     end
-    function torate(times::AbstractArray; grid, windowsize::Real, gaussian::Real)
-        torate(times; grid, radius=windowsize/2)
+
+    function torate_windowdia(times::AbstractArray; grid, windowsize::Real,
+            gaussian::Real=0)
+        torate_windowrad(times; grid, radius=windowsize/2, gaussian)
     end
-    function torate(times::AbstractArray; grid, windowsizes::Tuple{<:Real,<:Real})
-    end
-    function torate(times::AbstractArray; grid, radius::Real)
-        binning.inside(times, grid, radius)
+    #function torate(times::AbstractArray; grid, windowsizes::Tuple{<:Real,<:Real})
+    #end
+    function torate_windowrad(times::AbstractArray; grid, radius::Real, 
+                           gaussian::Real=0)
+        count = binning.inside(times, grid, radius)
+        ker = Kernel.gaussian((gaussian,))
+        δ  = grid[2] - grid[1]
+        centers = collect(grid)
+        AxisArray(imfilter(count ./ δ, ker),
+                  Axis{:time}(centers))
     end
     function torate(times::AbstractArray; grid, gaussian=0.25)::AxisArray
         δ  = grid[2] - grid[1]
@@ -73,7 +81,8 @@ module spiking
     # CELL COFIRING
     function xcorr(rate::AxisArray, cell1::T , cell2::T; lags=-20:20) where 
         T<:Union{Int16,Int32,Int64}
-        x, y = rate[Axis{:unit}(cell1)], rate[Axis{:unit}(cell2)]
+        x, y = rate[Axis{:unit}(cell1)],
+               rate[Axis{:unit}(cell2)]
         StatsBase.crosscor(x, y, lags)
     end
 

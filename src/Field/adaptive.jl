@@ -26,7 +26,8 @@ module adaptive
     using Infiltrator
 
     metric_def = [metrics.bitsperspike, metrics.totalcount, metrics.maxrate,
-                  metrics.maxcount, metrics.meanrate, metrics.coherence]
+                  metrics.maxcount, metrics.meanrate, metrics.coherence,
+                  metrics.centroid, metrics.argmax, metrics.convexhull]
     
     using Plots
 

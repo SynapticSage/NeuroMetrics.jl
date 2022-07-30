@@ -143,12 +143,23 @@ module metrics
     function centroid(X::BitArray, grid::Grid)::Vector{Float32}
         grid.grid[ centroid(X)... ]
     end
+    function centroid(X::ReceptiveField)::Vector{Float32}
+        filled = (!).(isnan.(X.rate))
+        sum(X.grid.grid[filled] .* X.rate[filled]) ./ sum(X.rate[filled])
+    end
     array_of_tuples(X::Vector{<:CartesianIndex}) = [x.I for x in X]
     array_of_arrays(X::Vector{<:CartesianIndex}) = [collect(x.I) for x in X]
     array_of_singleton(X::Vector{<:CartesianIndex}) = [Singleton(collect(x.I)) for x in X]
     
     loopup_coord(c::Tuple, F::Field.ReceptiveField) = F.grid.grid[c...]
     to_grid(X::Vector{<:Union{Tuple,Vector}}, grid::T where T <: Grid) = [grid.grid[Int32.(x)...] for x in X]
+
+
+    function argmax(X::ReceptiveField)::Vector{Float32}
+        filled = (!).(isnan.(X.rate))
+        i = Base.argmax(X.rate[filled])
+        X.grid.grid[i]
+    end
 
 
     """

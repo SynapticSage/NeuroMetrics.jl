@@ -220,7 +220,7 @@ module Filt
         filters[:mem_correct] = merge(filters[:all], Filt.mem, Filt.correct)
         filters[:mem_error]   = merge(filters[:all], Filt.mem, Filt.error)
         filters[:firsthalf]   = merge(filters[:all], Filt.firsthalf)
-        filters[:firsthalf]   = merge(filters[:all], Filt.lasthalf)
+        filters[:lasthalf]    = merge(filters[:all], Filt.lasthalf)
         filters[:evens]       = merge(filters[:all], Filt.evens)
         filters[:odds]        = merge(filters[:all], Filt.odds)
         filters[:none]        = nothing
@@ -249,7 +249,7 @@ module Filt
         filters[:mem_correct] = merge(filters[:all], Filt.mem, Filt.correct)
         filters[:mem_error]   = merge(filters[:all], Filt.mem, Filt.error)
         filters[:firsthalf]   = merge(filters[:all], Filt.firsthalf)
-        filters[:firsthalf]   = merge(filters[:all], Filt.lasthalf)
+        filters[:lasthalf]    = merge(filters[:all], Filt.lasthalf)
         filters[:evens]       = merge(filters[:all], Filt.evens)
         filters[:odds]        = merge(filters[:all], Filt.odds)
         filters[:none]        = nothing

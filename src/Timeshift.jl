@@ -147,13 +147,12 @@ module Timeshift
             prog = Progress(length(shifts), desc="Field shift calculations")
             prog.showspeed = true
         end
+        @info shiftbeh
         for shift in shifts
-            if shift ∈ keys(result_dict)
-                continue
-            end
             if shiftbeh
                 @debug "shifting beh"
-                beh, shift = σ(beh, shift), shift*-1
+                shift = shift == 0 ? shift : shift * (-1)
+                beh= σ(beh, shift) 
                 @debug "register"
                 beh, data = utils.register(beh, data; on="time",
                                               transfer=grid.props)
@@ -163,6 +162,9 @@ module Timeshift
                 @debug "register"
                 beh, data = utils.register(beh, data; on="time",
                                               transfer=grid.props)
+            end
+            if shift ∈ keys(result_dict)
+                continue
             end
             @debug "fieldfunc" thread_field thread_fields
             if postfunc === nothing

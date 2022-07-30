@@ -25,7 +25,6 @@ import Utils
                       [mean([events_n1[h[1]], events_n2[h[2]]]) for h in hits])
                 append!(diffs, Δ[hits])
             end
-            #events = sort(vcat(events...))
         end
         return events, diffs
     end
@@ -37,37 +36,49 @@ import Utils
 
     function get_coactive_units(units::GroupedDataFrame; 
             append_to_spikes::Bool=false)
+
         last_unit = maximum(combine(units, :unit => first).unit_first)
         u_count = length(units)
-        D = []
+        D = Vector{DataFrame}([])
         @showprogress for (i1, u1) in zip(1:u_count, units)
             #for u2 in units[i1+1:u_count]
-            Threads.@threads for u2 in units[i1+1:u_count]
+
+            for u2 in units[i1+1:u_count]
+
                 #@info "units" first(u1.unit) first(u2.unit)
                 coactive_times, diffs = get_coactive_events(u1, u2)
-                if !(isempty(coactive_times))
+                if !(isempty(coactive_times)) && !(isempty(diffs))
                     last_unit = last_unit + 1
                     area = first(u1.area) * "_" * first(u2.area)
                     d = Dict(:unit  => last_unit, 
                              :time  => coactive_times,
                              :diffs => diffs,
-                             :unit1 => u1.unit,
-                             :unit2 => u2.unit,
-                             :area  => area
+                             :unit1 => u1.unit[1],
+                             :unit2 => u2.unit[1],
+                             :area  => area,
+                             :coact => true
                             )
+                    try
+                        d = DataFrame(d)
+                        #@assert all(key->isdefined(d,key), keys(d))
+                    catch
+                        @warn "fuck"
+                        println("problem")
+                        @infiltrate
+                    end
                     push!(D, d)
                 end
             end
         end
+        out = append_to_spikes ? combine(units, identity) : DataFrame()
         @exfiltrate
-        spikes = combine(units, identity)
-        spikes = DataFrame()
-        if append_to_spikes
-            [append!(spikes, DataFrame(d); cols=:union) for d in D]
-        else
-            [append!(spikes, DataFrame(d); cols=:union) for d in D]
+        try
+            #append!(out, DataFrame(d); cols=:union)
+            out = vcat(out, D...; cols=:union)
+        catch
+            @infiltrate
         end
-        return spikes
+        return out
     end
 
     function units_from_crosscorr()

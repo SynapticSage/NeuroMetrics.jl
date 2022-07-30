@@ -131,6 +131,7 @@ end
         S[key] = @time Timeshift.get_field_shift_shuffles(beh, spikes, shifts;
                                                           shufshift_settings...)
     end
+
     try
         for (key, value) in S
             @info S

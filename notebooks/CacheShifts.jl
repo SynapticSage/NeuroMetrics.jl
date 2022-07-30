@@ -26,6 +26,7 @@ begin
 	using Combinatorics: powerset
 	import Base.Threads: @spawn
 	using ThreadSafeDicts, NaNStatistics
+    using Infiltrator
 	
 	using GoalFetchAnalysis 
     import Timeshift
@@ -111,6 +112,7 @@ begin
 	                             transfer=["trajreltime","trajreltime_bin"],
 	                             on="time")
 	end
+    spikes, beh = copy(spikes), copy(beh); GC.gc() 
 
 end;
 
@@ -160,13 +162,13 @@ Obtain mains checkpoint data
 
 # ╔═╡ 90dfe32b-0930-4067-8936-6f1e1e922a35
 begin
-    if isfile(Timeshift.mainspath())
-        I = Timeshift.load_mains()
-        F = Timeshift.load_fields()
-    else
+    #if isfile(Timeshift.mainspath())
+        #I = Timeshift.load_mains()
+        #F = Timeshift.load_fields()
+    #else
         I = OrderedDict()
         F = OrderedDict()
-    end
+    #end
 	keys(I)
 end
 
@@ -175,6 +177,7 @@ md"## Cache results"
 
 # ╔═╡ 673b09d2-5dd4-4b6c-897e-2fc43f04ab8f
 begin
+
     @progress "Datacut iteration" for datacut ∈ datacuts
         finished_batch = false
         for props ∈ prop_set
@@ -186,7 +189,10 @@ begin
 				continue
 			end
     		#if keymessage(I, key); continue; end
-            tmp = Timeshift.shifted_fields(beh, spikes, shifts, props; widths, filters=filt, thresh)
+            tmp = Timeshift.shifted_fields(beh, spikes, shifts, props; 
+                                           shiftbeh=false,
+                                           widths, filters=filt, thresh)
+            @infiltrate
             F[key] = I[key] = tmp
             finished_batch = true
         end
@@ -195,6 +201,7 @@ begin
             Timeshift.save_mains(I)
         end
     end
+
 end
 
 # ╔═╡ 08b1ac9b-58e8-41de-994f-a05609df3b2c
@@ -263,7 +270,7 @@ begin
     if isfile(Timeshift.shufflespath())
         S = Timeshift.load_shuffles()
     else
-        S = OrderedDict()
+        S = OrderedDict{NamedTuple, Any}()
     end
 	keys(S)
 end

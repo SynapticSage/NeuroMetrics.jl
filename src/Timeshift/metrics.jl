@@ -16,7 +16,13 @@ module metrics
 
     calculates the best shift for a shift set for a metric
     """
-    function best_tau()
+    function best_tau(I::ShiftedFields; metric)
+        I = groupby(I, :unit)
+        for unit in I
+            max_ = argmax(unit[:, metric])
+            unit[!, :bestshift] .= unit[max_, :shift]
+        end
+        I = combine(I, identity)
     end
 
     """
@@ -24,7 +30,13 @@ module metrics
 
     calculates the worst shift for a shift set for a metric
     """
-    function worst_tau()
+    function worst_tau(I::ShiftedFields; metric)
+        I = groupby(I, :unit)
+        for unit in I
+            max_ = argmin(unit[:, metric])
+            unit[!, :worstshift] .= unit[max_, :shift]
+        end
+        I = combine(I, identity)
     end
 
     """
@@ -32,7 +44,7 @@ module metrics
 
     calculates the best of a metric for a shift set
     """
-    function best_metric()
+    function best_metric(I::ShiftedFields; metric)
     end
 
 
