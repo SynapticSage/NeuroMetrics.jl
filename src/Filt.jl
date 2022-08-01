@@ -5,7 +5,7 @@ module Filt
     export get_filters, get_filters_precache, get_filter_req, 
              required_precache_functions, get_filter_prereq, precache
     using Base: merge
-    import Load
+    import Utils
     using Infiltrator
 
     function SPEED(x)
@@ -317,7 +317,7 @@ module Filt
     function precache(spikes::DataFrame, beh::DataFrame, filts::AbstractDict; 
             kws...)
         reqfields = String.(required_precache_fields(filts))
-        _, spikes = Load.register(beh,spikes; 
+        _, spikes = Utils.filtreg.register(beh,spikes; 
                              transfer=reqfields)
         precache(spikes, filts; kws...)
     end

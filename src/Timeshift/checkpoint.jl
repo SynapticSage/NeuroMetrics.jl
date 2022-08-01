@@ -4,6 +4,9 @@ module checkpoint
     using DataFrames
     using DrWatson
     import Arrow
+    using Infiltrator
+    using DataStructures: OrderedDict
+
     import Timeshift
     import ..Timeshift: DictOfShiftOfUnit
     import Field: ReceptiveField
@@ -13,6 +16,7 @@ module checkpoint
     export save_mains, save_shuffles, save_fields
     export load_mains, load_shuffles, load_fields
     export mainspath, shufflespath
+    export archive
 
     # ------------------
     # SAVING AND LOADING
@@ -302,6 +306,72 @@ module checkpoint
         println(name)
         deserialize(name)
     end
+
+    function archivepath(store::String; archive=".archive")::String
+        pathfunc = eval(Symbol(store * "path"))
+        path = pathfunc()
+        archivepath = path * archive
+    end
+
+    function archive(store::String, keysearch::NamedTuple; archive=".archive", overwrite::Bool=false)
+        pathfunc = eval(Symbol(store * "path"))
+        path = pathfunc()
+        archivepath = path * archive
+        store, archive = deserialize(path), 
+                         overwrite ? OrderedDict() : deserialize(archivepath)
+        matches = match(keys(store), keysearch)
+        @info "Matches" matches
+        for key in matches
+            @info "Archiving" key
+            push!(archive, pop!(store, key))
+        end
+        @infiltrate
+        @info("Serializing archive")
+        serialize(archivepath, archive)
+        @info("Serializing store")
+        serialize(archivepath, store)
+        nothing
+    end
+    function unarchive(store::String, keysearch::NamedTuple; archive=".archive")
+        pathfunc = eval(Symbol(store * "path"))
+        path = pathfunc()
+        archivepath = path * archive
+        store, archive = deserialize(path), 
+                         deserialize(archivepath) 
+        matches = match(keys(store), keysearch)
+        @info "Matches" matches
+        for key in matches
+            @info "Archiving" key
+            push!(store, pop!(archive, key))
+        end
+        @infiltrate
+        @info("Serializing archive")
+        serialize(archivepath, archive)
+        @info("Serializing store")
+        serialize(archivepath, store)
+        nothing
+
+    end
+    
+    function match(dict_w_ntkeys::AbstractDict, search::NamedTuple)
+        match(keys(dict_w_ntkeys), search)
+    end
+    function match(ntkeys::Union{Base.KeySet, Vector}, search::NamedTuple)
+        ntkeys = ntkeys isa Base.KeySet ? collect(ntkeys) : ntkeys
+        [ntkey for ntkey in ntkeys if match(ntkey, search)]
+    end
+    function match(ntkey::NamedTuple, search::NamedTuple)
+        onekey_keys = keys(ntkey)
+        answer = true
+        for key in keys(search)
+            if !(key ∈ onekey_keys &&
+                 getproperty(search, key) == getproperty(ntkey, key))
+                answer = false
+            end
+        end
+        answer
+    end
+
 
 
 end
