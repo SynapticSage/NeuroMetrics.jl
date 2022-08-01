@@ -219,5 +219,7 @@ module Timeshift
     @reexport using .Keys
     include(srcdir("Timeshift", "types.jl"))
     @reexport using .types
+    include(srcdir("Timeshift", "shiftmetrics.jl"))
+    @reexport using .shiftmetrics
 
 end

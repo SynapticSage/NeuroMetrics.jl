@@ -17,6 +17,7 @@ end
 # ╔═╡ 44dde9e4-f9ca-11ec-1348-d968780f671c
 # ╠═╡ show_logs = false
 begin
+
 	  using DrWatson
 	  quickactivate(expanduser("~/Projects/goal-code"))
 	  using Plots
@@ -26,6 +27,8 @@ begin
 	  import ProgressLogging
 	  using PlutoUI
 	  using DataStructures: OrderedDict
+	  using ColorSchemes
+      using Statistics
 
 	  using GoalFetchAnalysis
 	  import Utils
@@ -41,10 +44,8 @@ begin
 	  )
       filts = Filt.get_filters_precache()
 	maxrad = nothing
-end
 
-# ╔═╡ 5f6e31d3-7101-49aa-a289-39e3967aa3a8
-using ColorSchemes
+end
 
 # ╔═╡ cbd7498a-5075-4e67-a829-95f9936146db
 using MarkdownLiteral: @mdx
@@ -135,7 +136,7 @@ First, we run the shifted field calculation
 """
 
 # ╔═╡ cb4d5494-24a6-4dfc-980b-23ec48fca7cc
-I = Timeshift.load_fields();
+F = Timeshift.load_fields();
 
 # ╔═╡ b2c8eeb3-9ef7-45ea-926f-26851c7088a4
 md"Select a key from prior data?"
@@ -157,7 +158,7 @@ New method of picking keys
 
 # ╔═╡ c20dd185-4a34-433d-9775-f88475514add
 begin
-	allsets   = collect(keys(I))
+	allsets   = collect(keys(F))
 	totalkeys = union(keys.(allsets)...)
 	uvals = Dict()
 	for key in totalkeys
@@ -187,23 +188,27 @@ begin
 end
 
 # ╔═╡ d423498d-d024-4465-8dae-9eb899a75457
-key = Utils.namedtup.bestpartialmatch(keys(I), 
+key = Utils.namedtup.bestpartialmatch(keys(F), 
 		(;hard_settings..., datacut=actuals[datacut_key], thresh=actuals[thresh_key], widths=actuals[widths_key]))
 
 # ╔═╡ afcb55f9-ed2d-4860-a997-c272bece208f
 md"grab that key, or if no key, compute with our settings above"
 
 # ╔═╡ 955c7b75-00d4-4116-9242-92a7df8a0f87
-shifted = I[key];
+shifted = F[key];
 
 # ╔═╡ 2331218a-bc76-4adf-82e3-8e5b52aef0ca
 plot_obj = Timeshift.DictOfShiftOfUnit{Float64}(shifted);
 
 # ╔═╡ 5f15dc20-cf30-4088-a173-9c084ac2809a
-SFs = Timeshift.ShiftedFields(plot_obj);
+# ╠═╡ show_logs = false
+@time SFs = Timeshift.ShiftedFields(plot_obj);
 
 # ╔═╡ 1994b7d7-c152-4aa7-a088-3f272246d9ae
-nonzero_units = sort(@subset(SFs.metrics, :metric .== Symbol("maxcount"), :value .!= 0, :shift.==0).unit)
+nonzero_units = sort(@subset(SFs.metrics,
+                             :metric .== Symbol("maxcount"),
+                             getindex.(:value,1) .!= 0,
+                             :shift.==  0).unit)
 
 # ╔═╡ be6048d8-6f30-4d48-a755-5537c3b0b104
 md"""
@@ -240,11 +245,14 @@ md"""
 key = $key
 """
 
+# ╔═╡ 534bca46-d351-4385-97b9-f0358c342fb6
+item = get(plot_obj,shift_shift, shift_unit);
+
 # ╔═╡ 94930aab-8bb0-4da0-b26b-35ddb3efde3b
 begin
-    plot(get(plot_obj,shift_shift, shift_unit); 
-			aspect_ratio, ylims=ylim,
-			title=string(get(plot_obj, shift_shift, shift_unit))
+    plot(item; 
+		aspect_ratio, ylims=ylim,
+		title=string(item.metrics)
 	)
 end
 
@@ -260,7 +268,10 @@ SF = SFs[shift_unit];
 SF.metrics
 
 # ╔═╡ ac9cddcb-097c-42a8-bd59-19fced23bf5a
-shmet = sort(unstack(SF.metrics, :shift, :metric, :value, allowduplicates=true),:shift)
+begin
+    shmet = sort(unstack(SF.metrics, :shift, :metric, :value, allowduplicates=true),:shift)
+    Table.vec_arrayofarrays!(shmet)
+end
 
 # ╔═╡ e070f95c-1671-4fd7-85b4-20b773de915e
 (;console,unit_shift_sel)
@@ -308,7 +319,6 @@ end
 # ╟─0be7ba01-a316-41ce-8df3-a5ae028c74e7
 # ╟─37d7f4fd-80a7-47d0-8912-7f002620109f
 # ╠═44dde9e4-f9ca-11ec-1348-d968780f671c
-# ╠═5f6e31d3-7101-49aa-a289-39e3967aa3a8
 # ╟─a1ad6173-5ead-4559-bddb-9aee6119b9d0
 # ╟─2f8ac703-417c-4360-a619-e799d8bb594f
 # ╟─31082fe7-ed61-4d37-a025-77420da3f24a
@@ -341,6 +351,7 @@ end
 # ╟─15e359aa-6ce2-4479-87cc-4ec3c7a5dfa2
 # ╠═89e8dc9a-b7d9-4d1f-b604-8376b28bfca5
 # ╟─dc714977-349e-417f-a5fd-1bd3a8c1e38b
+# ╠═534bca46-d351-4385-97b9-f0358c342fb6
 # ╠═94930aab-8bb0-4da0-b26b-35ddb3efde3b
 # ╟─47af1633-99bd-4dc2-9d91-9073ec327f27
 # ╠═62be0c18-ba11-40ad-ba1b-86ec2f638cf3

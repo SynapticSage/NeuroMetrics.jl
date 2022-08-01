@@ -14,6 +14,7 @@ module Field
     using Infiltrator
     using GeometricalPredicates: inpolygon
     using LazyGrids: ndgrid
+    using LazySets
     using Statistics
 
     # Goal Vector Libraries
@@ -43,6 +44,9 @@ module Field
         grid  = pop!(F, :grid_centers)
         props = pop!(F, :props)
         F = NamedTuple(F)
+        if hasproperty(kws, :key_name)
+            push!(kws.key_name, "field_prop")
+        end
         Table.to_dataframe(F, pos...; grid=grid, props=props, kws...)
     end
 
@@ -162,6 +166,15 @@ module Field
     @reexport using .preset
     include(srcdir("Field","coactivity.jl"))
     @reexport using .coactivity
+
+    """
+        Base.:∈
+
+    Method for asking if a point is inside a place field
+    """
+    function Base.:∈(point::Vector, field::ReceptiveField; hull=1)
+        element(Singleton(point)) ∈ field.metrics[:hullseg_grid][hull]
+    end
 
     #include(srcdir("Field","legacy.jl"))
     #import .legacy

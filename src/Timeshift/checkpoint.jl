@@ -10,6 +10,7 @@ module checkpoint
     import Timeshift
     import ..Timeshift: DictOfShiftOfUnit
     import Field: ReceptiveField
+    import Field.metrics: metric_ban, apply_metric_ban
     import Table: to_dataframe
 
     export ts_plotdir
@@ -105,7 +106,7 @@ module checkpoint
         Arrow.write(name, M)
     end
     save_mains(M::T where T<: Timeshift.DictOfShiftOfUnit) =
-                                                save_mains(Timeshift.ShiftedFields(M))
+                              save_mains(Timeshift.ShiftedFields(M))
 
     """
         cut_the_fat
@@ -115,7 +116,7 @@ module checkpoint
     main effect metrics, not full on receptive fields.
     """
     function cut_the_fat(M::AbstractDict)
-        if valtype(M) <: ReceptiveField
+        if valtype(M)<:ReceptiveField
             R = Dict{keytype(M), DataFrame}()
         else
             R = copy(M)
@@ -123,8 +124,10 @@ module checkpoint
         for (k,v) in M
             if v isa AbstractDict
                 R[k] = cut_the_fat(M[k])
-            elseif v isa Timeshift.ShiftedFields || typeof(v) <: ReceptiveField
-                R[k] = to_dataframe(v.metrics)
+            elseif v isa Timeshift.ShiftedFields || typeof(v)<:ReceptiveField
+                R[k] = to_dataframe(v.metrics; explode=false)
+            elseif v isa AbstractDataFrame
+                R[k] = apply_metric_ban(v)
             else
                 R[k] = v
             end

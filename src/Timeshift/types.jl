@@ -1,7 +1,8 @@
 module types
 
     import Field
-    import Table: to_dataframe
+    import Field.metrics: metric_ban, apply_metric_ban
+    import Table: to_dataframe, vec_arrayofarrays!
     import ..Timeshift: AbsDictOfShiftOfUnit, DictOfShiftOfUnit
 
     using DataFrames
@@ -16,6 +17,7 @@ module types
         s = S[shift]
         getindex(s, index...)
     end
+
     function getindex(s::AbstractDict{NamedTuple,<:Any}, index::Union{NamedTuple}...)
         index = [index...]
         while !(isempty(index))
@@ -35,6 +37,7 @@ module types
         end
         return s
     end
+
     function keymatch_topcomponent(s::AbstractDict{NamedTuple, <:Any}, 
             i::Union{Tuple, Array, Real})
         k = collect(keys(s))
@@ -102,16 +105,25 @@ module types
         shifts::Vector{<:Real}
         metrics::DataFrame
 
-        function ShiftedField(data::OrderedDict)
+        function ShiftedField(data::OrderedDict{<:Any, <:Field.ReceptiveField})
             shifts = collect(keys(data))
-            metrics = OrderedDict(k=>v.metrics for (k,v) in data if !(ismissing(v)))
-            metrics = to_dataframe(metrics; key_name="shift")
-            new(collect(values(data)), shifts, shifts, metrics)
+            metrics = OrderedDict(k=>apply_metric_ban(v.metrics) 
+                                  for (k,v) in data 
+                                  if !(ismissing(v)))
+            metricDF = to_dataframe(metrics; key_name="shift", explode=false)
+            @infiltrate
+            metricDF = unstack(metricDF, 
+                               :shift, :metric, :value, 
+                               allowduplicates=true)
+            sort!(metricDF, :shift)
+            vec_arrayofarrays!(metricDF)
+            new(collect(values(data)), shifts, shifts, metricDF)
         end
 
         function ShiftedField(data::OrderedDict, shifts::Vector{<:Real}) 
-            metrics = OrderedDict(k=>v.metrics for (k,v) in data if !(ismissing(v)))
-            metrics = to_dataframe(metrics; key_name="shift")
+            metrics = OrderedDict(k=>apply_metric_ban(v.metrics) for (k,v) in data
+                                  if !(ismissing(v)))
+            metrics = to_dataframe(metrics; key_name="shift", explode=false)
             new(collect(values(data)), shifts, shifts, metrics)
         end
     end

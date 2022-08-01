@@ -17,13 +17,20 @@ module Precompile
                        "Markdown", "InteractiveUtils", "Polyester",
                        "Random", "Colors", "ColorSchemes", "ImageFiltering",
                        "ProtoStructs", "KernelDensity"]   
+    _GFA_data_dependencies = [_GFA_dependencies..., "Load", "SampleData"]
 
     using PackageCompiler
     function precompile_GFA_dependencies()
-        PackageCompiler.create_sysimage(_GFA_dependencies; sysimage_path="GFA-dependencies-sysimage.so")
+        PackageCompiler.create_sysimage(_GFA_dependencies;
+                                        sysimage_path="GFA-dependencies-sysimage.so")
+    end
+    function precompile_GFA_data_dependencies()
+        PackageCompiler.create_sysimage(_GFA_data_dependencies;
+                                        sysimage_path="GFA-dependencies-sysimage.so")
     end
     function precompile_goalmaze()
-        PackageCompiler.create_sysimage(["GoalFetchAnalysis"]; sysimage_path="GoalFetchAnalysis-sysimage.so")
+        PackageCompiler.create_sysimage(["GoalFetchAnalysis"];
+                                        sysimage_path="GoalFetchAnalysis-sysimage.so")
     end
 
     # -------------

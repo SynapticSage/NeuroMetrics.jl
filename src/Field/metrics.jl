@@ -12,11 +12,23 @@ module metrics
     import Load.utils: register
     import Load: keep_overlapping_times
     using Images, ImageSegmentation, LazySets
+    import TextWrap
     using Infiltrator
 
     export Metrics
     export bitsperspike, bitspersecond, coherence, totalcount, maxrate,
            maxcount 
+    metric_ban = [:hullzone, :hullsegsizes, :hullseg_inds, :hullseg_grid,
+                  :hullseg_inds_cent, :hullseg_grid_cent, :convexhull]
+    function apply_metric_ban(X::T)::T where T<:AbstractDataFrame
+        inds = X.metric .∉ [metric_ban]
+        X[inds, :]
+    end
+    function apply_metric_ban(X::T)::T where T <: AbstractDict
+        typeof(X)(k=>v for (k,v) in X
+                  if k ∉ metric_ban)
+    end
+
 
     mutable struct Metrics
         data::AbstractDict{Symbol, Any}
@@ -34,19 +46,35 @@ module metrics
     Base.iterate(M::Metrics) = iterate(M.data)
     Base.iterate(M::Metrics, i::Int64) = iterate(M.data, i)
     Base.length(M::Metrics)  = length(M.data)
-    function Base.string(S::T where T<:Metrics; sigdigits=2)
-        M = ["$k=$(round(v;sigdigits))" for (k,v) in S]
-        join(M, " ")
-    end
 
-    metric_ban = [:hullzone, :hullsegsizes, :hullseg_inds, :hullseg_grid,
-                  :hullseg_inds_cent, :hullseg_grid_cent, :convexhull]
+    function Base.string(S::T where T<:Metrics; sigdigits=2, width=40)
+        M = ["$k=$(round.(v;sigdigits))" for (k,v) in S
+             if S isa AbstractArray || typeof(v) <: Real]
+        TextWrap.wrap(join(M, " "); width)
+    end
 
     function Table.to_dataframe(M::Metrics; kws...) 
         kws = (;kws..., key_name=["metric"])
-        D = Dict(k=>v for (k,v) in M.data if k ∉ metric_ban || typeof(v) <: AbstractDict)
+        D = Dict(k=>v for (k,v) in M.data 
+                 if k ∉ metric_ban || typeof(v) <: AbstractDict)
         Table.to_dataframe(D; explode=false, kws...)
     end
+    function apply_metric_ban(X::Metrics)::Metrics
+        X.data = typeof(X.data)(k=>v for (k,v) in X
+                  if k ∉ metric_ban)
+        X
+    end
+
+    #mutable struct MetricDF
+    #    data::DataFrame
+    #    MetricDF()  = new(DataFrame())
+    #    MetricDF(x::DataFrame) = new(x)
+    #end
+    #function Table.to_dataframe(M::MetricDF; kws...) 
+    #    kws = (;kws..., key_name=["metric"])
+    #    D = M.data[M.data.metric ∉ [metric_ban],:]
+    #    Table.to_dataframe(D; explode=false)
+    #end
 
     function push_metric!(R::ReceptiveField, F::Function; 
             name::Union{Symbol,Nothing}=nothing)

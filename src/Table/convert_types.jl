@@ -22,7 +22,8 @@ module convert_types
             level::Int=0, level_names::Dict=Dict(), kws...)::DataFrame
 
         level += 1
-        @debug level
+        
+        #@info "function start" key_name level level_names
 
         D = DataFrame()
         for key in keys(fields)
@@ -64,7 +65,7 @@ module convert_types
             end
 
             if kn == "unnamed"
-                @warn "unhandled key_name" level key
+                @warn "unhandled key_name" level key key_name other_labels
                 @infiltrate
             end
 
@@ -82,7 +83,7 @@ module convert_types
                                       level_names, kws...)
                     append!(D, df , cols=:union)
                 catch
-                    @warn "Hiccup"
+                    @warn "hiccup" level key key_name other_labels
                     @infiltrate
                     if exit_hiccup
                         return nothing
@@ -99,6 +100,9 @@ module convert_types
     function to_dataframe(X::DataFrame; other_labels=nothing, kws...)::DataFrame
         if other_labels !== nothing
             for (k,v) in other_labels
+                if typeof(v) <: Array
+                    v = string(v)
+                end
                 X[!,k] .= v
             end
         end
