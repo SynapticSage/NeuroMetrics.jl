@@ -42,32 +42,42 @@ module checkpoint
         joinpath(name,file)
     end
 
-    function saveTauMax_cellTable(df_imax::DataFrame, animal::String, day::Int,
+    function saveTauMax_cellTable(imaxdf::DataFrame, animal::String, day::Int,
         tag::String)
         tag = "$(tag)_tauMax"
-        Load.save_cell_taginfo(df_imax, animal, day, tag)
+        Load.save_cell_taginfo(imaxdf, animal, day, tag)
     end
 
-    function storepath(store::String)
+    function path(store::String; archive="", kws...)
         parent_folder = datadir("exp_pro", "timeshift")
-        joinpath(parent_folder, store)
+        folder = joinpath(parent_folder, store)
+        archive == "" ? folder : join([folder,archive], ".")
     end
-    mainspath()    = storepath("mains")
-    shufflespath() = storepath("shuffles")
-    fieldspath()   = storepath("fields")
+    mainspath(;kws...)    = path("mains"; kws...)
+    shufflespath(;kws...) = path("shuffles"; kws...)
+    fieldspath(;kws...)   = path("fields"; kws...)
+    shufflefieldspath(;kws...)   = path("shufflefields"; kws...)
+
+    storekeys(store::String;kws...) = keys(deserialize(path(store;
+                                                                 kws...)))
+    mainskeys(;kws)    = storekeys("mains";kws...)
+    shuffleskeys(;kws) = storekeys("shuffles";kws...)
+    fieldskeys(;kws)   = storekeys("fields";kws...)
+
 
     function load_store(store; dataframe::Bool=false)
         if dataframe
-            name = storepath(store) * "_dataframe.arrow"
+            name = path(store) * "_dataframe.arrow"
             DataFrame(Arrow.Table(name))
         else
-            name = storepath(store)
+            name = path(store)
             D = deserialize(name)
         end
     end
-    load_mains(;kws...)    = load_store("mains"; kws...)
-    load_shuffles(;kws...) = load_store("shuffles"; kws...)
-    load_fields(;kws...)   = load_store("fields"; kws...)
+    load_mains(;kws...)         = load_store("mains"; kws...)
+    load_shuffles(;kws...)      = load_store("shuffles"; kws...)
+    load_fields(;kws...)        = load_store("fields"; kws...)
+    load_shufflefields(;kws...) = load_store("shufflefields"; kws...)
 
 
     """
@@ -144,11 +154,6 @@ module checkpoint
         Arrow.write(name, F)
     end
 
-    function shufflefieldspath()
-        parent_folder = datadir("exp_pro", "timeshift")
-        joinpath(parent_folder, "shufflefields")
-    end
-
     function save_shufflefields(S::AbstractDict; overwrite::Bool=false,
         num_examples::Int=3)
         name = shufflefieldspath()
@@ -163,15 +168,7 @@ module checkpoint
         @info "Saving $name"
         serialize(name, D)
     end
-    function load_shufflefields(;dataframe::Bool=false)
-        if dataframe
-            name = shufflefieldspath() * "_dataframe.arrow"
-            DataFrame(Arrow.Table(name))
-        else
-            name = shufflefieldspath()
-            deserialize(name)
-        end
-    end
+    
     function collect_examples(S::AbstractDict, key_lambda::Function,
             num_examples::Int)
         @error "Not implemented!"
@@ -212,9 +209,8 @@ module checkpoint
     end
 
     function archive(store::String, keysearch::NamedTuple; archive=".archive", overwrite::Bool=false)
-        pathfunc = eval(Symbol(store * "path"))
-        storepath = pathfunc()
-        archivepath = storepath * archive
+        storepath = path(store)
+        archivepath = path(store; archive)
         store, archive = deserialize(storepath), 
                          overwrite ? OrderedDict() : deserialize(archivepath)
         matches = match(keys(store), keysearch)
@@ -225,7 +221,9 @@ module checkpoint
                 @info "Archiving" key
                 push!(archive, key=> pop!(store, key))
             end
-            @infiltrate
+            archive = zip(keys(archive), values(archive))
+            store = typeof(store)(key=>value for (key,value) in store)
+            Base.rehash!(store)
             @info("Serializing archive")
             serialize(archivepath, archive)
             @info("Serializing store")
@@ -235,11 +233,10 @@ module checkpoint
         end
         nothing
     end
-    function unarchive(store::String, keysearch::NamedTuple; archive=".archive")
-        pathfunc = eval(Symbol(store * "path"))
-        path = pathfunc()
-        archivepath = path * archive
-        store, archive = deserialize(path), 
+    function unarchive(store::String, keysearch::NamedTuple; archive="archive")
+        storepath   = path(store)
+        archivepath = path(store; archive)
+        store, archive = deserialize(storepath), 
                          deserialize(archivepath) 
         matches = match(keys(store), keysearch)
         @info "Matches" matches
@@ -251,7 +248,7 @@ module checkpoint
         @info("Serializing archive")
         serialize(archivepath, archive)
         @info("Serializing store")
-        serialize(archivepath, store)
+        serialize(storepath, store)
         nothing
 
     end
@@ -261,9 +258,8 @@ module checkpoint
         I = loadfunc()
         match(I, search)
     end
-    function match(dict_w_ntkeys::AbstractDict, search::NamedTuple)
-        match(keys(dict_w_ntkeys), search)
-    end
+    match(dict_w_ntkeys::AbstractDict, search::NamedTuple) =
+                                        match(keys(dict_w_ntkeys), search)
     function match(ntkeys::Union{Base.KeySet, Vector}, search::NamedTuple)
         ntkeys = ntkeys isa Base.KeySet ? collect(ntkeys) : ntkeys
         [ntkey for ntkey in ntkeys if match(ntkey, search)]

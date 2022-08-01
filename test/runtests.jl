@@ -1,4 +1,4 @@
-using GoalFetchAnalysis
+@time using GoalFetchAnalysis
 using Test, Revise
 using DrWatson
 

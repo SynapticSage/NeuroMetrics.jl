@@ -18,6 +18,7 @@ module convert_types
     #end
     function to_dataframe(fields::AbstractDict; other_labels=Dict(), 
             key_name::Union{Nothing,Symbol,String,Vector}=nothing,
+            exit_hiccup::Bool=false,
             level::Int=0, level_names::Dict=Dict(), kws...)::DataFrame
 
         level += 1
@@ -83,6 +84,9 @@ module convert_types
                 catch
                     @warn "Hiccup"
                     @infiltrate
+                    if exit_hiccup
+                        return nothing
+                    end
                 end
             end
         end

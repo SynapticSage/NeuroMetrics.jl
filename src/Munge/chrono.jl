@@ -14,7 +14,7 @@ module chrono
             median(diff(X.time)) < 0.015 # assume fps <= 60
         elseif data == :spikes
             isminutes(X)
-        elseif datat ∈ [:lfp, :ripple, :ripples, :theta]
+        elseif data ∈ [:lfp, :ripple, :ripples, :theta]
             isminutes(X)
         else
             @error "Not a recognized data symbol = $data"
@@ -27,8 +27,8 @@ module chrono
         else
             X
         end
-
     end
+
     function ensureTimescale(X::DataFrame; kws...)
         if isminutes(X; kws...)
             transform!(X, :time => (x->x.*60) => :time)

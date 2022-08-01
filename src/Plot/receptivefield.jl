@@ -5,6 +5,7 @@ module receptivefield
 
     using Field
     using Field: ReceptiveField, Grid, Occupancy
+    using Field.adaptive: GridAdaptive
     import Utils
     using Plots, LaTeXStrings, Measures
     using Statistics
@@ -307,6 +308,24 @@ module receptivefield
             (X, Y, getproperty(grid, val)')
         end
     end
+
+    @recipe function plot_adaptivegrid(grid::GridAdaptive, val::Symbol=:radii)
+        colorbar_title --> String(val)
+        seriestype --> :heatmap
+        c --> :thermal
+        X = [grid.centers[1]...]
+        x --> X
+        if length(grid.centers) > 1
+            Y = [grid.centers[2]...]
+            y --> Y
+        end
+        Z = getproperty(grid, val)
+        if eltype(Z) == Vector
+            Z = reshape([sqrt(sum(z.^2)) for z in Z], size(Z))
+        end
+        (X, Y, Z')
+    end
+
 
 end
 

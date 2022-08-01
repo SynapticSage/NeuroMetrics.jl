@@ -45,7 +45,7 @@ module metrics
     function Table.to_dataframe(M::Metrics; kws...) 
         kws = (;kws..., key_name=["metric"])
         D = Dict(k=>v for (k,v) in M.data if k ∉ metric_ban || typeof(v) <: AbstractDict)
-        Table.to_dataframe(D; kws...)
+        Table.to_dataframe(D; explode=false, kws...)
     end
 
     function push_metric!(R::ReceptiveField, F::Function; 

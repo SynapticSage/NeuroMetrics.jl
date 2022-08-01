@@ -96,7 +96,7 @@ module Load
             end
         end
 
-        (time .- mintime)./60, mintime
+        time .- mintime, mintime
     end
 
 

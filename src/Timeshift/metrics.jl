@@ -6,21 +6,21 @@ module metrics
     FieldObj = Union{ShiftedField, ShiftedFields}
     TableObj = Union{DataFrame,GroupedDataFrame}
 
-    function apply(I::DictOfShiftOfUnit, lambda::Function; kws...)
-        apply(ShiftedFields(I), lambda; kws...)
+    function apply(shiftedfields::DictOfShiftOfUnit, lambda::Function; kws...)
+        apply(ShiftedFields(shiftedfields), lambda; kws...)
     end
-    function apply(I::ShiftedFields, lambda::Function; kws...)
-        metrics = I.metrics
+    function apply(shiftedfields::ShiftedFields, lambda::Function; kws...)
+        metrics = shiftedfields.metrics
         G = groupby(metrics, :unit)
         for unit in G
             unit = lambda(unit; kws...)
         end
-        I
+        shiftedfields
     end
-    function apply(I::ShiftedField, lambda::Function; kws...)
-        metrics = I.metrics
+    function apply(shiftedfield::ShiftedField, lambda::Function; kws...)
+        metrics = shiftedfield.metrics
         metrics = lambda(metrics; kws...)
-        I
+        shiftedfield
     end
 
     """
@@ -92,6 +92,10 @@ module metrics
     end
     function worst_metric(field::FieldObj; metric)
         apply(field, worst_metric; metric=metric)
+    end
+
+
+    function distance_to_centroid()
     end
 
 end

@@ -126,6 +126,19 @@ module Field
         Float32.(hcat([Y[!,prop] for prop in props]...))
     end
     
+    function isminutes(X::DataFrame)
+        Utils.dextrema(X.time)[1] < 1440.0 # assumes less than 24 hour recording
+    end
+
+    function ensureTimescale!(X::DataFrame; kws...)
+        if isminutes(X; kws...)
+            transform!(X, :time => (x->x.*60) => :time)
+        else
+            X
+        end
+
+    end
+
 
     # Field-related submodules
     using Reexport

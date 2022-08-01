@@ -30,8 +30,6 @@ module Timeshift
     export getshifts, getunits
     export ShiftedField, ShiftedFields, DictOfShiftOfUnit
     export shift_func!, reset_shift!
-
-
     
     function _functionalize(x::Union{Symbol,Function,Nothing})::Union{Nothing,Function}
         x !== nothing && x isa Symbol ? eval(x) : x

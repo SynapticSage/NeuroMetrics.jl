@@ -7,8 +7,6 @@ module adaptive
     import ..Field: metrics
     import Utils
     import Table
-    import Table: CItype, CItype_plusNull
-    import Munge
     import Filt
 
     using DataStructures
@@ -30,6 +28,9 @@ module adaptive
                   metrics.centroid, metrics.argmax, metrics.convexhull]
     
     using Plots
+    using DataFrames: ColumnIndex
+    CItype = Union{ColumnIndex, Vector{<:ColumnIndex}}
+    CItype_plusNull = Union{ColumnIndex, Vector{<:ColumnIndex}, Nothing}
 
     export yartsev
 
@@ -101,23 +102,6 @@ module adaptive
                             for (w, (s, e)) in zip(width, boundary))
             GridAdaptive(props, centers)
         end
-    end
-
-    @recipe function plot_adaptivegrid(grid::GridAdaptive, val::Symbol=:radii)
-        colorbar_title --> String(val)
-        seriestype --> :heatmap
-        c --> :thermal
-        X = [grid.centers[1]...]
-        x --> X
-        if length(grid.centers) > 1
-            Y = [grid.centers[2]...]
-            y --> Y
-        end
-        Z = getproperty(grid, val)
-        if eltype(Z) == Vector
-            Z = reshape([sqrt(sum(z.^2)) for z in Z], size(Z))
-        end
-        (X, Y, Z')
     end
 
     struct AdaptiveOcc <: Occupancy
@@ -255,7 +239,7 @@ module adaptive
             method::Symbol=:converge_to_radius,
             info::Bool=false,
             widths::OrderedDict, boundary::OrderedDict, kws...)::GridAdaptive
-        behavior = Munge.chrono.ensureTimescale(behavior)
+        behavior = Field.ensureTimescale(behavior)
         dt = dt === nothing ? 
                      median(diff(behavior.time)) : dt
         widths = OrderedDict(prop=>widths[prop] for prop in props)
@@ -483,6 +467,7 @@ module adaptive
         FF[:radii]        = F.grid.radii
         FF
     end
+
 
     ## ------
     ## Skaggs
