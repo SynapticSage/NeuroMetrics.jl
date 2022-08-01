@@ -18,9 +18,9 @@ module Field
 
     # Goal Vector Libraries
     using DrWatson
-    import Load
     import Utils
     import Table
+    import Load
 
     rateConversion = 30
     export rateConversion

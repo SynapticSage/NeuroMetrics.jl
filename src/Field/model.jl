@@ -4,8 +4,8 @@ module model
     using ProgressMeter
     using DataFrames
     import Plots
-    import Table, Utils
 
+    import Table, Utils
     import ..Field #valid if a module has already nested this!
     operation = Field.operation
 

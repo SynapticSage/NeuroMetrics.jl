@@ -1,15 +1,7 @@
 module fixed
 
-    using ..Field
-    import ..Field: Grid, ReceptiveField, Occupancy
-    import ..Field: get_boundary, resolution_to_width, return_vals
-    import ..Field.metrics: Metrics
-    import Utils
-    import Table
-    import Table: CItype, CItype_plusNull
     using DataStructures
     using DataFrames
-    import Load.utils: filterAndRegister
     import Base
     using LoopVectorization
     using Infiltrator
@@ -18,6 +10,15 @@ module fixed
     using ProgressLogging
     using RecipesBase
     using Statistics
+
+    using ..Field
+    import ..Field: Grid, ReceptiveField, Occupancy
+    import ..Field: get_boundary, resolution_to_width, return_vals
+    import ..Field.metrics: Metrics
+    import Utils
+    import Table
+    import Table: CItype, CItype_plusNull
+    import Utils.filtreg: filterAndRegister
 
     
                                                    

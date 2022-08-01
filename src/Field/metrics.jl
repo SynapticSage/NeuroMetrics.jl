@@ -38,9 +38,14 @@ module metrics
         M = ["$k=$(round(v;sigdigits))" for (k,v) in S]
         join(M, " ")
     end
+
+    metric_ban = [:hullzone, :hullsegsizes, :hullseg_inds, :hullseg_grid,
+                  :hullseg_inds_cent, :hullseg_grid_cent, :convexhull]
+
     function Table.to_dataframe(M::Metrics; kws...) 
         kws = (;kws..., key_name=["metric"])
-        Table.to_dataframe(M.data; kws...)
+        D = Dict(k=>v for (k,v) in M.data if k ∉ metric_ban || typeof(v) <: AbstractDict)
+        Table.to_dataframe(D; kws...)
     end
 
     function push_metric!(R::ReceptiveField, F::Function; 

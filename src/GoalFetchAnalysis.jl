@@ -1,9 +1,10 @@
 module GoalFetchAnalysis
 
-    using DrWatson
+    import Distributed: @everywhere
+    @everywhere using DrWatson
     #push!(LOAD_PATH, @__DIR__)
     __revise_mode__ = :eval
-    push!(LOAD_PATH, srcdir())
+    @everywhere push!(LOAD_PATH, srcdir())
 
     ## General
     #include(srcdir("Load.jl"))
@@ -30,9 +31,11 @@ module GoalFetchAnalysis
     #include(srcdir("Plot.jl"))
     #import .Plot
 
-    import Load, Filt, Shuf, Table, Field
+    import Utils
+    import Table
+    import Load, Filt, Shuf, Field
     import Timeshift
-    import Decode, Munge, Utils
+    import Decode, Munge
 
     export Utils
     export Table 

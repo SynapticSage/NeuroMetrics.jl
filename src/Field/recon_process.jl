@@ -1,13 +1,14 @@
 module recon_process
     
-    using ..Field
-    import Table
     using ProgressMeter
     using DataFrames
     using Infiltrator
     using DataStructures
     using ThreadSafeDicts
     using NaNStatistics
+
+    using ..Field
+    import Table
 
     si = Field.operation.selectind
     sk = Field.operation.selectkey
