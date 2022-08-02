@@ -59,6 +59,18 @@ module metrics
                  if k ∉ metric_ban || typeof(v) <: AbstractDict)
         Table.to_dataframe(D; explode=false, kws...)
     end
+
+    function unstackMetricDF(df::DataFrame)
+        if all([:metric,:shift] .∈ [propertynames(df)])
+            df = unstack(df, 
+                               :shift, :metric, :value, 
+                               allowduplicates=true)
+            sort!(df, :shift)
+            vec_arrayofarrays!(df)
+        end
+        df
+     end
+
     function apply_metric_ban(X::Metrics)::Metrics
         X.data = typeof(X.data)(k=>v for (k,v) in X
                   if k ∉ metric_ban)

@@ -160,20 +160,20 @@ if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
 endif
 let s:shortmess_save = &shortmess
 set shortmess=aoO
-badd +308 scripts/timeshift/TimeShift.jl
+badd +1 scripts/timeshift/TimeShift.jl
 badd +14 scripts/decode/Initialize.jl
 badd +7 scripts/fields/Initialize.jl
 badd +10 scripts/fields/Include.jl
-badd +98 src/Load.jl
+badd +168 src/Load.jl
 badd +16 src/Load/spikes.jl
 badd +2 src/Load/behavior.jl
 badd +8 src/Load/ripples.jl
 badd +4 src/Load/utils.jl
-badd +31 src/Timeshift.jl
-badd +118 src/Timeshift/checkpoint.jl
+badd +34 src/Timeshift.jl
+badd +219 src/Timeshift/checkpoint.jl
 badd +109 src/Table/convert_types.jl
 badd +359 src/Table.jl
-badd +16 src/Utils/dict.jl
+badd +9 src/Utils/dict.jl
 badd +132 src/Utils/namedtup.jl
 badd +1 src/Timeshift/Keys.jl
 badd +12 src/GoalFetchAnalysis.jl
@@ -185,7 +185,7 @@ badd +1 scripts/timeshift/plot_examine_set_of_fields.jl
 badd +3 src/Table/group.jl
 badd +191 src/Timeshift/operation.jl
 badd +23 src/Plot/timeshift.jl
-badd +20 src/Plot.jl
+badd +13 src/Plot.jl
 badd +2 src/Plot/raster.jl
 badd +1 src/Plot/table.jl
 badd +20 src/Munge.jl
@@ -193,15 +193,15 @@ badd +25 scripts/timeshift/notebook/Initialize_plot_experimentation_pluto.jl
 badd +3197 Manifest.toml
 badd +127 Project.toml
 badd +2 src/Load/celltet.jl
-badd +143 src/Field.jl
+badd +133 src/Field.jl
 badd +15 src/Load/task.jl
 badd +5 src/Munge/task.jl
 badd +1 scripts/fields/PlaceField.jl
 badd +69 _research/test_enforce_bound.jl
-badd +11 src/Field/adaptive.jl
+badd +29 src/Field/adaptive.jl
 badd +26 ~/tmp.jl
 badd +20 src/Precompile.jl
-badd +1 src/Timeshift/shuffle.jl
+badd +74 src/Timeshift/shuffle.jl
 badd +11497 ~/.cache/nvim/lsp.log
 badd +18 src/Field/fixed.jl
 badd +2 src/Utils/plot.jl
@@ -216,16 +216,16 @@ badd +1 plots/fields/shift.shorter/GOAL_TRAJ_LEN_heatmap_x=shift,y=cellsort_by=a
 badd +46 src/Field/preset.jl
 badd +170 src/Field/legacy.jl
 badd +74 src/Timeshift/legacy.jl
-badd +62 src/Field/metrics.jl
+badd +55 src/Field/metrics.jl
 badd +15 src/Field/recon_process.jl
 badd +1 src/Timeshift/crossval.jl
 badd +89 notebooks/TimeshiftDiff.jl
 badd +31 src/Munge/chrono.jl
 badd +11 src/Utils/macros.jl
-badd +28 notebooks/CacheShifts.jl
+badd +95 notebooks/CacheShifts.jl
 badd +19 scripts/timeshift/TimeShift_setsOfInterest.jl
 badd +1 src/Plot/rf.jl
-badd +120 src/Timeshift/types.jl
+badd +4 src/Timeshift/types.jl
 badd +118 notebooks/Examine_LoadMains.jl
 badd +193 src/Utils.jl
 badd +25 src/Munge/tensor.jl
@@ -254,10 +254,10 @@ badd +8 scripts/timeshift/make_dataframes.jl
 badd +2 intro.jl
 badd +5 src/Table/columntype.jl
 badd +1 src/Plot/old_rf.jl
-badd +37 ~/Code/projects/goal-code/src/Timeshift/shiftmetrics.jl
+badd +160 ~/Code/projects/goal-code/src/Timeshift/shiftmetrics.jl
 argglobal
 %argdel
-edit ~/Code/projects/goal-code/src/Timeshift/shiftmetrics.jl
+edit src/Plot.jl
 let s:save_splitbelow = &splitbelow
 let s:save_splitright = &splitright
 set splitbelow splitright
@@ -271,13 +271,13 @@ set winheight=1
 set winminwidth=0
 set winwidth=1
 argglobal
-balt src/Timeshift/types.jl
-let s:l = 37 - ((36 * winheight(0) + 24) / 49)
+balt src/Timeshift.jl
+let s:l = 13 - ((12 * winheight(0) + 18) / 36)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 37
-normal! 069|
+keepjumps 13
+normal! 017|
 tabnext 1
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf

@@ -140,7 +140,6 @@ module Field
         else
             X
         end
-
     end
 
 

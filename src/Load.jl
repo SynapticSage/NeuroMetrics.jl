@@ -164,6 +164,9 @@ module Load
         end
     end
     function load_table_at_path(path::String, type::String; load_kws...)
+        if !(isfile(path))
+            @error "File not found" path
+        end
         if type == "csv"
             data = CSV.read(path, DataFrame; load_kws...)
         elseif type == "arrow"

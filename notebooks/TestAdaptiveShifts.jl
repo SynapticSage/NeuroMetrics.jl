@@ -37,13 +37,13 @@ begin
 	  using Field.metrics
 	  
 	  adaptive = Field.adaptive
-      metrics = Field.metrics
+      metrics  = Field.metrics
 	  WIDTHS = OrderedDict(
 		  "x"=>2.5f0, "y"=>2.5f0, "currentPathLength"=>1f0,
           "currentAngle"=>Float32(2pi/80)
 	  )
       filts = Filt.get_filters_precache()
-	maxrad = nothing
+	  maxrad = nothing
 
 end
 

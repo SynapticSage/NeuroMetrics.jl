@@ -10,7 +10,7 @@ module checkpoint
     import Timeshift
     import ..Timeshift: DictOfShiftOfUnit
     import Field: ReceptiveField
-    import Field.metrics: metric_ban, apply_metric_ban
+    import Field.metrics: metric_ban, apply_metric_ban, unstackMetricDF
     import Table: to_dataframe
 
     export ts_plotdir
@@ -86,6 +86,9 @@ module checkpoint
     new = OrderedCollections.OrderedDict{Float64, OrderedCollections.OrderedDict{NamedTuple,AdaptiveRF}}
     """
     function save_mains(M::AbstractDict; overwrite::Bool=false)
+        if any(x->x .=== nothing, values(M))
+            M = typeof(M)(k=>v for (k,v) in M if v !== nothing)
+        end
         M = cut_the_fat(M)
         name = mainspath()
         if isfile(name) && !(overwrite)
@@ -124,10 +127,12 @@ module checkpoint
         for (k,v) in M
             if v isa AbstractDict
                 R[k] = cut_the_fat(M[k])
-            elseif v isa Timeshift.ShiftedFields || typeof(v)<:ReceptiveField
-                R[k] = to_dataframe(v.metrics; explode=false)
+            elseif typeof(v)<:ReceptiveField
+                R[k] = to_dataframe(apply_metric_ban(v.metrics); explode=false)
+            elseif v isa Timeshift.ShiftedField || v isa  Timeshift.ShiftedFields
+                R[k] = unstackMetricDF(to_dataframe(apply_metric_ban(v.metrics); explode=false))
             elseif v isa AbstractDataFrame
-                R[k] = apply_metric_ban(v)
+                R[k] = unstackMetricDF(apply_metric_ban(v))
             else
                 R[k] = v
             end
@@ -138,6 +143,9 @@ module checkpoint
 
 
     function save_fields(M::AbstractDict; overwrite::Bool=false)
+        if any(x->x .=== nothing, values(M))
+            M = typeof(M)(k=>v for (k,v) in M if v !== nothing)
+        end
         name = fieldspath()
         if isfile(name) && !(overwrite)
             @info "Preloading existing $name"
@@ -159,6 +167,9 @@ module checkpoint
 
     function save_shufflefields(S::AbstractDict; overwrite::Bool=false,
         num_examples::Int=3)
+        if any(x->x .=== nothing, values(S))
+            S = typeof(S)(k=>v for (k,v) in S if v !== nothing)
+        end
         name = shufflefieldspath()
         S = collect_examples(S, x->hasproperty(x, :shuffle), num_examples)
         if isfile(name) && !(overwrite)
@@ -188,6 +199,9 @@ module checkpoint
 
 
     function save_shuffles(S::AbstractDict; overwrite::Bool=false)
+        if any(x->x .=== nothing, values(S))
+            S = typeof(S)(k=>v for (k,v) in S if v !== nothing)
+        end
         name = shufflespath()
         S = cut_the_fat(S)
         if isfile(name) && !(overwrite)

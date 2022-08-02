@@ -239,7 +239,7 @@ module adaptive
             method::Symbol=:converge_to_radius,
             info::Bool=false,
             widths::OrderedDict, boundary::OrderedDict, kws...)::GridAdaptive
-        behavior = Field.ensureTimescale(behavior)
+        Field.ensureTimescale!(behavior)
         dt = dt === nothing ? 
                      median(diff(behavior.time)) : dt
         widths = OrderedDict(prop=>widths[prop] for prop in props)

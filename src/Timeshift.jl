@@ -10,11 +10,11 @@ module Timeshift
     # Parent libary
     import Field
     import Field: adaptive, fixed
-    import Load: utils
     import Field.preset: field_presets, return_preset_funcs
     import Table
-    import Munge.chrono: ensureTimescale, ensureTimescale!
     import Filt
+    import Utils
+    import Utils: filtreg
 
     # Julia packages
     using DataStructures
@@ -30,6 +30,24 @@ module Timeshift
     export getshifts, getunits
     export ShiftedField, ShiftedFields, DictOfShiftOfUnit
     export shift_func!, reset_shift!
+
+    DictOfShiftOfUnit{T<:Union{<:Real, NamedTuple}} =
+                                            OrderedDict{T, OrderedDict} 
+    AbsDictOfShiftOfUnit =
+                     OrderedDict{<:Union{<:Real, NamedTuple}, OrderedDict} 
+
+    function isminutes(X::DataFrame)
+        Utils.dextrema(X.time)[1] < 1440.0 # assumes less than 24 hour recording
+    end
+
+    function ensureTimescale!(X::DataFrame; kws...)
+        if isminutes(X; kws...)
+            transform!(X, :time => (x->x.*60) => :time)
+        else
+            X
+        end
+    end
+
     
     function _functionalize(x::Union{Symbol,Function,Nothing})::Union{Nothing,Function}
         x !== nothing && x isa Symbol ? eval(x) : x
@@ -132,7 +150,7 @@ module Timeshift
                 Filt.precache!(data, beh, filters)
             end
             @debug "filtering"
-            beh  = utils.filter(beh; filters, filter_skipmissingcols=true)[1]
+            beh  = filtreg.filter(beh; filters, filter_skipmissingcols=true)[1]
         end
         grid = grid === nothing ? gridfunc(beh, props; grid_kws...) : grid
         occ  = occ === nothing ? occfunc(beh, grid) : occ
@@ -197,12 +215,6 @@ module Timeshift
         out = Timeshift.DictOfShiftOfUnit{keytype(out)}(out)
         return out
     end
-
-    DictOfShiftOfUnit{T<:Union{<:Real, NamedTuple}} =
-                                            OrderedDict{T, OrderedDict} 
-    AbsDictOfShiftOfUnit =
-                     OrderedDict{<:Union{<:Real, NamedTuple}, OrderedDict} 
-
 
     using Reexport
     include(srcdir("Timeshift", "checkpoint.jl"))

@@ -1,7 +1,7 @@
 module types
 
     import Field
-    import Field.metrics: metric_ban, apply_metric_ban, unstackMetricDF
+    import Field.metrics: metric_ban, apply_metric_ban
     import Table: to_dataframe, vec_arrayofarrays!
     import ..Timeshift: AbsDictOfShiftOfUnit, DictOfShiftOfUnit
 
@@ -111,6 +111,7 @@ module types
                                   for (k,v) in data 
                                   if !(ismissing(v)))
             metricDF = to_dataframe(metrics; key_name="shift", explode=false)
+            @infiltrate
             metricDF = unstackMetricDF(metricDF)
             new(collect(values(data)), shifts, shifts, metricDF)
         end
@@ -118,8 +119,7 @@ module types
         function ShiftedField(data::OrderedDict, shifts::Vector{<:Real}) 
             metrics = OrderedDict(k=>apply_metric_ban(v.metrics) for (k,v) in data
                                   if !(ismissing(v)))
-            metricsDF = to_dataframe(metrics; key_name="shift", explode=false)
-            metricDF  = unstackMetricDF(metricDF)
+            metrics = to_dataframe(metrics; key_name="shift", explode=false)
             new(collect(values(data)), shifts, shifts, metrics)
         end
     end
@@ -129,7 +129,16 @@ module types
                                                           key_name=["shift","property"],
                                                          kws...)
 
-    
+    function unstackMetricDF(df::DataFrame)
+        if :metric ∈ propertynames(df)
+            df = unstack(df, 
+                               :shift, :metric, :value, 
+                               allowduplicates=true)
+            sort!(df, :shift)
+            vec_arrayofarrays!(df)
+        end
+        df
+    end
 
     mutable struct ShiftedFields
         values::Vector{Union{Missing,ShiftedField}}

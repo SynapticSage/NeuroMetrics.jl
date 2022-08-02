@@ -16,6 +16,8 @@ end
 
 # ╔═╡ fc614ab8-00cb-11ed-0f62-f751ef056b39
 # ╠═╡ show_logs = false
+# ╠═╡ disabled = true
+#=╠═╡
 begin
 
 	using DataFrames, DataFramesMeta
@@ -90,6 +92,7 @@ begin
 	datacuts = collect(keys(filts))
 
 end;
+  ╠═╡ =#
 
 # ╔═╡ 0f48f044-fd14-4b15-bf0c-b39c1843f9db
 md"""
@@ -100,6 +103,7 @@ Purpose: This notebook functions to cache shifted fields and shifted field shuff
 
 # ╔═╡ 823b1bff-d922-4c2b-8a50-179af24094bd
 # ╠═╡ show_logs = false
+#=╠═╡
 begin
 
 	@time spikes, beh, ripples, cells = Load.load("RY16", 36);
@@ -115,6 +119,7 @@ begin
     spikes, beh = copy(spikes), copy(beh); GC.gc() 
 
 end;
+  ╠═╡ =#
 
 # ╔═╡ f6add475-5405-42d1-a71c-e309aaf0121e
 md"""
@@ -124,6 +129,7 @@ Running shifting procedure w/:
 """
 
 # ╔═╡ 0bf4d984-bd18-4dd2-905b-04cb5d682556
+#=╠═╡
 begin
 	tab="""
 \\begin{aligned}
@@ -141,6 +147,7 @@ begin
 """;
 	md"$(Markdown.LaTeX(tab))"
 end
+  ╠═╡ =#
 
 # ╔═╡ 698f5a55-2daf-4ca5-9f84-a889a491acc5
 md"""
@@ -148,7 +155,9 @@ md"""
 """
 
 # ╔═╡ 690df6ec-71ec-46cd-8699-960217bd4f06
+#=╠═╡
 filts
+  ╠═╡ =#
 
 # ╔═╡ a0574649-00a6-4883-9a87-0dac3fc5f8a5
 md"""
@@ -161,21 +170,25 @@ Obtain mains checkpoint data
 """
 
 # ╔═╡ 90dfe32b-0930-4067-8936-6f1e1e922a35
+#=╠═╡
 begin
-    #if isfile(Timeshift.mainspath())
-        #I = Timeshift.load_mains()
-        #F = Timeshift.load_fields()
-    #else
+    if isfile(Timeshift.mainspath())
+       I = Timeshift.load_mains()
+       F = Timeshift.load_fields()
+    else
         I = OrderedDict()
         F = OrderedDict()
-    #end
+    end
 	keys(I)
 end
+  ╠═╡ =#
 
 # ╔═╡ c820cf54-fa0a-4112-8e76-8f76839b7a49
 md"## Cache results"
 
 # ╔═╡ 673b09d2-5dd4-4b6c-897e-2fc43f04ab8f
+# ╠═╡ disabled = true
+#=╠═╡
 begin
 
     @progress "Datacut iteration" for datacut ∈ datacuts
@@ -188,11 +201,11 @@ begin
 			if filt === nothing
 				continue
 			end
-    		#if keymessage(I, key); continue; end
+    		if keymessage(I, key); continue; end
             tmp = Timeshift.shifted_fields(beh, spikes, shifts, props; 
                                            shiftbeh=false,
                                            widths, filters=filt, thresh)
-            @infiltrate
+            #@infiltrate
             F[key] = I[key] = tmp
             finished_batch = true
         end
@@ -203,9 +216,12 @@ begin
     end
 
 end
+  ╠═╡ =#
 
 # ╔═╡ 08b1ac9b-58e8-41de-994f-a05609df3b2c
+#=╠═╡
 keys(I)
+  ╠═╡ =#
 
 # ╔═╡ cfb3aaab-2166-43ce-9fdf-586b98fe8272
 md"""
@@ -213,19 +229,27 @@ md"""
 Works for a single key?"""
 
 # ╔═╡ 135856f2-6c6b-4bc4-9e7a-ca678d5e729d
+#=╠═╡
 datacut, props = first(datacuts), first(prop_set)
+  ╠═╡ =#
 
 # ╔═╡ 2f11999f-5d6e-4807-8bce-49791e7a0211
+#=╠═╡
 begin
     marginal=get_shortcutnames(props)
     shifts_tmp = -1:0.1:1
 end
+  ╠═╡ =#
 
 # ╔═╡ ae54aa7a-3afb-43c9-b083-0908b1f02d18
+#=╠═╡
 key = get_key(;marginal, datacut, shifts, widths, thresh)
+  ╠═╡ =#
 
 # ╔═╡ d92dc54e-2ba6-4fa1-bd43-7d06c5d9cb6f
+#=╠═╡
 single_filt = filts[datacut]
+  ╠═╡ =#
 
 # ╔═╡ 93a9beb2-084d-4fe7-937c-39d74740cade
 md"""
@@ -264,7 +288,6 @@ md"""
 """
 
 # ╔═╡ 29497f7b-795e-433f-b772-72191f52dc24
-# ╠═╡ disabled = true
 #=╠═╡
 begin
     if isfile(Timeshift.shufflespath())
@@ -277,6 +300,7 @@ end
   ╠═╡ =#
 
 # ╔═╡ 2696b1df-e52c-497c-b62f-a0932da6c8a4
+# ╠═╡ disabled = true
 #=╠═╡
 begin
 
@@ -308,7 +332,42 @@ end
   ╠═╡ =#
 
 # ╔═╡ eb7eb4ca-6088-487c-9017-6b7988188c20
+md"""
+# Coactivity
 
+Investigating ensemble activity
+"""
+
+# ╔═╡ dace58de-b412-4b42-81b2-515c6d99c66b
+# ╠═╡ disabled = true
+#=╠═╡
+begin
+
+    @showprogress "Datacut iteration" for datacut ∈ datacuts
+        finished_batch = false
+        @showprogress "Props" for props ∈ prop_set
+            marginal = get_shortcutnames(props)
+            key = get_key(;marginal, datacut, shifts, widths, thresh, coact=true)
+            filt = filts[datacut]
+			if filt === nothing
+				continue
+			end
+    		if keymessage(I, key); continue; end
+            tmp = Timeshift.shifted_fields(beh, spikes, shifts, props; 
+                                           shiftbeh=false,
+                                           widths, filters=filt, thresh)
+            #@infiltrate
+            F[key] = I[key] = tmp
+            finished_batch = true
+        end
+        if finished_batch
+            Timeshift.save_fields(F)
+            Timeshift.save_mains(I)
+        end
+    end
+
+end
+  ╠═╡ =#
 
 # ╔═╡ Cell order:
 # ╟─0f48f044-fd14-4b15-bf0c-b39c1843f9db
@@ -339,3 +398,4 @@ end
 # ╠═29497f7b-795e-433f-b772-72191f52dc24
 # ╠═2696b1df-e52c-497c-b62f-a0932da6c8a4
 # ╠═eb7eb4ca-6088-487c-9017-6b7988188c20
+# ╠═dace58de-b412-4b42-81b2-515c6d99c66b

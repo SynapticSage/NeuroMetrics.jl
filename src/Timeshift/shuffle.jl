@@ -5,7 +5,7 @@ module shuffle
     import Field.preset: field_presets, return_preset_funcs
     import Field: adaptive
     import Shuf
-    import Load: utils
+    import Utils: filtreg
     import Filt
 
     using ThreadSafeDicts
@@ -69,7 +69,7 @@ module shuffle
                 @time data = Filt.precache(data, beh, filters)
             end
             @info "shuffle data pre filtering"
-            @time beh  = utils.filter(beh; filters, filter_skipmissingcols=true)[1]
+            @time beh  = filtreg.filter(beh; filters, filter_skipmissingcols=true)[1]
             get_field_kws = (;get_field_kws..., filters=nothing)
         end
 
