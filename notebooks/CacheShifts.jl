@@ -332,11 +332,27 @@ end
   ╠═╡ =#
 
 # ╔═╡ eb7eb4ca-6088-487c-9017-6b7988188c20
-md"""
-# Coactivity
+begin
+    # 161.784234 seconds 
+	@time _, coact = Load.register(beh, coact; transfer=["velVec"], on="time");
+	if shuffle_type == :dotson
+        # 238.822833 seconds 
+	    @time _, coact = Load.register(beh, coact;
+	                             transfer=["trajreltime","trajreltime_bin"],
+	                             on="time");
+	end
 
-Investigating ensemble activity
-"""
+    import Field: metrics
+    metric_def = [metrics.bitsperspike, metrics.totalcount, metrics.maxrate,
+                  metrics.maxcount, metrics.meanrate, metrics.coherence,
+                  metrics.centroid, metrics.argmax]
+
+    md"""
+    # Coactivity
+
+    Investigating ensemble activity
+    """
+end
 
 # ╔═╡ dace58de-b412-4b42-81b2-515c6d99c66b
 # ╠═╡ disabled = true
@@ -347,23 +363,25 @@ begin
         finished_batch = false
         @showprogress "Props" for props ∈ prop_set
             marginal = get_shortcutnames(props)
-            key = get_key(;marginal, datacut, shifts, widths, thresh, coact=true)
+            key = get_key(;marginal, datacut, shifts, widths, thresh, 
+                           coactivity=true)
             filt = filts[datacut]
 			if filt === nothing
 				continue
 			end
     		if keymessage(I, key); continue; end
-            tmp = Timeshift.shifted_fields(beh, spikes, shifts, props; 
+            @time tmp = Timeshift.shifted_fields(beh, coact, shifts, props; 
                                            shiftbeh=false,
+                                           metricfuncs=metric_def,
                                            widths, filters=filt, thresh)
             #@infiltrate
             F[key] = I[key] = tmp
             finished_batch = true
         end
-        if finished_batch
-            Timeshift.save_fields(F)
-            Timeshift.save_mains(I)
-        end
+        #if finished_batch
+        #    Timeshift.save_fields(F)
+        #    Timeshift.save_mains(I)
+        #end
     end
 
 end

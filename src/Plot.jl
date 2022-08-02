@@ -11,7 +11,6 @@ module Plot
     function save(desc::String)
         core = plotsdir(folder_args..., desc)
         names = [join([core, ext], ".") for ext in exts]
-        @infiltrate
         for name in names
             @info "saving" name
             savefig(name)
@@ -19,7 +18,7 @@ module Plot
         Plots.CURRENT_PLOT
     end
     function save(desc::NamedTuple; linker="=>", delim=",")
-        desc = ["$(k)$(linker)$(v)" for (k,v) in desc]
+        desc = ["$(k)$(linker)$(v)" for (k,v) in zip(keys(desc),values(desc))]
         desc = join(desc, delim)
         save(desc)
     end
@@ -40,4 +39,5 @@ module Plot
     @reexport using .table
 
     export raster, table
+
 end

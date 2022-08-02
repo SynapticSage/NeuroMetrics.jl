@@ -8,6 +8,7 @@ module metrics
     import ..Field
     import ..Field: ReceptiveField, Grid
     import Table
+    import Table: vec_arrayofarrays!
     import Utils
     import Load.utils: register
     import Load: keep_overlapping_times
