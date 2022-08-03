@@ -169,7 +169,7 @@ badd +16 src/Load/spikes.jl
 badd +2 src/Load/behavior.jl
 badd +8 src/Load/ripples.jl
 badd +4 src/Load/utils.jl
-badd +3 src/Timeshift.jl
+badd +1 src/Timeshift.jl
 badd +219 src/Timeshift/checkpoint.jl
 badd +109 src/Table/convert_types.jl
 badd +359 src/Table.jl
@@ -185,7 +185,7 @@ badd +1 scripts/timeshift/plot_examine_set_of_fields.jl
 badd +3 src/Table/group.jl
 badd +191 src/Timeshift/operation.jl
 badd +23 src/Plot/timeshift.jl
-badd +15 src/Plot.jl
+badd +14 src/Plot.jl
 badd +2 src/Plot/raster.jl
 badd +1 src/Plot/table.jl
 badd +20 src/Munge.jl
@@ -198,15 +198,15 @@ badd +15 src/Load/task.jl
 badd +5 src/Munge/task.jl
 badd +1 scripts/fields/PlaceField.jl
 badd +69 _research/test_enforce_bound.jl
-badd +26 src/Field/adaptive.jl
-badd +26 ~/tmp.jl
+badd +339 src/Field/adaptive.jl
+badd +2 ~/tmp.jl
 badd +20 src/Precompile.jl
 badd +74 src/Timeshift/shuffle.jl
 badd +11497 ~/.cache/nvim/lsp.log
 badd +18 src/Field/fixed.jl
 badd +2 src/Utils/plot.jl
 badd +290 src/Shuf.jl
-badd +1 src/Filt.jl
+badd +179 src/Filt.jl
 badd +8 src/Field/model.jl
 badd +1 src/Field/operation.jl
 badd +1 _research/tensor_test.jl
@@ -222,12 +222,12 @@ badd +1 src/Timeshift/crossval.jl
 badd +89 notebooks/TimeshiftDiff.jl
 badd +31 src/Munge/chrono.jl
 badd +11 src/Utils/macros.jl
-badd +368 notebooks/CacheShifts.jl
+badd +209 notebooks/CacheShifts.jl
 badd +19 scripts/timeshift/TimeShift_setsOfInterest.jl
 badd +1 src/Plot/rf.jl
 badd +114 src/Timeshift/types.jl
 badd +118 notebooks/Examine_LoadMains.jl
-badd +193 src/Utils.jl
+badd +57 src/Utils.jl
 badd +25 src/Munge/tensor.jl
 badd +3 src/Munge/spikes.m
 badd +79 src/Munge/spiking.jl
@@ -242,8 +242,8 @@ badd +1 scripts/decode/InitializeCairo.jl
 badd +1 src/Table/smooth.jl
 badd +1 src/Field/coactivity.jl
 badd +1 src/Field/recon.jl
-badd +31 src/Plot/receptivefield.jl
-badd +8 _research/test_coactivity.jl
+badd +61 src/Plot/receptivefield.jl
+badd +133 _research/test_coactivity.jl
 badd +288 ~/.julia/packages/StatsBase/OpnQp/src/signalcorr.jl
 badd +1 notebooks/ExamineCoactivity.jl
 badd +1 src/Table/clean.jl
@@ -254,12 +254,12 @@ badd +8 scripts/timeshift/make_dataframes.jl
 badd +2 intro.jl
 badd +5 src/Table/columntype.jl
 badd +1 src/Plot/old_rf.jl
-badd +160 ~/Code/projects/goal-code/src/Timeshift/shiftmetrics.jl
+badd +167 ~/Code/projects/goal-code/src/Timeshift/shiftmetrics.jl
 argglobal
 %argdel
-edit notebooks/CacheShifts.jl
+edit ~/tmp.jl
 argglobal
-balt src/Field/adaptive.jl
+balt src/Utils.jl
 let s:l = 1 - ((0 * winheight(0) + 20) / 40)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l

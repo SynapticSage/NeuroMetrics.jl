@@ -54,7 +54,7 @@ module Utils
         println(Dict(key=>mean(isnan.(x)) for (key,x) in X))
     end
 
-    function norm_extrema(x::Vector{T1}, minmax::Union{Vector{T2},Tuple{T2, T2}}) where
+    function norm_extrema(x::AbstractArray{T1}, minmax::Union{Vector{T2},Tuple{T2, T2}}) where
         T1 <: Real where T2 <: Real
         if minmax isa Tuple
             minmax = [minmax...]
@@ -65,6 +65,27 @@ module Utils
             x = (x .- minimum(x))./(maximum(x) - minimum(x))
             x = x .* diff(minmax) .+ minmax[1]
         end
+    end
+
+    function norm_extrema(x::AbstractArray{T1}, minmax::Union{Vector{T2},Tuple{T2, T2}}) where
+        T1 <: Real where T2 <: Real
+        if minmax isa Tuple
+            minmax = [minmax...]
+        end
+        if minmax[2] == minmax[1]
+            x = minmax[1] * ones(size(x))
+        else
+            x = (x .- minimum(x))./(maximum(x) - minimum(x))
+            x = x .* diff(minmax) .+ minmax[1]
+        end
+    end
+
+    function norm_percent(x::AbstractArray{T1}, quant::Real) where T1 <: Real 
+        Q = any(isnan.(x)) ? nanquantile(x, quant) : quantile(x,quant)
+        (x.-Q)./maximum(x) * 100
+    end
+    function norm_percent(x::AbstractArray{T1}) where T1 <: Real 
+        x./maximum(x) * 100
     end
 
     function in_range(X::AbstractArray, range::Union{Tuple, Vector})

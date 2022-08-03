@@ -165,7 +165,7 @@ module Filt
         end
     end
     function groupby_summary_condition_column!(df::DataFrame, splitby,
-            summary_condition, combine_args...; name=:condition,
+            summary_condition::Function, combine_args...; name=:condition,
             store_summary_stats::Bool=false)::DataFrame
         columns = names(df)
         if splitby isa Vector{Symbol} || splitby isa Symbol

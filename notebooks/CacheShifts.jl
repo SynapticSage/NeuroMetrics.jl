@@ -176,8 +176,8 @@ begin
        I = Timeshift.load_mains()
        F = Timeshift.load_fields()
     else
-        I = OrderedDict()
-        F = OrderedDict()
+        I = OrderedDict{NamedTuple, Any}()
+        F = OrderedDict{NamedTuple, Any}()
     end
 	keys(I)
 end
@@ -191,6 +191,7 @@ md"## Cache results"
 #=╠═╡
 begin
 
+    statfile = datadir("exp_pro", "timeshift", "cachelog.txt")
     @progress "Datacut iteration" for datacut ∈ datacuts
         finished_batch = false
         for props ∈ prop_set
@@ -205,6 +206,12 @@ begin
             tmp = Timeshift.shifted_fields(beh, spikes, shifts, props; 
                                            shiftbeh=false,
                                            widths, filters=filt, thresh)
+            stat = DataFrame(OrderedDict(
+            "key" => string(key),
+            "time_ns" => TimerOutputs.todict(to)["inner_timers"]["timeshift"]["time_ns"],
+            "total_time_ns" => TimerOutputs.todict(to)["inner_timers"]["timeshift"]["total_time_ns"]
+            ))
+            CSV.write(statfile, stat; delim=";", append=(isfile(statfile) ? true : false))
             #@infiltrate
             F[key] = I[key] = tmp
             finished_batch = true
@@ -304,28 +311,35 @@ end
 #=╠═╡
 begin
 
+    statfile = datadir("exp_pro", "timeshift", "cachelog.txt")
     @showprogress "Datacut iteration" for datacut ∈ datacuts
         finished_batch = false
         @showprogress "Props" for props ∈ prop_set
-            marginal = get_shortcutnames(props)
-            key = get_key(;marginal, datacut, shifts, widths, thresh)
-            filt = filts[datacut]
-    		#if keymessage(S, key); continue; end
-            if key ∈ keys(S)
+                marginal = get_shortcutnames(props)
+                key = get_key(;marginal, datacut, shifts, widths, thresh)
+                filt = filts[datacut]
+                #if keymessage(S, key); continue; end
+                if key ∈ keys(S)
                 result_dict = S[key]
-            else
+                else
                 result_dict = OrderedDict{NamedTuple, Any}()
-            end
-            @time S[key] = Timeshift.shuffle.shifted_field_shuffles(beh, spikes,
+                end
+                @time S[key] = Timeshift.shuffle.shifted_field_shuffles(beh, spikes,
                             shifts, props; fieldpreset=:yartsev,
                             shufflepreset=shuffle_type, nShuffle=100,
                             widths, thresh, shiftbeh=false, filters=filt,
                             result_dict)
-            finished_batch = true
-        end
-        if finished_batch
-            Timeshift.save_shuffles(S)
-        end
+                stat = DataFrame(OrderedDict(
+                "key" => string(key),
+                "time_ns" => TimerOutputs.todict(to)["inner_timers"]["timeshift"]["time_ns"],
+                "total_time_ns" => TimerOutputs.todict(to)["inner_timers"]["timeshift"]["total_time_ns"]
+                ))
+                CSV.write(statfile, stat; delim=";", append=(isfile(statfile) ? true : false))
+                finished_batch = true
+            end
+            if finished_batch
+                Timeshift.save_shuffles(S)
+            end
     end
 
 end
@@ -333,7 +347,9 @@ end
 
 # ╔═╡ eb7eb4ca-6088-487c-9017-6b7988188c20
 begin
+
     # 161.784234 seconds 
+    coact = Load.load_table_at_path("/home/ryoung/Projects/goal-code/data/exp_pro/RY16_36_coactivity.arrow", "arrow"); coact = copy(coact); GC.gc()
 	@time _, coact = Load.register(beh, coact; transfer=["velVec"], on="time");
 	if shuffle_type == :dotson
         # 238.822833 seconds 
@@ -346,7 +362,7 @@ begin
     metric_def = [metrics.bitsperspike, metrics.totalcount, metrics.maxrate,
                   metrics.maxcount, metrics.meanrate, metrics.coherence,
                   metrics.centroid, metrics.argmax]
-
+    props, datacut = first(prop_set), first(datacuts)
     md"""
     # Coactivity
 
@@ -359,6 +375,7 @@ end
 #=╠═╡
 begin
 
+    statfile = datadir("exp_pro", "timeshift", "cachelog.txt")
     @showprogress "Datacut iteration" for datacut ∈ datacuts
         finished_batch = false
         @showprogress "Props" for props ∈ prop_set
@@ -372,10 +389,17 @@ begin
     		if keymessage(I, key); continue; end
             @time tmp = Timeshift.shifted_fields(beh, coact, shifts, props; 
                                            shiftbeh=false,
+                                           prog_fields=true,
                                            metricfuncs=metric_def,
                                            widths, filters=filt, thresh)
             #@infiltrate
             F[key] = I[key] = tmp
+            stat = DataFrame(OrderedDict(
+            "key" => string(key),
+            "time_ns" => TimerOutputs.todict(to)["inner_timers"]["timeshift"]["time_ns"],
+            "total_time_ns" => TimerOutputs.todict(to)["inner_timers"]["timeshift"]["total_time_ns"]
+            ))
+            CSV.write(statfile, stat; delim=";", append=(isfile(statfile) ? true : false))
             finished_batch = true
         end
         #if finished_batch

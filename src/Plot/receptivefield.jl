@@ -14,12 +14,9 @@ module receptivefield
     import TextWrap
     using Infiltrator
     
-
-
-
     @recipe function plot_adaptiverf(field::ReceptiveField, val::Symbol=:rate;
             ztransform::Bool=false, mfunc::Function=nanmean,
-            sfunc::Function=nanstd, title_width=40)
+            sfunc::Function=nanstd, title_width=40, transpose::Bool=true)
         seriestype --> :heatmap
         title --> TextWrap.wrap(string(field.metrics), width=title_width)
         X = [field.grid.centers[1]...]
@@ -36,11 +33,11 @@ module receptivefield
             colorbar_title --> String(val)
         end
 
-        (X, Y, Z')
+        transpose ? (Y, X, Z) : _transpose(Y,X,Z)
     end
 
     @recipe function plot_adaptiveocc(field::T where T<:Occupancy,
-            val::Symbol=:prob)
+            val::Symbol=:prob, transpose::Bool=true)
         seriestype --> :heatmap
         colorbar_title --> String(val)
         seriestype --> :heatmap
@@ -53,11 +50,13 @@ module receptivefield
         z := if val==:prob
             (X, Y, reshape(getproperty(field, val), size(field.grid))')
         else
-            (X, Y, getproperty(grid, val)')
+            (Y, X, getproperty(grid, val))
         end
+        transpose ? (X,Y,Z') : _transpose(X,Y,Z')
     end
 
-    @recipe function plot_adaptivegrid(grid::GridAdaptive, val::Symbol=:radii)
+    @recipe function plot_adaptivegrid(grid::GridAdaptive, val::Symbol=:radii,
+        transpose::Bool=true)
         colorbar_title --> String(val)
         seriestype --> :heatmap
         c --> :thermal
@@ -71,7 +70,11 @@ module receptivefield
         if eltype(Z) == Vector
             Z = reshape([sqrt(sum(z.^2)) for z in Z], size(Z))
         end
-        (X, Y, Z')
+        transpose ? (X,Y,Z') : _transpose(X,Y,Z')
+    end
+
+    function _transpose(X, Y, Z)
+        (Y,X,Z')
     end
 
 

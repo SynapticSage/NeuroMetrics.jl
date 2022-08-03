@@ -4,11 +4,13 @@ module shiftmetrics
     using DataFrames
     using Infiltrator
     using Statistics
+    using AxisArrays
+    import Utils
 
     FieldObj = Union{ShiftedField, ShiftedFields}
-    TableObj = Union{DataFrame,GroupedDataFrame}
+    TableObj = Union{DataFrame,GroupedDataFrame, AbstractDataFrame}
 
-    export derivative, best_tau!, best_metric!, worst_tau!, worst_metric!
+    export derivative!, best_tau!, best_metric!, worst_tau!, worst_metric!
 
 # =================================================================
 #                      ,---.          |             |         
@@ -27,12 +29,15 @@ module shiftmetrics
         metricapply!(ShiftedFields(shiftedfields), lambda; kws...)
     end
     function metricapply!(shiftedfields::ShiftedFields, lambda::Function; kws...)
-        metrics = shiftedfields.metrics
+        metricapply!(shiftedfields.metrics, lambda; kws...)
+        shiftedfields
+    end
+    function metricapply!(metrics::AbstractDataFrame, lambda::Function; kws...)
         G = groupby(metrics, :unit)
         for unit in G
             unit = lambda(unit; kws...)
         end
-        shiftedfields
+        metrics
     end
     function metricapply!(shiftedfield::ShiftedField, lambda::Function; kws...)
         metrics = shiftedfield.metrics
@@ -90,7 +95,7 @@ module shiftmetrics
     """
     function best_metric!(table::TableObj; metric)
         target = Symbol("best_" * String(metric))
-        max_ = max(table[:, metric])
+        max_ = maximum(table[:, metric])
         table[!, target] .= max_
     end
     function best_metric!(field::FieldObj; metric)
@@ -105,7 +110,7 @@ module shiftmetrics
     """
     function worst_metric!(table::TableObj; metric)
         target = Symbol("worst_" * String(metric))
-        min_ = min(table[:, metric])
+        min_ = minimum(table[:, metric])
         table[!, target] .= min_
     end
     function worst_metric!(field::FieldObj; metric)
@@ -147,18 +152,52 @@ module shiftmetrics
                                                    [:unit])), 
                                               x->x[x.shift.==0, :])
 
-    function getstatmat(shiftedfields::DictOfShiftOfUnit, stat)
-        getstatmat(ShiftedFields(shiftedfields), stat)
+    function getstatmat(shiftedfields::DictOfShiftOfUnit, stat; kws...)
+        getstatmat(ShiftedFields(shiftedfields), stat; kws...)
     end
-    function getstatmat(shiftedfields::ShiftedFields, stat;
-            filtval=nothing, othercols=[], sortby=[])
-        sfm = copy(shiftedfields.metrics)
+    function getstatmat(shiftedfields::ShiftedFields, stat; kws...)
+        getstatmat(shiftedfields, stat; kws...)
+    end
+    function getstatmat(sfm::DataFrame, stat;
+            filtval=nothing, othercols=[], sortby=[], 
+            rangenorm::Vector=[],
+            percentnorm::Union{Nothing,Real}=nothing,
+            unitnoskip::Bool=false,
+            asmat::Bool=false)
+        sfm = copy(sfm)
+        stat = Symbol(stat)
+        sortby = Symbol.(sortby)
         if filtval !== nothing
-            sfm = sfm[sfm[!,stat] .!= filtval, :]
+            if filtval === NaN
+                sfm = sfm[(!).(isnan.(sfm[!,stat])), :]
+            else
+                sfm = sfm[sfm[!,stat] .!= filtval, :]
+            end
+
         end
         rows = unique([:unit, othercols..., sortby...])
-        !(isempty(sortby)) ? sort(unstack(sfm, rows, :shift, stat), sortby) :
-                             unstack(sfm, rows, :shift, stat)
+        if !(isempty(rangenorm))
+            normfunc = x->Utils.norm_extrema(x, rangenorm)
+            sfm = combine(groupby(sfm, :unit), stat => normfunc => stat,
+                         rows .=> rows, :shift => :shift)
+        end
+        if percentnorm !== nothing
+            normfunc = x->Utils.norm_percent(x, percentnorm)
+            sfm = combine(groupby(sfm, :unit), stat => normfunc => stat,
+                         rows .=> rows, :shift => :shift)
+        end
+        out = !(isempty(sortby)) ? sort(unstack(sfm, rows, :shift, stat), sortby) :
+                                   unstack(sfm, rows, :shift, stat)
+        if asmat
+            unit = unitnoskip ? collect(1:length(out.unit)) : out.unit
+            shifts = parse.(Float32, names(out[:, Not(rows)]))
+            axs = [Axis{:unit}(unit), Axis{:shift}(shifts)]
+            dat = Matrix(out[:, Not(rows)])
+            #@info "ax" axs size(dat) shifts
+            out = AxisArray(dat, axs...)
+        else
+            out
+        end
     end
 
 end

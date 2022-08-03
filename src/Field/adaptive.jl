@@ -309,7 +309,9 @@ module adaptive
             metrics::Union{Function, Vector{Function}, Nothing}=metric_def, 
             thread_field::Bool=thread_field_default,
             thread_fields::Bool=thread_fields_default,
+            prog_fields::Bool=false,
             grid_kws...)::Union{AdaptiveFieldDict, AdaptiveRF}
+        @info "yartsev" prog_fields
         if filters !== nothing
             if Filt.filters_use_precache(filters) &&
                 Filt.missing_precache_output_cols(spikes, filters)
@@ -336,17 +338,22 @@ module adaptive
         @info "dropmissing"
         @time spikes = dropmissing(spikes, props)
         @info "fields"
-        @time yartsev(spikes, grid, occ; splitby, metrics, grid_kws...)
+        @time yartsev(spikes, grid, occ; splitby, metrics,
+                      prog_fields, thread_field, thread_fields,
+                      grid_kws...)
     end
     function yartsev(spikes::DataFrame, grid::GridAdaptive, occ::AdaptiveOcc;
             splitby::CItype=[:unit],
             metrics::Union{Function, Vector{Function}, Nothing}=metric_def,
             thread_field::Bool=thread_field_default,
             thread_fields::Bool=thread_fields_default,
+            prog_fields::Bool=false,
             grid_kws...)::Union{AdaptiveFieldDict, AdaptiveRF}
 
+        @info "yartsev" prog_fields
         get_adaptivefields(groupby(spikes, splitby), grid, occ;
-                                    metrics, thread_field, thread_fields)
+                                    prog_fields, metrics, thread_field,
+                                    thread_fields)
     end
 
     """
@@ -358,10 +365,13 @@ module adaptive
     function get_adaptivefields(spikeGroups::GroupedDataFrame, 
             grid::GridAdaptive, occ::AdaptiveOcc; 
             thread_fields::Bool=thread_fields_default,
+            prog_fields::Bool=false,
             metrics::Union{Function, Vector{Function}, Nothing}=metric_def,
         kws...)::AdaptiveFieldDict
+        @infiltrate
         keys_and_groups = collect(zip(Table.group.nt_keys(spikeGroups),
                                       spikeGroups))
+        @info "get_adaptivefields" prog_fields
         if thread_fields
             D = ThreadSafeDict{NamedTuple, AdaptiveRF}()
             Threads.@threads for (nt, group) in keys_and_groups
@@ -370,8 +380,11 @@ module adaptive
             D = OrderedDict(D)
         else
             D = OrderedDict{NamedTuple, AdaptiveRF}()
+            prog = prog_fields ? Progress(length(keys_and_groups),
+                                                  desc="adaptive fields") : nothing
             for (nt, group) in keys_and_groups
                 D[nt] = get_adaptivefield(DataFrame(group), grid, occ; metrics, kws...)
+                prog_fields ? next!(prog) : nothing
             end
         end
         return D

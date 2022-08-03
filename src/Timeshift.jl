@@ -116,11 +116,14 @@ module Timeshift
             multi::Union{Bool, Symbol}=true,
             result_dict::AbstractDict=OrderedDict(),
             progress::Bool=true,
+            prog_fields::Bool=false,
             shiftbeh::Bool=true,
             thread_field::Bool=adaptive.thread_field_default,
             thread_fields::Bool=adaptive.thread_fields_default,
             overwrite_precache::Bool=false,
             grid_kws...)::OrderedDict
+
+        @info "Timeshift" prog_fields
 
         # Process preset options
         if fieldpreset !== nothing
@@ -170,13 +173,13 @@ module Timeshift
                 shift = shift == 0 ? shift : shift * (-1)
                 beh= σ(beh, shift) 
                 @debug "register"
-                beh, data = utils.register(beh, data; on="time",
+                beh, data = filtreg.register(beh, data; on="time",
                                               transfer=grid.props)
             else
                 @debug "Shifting spike"
                 data = σ(data, shift)
                 @debug "register"
-                beh, data = utils.register(beh, data; on="time",
+                beh, data = filtreg.register(beh, data; on="time",
                                               transfer=grid.props)
             end
             if shift ∈ keys(result_dict)
@@ -187,6 +190,7 @@ module Timeshift
                 push!(result_dict, shift =>
                             fieldfunc(data, grid, occ;
                                       splitby, metrics=metricfuncs,
+                                      prog_fields,
                                       filters=nothing,
                                       thread_field, thread_fields)
                            )
@@ -207,12 +211,10 @@ module Timeshift
         end
         shiftbeh ? reset_shift!(beh) : reset_shift!(data)
 
-        #result_dict = Dict(result_dict...)
-        out = OrderedDict(
-                          key=>pop!(result_dict, key) 
-                          for key in sort([keys(result_dict)...])
-                         )
+        out = OrderedDict(key=>pop!(result_dict, key) 
+                          for key in sort([keys(result_dict)...]))
         out = Timeshift.DictOfShiftOfUnit{keytype(out)}(out)
+
         return out
     end
 
