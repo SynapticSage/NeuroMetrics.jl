@@ -26,22 +26,24 @@ module shiftmetrics
                                
 
     function metricapply!(shiftedfields::DictOfShiftOfUnit, lambda::Function; kws...)
+        @infiltrate
         metricapply!(ShiftedFields(shiftedfields), lambda; kws...)
     end
     function metricapply!(shiftedfields::ShiftedFields, lambda::Function; kws...)
         metricapply!(shiftedfields.metrics, lambda; kws...)
         shiftedfields
     end
-    function metricapply!(metrics::AbstractDataFrame, lambda::Function; kws...)
-        G = groupby(metrics, :unit)
+    function metricapply!(metricDF::AbstractDataFrame, lambda::Union{Symbol,Function}; kws...)
+        lambda = lambda isa Symbol ? eval(lambda) : key_lambda
+        G = groupby(metricDF, :unit)
         for unit in G
             unit = lambda(unit; kws...)
         end
-        metrics
+        metricDF
     end
     function metricapply!(shiftedfield::ShiftedField, lambda::Function; kws...)
-        metrics = shiftedfield.metrics
-        lambda(metrics; kws...)
+        metricDF = shiftedfield.metrics
+        lambda(metricDF; kws...)
         shiftedfield
     end
 
@@ -155,9 +157,11 @@ module shiftmetrics
     function getstatmat(shiftedfields::DictOfShiftOfUnit, stat; kws...)
         getstatmat(ShiftedFields(shiftedfields), stat; kws...)
     end
+
     function getstatmat(shiftedfields::ShiftedFields, stat; kws...)
         getstatmat(shiftedfields, stat; kws...)
     end
+
     function getstatmat(sfm::DataFrame, stat;
             filtval=nothing, othercols=[], sortby=[], 
             rangenorm::Vector=[],
@@ -186,6 +190,7 @@ module shiftmetrics
             sfm = combine(groupby(sfm, :unit), stat => normfunc => stat,
                          rows .=> rows, :shift => :shift)
         end
+        @infiltrate
         out = !(isempty(sortby)) ? sort(unstack(sfm, rows, :shift, stat), sortby) :
                                    unstack(sfm, rows, :shift, stat)
         if asmat

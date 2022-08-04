@@ -31,10 +31,12 @@ module Timeshift
     export ShiftedField, ShiftedFields, DictOfShiftOfUnit
     export shift_func!, reset_shift!
 
-    DictOfShiftOfUnit{T<:Union{<:Real, NamedTuple}} =
-                                            OrderedDict{T, OrderedDict} 
-    AbsDictOfShiftOfUnit =
-                     OrderedDict{<:Union{<:Real, NamedTuple}, OrderedDict} 
+    if !isdefined(Timeshift, :DictOfShiftOfUnit)
+        DictOfShiftOfUnit{T<:Union{<:Real, NamedTuple}} =
+                                                OrderedDict{T, OrderedDict} 
+        AbsDictOfShiftOfUnit =
+                         OrderedDict{<:Union{<:Real, NamedTuple}, OrderedDict} 
+    end
 
     function isminutes(X::DataFrame)
         Utils.dextrema(X.time)[1] < 1440.0 # assumes less than 24 hour recording

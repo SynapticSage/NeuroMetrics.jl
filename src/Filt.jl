@@ -204,6 +204,29 @@ module Filt
         end
     end
 
+    """
+        filtergroup
+
+    filters groups/bundles of splits by a functoin computed per group. each
+    pair is a column selector => function that evaluates of the whole group.
+    """
+    function filtergroup!(df::DataFrame, split, pairs::Pair...)
+        function filtrations(x)
+            answer = trues(size(df,1), 1)
+            for (col, lambda) in pairs
+                answer .&= lambda(df[!, col])
+            end
+            answer
+        end
+        cols = [col for (col, lambda) in pairs]
+
+        Filt.groupby_summary_condition_column!(df, split, filtrations, cols...)
+        deleteat!(df, df.condition .!= true)
+    end
+    filtercells(df::DataFrame, split, pairs::Pair...) = filtercells!(copy(df), split, pairs...)
+    cellfilter!(df::DataFrame, pairs::Pair...) = filtergroup!(df, :unit, pairs...)
+    cellfilter(df::DataFrame, pairs::Pair...) = filtergroup(df, :unit, pairs...)
+
     # Create a set of predefined filter combinations
     function get_filters()
         initial = merge(speed_lib, spikecount)
