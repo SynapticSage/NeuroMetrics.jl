@@ -11,8 +11,8 @@ module Load
     using Printf
     using ProgressMeter
     using Glob
-    using Infiltrator
     using Colors
+    using Infiltrator
 
     # Fetch maze internal imports
     import Utils
@@ -85,6 +85,10 @@ module Load
     pxtocm(x) = 0.1487 * x
     cmtopx(x) = x / 0.1487 
     default_set = ["spikes", "behavior", "ripples", "cells"]
+    min_time_records = [] # variable records minimum time of the most recent load
+    function _set_mintime!(m::Real)
+        push!(min_time_records, m)
+    end
 
     function normalize(data, time, data_source, mintime=nothing)
         # Determine a time normalizing function
@@ -113,6 +117,8 @@ module Load
     day : Int
         Integer of the day
 
+    data_source : optional
+        which sources of data to load
 
     ======
     Output
@@ -146,6 +152,8 @@ module Load
                 data[source].time, m = normalize(data, data[source].time, data_source, m);
             end
         end
+        @infiltrate
+        _set_mintime!(m)
 
         # How do we return, dict or tuple?
         if as == "tuple"
