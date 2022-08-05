@@ -152,7 +152,6 @@ module Load
                 data[source].time, m = normalize(data, data[source].time, data_source, m);
             end
         end
-        @infiltrate
         _set_mintime!(m)
 
         # How do we return, dict or tuple?

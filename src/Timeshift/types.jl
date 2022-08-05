@@ -8,6 +8,7 @@ module types
     using DataFrames
     using DataStructures: OrderedDict
     using Missings
+    using AxisArrays
     using Infiltrator
 
     export ShiftedField, ShiftedFields
@@ -150,13 +151,45 @@ module types
             new(collect(values(fields)), collect(keys(fields)), to_dataframe(metrics))
         end
     end
-    function Base.getindex(SFs::ShiftedFields, i::Real) 
+
+    function getunits(sfs::ShiftedFields)
+        sfs.keys
+    end
+    function getshifts(sfs::ShiftedFields)
+        sfs[first(sfs.keys)].keys
+    end
+
+    function Base.getindex(SFs::ShiftedFields, unit::Real) 
         D = OrderedDict(SFs)
         D[keymatch_topcomponent(D, i)]
     end
+    function Base.getindex(SFs::ShiftedFields, unit::NamedTuple) 
+        SFs.values[SFs.keys .== unit]
+    end
+    function Base.getindex(SFs::ShiftedFields, unit::NamedTuple, shift::Real) 
+        SFs[unit][shift]
+    end
+
     OrderedDict(SF::ShiftedFields)   = OrderedDict(zip(SF.keys, SF.values))
     Base.Dict(SF::ShiftedFields)     = OrderedDict(zip(SF.keys, SF.values))
     to_dataframe(SFs::ShiftedFields; kws...) = to_dataframe(Dict(SFs);
                                                            kws...)
+
+    """
+    Creates a tensor of the rate code
+    """
+    function blockform(sfs::ShiftedFields)::AxisArray
+        units, shifts = getunits(sfs), getshifts(sfs)
+
+        T = Array{Array,2}(undef, length(units), length(shifts))
+        for (u, unit) in enumerate(units)
+            for (s, shift) in enumerate(shifts)
+                val = sfs[unit, shift].rate
+                selector = [Utils.na, Utils.na, (Colon() for i in 1:ndims(val))...]
+                T[u,s] = val[selector...]
+            end
+        end
+        T
+    end
 
 end

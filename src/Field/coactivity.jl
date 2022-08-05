@@ -18,7 +18,8 @@ import Utils
             for t = 1:chunk:length(u1.time)
                 events_n1 = u1.time[t:min(t+chunk,length(u1.time))]
                 e = extrema(events_n1)
-                events_n2 = u2.time[Utils.in_range(u2.time, [e[1]-thresh, e[2]+thresh])]
+                events_n2 = u2.time[Utils.in_range(u2.time,
+                                                   [e[1]-thresh, e[2]+thresh])]
                 Δ = abs.(events_n1 .- events_n2[:,:]')
                 hits = findall(Δ .< thresh)
                 append!(events,
@@ -84,6 +85,30 @@ import Utils
     function units_from_crosscorr()
     end
 
+
+    """
+    """
+    function coactivecelldict(coact::DataFrame)::Dict
+        units = unique(coact.unit)
+        C = Dict{Int, Tuple{Int,Int,String}}() 
+        for unit in units
+            unit1, unit2, area = coact[findfirst(coact.unit .== unit),
+                                 [:unit1, :unit2, :area]]
+            C[unit] = (unit1, unit2, area)
+        end
+        C
+    end
+
+    function coactivecelltable(celldict::Dict)::DataFrame
+        K = collect(keys(celldict))
+        Vunit = hcat([[x,y] for (x,y,z) in values(celldict)]...)'
+        Varea = [z for (x,y,z) in values(celldict)]
+        D =OrderedDict(:unit => K, :unit1 => Vunit[:,1], :unit2 => Vunit[:,2],
+                    :area => area)
+        DataFrame(D)
+    end
+    coactivecelltable(coact::DataFrame)::DataFrame = 
+        coactivecelltable(coactivecelldict(coact))
 
 
 end

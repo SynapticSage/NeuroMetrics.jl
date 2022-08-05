@@ -190,7 +190,6 @@ module shiftmetrics
             sfm = combine(groupby(sfm, :unit), stat => normfunc => stat,
                          rows .=> rows, :shift => :shift)
         end
-        @infiltrate
         out = !(isempty(sortby)) ? sort(unstack(sfm, rows, :shift, stat), sortby) :
                                    unstack(sfm, rows, :shift, stat)
         if asmat

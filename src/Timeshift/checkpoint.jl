@@ -143,7 +143,7 @@ module checkpoint
 
 
     function save_fields(M::AbstractDict; overwrite::Bool=false)
-        if any(x->x .=== nothing, values(M))
+        if any(x->x === nothing, values(M))
             M = typeof(M)(k=>v for (k,v) in M if v !== nothing)
         end
         name = fieldspath()

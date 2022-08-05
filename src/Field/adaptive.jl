@@ -368,7 +368,6 @@ module adaptive
             prog_fields::Bool=false,
             metrics::Union{Function, Vector{Function}, Nothing}=metric_def,
         kws...)::AdaptiveFieldDict
-        @infiltrate
         keys_and_groups = collect(zip(Table.group.nt_keys(spikeGroups),
                                       spikeGroups))
         @info "get_adaptivefields" prog_fields
