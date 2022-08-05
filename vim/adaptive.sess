@@ -175,7 +175,7 @@ badd +163 src/Timeshift/checkpoint.jl
 badd +109 src/Table/convert_types.jl
 badd +359 src/Table.jl
 badd +9 src/Utils/dict.jl
-badd +132 src/Utils/namedtup.jl
+badd +222 src/Utils/namedtup.jl
 badd +1 src/Timeshift/Keys.jl
 badd +12 src/GoalFetchAnalysis.jl
 badd +1 scripts/timeshift/plot_experiment_with_data.jl
@@ -226,7 +226,7 @@ badd +11 src/Utils/macros.jl
 badd +209 notebooks/CacheShifts.jl
 badd +19 scripts/timeshift/TimeShift_setsOfInterest.jl
 badd +1 src/Plot/rf.jl
-badd +185 src/Timeshift/types.jl
+badd +213 src/Timeshift/types.jl
 badd +118 notebooks/Examine_LoadMains.jl
 badd +55 src/Utils.jl
 badd +25 src/Munge/tensor.jl
@@ -241,7 +241,7 @@ badd +79 scripts/decode/StillRipplePlots.jl
 badd +1 scripts/decode/VideoPerRipple.jl
 badd +1 scripts/decode/InitializeCairo.jl
 badd +1 src/Table/smooth.jl
-badd +100 src/Field/coactivity.jl
+badd +102 src/Field/coactivity.jl
 badd +1 src/Field/recon.jl
 badd +61 src/Plot/receptivefield.jl
 badd +180 _research/test_coactivity.jl
@@ -258,7 +258,7 @@ badd +1 src/Plot/old_rf.jl
 badd +1 src/Timeshift/shiftmetrics.jl
 argglobal
 %argdel
-edit src/Utils/namedtup.jl
+edit src/Timeshift/types.jl
 let s:save_splitbelow = &splitbelow
 let s:save_splitright = &splitright
 set splitbelow splitright
@@ -273,12 +273,12 @@ set winminwidth=0
 set winwidth=1
 argglobal
 balt src/Field/coactivity.jl
-let s:l = 138 - ((13 * winheight(0) + 8) / 17)
+let s:l = 213 - ((34 * winheight(0) + 19) / 38)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 138
-normal! 015|
+keepjumps 213
+normal! 019|
 tabnext 1
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
@@ -294,6 +294,7 @@ if filereadable(s:sx)
 endif
 let &g:so = s:so_save | let &g:siso = s:siso_save
 set hlsearch
+nohlsearch
 let g:this_session = v:this_session
 let g:this_obsession = v:this_session
 doautoall SessionLoadPost

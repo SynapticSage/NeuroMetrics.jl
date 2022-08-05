@@ -4,6 +4,7 @@ module types
     import Field.metrics: metric_ban, apply_metric_ban, unstackMetricDF
     import Table: to_dataframe, vec_arrayofarrays!
     import ..Timeshift: AbsDictOfShiftOfUnit, DictOfShiftOfUnit
+    import Utils
 
     using DataFrames
     using DataStructures: OrderedDict
@@ -129,6 +130,9 @@ module types
     to_dataframe(SF::ShiftedField; kws...) = to_dataframe(Dict(SF); 
                                                           key_name=["shift","property"],
                                                          kws...)
+    function Base.getindex(SF::ShiftedField, shift::T where T<:Real)
+        SF.values[findfirst(SF.keys .== shift)]
+    end
 
     
 
@@ -161,14 +165,15 @@ module types
 
     function Base.getindex(SFs::ShiftedFields, unit::Real) 
         D = OrderedDict(SFs)
-        D[keymatch_topcomponent(D, i)]
+        D[keymatch_topcomponent(D, unit)]
     end
     function Base.getindex(SFs::ShiftedFields, unit::NamedTuple) 
-        SFs.values[SFs.keys .== unit]
+        SFs.values[findfirst([tuple(k) == tuple(unit) for k in SFs.keys])]
     end
     function Base.getindex(SFs::ShiftedFields, unit::NamedTuple, shift::Real) 
         SFs[unit][shift]
     end
+    Base.getindex(SFs::ShiftedFields, unit::Real, shift::Real) = SFs[unit][shift]
 
     OrderedDict(SF::ShiftedFields)   = OrderedDict(zip(SF.keys, SF.values))
     Base.Dict(SF::ShiftedFields)     = OrderedDict(zip(SF.keys, SF.values))
@@ -176,20 +181,39 @@ module types
                                                            kws...)
 
     """
-    Creates a tensor of the rate code
+    Creates a matrix of shifted field objects
     """
-    function blockform(sfs::ShiftedFields)::AxisArray
+    function matrixform(sfs::ShiftedFields)::AxisArray
         units, shifts = getunits(sfs), getshifts(sfs)
-
-        T = Array{Array,2}(undef, length(units), length(shifts))
+        M = Array{Field.ReceptiveField, 2}(undef, length(units), length(shifts))
         for (u, unit) in enumerate(units)
             for (s, shift) in enumerate(shifts)
-                val = sfs[unit, shift].rate
-                selector = [Utils.na, Utils.na, (Colon() for i in 1:ndims(val))...]
-                T[u,s] = val[selector...]
+                val = sfs[unit, shift]
+                M[u,s] = val
             end
         end
-        T
+        units = [unit[1] for unit in units]
+        AxisArray(M, Axis{:unit}(units), Axis{:shift}(shifts))
+    end
+
+    """
+    Creates a tensor of shifted field data
+    """
+    function tensorform(sfs::ShiftedFields)::AxisArray
+        M = matrixform(sfs)
+        grid = M[1,1].grid
+        val = M[1,1].rate
+        selector = [Utils.na, Utils.na, (Colon() for i in 1:ndims(val))...]
+        results = []
+        for mm in eachrow(M)
+            res = cat([getproperty(m,:rate) for m in mm]...; dims=4)
+            push!(results,res)
+        end
+        results = cat(results...; dims=3)
+        results = permutedims(results, (3,4,1,2))
+        fieldaxes = [Axis{Symbol(grid.props[i])}(grid.centers[i]) for
+                     i in 1:length(grid.props)]
+        AxisArray(results, M.axes..., fieldaxes...)
     end
 
 end
