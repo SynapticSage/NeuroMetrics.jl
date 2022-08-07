@@ -36,7 +36,7 @@ module Field
         push!(R.metrics, measurement_name => measurement_value)
     end
     function Base.string(S::T where T<:Field.ReceptiveField; sigdigits=2)
-        M = ["$k=$(round(v;sigdigits))" for (k,v) in S.metrics]
+        M = ["$k=$(round(v; sigdigits))" for (k,v) in S.metrics]
         join(M, " ")
     end
     function Table.to_dataframe(F::ReceptiveField, pos...; kws...)
@@ -56,28 +56,28 @@ module Field
     abstract type FieldArray <: FieldCollection end
     sparse_to_full(G::Vector...) = [g for g in zip(ndgrid(G...)...)]
     sparse_to_full(G::Tuple{Vector}) = [g for g in zip(ndgrid(G...)...)]
-    function sparse_to_full(C::Tuple...)::Array{Tuple}
-        C = [[c...] for c in C]
+    function sparse_to_full(sparse::Tuple...)::Array{Tuple}
+        C = [[c...] for c in sparse]
         C = [c for c in zip(ndgrid(C...)...)]
         [collect(c) for c in C]
     end
-    function sparse_to_full(C::Tuple)::Array{Array}
-        C = [[c...] for c in C]
+    function sparse_to_full(sparse::Tuple)::Array{Array}
+        C = [[c...] for c in sparse]
         C = [c for c in zip(ndgrid(C...)...)]
-        return [collect(x) for x in C]
+        [collect(x) for x in C]
     end
-    function full_to_sparse(G::Array)::Array{Array}
-        accessor = Vector{Union{Colon,<:Int}}(undef,ndims(G))
+    function full_to_sparse(full::Array)::Array{Array}
+        accessor = Vector{Union{Colon,<:Int}}(undef,ndims(full))
         accessor .= 1
-        out = []
-        for i in 1:ndims(G)
+        sparse = []
+        for i in 1:ndims(full)
             access = copy(accessor)
             access[i] = Colon()
-            g = G[access...]
+            g = full[access...]
             g = Tuple(g[i] for g in g)
-            push!(out,g)
+            push!(sparse,g)
         end
-        out
+        sparse
     end
 
     """
@@ -113,9 +113,9 @@ module Field
         δ = Δ/2
         grid = collect(minimum(grid)-δ:Δ:maximum(grid)+δ)
     end
-    function edge_to_center(grid::AbstractArray)
-        grid = collect(grid)
-        grid = dropdims(mean([vec(grid[1:end-1]) vec(grid[2:end])], dims=2), dims=2)
+    function edge_to_center(edges::AbstractArray)
+        grid = collect(edges)
+        dropdims(mean([vec(grid[1:end-1]) vec(grid[2:end])], dims=2), dims=2)
     end
 
     """
@@ -130,15 +130,15 @@ module Field
         Float32.(hcat([Y[!,prop] for prop in props]...))
     end
     
-    function isminutes(X::DataFrame)
-        Utils.dextrema(X.time)[1] < 1440.0 # assumes less than 24 hour recording
+    function isminutes(df::DataFrame)
+        Utils.dextrema(df.time)[1] < 1440.0 # assumes less than 24 hour recording
     end
 
-    function ensureTimescale!(X::DataFrame; kws...)
-        if isminutes(X; kws...)
-            transform!(X, :time => (x->x.*60) => :time)
+    function ensureTimescale!(df::DataFrame; kws...)
+        if isminutes(df; kws...)
+            transform!(df, :time => (x->x.*60) => :time)
         else
-            X
+            df
         end
     end
 

@@ -31,6 +31,7 @@ module types
         end
         return s
     end
+
     function getindex(s::AbstractDict{NamedTuple,<:Any}, index::Union{Tuple,Array,Real}...)
         index = [index...]
         while !(isempty(index))

@@ -194,12 +194,12 @@ badd +25 scripts/timeshift/notebook/Initialize_plot_experimentation_pluto.jl
 badd +3197 Manifest.toml
 badd +127 Project.toml
 badd +2 src/Load/celltet.jl
-badd +49 src/Field.jl
+badd +118 src/Field.jl
 badd +15 src/Load/task.jl
 badd +5 src/Munge/task.jl
 badd +1 scripts/fields/PlaceField.jl
 badd +69 _research/test_enforce_bound.jl
-badd +349 src/Field/adaptive.jl
+badd +215 src/Field/adaptive.jl
 badd +10 ~/tmp.jl
 badd +15 src/Precompile.jl
 badd +74 src/Timeshift/shuffle.jl
@@ -210,7 +210,7 @@ badd +290 src/Shuf.jl
 badd +21 src/Filt.jl
 badd +8 src/Field/model.jl
 badd +1 src/Field/operation.jl
-badd +1 _research/tensor_test.jl
+badd +42 _research/tensor_test.jl
 badd +3 _research/test_filt.jl
 badd +19 _research/test_shifting_timediff.jl
 badd +1 plots/fields/shift.shorter/GOAL_TRAJ_LEN_heatmap_x=shift,y=cellsort_by=area.pdf
@@ -226,12 +226,12 @@ badd +11 src/Utils/macros.jl
 badd +209 notebooks/CacheShifts.jl
 badd +19 scripts/timeshift/TimeShift_setsOfInterest.jl
 badd +1 src/Plot/rf.jl
-badd +213 src/Timeshift/types.jl
+badd +218 src/Timeshift/types.jl
 badd +118 notebooks/Examine_LoadMains.jl
 badd +55 src/Utils.jl
-badd +25 src/Munge/tensor.jl
+badd +190 src/Munge/tensor.jl
 badd +3 src/Munge/spikes.m
-badd +79 src/Munge/spiking.jl
+badd +42 src/Munge/spiking.jl
 badd +173 ~/Code/utilities/+units/getRateMatrix.m
 badd +118 ~/Code/utilities/+units/sparseToDense.m
 badd +283 src/Utils/filtreg.jl
@@ -252,33 +252,24 @@ badd +1 test/runtests.jl
 badd +476 notebooks/TestAdaptive.jl
 badd +308 notebooks/TestAdaptiveShifts.jl
 badd +8 scripts/timeshift/make_dataframes.jl
+badd +2 src/Decode.jl
 badd +2 intro.jl
 badd +5 src/Table/columntype.jl
 badd +1 src/Plot/old_rf.jl
 badd +1 src/Timeshift/shiftmetrics.jl
+badd +18 ~/Code/projects/goal-code/_research/bayes.jl
+badd +3 ~/.julia/packages/TensorToolbox/6LauI/src/tensor.jl
 argglobal
 %argdel
-edit src/Timeshift/types.jl
-let s:save_splitbelow = &splitbelow
-let s:save_splitright = &splitright
-set splitbelow splitright
-let &splitbelow = s:save_splitbelow
-let &splitright = s:save_splitright
-wincmd t
-let s:save_winminheight = &winminheight
-let s:save_winminwidth = &winminwidth
-set winminheight=0
-set winheight=1
-set winminwidth=0
-set winwidth=1
+edit src/Munge/spiking.jl
 argglobal
-balt src/Field/coactivity.jl
-let s:l = 213 - ((34 * winheight(0) + 19) / 38)
+balt ~/.julia/packages/TensorToolbox/6LauI/src/tensor.jl
+let s:l = 1 - ((0 * winheight(0) + 21) / 42)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 213
-normal! 019|
+keepjumps 1
+normal! 0
 tabnext 1
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
@@ -286,15 +277,12 @@ endif
 unlet! s:wipebuf
 set winheight=1 winwidth=20
 let &shortmess = s:shortmess_save
-let &winminheight = s:save_winminheight
-let &winminwidth = s:save_winminwidth
 let s:sx = expand("<sfile>:p:r")."x.vim"
 if filereadable(s:sx)
   exe "source " . fnameescape(s:sx)
 endif
 let &g:so = s:so_save | let &g:siso = s:siso_save
 set hlsearch
-nohlsearch
 let g:this_session = v:this_session
 let g:this_obsession = v:this_session
 doautoall SessionLoadPost

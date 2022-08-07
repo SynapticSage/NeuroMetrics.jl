@@ -7,10 +7,16 @@ module spiking
     using ImageFiltering
     using AxisArrays
     using LazySets
+    using ProgressMeter
+    using Infiltrator
+    using TensorToolbox
 
     import Field: ReceptiveField
 
     export torate
+
+    bindefault = 0.020 # 20 milliseconds
+    gaussiandefault = bindefault * 2.5
 
     """
         nonlocality
@@ -39,13 +45,72 @@ module spiking
     end
 
 
+    function tocount(spikes::DataFrame, dims=:unit; binsize=bindefault, grid=nothing, kws...)
+        if grid === nothing
+            grid = minimum(spikes.time):binsize:maximum(spikes.time)
+        end
+        dims = dims isa Vector ? dims : [dims]
+        T =  Munge.tensorize(spikes, dims, :time)
+        prog = Progress(length(T);desc="Executing count of $dims")
+        M = [begin
+                 next!(prog)
+                 tocount(x; grid, binsize, kws...) 
+             end
+             for x in T]
+        neuronax = T.axes
+        if grid == :dynamic
+            AxisArray(M, neuronax...)
+        else
+            timeax = M[1].axes
+            M = hcat(M...)
+            M = matten(M, 1, [size(M,1), size(T)...])
+            AxisArray(M, timeax..., neuronax...)
+        end
+    end
+    function tocount(times::Missing; grid, gaussian=gaussiandefault, binsize=nothing,
+            type::Union{Nothing,Type}=nothing)::AxisArray
+        if grid == :dynamic
+            centers = []
+        else
+            centers = binning.edge_to_center(collect(grid))
+        end
+        if gaussian > 0
+            type  = type === nothing ? Float32 : type
+        else
+            type  = type === nothing ? UInt8 : type
+        end
+        AxisArray(zeros(type, size(centers)), Axis{:time}(centers))
+    end
+    function tocount(times::AbstractArray; grid, gaussian=gaussiandefault, binsize=bindefault,
+            type::Union{Nothing,Type}=nothing)::AxisArray
+        if grid == :dynamic
+            grid = minimum(times):binsize:maximum(times)
+        end
+        δ = grid[2] - grid[1]
+        count = fit(Histogram, vec(times), grid)
+        centers = binning.edge_to_center(collect(grid))
+
+        if gaussian > 0
+            type  = type === nothing ? Float32 : type
+            gaussian = gaussian * 0.1/δ
+            ker = Kernel.gaussian((gaussian,))
+            val = convert(Vector{type}, imfilter(count.weights, ker))
+        else
+            type  = type === nothing ? UInt8 : type
+            val = convert(Vector{type}, count.weights)
+        end
+        AxisArray(val, Axis{:time}(centers))
+    end
+
     function torate(spikes::DataFrame, dims=:unit; grid=nothing, kws...)
+
         if grid === nothing
             grid = minimum(spikes.time):0.01:maximum(spikes.time)
         elseif typeof(grid) <: Real
             grid = minimum(spikes.time):grid:maximum(spikes.time)
         end
-        T =  Munge.tensorize(spikes, [dims], :time)
+        dims = dims isa Vector ? dims : [dims]
+        T =  Munge.tensorize(spikes, dims, :time)
         M = [torate(x; grid, kws...) for x in T]
         timeax = M[1].axes
         M = hcat(M...)
@@ -68,7 +133,7 @@ module spiking
         AxisArray(imfilter(count ./ δ, ker),
                   Axis{:time}(centers))
     end
-    function torate(times::AbstractArray; grid, gaussian=0.25)::AxisArray
+    function torate(times::AbstractArray; grid, gaussian=gaussiandefault)::AxisArray
         δ  = grid[2] - grid[1]
         count = fit(Histogram, vec(times), grid)
         gaussian = gaussian * 0.1/δ
