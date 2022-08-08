@@ -16,7 +16,7 @@ module spiking
     export torate
 
     bindefault = 0.020 # 20 milliseconds
-    gaussiandefault = bindefault * 2.5
+    gaussiandefault = bindefault * 3
 
     """
         nonlocality
@@ -51,12 +51,12 @@ module spiking
         end
         dims = dims isa Vector ? dims : [dims]
         T =  Munge.tensorize(spikes, dims, :time)
-        prog = Progress(length(T);desc="Executing count of $dims")
-        M = [begin
-                 next!(prog)
-                 tocount(x; grid, binsize, kws...) 
-             end
-             for x in T]
+        prog = Progress(length(T); desc="Executing count of $dims")
+        M = Array{AxisArray}(undef, size(T)...)
+        Threads.@threads for ind in eachindex(T)
+            M[ind] = tocount(T[ind]; grid, binsize, kws...) 
+            next!(prog)
+        end
         neuronax = T.axes
         if grid == :dynamic
             AxisArray(M, neuronax...)
@@ -67,7 +67,7 @@ module spiking
             AxisArray(M, timeax..., neuronax...)
         end
     end
-    function tocount(times::Missing; grid, gaussian=gaussiandefault, binsize=nothing,
+    function tocount(times::Missing; grid, gaussian=0, binsize=nothing,
             type::Union{Nothing,Type}=nothing)::AxisArray
         if grid == :dynamic
             centers = []
@@ -81,7 +81,7 @@ module spiking
         end
         AxisArray(zeros(type, size(centers)), Axis{:time}(centers))
     end
-    function tocount(times::AbstractArray; grid, gaussian=gaussiandefault, binsize=bindefault,
+    function tocount(times::AbstractArray; grid, gaussian=0, binsize=bindefault,
             type::Union{Nothing,Type}=nothing)::AxisArray
         if grid == :dynamic
             grid = minimum(times):binsize:maximum(times)

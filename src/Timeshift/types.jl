@@ -217,4 +217,24 @@ module types
         AxisArray(results, M.axes..., fieldaxes...)
     end
 
+    function tensorform(fields::AxisArray)::AxisArray
+        propsel(m) = getproperty(m, :rate)
+        selector = [Utils.na, Utils.na, (Colon() 
+                    for i in 1:ndims(propsel(first(fields))))...]
+        grid = first(fields).grid
+        results = []
+        for mm in eachrow(fields)
+            res = cat([propsel(m)[selector...] for m in mm]...; dims=2)
+            push!(results,res)
+        end
+        results = cat(results...; dims=1)
+        fieldaxes = [Axis{Symbol(grid.props[i])}(grid.centers[i]) for
+                     i in 1:length(grid.props)]
+        AxisArray(results, fields.axes..., fieldaxes...)
+        # Slower but more compact way of doing the top 6 lines
+        #sizefield = size(propsel(first(fields)))
+        #@time results = reduce(vcat, results);
+        #reshape(results, size(fields)..., sizefield...)
+    end
+
 end

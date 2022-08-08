@@ -209,7 +209,8 @@ module legacy
         function h2d(thing::DataFrame, props::Vector{String}; grid=(),
                 hist2dkws=Dict())
             thing = dropmissing(thing);
-            P = tuple([convert(Vector{Float64}, x) for x in eachcol(thing[:, props])]...)
+            P = tuple([convert(Vector{Float64}, x) for x in
+                       eachcol(thing[:, props])]...)
             return fit(Histogram, P, grid; hist2dkws...)
         end
 

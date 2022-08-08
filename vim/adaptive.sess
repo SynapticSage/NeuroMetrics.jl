@@ -170,7 +170,7 @@ badd +16 src/Load/spikes.jl
 badd +2 src/Load/behavior.jl
 badd +8 src/Load/ripples.jl
 badd +4 src/Load/utils.jl
-badd +36 src/Timeshift.jl
+badd +1 src/Timeshift.jl
 badd +163 src/Timeshift/checkpoint.jl
 badd +109 src/Table/convert_types.jl
 badd +359 src/Table.jl
@@ -204,7 +204,7 @@ badd +10 ~/tmp.jl
 badd +15 src/Precompile.jl
 badd +74 src/Timeshift/shuffle.jl
 badd +11497 ~/.cache/nvim/lsp.log
-badd +18 src/Field/fixed.jl
+badd +224 src/Field/fixed.jl
 badd +2 src/Utils/plot.jl
 badd +290 src/Shuf.jl
 badd +21 src/Filt.jl
@@ -215,7 +215,7 @@ badd +3 _research/test_filt.jl
 badd +19 _research/test_shifting_timediff.jl
 badd +1 plots/fields/shift.shorter/GOAL_TRAJ_LEN_heatmap_x=shift,y=cellsort_by=area.pdf
 badd +32 src/Field/preset.jl
-badd +170 src/Field/legacy.jl
+badd +214 src/Field/legacy.jl
 badd +74 src/Timeshift/legacy.jl
 badd +1 src/Field/metrics.jl
 badd +15 src/Field/recon_process.jl
@@ -226,12 +226,12 @@ badd +11 src/Utils/macros.jl
 badd +209 notebooks/CacheShifts.jl
 badd +19 scripts/timeshift/TimeShift_setsOfInterest.jl
 badd +1 src/Plot/rf.jl
-badd +218 src/Timeshift/types.jl
+badd +232 src/Timeshift/types.jl
 badd +118 notebooks/Examine_LoadMains.jl
 badd +55 src/Utils.jl
 badd +190 src/Munge/tensor.jl
 badd +3 src/Munge/spikes.m
-badd +42 src/Munge/spiking.jl
+badd +57 src/Munge/spiking.jl
 badd +173 ~/Code/utilities/+units/getRateMatrix.m
 badd +118 ~/Code/utilities/+units/sparseToDense.m
 badd +283 src/Utils/filtreg.jl
@@ -257,14 +257,26 @@ badd +2 intro.jl
 badd +5 src/Table/columntype.jl
 badd +1 src/Plot/old_rf.jl
 badd +1 src/Timeshift/shiftmetrics.jl
-badd +18 ~/Code/projects/goal-code/_research/bayes.jl
 badd +3 ~/.julia/packages/TensorToolbox/6LauI/src/tensor.jl
+badd +10 _research/test_bayes.jl
+badd +0 ~/Code/projects/goal-code/src/Decode/bayes.jl
 argglobal
 %argdel
-edit src/Munge/spiking.jl
+edit ~/Code/projects/goal-code/src/Decode/bayes.jl
+let s:save_splitbelow = &splitbelow
+let s:save_splitright = &splitright
+set splitbelow splitright
+let &splitbelow = s:save_splitbelow
+let &splitright = s:save_splitright
+wincmd t
+let s:save_winminheight = &winminheight
+let s:save_winminwidth = &winminwidth
+set winminheight=0
+set winheight=1
+set winminwidth=0
+set winwidth=1
 argglobal
-balt ~/.julia/packages/TensorToolbox/6LauI/src/tensor.jl
-let s:l = 1 - ((0 * winheight(0) + 21) / 42)
+let s:l = 1 - ((0 * winheight(0) + 27) / 54)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
@@ -277,6 +289,8 @@ endif
 unlet! s:wipebuf
 set winheight=1 winwidth=20
 let &shortmess = s:shortmess_save
+let &winminheight = s:save_winminheight
+let &winminwidth = s:save_winminwidth
 let s:sx = expand("<sfile>:p:r")."x.vim"
 if filereadable(s:sx)
   exe "source " . fnameescape(s:sx)
