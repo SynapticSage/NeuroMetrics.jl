@@ -3,7 +3,7 @@ using Test, Revise
 using DrWatson
 
 watched = keys(Revise.watched_files)
-dirs = ["", "Utils", "Table", "Load", "Field", "Timeshift", "Munge"]
+dirs = ["", "Utils", "Table", "Load", "Field", "Timeshift", "Munge", "Decode"]
 dirs = srcdir.(dirs)
 
 # Most basic test! Do my libraries wind up in Reivse's watched files?

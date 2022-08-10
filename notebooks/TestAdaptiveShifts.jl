@@ -139,28 +139,7 @@ In order to make radio buttons to pick our keys, we need to know the structure o
 """
 
 # ╔═╡ c20dd185-4a34-433d-9775-f88475514add
-begin
-
-	# Determine which properties CAN be toggled
-	allsets   = collect(keys(F))
-	totalkeys = union(keys.(allsets)...)
-	uvals = OrderedDict()
-	for key in totalkeys
-		push!(uvals, key=>unique([getindex(s, key) for s in allsets if key ∈ propertynames(s)]))
-	end
-
-	# Determine how they would be represented as controls and actual objects
-	actuals  = OrderedDict()
-	controls = OrderedDict()
-	rep(x) = replace(x, "\""=>"", "]"=>"", "["=>"")
-	for (i,(K,V)) in enumerate(uvals)
-		sortV = [sort(V)..., nothing]
-		push!(controls, K => [rep("$v") for v in sortV])
-		for v in sortV
-			push!(actuals,  ((v === nothing) ? "nothing" : "$v") => v)
-		end
-	end
-end
+controls, actuals = Timeshift.pluto_keyselector(F)
 
 # ╔═╡ 9f733213-1c8d-44e1-9f65-2c9861801a29
 md"These encode the possible control knob strings"
@@ -190,14 +169,7 @@ end
 md"User selection is used to find the closest matching key in the cache"
 
 # ╔═╡ d423498d-d024-4465-8dae-9eb899a75457
-begin
-	hard_settings = (;grid=:adaptive, first=-2.0, step=0.05, last=2.0)
-	find_this = (;hard_settings..., coactivity=actuals[coactive], datacut=actuals[datacut_key], 			
-				 thresh=actuals[thresh_key], widths=actuals[widths_key])
-	key = Utils.namedtup.bestpartialmatch(keys(F), find_this;
-										  nothing_means_removekey=true)
-	#)
-end
+key, find_this = Timeshift.pluto_executekey(F, actuals, :thresh=>thresh_key, :widths=>widths_key, :coactivity=>coactive, :datacut=>datacut_key; return_findthis=true)
 
 # ╔═╡ 0df2c833-c5f5-4664-b51a-8fc819d5a5f7
 using Serialization; serialize(datadir("key.serial"), 
@@ -649,7 +621,7 @@ end
 # ╟─a5932740-2295-4973-8d21-31ad8048bea2
 # ╟─c461e634-d011-49bb-9ba5-b01df547f36f
 # ╟─36874cc8-8036-4d9b-acd4-a1ee34f238de
-# ╟─d423498d-d024-4465-8dae-9eb899a75457
+# ╠═d423498d-d024-4465-8dae-9eb899a75457
 # ╠═0df2c833-c5f5-4664-b51a-8fc819d5a5f7
 # ╟─afcb55f9-ed2d-4860-a997-c272bece208f
 # ╠═955c7b75-00d4-4116-9242-92a7df8a0f87
@@ -659,10 +631,10 @@ end
 # ╠═7946e555-1c73-4d13-a8f8-71ad6a2559f0
 # ╟─b6208af9-4b51-47da-a01e-99773e87b853
 # ╟─3936c705-f0f1-45bb-902d-1c6bdb11ecc2
-# ╟─0c392338-976c-4a5e-9bef-b15beb50ea22
-# ╟─bdee2a58-79e4-4053-a034-1db011687e66
+# ╠═0c392338-976c-4a5e-9bef-b15beb50ea22
+# ╠═bdee2a58-79e4-4053-a034-1db011687e66
 # ╟─166bffb7-72b9-4e9c-aa64-33db95763310
-# ╟─d9c1e7c8-f0b4-4bf6-afb4-27144ffa39f0
+# ╠═d9c1e7c8-f0b4-4bf6-afb4-27144ffa39f0
 # ╟─1b36008f-4619-4fec-863c-abed47676e27
 # ╟─a9422422-65e3-415e-8404-acf9d8ed0e8a
 # ╟─f00d7750-ea75-403a-b221-49c8f338cec8

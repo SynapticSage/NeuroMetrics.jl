@@ -199,7 +199,7 @@ module checkpoint
 
 
     function save_shuffles(S::AbstractDict; overwrite::Bool=false)
-        if any(x->x .=== nothing, values(S))
+        if any(x->x === nothing, values(S))
             S = typeof(S)(k=>v for (k,v) in S if v !== nothing)
         end
         name = shufflespath()

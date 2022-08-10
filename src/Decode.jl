@@ -40,5 +40,8 @@ module Decode
     @reexport using .makie_observable
     include(srcdir("Decode","plot.jl"))
     @reexport import .plot
+    include(srcdir("Decode","bayes.jl"))
+    @reexport import .bayes
+
 
 end

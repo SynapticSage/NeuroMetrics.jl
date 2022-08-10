@@ -3,6 +3,9 @@ module Keys
     using ProgressMeter
     using DataFrames
     using Infiltrator
+    using DataStructures: OrderedDict
+    import Utils
+    export pluto_executekey, pluto_keyselector
     #=
     Methods for dealing with keys that summarize
     batches of timeshift measurements under different conditions
@@ -101,6 +104,42 @@ module Keys
             new_key = NamedTuple(nt_key)
             D[new_key] = value
         end
+    end
+
+    function pluto_keyselector(data::Dict)
+        # Determine which properties CAN be toggled
+        allsets   = collect(keys(data))
+        totalkeys = union(keys.(allsets)...)
+        uvals = OrderedDict()
+        for key in totalkeys
+            U = unique([getindex(s, key) for s in allsets
+                        if key ∈ propertynames(s)])
+            push!(uvals, key=>U)
+        end
+
+        # Determine how they would be represented as controls and actual objects
+        actuals  = OrderedDict()
+        controls = OrderedDict()
+        rep(x) = replace(x, "\""=>"", "]"=>"", "["=>"")
+        for (K,V) in uvals
+            sortV = [sort(V)..., nothing]
+            push!(controls, K => [rep("$v") for v in sortV])
+            for v in sortV
+                push!(actuals,  ((v === nothing) ? "nothing" : "$v") => v)
+            end
+        end
+        controls, actuals
+    end
+
+    function pluto_executekey(data::AbstractDict, actuals::AbstractDict, specification::Pair...;
+            hard_settings=(;grid=:adaptive, first=-2.0, step=0.05, last=2.0), return_findthis=false)
+
+        soft_settings = NamedTuple(Dict(k=>actuals[v] for (k,v) in specification))
+        
+        find_this = (;hard_settings..., soft_settings...)
+        key=Utils.namedtup.bestpartialmatch(keys(data), find_this;
+                                  nothing_means_removekey=true)
+        return_findthis ? (key, find_this) : key
     end
 
 end

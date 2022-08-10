@@ -10,8 +10,12 @@ module bayes
     using Entropies
     using AxisArrays
     using ProgressMeter
+    using DataFrames
 
     import Timeshift
+    import Timeshift: ShiftedField, ShiftedFields
+
+    export posterior, tofloat16
 
     function posterior(spikes::DataFrame, fields::ShiftedFields; binsize=0.02)
 
@@ -21,10 +25,10 @@ module bayes
         fields = Timeshift.types.tensorform(fields)
         counts = Munge.spiking.tocount(spikes; binsize)
 
-        posterior(counts, prob, block; binsize)
+        posterior(counts, prob, fields; binsize)
 
     end
-    function posterior(counts::AxisArrray, prob::AbstractArray, fields::AbstractArray;
+    function posterior(counts::AxisArray, prob::AbstractArray, fields::AbstractArray;
         binsize=0.001)
 
         axs = Dict(zip(axisnames(fields), fields.axes))
@@ -56,7 +60,8 @@ module bayes
         Q
     end
 
-    function decode_vectorized_log(prob, F::Vector, C::Vector; binsize)
+    function decode_vectorized_log(prob, F::Vector, C::Vector; binsize, float16=false)
+        F = float16 ? tofloat16(F) : F
         prog=Progress(length(F); desc="Bayesian decode")
         prob = log.(prob)
         prob .+= (-binsize .* sum(F)) # multiply prior by exponential term
@@ -70,7 +75,8 @@ module bayes
         prob .+= tmp   # then by product of field ter
 
         prob = exp.(log)
-        prob ./= sum(prob, dims=(collect(2:ndims(prob))...)) # normalize distros to 1
+        normalize_prob!(prob)
+        prob
     end
 
     function decode_vectorized(prob, F::Vector, C::Vector; binsize)
@@ -83,7 +89,13 @@ module bayes
                          F
                      end for (f,c) in zip(F, C))
         prob .*= tmp   # then by product of field ter
-        prob ./= sum(prob, dims=(collect(2:ndims(prob))...)) # normalize distros to 1
+        normalize_prob!(prob)
+        prob
+    end
+
+    function normalize_prob!(prob::AbstractArray, neuron_dim::Int=1)
+        normalize_dims = setdiff(1:ndims(prob), [neuron_dim])
+        prob ./= sum(prob, dims=(normalize_dims...,)) # normalize distros to 1
     end
 
     function field_raised_to_count(f::Union{Array,AxisArray}, 

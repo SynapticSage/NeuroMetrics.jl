@@ -177,7 +177,7 @@ module Load
         if type == "csv"
             data = CSV.read(path, DataFrame; load_kws...)
         elseif type == "arrow"
-            data = DataFrame(Arrow.Table(path))
+            data = copy(DataFrame(Arrow.Table(path)))
         end
     end
 

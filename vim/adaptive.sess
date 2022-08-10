@@ -165,7 +165,7 @@ badd +1 scripts/timeshift/TimeShift.jl
 badd +14 scripts/decode/Initialize.jl
 badd +7 scripts/fields/Initialize.jl
 badd +10 scripts/fields/Include.jl
-badd +155 src/Load.jl
+badd +159 src/Load.jl
 badd +16 src/Load/spikes.jl
 badd +2 src/Load/behavior.jl
 badd +8 src/Load/ripples.jl
@@ -223,12 +223,12 @@ badd +1 src/Timeshift/crossval.jl
 badd +89 notebooks/TimeshiftDiff.jl
 badd +31 src/Munge/chrono.jl
 badd +11 src/Utils/macros.jl
-badd +209 notebooks/CacheShifts.jl
+badd +341 notebooks/CacheShifts.jl
 badd +19 scripts/timeshift/TimeShift_setsOfInterest.jl
 badd +1 src/Plot/rf.jl
 badd +232 src/Timeshift/types.jl
 badd +118 notebooks/Examine_LoadMains.jl
-badd +55 src/Utils.jl
+badd +57 src/Utils.jl
 badd +190 src/Munge/tensor.jl
 badd +3 src/Munge/spikes.m
 badd +57 src/Munge/spiking.jl
@@ -238,7 +238,7 @@ badd +283 src/Utils/filtreg.jl
 badd +4 src/Utils/binning.jl
 badd +1 _research/test_convexhull.jl
 badd +79 scripts/decode/StillRipplePlots.jl
-badd +1 scripts/decode/VideoPerRipple.jl
+badd +99 scripts/decode/VideoPerRipple.jl
 badd +1 scripts/decode/InitializeCairo.jl
 badd +1 src/Table/smooth.jl
 badd +102 src/Field/coactivity.jl
@@ -248,49 +248,59 @@ badd +180 _research/test_coactivity.jl
 badd +288 ~/.julia/packages/StatsBase/OpnQp/src/signalcorr.jl
 badd +1 notebooks/ExamineCoactivity.jl
 badd +1 src/Table/clean.jl
-badd +1 test/runtests.jl
+badd +9 test/runtests.jl
 badd +476 notebooks/TestAdaptive.jl
-badd +308 notebooks/TestAdaptiveShifts.jl
 badd +8 scripts/timeshift/make_dataframes.jl
-badd +2 src/Decode.jl
+badd +266 scripts/decode/FullDecodeVideo.jl
+badd +7 src/Decode.jl
 badd +2 intro.jl
 badd +5 src/Table/columntype.jl
 badd +1 src/Plot/old_rf.jl
 badd +1 src/Timeshift/shiftmetrics.jl
 badd +3 ~/.julia/packages/TensorToolbox/6LauI/src/tensor.jl
-badd +10 _research/test_bayes.jl
-badd +0 ~/Code/projects/goal-code/src/Decode/bayes.jl
+badd +137 _research/test_bayes.jl
+badd +100 ~/Code/projects/goal-code/src/Decode/bayes.jl
+badd +7 _research/test_plot_bayes.jl
 argglobal
 %argdel
-edit ~/Code/projects/goal-code/src/Decode/bayes.jl
-let s:save_splitbelow = &splitbelow
-let s:save_splitright = &splitright
-set splitbelow splitright
-let &splitbelow = s:save_splitbelow
-let &splitright = s:save_splitright
-wincmd t
-let s:save_winminheight = &winminheight
-let s:save_winminwidth = &winminwidth
-set winminheight=0
-set winheight=1
-set winminwidth=0
-set winwidth=1
+tabnew +setlocal\ bufhidden=wipe
+tabnew +setlocal\ bufhidden=wipe
+tabrewind
+edit _research/test_bayes.jl
 argglobal
-let s:l = 1 - ((0 * winheight(0) + 27) / 54)
+balt ~/Code/projects/goal-code/src/Decode/bayes.jl
+let s:l = 95 - ((30 * winheight(0) + 27) / 55)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 95
+normal! 0
+tabnext
+edit src/Timeshift/checkpoint.jl
+argglobal
+balt notebooks/CacheShifts.jl
+let s:l = 1 - ((0 * winheight(0) + 25) / 50)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
 keepjumps 1
 normal! 0
-tabnext 1
+tabnext
+edit src/Utils/namedtup.jl
+argglobal
+let s:l = 133 - ((5 * winheight(0) + 25) / 50)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 133
+normal! 013|
+tabnext 2
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
 endif
 unlet! s:wipebuf
 set winheight=1 winwidth=20
 let &shortmess = s:shortmess_save
-let &winminheight = s:save_winminheight
-let &winminwidth = s:save_winminwidth
 let s:sx = expand("<sfile>:p:r")."x.vim"
 if filereadable(s:sx)
   exe "source " . fnameescape(s:sx)

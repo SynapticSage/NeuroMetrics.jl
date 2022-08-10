@@ -633,6 +633,12 @@ git-tree-sha1 = "28d605d9a0ac17118fe2c5e9ce0fbb76c3ceb120"
 uuid = "b552c78f-8df3-52c6-915a-8e097449b14b"
 version = "1.11.0"
 
+[[deps.DimensionalData]]
+deps = ["Adapt", "ArrayInterface", "ConstructionBase", "Dates", "Extents", "IntervalSets", "LinearAlgebra", "Random", "RecipesBase", "SparseArrays", "Statistics", "Tables"]
+git-tree-sha1 = "ee34aa915d13091b0357e4746fe825aac616a30a"
+uuid = "0703355e-b756-11e9-17c0-8b28908087d0"
+version = "0.20.11"
+
 [[deps.DirectionalStatistics]]
 deps = ["Accessors", "IntervalSets", "LinearAlgebra", "Statistics", "StatsBase"]
 git-tree-sha1 = "d39ee615570b07ece534705df7e1e31e6dc09a6a"
@@ -751,6 +757,11 @@ version = "0.1.8"
 git-tree-sha1 = "8b08cc88844e4d01db5a2405a08e9178e19e479e"
 uuid = "55351af7-c7e9-48d6-89ff-24e801d99491"
 version = "0.6.13"
+
+[[deps.Extents]]
+git-tree-sha1 = "5e1e4c53fa39afe63a7d356e30452249365fba99"
+uuid = "411431e0-e8b7-467b-b5e0-f676ba4f2910"
+version = "0.1.1"
 
 [[deps.FFMPEG]]
 deps = ["FFMPEG_jll"]
