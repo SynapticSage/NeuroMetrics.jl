@@ -318,7 +318,7 @@ begin
                 marginal = get_shortcutnames(props)
                 key = get_key(;marginal, datacut, shifts, widths, thresh)
                 filt = filts[datacut]
-                #if keymessage(S, key); continue; end
+                if keymessage(S, key); continue; end
                 if key ∈ keys(S)
                 result_dict = S[key]
                 else

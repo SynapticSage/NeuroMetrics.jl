@@ -12,7 +12,7 @@ module Precompile
                        "StatsBase", "Distributions", "Shuffle", "VideoIO",
                        "DataStructures", "Gadfly", "TableView", "LazyGrids",
                        "GeometricalPredicates", "RecipesBase", "Reexport",
-                       "AxisArrays",
+                       "AxisArrays", "DimensionalData",
                        "LoopVectorization", "Infiltrator",
                        "Markdown", "InteractiveUtils", "Polyester",
                        "Random", "Colors", "ColorSchemes", "ImageFiltering",

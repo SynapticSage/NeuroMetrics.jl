@@ -330,7 +330,7 @@ begin
 	tmpstatmat = shiftmetrics.getstatmat(sfsmet, met; filtval=(met == "coherence" ? NaN : 0), asmat=true, unitnoskip=false, sortby=[srt], (normrange ? (;rangenorm=[0,1]) : (;percentnorm=0.5))...);
 	
 	plot_heatdist = heatmap(tmpstatmat.axes[2].val, 1:length(tmpstatmat.axes[1].val), tmpstatmat, ylabel="unit", title="$met by $srt\n$desc_heatmap\n", clim=(normrange ? (-Inf,Inf) : (-25,50)), colorbar_title=(normrange ? "Neuron Min(0) to Max(1)" : "Percent above median per neuron"), colorbar_titlefontrotation= 180)
-	vline!([0], c=:black, linestyle=:dash, linewidth=2,label="")
+	vline!([0], c=:black, linestyle=:dash, linewidth=2,label="", xlabel="τ shift (seconds)")
 
 	annotate_pfc = true
 	if annotate_pfc
@@ -342,7 +342,7 @@ begin
 	shifts = Timeshift.types.getshifts(shifted)
 	xlim = (minimum(shifts), maximum(shifts))
 	
-	plot_histdist = histogram(sfsmet[:,srt],  normalize=:pdf, alpha=0.5, label="", xlabel="shift", ylabel="pdf")
+	plot_histdist = histogram(sfsmet[:,srt],  normalize=:pdf, alpha=0.5, label="", xlabel="τ shift (seconds)", ylabel="pdf")
 	density!(sfsmet[:,srt]; xlim, label="")
 	vline!([0], c=:black, linestyle=:dash, linewidth=2, label="")
 
@@ -429,14 +429,11 @@ It's also natural to wonder if this is modulated by the max firing rate of the f
 
 # ╔═╡ 7bcd8e0e-e4bb-458c-9591-c51aec5f5c44
 # ╠═╡ show_logs = false
-# ╠═╡ disabled = true
-#=╠═╡
 @gif for azim in 1:1:360
 	@df sfsmet scatter(:bitsperspike, :coherence, :maxrate; c=get(ColorSchemes.glasbey_bw_minc_20_n256, Utils.norm_extrema(:unit,[0,1])), camera=(azim,30),
 		xlabel="bitsperspike", ylabel="coherence", zlabel="maxrate", label=""
 	)
 end
-  ╠═╡ =#
 
 # ╔═╡ f4a2ea03-e4bb-482e-95be-e2ddf4b38662
 md"""
@@ -646,7 +643,7 @@ end
 # ╟─02c1873c-b59a-40a0-846d-1408b170cf37
 # ╟─097466a4-1fe2-4ca5-bac3-fbc9ae53bc7e
 # ╟─2cb7b7e0-e8aa-469c-833b-1a63ab21981a
-# ╟─90b33a8a-87fd-4d56-a609-41477dc8d93d
+# ╠═90b33a8a-87fd-4d56-a609-41477dc8d93d
 # ╟─18739638-ccac-4f1f-ac32-34c7c48bfb9c
 # ╟─2fa18882-7e03-45a3-b794-cb44fec685b2
 # ╟─5a67c4ae-1fc8-46b4-bba9-4ce3844feac4

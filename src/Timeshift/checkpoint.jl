@@ -203,6 +203,7 @@ module checkpoint
             S = typeof(S)(k=>v for (k,v) in S if v !== nothing)
         end
         name = shufflespath()
+        @info "save_shuffles: cut the fat"
         S = cut_the_fat(S)
         if isfile(name) && !(overwrite)
             @info "Preloading existing $name"

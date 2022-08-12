@@ -9,7 +9,7 @@ module types
     using DataFrames
     using DataStructures: OrderedDict
     using Missings
-    using AxisArrays
+    using DimensionalData
     using Infiltrator
 
     export ShiftedField, ShiftedFields
@@ -184,7 +184,7 @@ module types
     """
     Creates a matrix of shifted field objects
     """
-    function matrixform(sfs::ShiftedFields)::AxisArray
+    function matrixform(sfs::ShiftedFields)::DimArray
         units, shifts = getunits(sfs), getshifts(sfs)
         M = Array{Field.ReceptiveField, 2}(undef, length(units), length(shifts))
         for (u, unit) in enumerate(units)
@@ -194,13 +194,13 @@ module types
             end
         end
         units = [unit[1] for unit in units]
-        AxisArray(M, Axis{:unit}(units), Axis{:shift}(shifts))
+        DimArray(M, Dim{:unit}(units), Dim{:shift}(shifts))
     end
 
     """
     Creates a tensor of shifted field data
     """
-    function tensorform(sfs::ShiftedFields)::AxisArray
+    function tensorform(sfs::ShiftedFields)::DimArray
         M = matrixform(sfs)
         grid = M[1,1].grid
         val = M[1,1].rate
@@ -212,12 +212,12 @@ module types
         end
         results = cat(results...; dims=3)
         results = permutedims(results, (3,4,1,2))
-        fieldaxes = [Axis{Symbol(grid.props[i])}(grid.centers[i]) for
+        fieldaxes = [Dim{Symbol(grid.props[i])}(grid.centers[i]) for
                      i in 1:length(grid.props)]
-        AxisArray(results, M.axes..., fieldaxes...)
+        DimArray(results, (M.dims..., fieldaxes...))
     end
 
-    function tensorform(fields::AxisArray)::AxisArray
+    function tensorform(fields::DimArray)::DimArray
         propsel(m) = getproperty(m, :rate)
         selector = [Utils.na, Utils.na, (Colon() 
                     for i in 1:ndims(propsel(first(fields))))...]
@@ -228,9 +228,9 @@ module types
             push!(results,res)
         end
         results = cat(results...; dims=1)
-        fieldaxes = [Axis{Symbol(grid.props[i])}(grid.centers[i]) for
+        fieldaxes = [Dim{Symbol(grid.props[i])}(grid.centers[i]) for
                      i in 1:length(grid.props)]
-        AxisArray(results, fields.axes..., fieldaxes...)
+        DimArray(results, (fields.axes..., fieldaxes...))
         # Slower but more compact way of doing the top 6 lines
         #sizefield = size(propsel(first(fields)))
         #@time results = reduce(vcat, results);

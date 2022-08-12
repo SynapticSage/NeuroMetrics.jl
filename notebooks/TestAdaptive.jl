@@ -163,6 +163,12 @@ we're going to want codes that take a set of receptive fields and turn them into
 - metrics
 """
 
+# ╔═╡ d1fe3b02-34f5-46ae-8da8-4bac71c86d84
+shifts = -3:0.25:3
+
+# ╔═╡ 316dab79-015f-46e4-88f5-7051529484e5
+@bind timeshift Slider(shifts, default=0)
+
 # ╔═╡ 588bff56-6518-4410-b19a-dc745cf067e7
 md"""
 # Single cell 🦠 metric Development
@@ -265,150 +271,114 @@ end
 
 # ╔═╡ 6bdcf863-9946-4ca3-ab02-fa6aebe4b91d
 # ╠═╡ show_logs = false
-# ╠═╡ disabled = true
-#=╠═╡
 @time G = adaptive.get_grid(beh, props; widths, thresh, maxrad, radiusinc);
-  ╠═╡ =#
 
 # ╔═╡ 9e635078-bfdb-41bf-8730-e08a968d5e71
-#=╠═╡
 md"""
 Implied linear width of maxrad[$(nanmaximum(G.radii))] => $(nanmaximum(G.radii) * sqrt(2)) 
 """
-  ╠═╡ =#
 
 # ╔═╡ 03586347-83ee-429d-ab29-505754c66734
-#=╠═╡
 plot(
 	plot(G; aspect_ratio, title="radii\nresolution=$(size(G.grid))", ylims=ylim), 
 	heatmap([collect(x) for x in G.centers]..., (G.radii .=== NaN32)'; aspect_ratio, title="nan locations")
 	, ylims=ylim)
-  ╠═╡ =#
 
 # ╔═╡ bf5ec1fc-0443-49df-b90a-164bdd4e8b1b
-#=╠═╡
 G.centers
-  ╠═╡ =#
 
 # ╔═╡ 93b3a5c7-6c6f-4e80-91e7-01f83d292c9a
-#=╠═╡
 G.radii
-  ╠═╡ =#
 
 # ╔═╡ 5550e97c-a33e-4ae4-b888-90f782506bc2
-#=╠═╡
 unique(G.radii)
-  ╠═╡ =#
 
 # ╔═╡ 890fe951-19bb-4c9a-a905-d798bb36c57e
-#=╠═╡
 O = @time adaptive.get_occupancy(beh, G);
-  ╠═╡ =#
 
 # ╔═╡ 592d79b4-edf6-4a0c-af73-1d2805d6410e
-#=╠═╡
 plot(O, clim=(0,0.01), ylims=ylim)
-  ╠═╡ =#
 
 # ╔═╡ d7175827-7528-4cfe-bf3f-d9971f682f49
-#=╠═╡
 O
-  ╠═╡ =#
 
 # ╔═╡ bef016cd-26d1-4de8-a970-182fe2b92e88
-#=╠═╡
 # Test field abilities
 @time multiunit = @time adaptive.get_adaptivefield(spikes, G, O);
 # @benchmark adaptive.get_adaptivefield(spikes, G, O);
-  ╠═╡ =#
 
 # ╔═╡ 410128bf-2332-4aa2-91cb-441e0235cc4a
-#=╠═╡
 plot(multiunit)
-  ╠═╡ =#
 
 # ╔═╡ b88c0ec1-b150-49be-828f-6c32bb770c48
-#=╠═╡
 begin
 	@time units = adaptive.yartsev(spikes, G, O; widths=width, thresh, 
 	                               filters=filts[:all]);
 end;
-  ╠═╡ =#
 
 # ╔═╡ 44abcbd4-5f71-4924-b77d-9680cc96044f
-#=╠═╡
 plot(units[(;unit=unit)]; aspect_ratio, ylims=ylim)
-  ╠═╡ =#
 
 # ╔═╡ 4d814c3e-97e1-491a-b1d8-c7ca9c628afd
-#=╠═╡
 μ_firing = begin
     Q = units[(;unit=unit)]
     nansum(reshape(Q.occ.prob, size(Q.occ.count)) .* Q.rate)
 end
-  ╠═╡ =#
 
 # ╔═╡ eefa56cc-f303-40ee-aa44-dc758eac750b
-#=╠═╡
 field = units[(;unit=unit)]
-  ╠═╡ =#
 
 # ╔═╡ 9405b2bd-c10c-4ba7-aeda-b9f56e2b33ee
-# ╠═╡ disabled = true
-#=╠═╡
 begin
 	halfmast = nanquantile(vec(field.rate), qthresh)
 	bw = field.rate .> halfmast
 	dist = 1 .- distance_transform(feature_transform(bw))
 	markers = label_components( (!).(dist .< 0))
 end;
-  ╠═╡ =#
 
 # ╔═╡ ce81a2d1-7ba8-44fb-b401-760411421a71
-#=╠═╡
 segments = watershed(dist, markers)
-  ╠═╡ =#
 
 # ╔═╡ 8bfb8c40-942d-41b8-a441-5a71f6bbafb7
-#=╠═╡
 sortperm(collect(values(segments.segment_pixel_count)))
 
 
-  ╠═╡ =#
 
 # ╔═╡ 794aae46-914a-4da3-a093-d76f1308c55b
-#=╠═╡
 hullzones = bw .* labels_map(segments);
-  ╠═╡ =#
 
 # ╔═╡ 3ce5d298-62eb-4c78-93d8-aa12671fbdce
-#=╠═╡
 hullzones
-  ╠═╡ =#
 
 # ╔═╡ b5e2ef6a-942a-4782-9c36-cd2778de2c66
-#=╠═╡
 unique(hullzones)
-  ╠═╡ =#
 
 # ╔═╡ 99c12e94-8d3e-4700-ab50-146165f654bd
-#=╠═╡
 plot(
 	plot(field, 	 title="field"), 
 	heatmap(bw', 	 title="thresholded"), 
 	heatmap(dist', 	 title="distance computation"),
 	heatmap(markers',title="markers"),
 	aspect_ratio=1)
-  ╠═╡ =#
 
 # ╔═╡ 0f80805a-76c8-4d8d-91bc-c013575d3a10
-#=╠═╡
 heatmap(plot(field, title="field"), heatmap(Int8.(hullzones)', title="segments"), aspect_ratio=1)
 
-  ╠═╡ =#
+
+# ╔═╡ 62a6b931-b4ef-4431-8e7f-14db6e011d00
+shifted = Timeshift.shifted_fields(beh, spikes, shifts, G.props;
+                               shiftbeh=false,
+                               widths, 
+							   filters=filts[:all], 
+							   thresh)
+
+# ╔═╡ d0ed9a46-00bb-4ce2-a2db-50bc060ec976
+SFs = Timeshift.ShiftedFields(shifted);
+
+# ╔═╡ 16b22203-b96b-4899-80f7-6928864f0543
+plot(SFs[unit,timeshift])
 
 # ╔═╡ d48e9bc9-4d67-4e7b-a0f7-25b975813ccd
-#=╠═╡
 begin
 	
 	mets = Dict()
@@ -473,83 +443,58 @@ begin
 	
 end;
 
-  ╠═╡ =#
 
 # ╔═╡ 333fe5bf-4168-4931-8856-987d7e76e265
-#=╠═╡
 instruction
-  ╠═╡ =#
 
 # ╔═╡ efd65ca8-457c-4f83-9aaf-162c089404c5
-#=╠═╡
 plot(heatmap(newhullzones'),heatmap(hullzones'))
-  ╠═╡ =#
 
 # ╔═╡ 346a2e86-47be-47ca-9895-fbf4806fc17a
-#=╠═╡
 ordered_seg
-  ╠═╡ =#
 
 # ╔═╡ 70d62e08-77b4-407d-bad8-4850abf5f00a
-#=╠═╡
 h = hull_withlazysets(hullzones .== 1)
-  ╠═╡ =#
 
 # ╔═╡ 8ce9d392-b7bd-483f-b87a-78c6f7657024
-#=╠═╡
 typeof(h), typeof([h...])
-  ╠═╡ =#
 
 # ╔═╡ 0dd5dfe7-321d-466e-9799-ac6c40cc8fb0
-#=╠═╡
 begin
 	plot(VPolygon(h))
 	plot!([Singleton(hh) for hh in h], markersize=20)
 	plot!(Singleton([3.2f0,8.2f0]), markersize=20)
 end
-  ╠═╡ =#
 
 # ╔═╡ 30af0459-297b-4c57-95f9-24436d57209c
-#=╠═╡
 Singleton([3.2f0,8.2f0]) ⊇ VPolygon(h)
-  ╠═╡ =#
 
 # ╔═╡ b6b7f2e0-68f7-4324-a78b-197b4143339c
-#=╠═╡
 Singleton([3.2f0,8.2f0]) ⊆ VPolygon(h)
-  ╠═╡ =#
 
 # ╔═╡ 05d6904a-1dfa-4a2f-a385-aaafacc80b0a
-#=╠═╡
 element(Singleton([3.2f0,8.2f0])) ∈ VPolygon(h)
-  ╠═╡ =#
 
 # ╔═╡ d5569288-bc83-408f-8219-5d945cbc6871
 segmentation_thresh
 
 # ╔═╡ 0030f529-dd82-4269-aa50-02cc832b9f07
-#=╠═╡
 begin
 	p_with_seghulls = plot(field, aspect_ratio=1)
 	plothullset!(HullSet(mets[:hullseg_grid]))
 	p_with_seghulls
 end
-  ╠═╡ =#
 
 # ╔═╡ e06ae752-f36b-465c-9303-74d406b915bf
-#=╠═╡
 begin
 	p_with_seghulls_top = plot(field, aspect_ratio=1)
 	plot!(VPolygon(mets[:hullseg_grid][:toptwohull]))
 	annotate!(mets[:hullseg_grid_cent][:toptwohull]..., text(string(:toptwohull), :white))
 	p_with_seghulls_top
 end
-  ╠═╡ =#
 
 # ╔═╡ b101021d-e065-4593-b39a-3fee7dbbaf83
-#=╠═╡
 element(Singleton([50,125])) ∈ HullSet(mets[:hullseg_grid])
-  ╠═╡ =#
 
 # ╔═╡ Cell order:
 # ╟─ff1db172-c3ab-41ea-920c-1dbf831c1336
@@ -588,6 +533,11 @@ element(Singleton([50,125])) ∈ HullSet(mets[:hullseg_grid])
 # ╟─4d814c3e-97e1-491a-b1d8-c7ca9c628afd
 # ╠═eefa56cc-f303-40ee-aa44-dc758eac750b
 # ╟─f9378d49-2f86-4088-bc6d-3b5b227b7c66
+# ╠═d1fe3b02-34f5-46ae-8da8-4bac71c86d84
+# ╠═62a6b931-b4ef-4431-8e7f-14db6e011d00
+# ╠═d0ed9a46-00bb-4ce2-a2db-50bc060ec976
+# ╠═316dab79-015f-46e4-88f5-7051529484e5
+# ╠═16b22203-b96b-4899-80f7-6928864f0543
 # ╟─588bff56-6518-4410-b19a-dc745cf067e7
 # ╠═348e8178-ae24-4217-93a5-54d979b47d92
 # ╟─f02a79c9-01b8-4550-b321-7b5a6f0d5a28
@@ -602,8 +552,8 @@ element(Singleton([50,125])) ∈ HullSet(mets[:hullseg_grid])
 # ╟─d67ba5d1-ca84-4a8b-97ec-54213f60a092
 # ╠═3ce5d298-62eb-4c78-93d8-aa12671fbdce
 # ╠═333fe5bf-4168-4931-8856-987d7e76e265
-# ╠═97f2daad-1190-46a2-8c1a-288e0177a29b
-# ╠═d48e9bc9-4d67-4e7b-a0f7-25b975813ccd
+# ╟─97f2daad-1190-46a2-8c1a-288e0177a29b
+# ╟─d48e9bc9-4d67-4e7b-a0f7-25b975813ccd
 # ╠═87a82eb9-cd22-47f8-acf6-317a794d70ea
 # ╠═efd65ca8-457c-4f83-9aaf-162c089404c5
 # ╠═346a2e86-47be-47ca-9895-fbf4806fc17a

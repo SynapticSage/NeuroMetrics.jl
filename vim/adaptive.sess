@@ -2,6 +2,7 @@ let SessionLoad = 1
 let s:so_save = &g:so | let s:siso_save = &g:siso | setg so=0 siso=0 | setl so=-1 siso=-1
 let v:this_session=expand("<sfile>:p")
 let NERDTreeMapPreviewSplit = "gi"
+let Tlist_Exit_OnlyWindow =  0 
 let NERDTreeShowHidden =  0 
 let Tlist_Show_One_File =  0 
 let NERDTreeMinimalUI =  0 
@@ -20,6 +21,7 @@ let NERDTreeNodeDelimiter = ""
 let NERDTreeShowBookmarks =  0 
 let NERDTreeMouseMode =  1 
 let NERDTreeCreatePrefix = "silent"
+let Tlist_Display_Prototype =  0 
 let NERDTreeMapOpenSplit = "i"
 let JuliaFormatter_root = "/home/ryoung/.vim/plugged/JuliaFormatter.vim"
 let NERDTreeShowLineNumbers =  0 
@@ -111,7 +113,6 @@ let WebDevIconsUnicodeDecorateFolderNodes =  1
 let UltiSnipsDebugServerEnable =  0 
 let WebDevIconsUnicodeGlyphDoubleWidth =  1 
 let Bold = ""
-let Tlist_Exit_OnlyWindow =  0 
 let Tlist_Max_Tag_Length =  10 
 let UltiSnipsListSnippets = "<c-tab>"
 let Tlist_Auto_Open =  0 
@@ -145,7 +146,6 @@ let WebDevIconsUnicodeDecorateFolderNodesSymlinkSymbol = ""
 let NERDTreeMapChdir = "cd"
 let NERDTreeMapToggleZoom = "A"
 let NERDTreeMarkBookmarks =  1 
-let Tlist_Display_Prototype =  0 
 let NERDTreeMapJumpLastChild = "J"
 let NERDTreeMapJumpNextSibling = "<C-j>"
 let NERDTreeCopyCmd = "cp -r "
@@ -160,8 +160,12 @@ if expand('%') == '' && !&modified && line('$') <= 1 && getline(1) == ''
   let s:wipebuf = bufnr('%')
 endif
 let s:shortmess_save = &shortmess
-set shortmess=aoO
-badd +1 scripts/timeshift/TimeShift.jl
+if &shortmess =~ 'A'
+  set shortmess=aoOA
+else
+  set shortmess=aoO
+endif
+badd +11 scripts/timeshift/TimeShift.jl
 badd +14 scripts/decode/Initialize.jl
 badd +7 scripts/fields/Initialize.jl
 badd +10 scripts/fields/Include.jl
@@ -171,7 +175,7 @@ badd +2 src/Load/behavior.jl
 badd +8 src/Load/ripples.jl
 badd +4 src/Load/utils.jl
 badd +1 src/Timeshift.jl
-badd +163 src/Timeshift/checkpoint.jl
+badd +1 src/Timeshift/checkpoint.jl
 badd +109 src/Table/convert_types.jl
 badd +359 src/Table.jl
 badd +9 src/Utils/dict.jl
@@ -200,8 +204,8 @@ badd +5 src/Munge/task.jl
 badd +1 scripts/fields/PlaceField.jl
 badd +69 _research/test_enforce_bound.jl
 badd +215 src/Field/adaptive.jl
-badd +10 ~/tmp.jl
-badd +15 src/Precompile.jl
+badd +69 ~/tmp.jl
+badd +16 src/Precompile.jl
 badd +74 src/Timeshift/shuffle.jl
 badd +11497 ~/.cache/nvim/lsp.log
 badd +224 src/Field/fixed.jl
@@ -223,13 +227,13 @@ badd +1 src/Timeshift/crossval.jl
 badd +89 notebooks/TimeshiftDiff.jl
 badd +31 src/Munge/chrono.jl
 badd +11 src/Utils/macros.jl
-badd +341 notebooks/CacheShifts.jl
+badd +1 notebooks/CacheShifts.jl
 badd +19 scripts/timeshift/TimeShift_setsOfInterest.jl
 badd +1 src/Plot/rf.jl
-badd +232 src/Timeshift/types.jl
+badd +100 src/Timeshift/types.jl
 badd +118 notebooks/Examine_LoadMains.jl
 badd +57 src/Utils.jl
-badd +190 src/Munge/tensor.jl
+badd +1 src/Munge/tensor.jl
 badd +3 src/Munge/spikes.m
 badd +57 src/Munge/spiking.jl
 badd +173 ~/Code/utilities/+units/getRateMatrix.m
@@ -238,7 +242,7 @@ badd +283 src/Utils/filtreg.jl
 badd +4 src/Utils/binning.jl
 badd +1 _research/test_convexhull.jl
 badd +79 scripts/decode/StillRipplePlots.jl
-badd +99 scripts/decode/VideoPerRipple.jl
+badd +1 scripts/decode/VideoPerRipple.jl
 badd +1 scripts/decode/InitializeCairo.jl
 badd +1 src/Table/smooth.jl
 badd +102 src/Field/coactivity.jl
@@ -251,16 +255,16 @@ badd +1 src/Table/clean.jl
 badd +9 test/runtests.jl
 badd +476 notebooks/TestAdaptive.jl
 badd +8 scripts/timeshift/make_dataframes.jl
-badd +266 scripts/decode/FullDecodeVideo.jl
+badd +184 scripts/decode/FullDecodeVideo.jl
 badd +7 src/Decode.jl
 badd +2 intro.jl
 badd +5 src/Table/columntype.jl
 badd +1 src/Plot/old_rf.jl
 badd +1 src/Timeshift/shiftmetrics.jl
 badd +3 ~/.julia/packages/TensorToolbox/6LauI/src/tensor.jl
-badd +137 _research/test_bayes.jl
+badd +3 _research/test_bayes.jl
 badd +100 ~/Code/projects/goal-code/src/Decode/bayes.jl
-badd +7 _research/test_plot_bayes.jl
+badd +1 _research/test_plot_bayes.jl
 argglobal
 %argdel
 tabnew +setlocal\ bufhidden=wipe
@@ -269,17 +273,17 @@ tabrewind
 edit _research/test_bayes.jl
 argglobal
 balt ~/Code/projects/goal-code/src/Decode/bayes.jl
-let s:l = 95 - ((30 * winheight(0) + 27) / 55)
+let s:l = 85 - ((6 * winheight(0) + 10) / 20)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 95
+keepjumps 85
 normal! 0
 tabnext
-edit src/Timeshift/checkpoint.jl
+edit src/Munge/tensor.jl
 argglobal
-balt notebooks/CacheShifts.jl
-let s:l = 1 - ((0 * winheight(0) + 25) / 50)
+balt src/Timeshift/types.jl
+let s:l = 1 - ((0 * winheight(0) + 19) / 39)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
@@ -288,7 +292,7 @@ normal! 0
 tabnext
 edit src/Utils/namedtup.jl
 argglobal
-let s:l = 133 - ((5 * winheight(0) + 25) / 50)
+let s:l = 133 - ((2 * winheight(0) + 10) / 20)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt

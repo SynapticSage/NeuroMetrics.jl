@@ -4,7 +4,7 @@
 trial-based transformations
 
 
-outputs https://github.com/JuliaArrays/AxisArrays.jl types
+outputs https://github.com/JuliaArrays/DimensionalData.jl types
 """
 module tensor
 
@@ -16,11 +16,12 @@ module tensor
     using Infiltrator
     using ProgressMeter
     using Missings
-    using AxisArrays
-    import AxisArrays: axisname
+    using DimensionalData
+    using DimensionalData.Dimensions
     using Interpolations
     using DynamicAxisWarping
     using TensorToolbox
+    #axisnames
 
     import Utils
 
@@ -28,8 +29,8 @@ module tensor
     export quantilize, relativize
 
     SymStr = Union{Symbol, String}
-    Tensor = AxisArray{<:Union{Missing,Array,Real}}
-    DataFrameTensor = AxisArray{<:Union{Missing,DataFrame}}
+    Tensor = DimArray{<:Union{Missing,Array,Real}}
+    DataFrameTensor = DimArray{<:Union{Missing,DataFrame}}
     AllTensor = Union{Tensor, DataFrameTensor}
 
     """
@@ -96,7 +97,7 @@ module tensor
             indices = findfirst.(searches)
             T[indices...] = singular ? g[!, var][1] : Array(g[!, var])
         end
-        AxisArray(T, (Axis{name}(index) for (name,index) in axs)...)
+        DimArray(T, Tuple(Dim{name}(index) for (name,index) in axs))
     end
 
     """
@@ -123,9 +124,9 @@ module tensor
         X
     end
     
-    function tdtw(templates::AxisArray, X::AxisArray; kws...)
+    function tdtw(templates::DimArray, X::DimArray; kws...)
     end
-    function tdtw(templates::AbstractArray, X::AxisArray, dims; kws...)
+    function tdtw(templates::AbstractArray, X::DimArray, dims; kws...)
     end
     function tdtw(templates::AbstractArray, X::AbstractArray, dims; kws...)
     end
@@ -135,7 +136,7 @@ module tensor
 
     get median of all values
     """
-    function tmedian(X::AxisArray; dims)
+    function tmedian(X::DimArray; dims)
     end
     function tmedian(X::AbstractArray; dims)
         X = tenmat(X, row=setdiff(1:ndims(X)), col=dims)
@@ -147,7 +148,7 @@ module tensor
 
     get median of all values
     """
-    function tmean(X::AxisArray; dims)
+    function tmean(X::DimArray; dims)
     end
     function tmean(X::AbstractArray)
         X = X[:]
@@ -195,17 +196,17 @@ module tensor
         return matten(x, dim, szx)
         
     end
-    function equalize(x::AxisArray, dim; missval=missing, thresh=minimum)
+    function equalize(x::DimArray, dim; missval=missing, thresh=minimum)
         axs = x.axes
         if !(dim isa Int)
             dim = findfirst(dim .== axisnames(x))
         end
         data = equalize(x.data, dim; missval, thresh)
         axs = Tuple(i != dim ? axs[i] : 
-                    Axis{axisname(axs[i])}(axs[i][1:size(data,dim)]) 
+                    Dim{axisname(axs[i])}(axs[i][1:size(data,dim)]) 
                for i in 1:length(axs))
         
-        AxisArray(data, axs)
+        DimArray(data, axs)
     end
 
     function quantilize(X::DataFrame, dims::Vector{<:SymStr},
