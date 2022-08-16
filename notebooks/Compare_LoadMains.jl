@@ -481,7 +481,8 @@ SF1, SF2 = ShiftedFields(F[key1]), ShiftedFields(F[key2]);
 compare = Utils.filtreg.register(cells,
 	subset(
 	dropmissing(
-	unstack(sfF, [:shift, :unit], :datacut, Symbol(srt))), 
+	unstack(sfF, [:shift, :unit], :datacut, Symbol(srt), allowduplicates=true)
+	), 
 	:shift=>x->x .== 0),
 	on="unit", transfer=["area"])[2]
 
@@ -504,7 +505,7 @@ end
 	ca1_compare = @subset(compare, :area .== "CA1")
 	scatter(ca1_compare[:,key1.datacut], ca1_compare[:,key2.datacut], label="ca1", legend=:outerbottomright, markersize=m)
 	scatter!(pfc_compare[:,key1.datacut], pfc_compare[:,key2.datacut], label="pfc", markersize=m)
-	plot!(-2:2, -2:2, c=:white, linestyle=:dash, xlabel="$(key1.datacut)", ylabel="$(key2.datacut)", label="")
+	plot!(-2:2, -2:2, c=:white, linestyle=:dash, xlabel="$(key1.datacut)", ylabel="$(key2.datacut)", label="stability", aspect_ratio=1)
 end
 
 # ╔═╡ 23b184e3-af82-4020-ab87-c82f69459ebd
@@ -547,13 +548,21 @@ end
 @memoize function visualize_cells(compare, key1, key2, srt, compare_unit, compare_shift1, compare_shift2)
 	cs_scat = plot(scatter_opt_shift_compare(compare, key1, key2, srt))
 	scatter!(cs_scat, unit_df[:,key1.datacut], unit_df[:,key2.datacut], label="selected", legend=:outerbottomright)
+	vline!([0], c=:gray, linestyle=:dash, label="τ = 0")
 	cs_u1=plot(SF1[compare_unit, parse(Float64,compare_shift1)],  titlefontsize=8)
 	cs_u2=plot(SF2[compare_unit, parse(Float64,compare_shift2)],  titlefontsize=8)
+	cs_u1_zero=plot(SF1[compare_unit, 0],  titlefontsize=8)
+	cs_u2_zero=plot(SF2[compare_unit, 0],  titlefontsize=8)
 	lay_cs = Plots.@layout [
 		a; 
-		[b c]]
-	plot(cs_scat, cs_u1, cs_u2, layout=lay_cs, size=(800,600), upsamp=1)
+		[b c];
+		[d e]
+	]
+	plot(cs_scat, cs_u1, cs_u2, cs_u1_zero, cs_u2_zero, layout=lay_cs, size=(650,750), upsamp=1, aspect_ratio=1)
 end
+
+# ╔═╡ 305dda42-217e-4bbb-b683-45e5acc016bf
+plot_vc = visualize_cells(compare, key1, key2, srt, compare_unit, compare_shift1, compare_shift2)
 
 # ╔═╡ 82a2ce1b-dd5a-4b4d-b6f0-f12c85be648a
 (;cu_sel, cs1_sel, cs2_sel)
@@ -573,6 +582,7 @@ Its possible that some of the more futury cells have fields that emphasize bound
 -----
 * Cue-error cue-correct, cell 132 :: Picks a time where the fields are more similar than when sampled at time=0
 * Cue-mem, cell 42
+* 1stH-LstH, Cell 45, pfc
 
 ### Con notes
 ----------
@@ -584,12 +594,6 @@ Some of the cells do not change that much over time. And some of those are at th
 
 # ╔═╡ 7203e487-380a-4f81-a27b-30353b178028
 
-
-# ╔═╡ 305dda42-217e-4bbb-b683-45e5acc016bf
-plot_vc = visualize_cells(compare, key1, key2, srt, compare_unit, compare_shift1, compare_shift2)
-
-# ╔═╡ 74d7debc-6486-4fb8-83f0-f54fd0d7f1b1
-plot_vc = visualize_cells(compare, key1, key2, srt, compare_unit, "0", "0")
 
 # ╔═╡ Cell order:
 # ╟─5005402b-4d25-41a3-916b-4c814faa9065
@@ -658,7 +662,7 @@ plot_vc = visualize_cells(compare, key1, key2, srt, compare_unit, "0", "0")
 # ╟─f4baa229-883a-41df-ba42-581783029bb1
 # ╠═2a6d06f1-b6b9-43c1-be52-2875636f6335
 # ╠═000cf56d-bc91-4032-96e0-7f8d35f7b5e3
-# ╠═920ba85a-d5d7-420e-9512-95bbb34211fd
+# ╟─920ba85a-d5d7-420e-9512-95bbb34211fd
 # ╠═fd19b849-318c-458c-8b5c-238a13ec7738
 # ╟─9bd5aef9-e0be-47a4-8994-720b3eea4bb4
 # ╟─2e27c6f5-f5d2-4dbb-8842-1def4f407476
@@ -667,7 +671,7 @@ plot_vc = visualize_cells(compare, key1, key2, srt, compare_unit, "0", "0")
 # ╠═304ab4a2-c6dd-4c03-915a-d1d937045076
 # ╟─793fe22f-0bf9-41c7-9555-1881d9d5a50b
 # ╟─4ccb5ce6-f6e6-4b3c-b09a-49fd1faf6874
-# ╟─1771074f-1e67-4e07-833f-4ea231a9fbbe
+# ╠═1771074f-1e67-4e07-833f-4ea231a9fbbe
 # ╟─23b184e3-af82-4020-ab87-c82f69459ebd
 # ╟─f8786dd2-4f12-407b-8c33-e8b9885f359e
 # ╟─4950cbeb-2d28-4429-94e7-b63cd14076e5
@@ -679,9 +683,8 @@ plot_vc = visualize_cells(compare, key1, key2, srt, compare_unit, "0", "0")
 # ╟─bdb96423-b903-4f34-b60e-cf2a34b987ce
 # ╟─d142b74e-33bb-4766-9c22-9e5a4cb47eb3
 # ╟─3f0e03d0-555e-429e-8130-8f47fa8a5887
-# ╠═305dda42-217e-4bbb-b683-45e5acc016bf
+# ╟─305dda42-217e-4bbb-b683-45e5acc016bf
 # ╟─82a2ce1b-dd5a-4b4d-b6f0-f12c85be648a
-# ╠═74d7debc-6486-4fb8-83f0-f54fd0d7f1b1
 # ╟─8fea7857-f1da-4c05-8020-256e542b800c
 # ╟─3952f4bd-efd7-4c79-809a-29fa4daf1348
 # ╠═7203e487-380a-4f81-a27b-30353b178028

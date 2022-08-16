@@ -50,6 +50,4 @@ module GoalFetchAnalysis
 
     Utils.plot.set_theme_timebased(23)
 
-
-
 end

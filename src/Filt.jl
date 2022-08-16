@@ -388,5 +388,4 @@ module Filt
     """
     precache_field_reqs = Dict(:trajdiversity_cache => [:period])
 
-
 end
