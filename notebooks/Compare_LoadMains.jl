@@ -49,6 +49,9 @@ begin
       )
 end;
 
+# ╔═╡ f4edf013-a616-45fa-be5f-0e2308aa3f34
+using Memoization
+
 # ╔═╡ 9ce4497d-2b82-464b-9df9-c2e568a661ac
 using Serialization
 
@@ -66,6 +69,18 @@ PlutoUI.TableOfContents(title="Compare Dataset Metrics", aside=true)
 
 # ╔═╡ 5c008e3c-9395-4f43-be60-ff510a54b97e
 md"Loadup our libraries..."
+
+# ╔═╡ 79a1a60c-3c9e-430e-96d0-084f072bbb27
+save_the_plots! = @bind saveon CheckBox()
+
+# ╔═╡ f9a092bb-b74d-4c15-a445-2ba777629ab1
+keys(Memoization.caches)
+
+# ╔═╡ 5f59d422-609b-4107-bdeb-a71f85cd443a
+clear_cache! = @bind clear_memoize_cache Button()
+
+# ╔═╡ fab370fc-4854-4018-92d5-f6808ffdf742
+clear_memoize_cache == "Click" ? Memoization.empty_all_caches!() : nothing
 
 # ╔═╡ e4174f16-1628-4e7c-8d30-840690422582
 md"""
@@ -173,6 +188,12 @@ begin
 	sel = (;prop=sel_prop, srt=sel_sort)
 end
 
+# ╔═╡ 39359b09-54f8-471b-b455-ffdb7e3bdf35
+md"Properties attached to our saved figures in general"
+
+# ╔═╡ 6b0aa168-06ee-463f-a187-e1ba57a8d232
+savekws = (;met, srt, cut1=key1.datacut,cut2=key2.datacut)
+
 # ╔═╡ 41fbea69-ba6c-48be-8b81-244f2e01d428
 md"""
 ## Filtration
@@ -182,7 +203,7 @@ filter datasets
 # ╔═╡ 9f47b399-bc14-4369-8432-7d2b8b5e872c
 cellfilters = begin
 	kws=(;show_value=true)
-	sl_spikecount = @bind spikecount Slider(50:10:150; default=50, kws...)
+	sl_spikecount = @bind spikecount Slider(50:10:300; default=200, kws...)
 	sl_coherence  = @bind coherence Slider(0:0.1:1; default=0.6, kws...)
 	sl_bitsperspike_ca1 = @bind bitsperspike_ca1 Slider(0:0.1:3; default=0.5, kws...)
 	sl_bitsperspike_pfc = @bind bitsperspike_pfc Slider(0:0.05:3; default=0.25, kws...)
@@ -208,7 +229,8 @@ begin
 		deleteat!(sfsmet, sfsmet.condition .!= true)
 	end
 	sf1F, sf2F = filtercells(sf1), filtercells(sf2)
-end;
+	md"Filtering happens here!"
+end
 
 # ╔═╡ ef5b86bb-57f9-464b-9cae-acbf8933de1d
 passingcells(x) = combine(groupby(x, :unit), :area => first => :area, [:totalcount, :coherence, :bitsperspike] .=> maximum)
@@ -222,16 +244,18 @@ md"""
 """
 
 # ╔═╡ 88fa5b09-0fab-4293-89a8-02ca6ba80aa0
-
+begin
+metdist_folder = Plot.setfolder("timeshift","metric_distribution")
 md"""
 ## Metric Δdistribution
+(saved at $metdist_folder)
 """
+end
 
 # ╔═╡ 231d579e-23d6-4ac7-a96d-e37366277965
 (;console1, console2)
 
-# ╔═╡ 3079567e-7fb0-4269-a01e-74be600b459f
-begin
+# ╔═╡ ccf2fd8a-941c-4cfe-bb4b-9c572605dd0c
 	function metric_distribution(sf1,sf2)
 		cs(x) = collect(Utils.skipnan(skipmissing(x)))
 		q1 = quantile(cs(sf1[!,met]), 0.96)
@@ -253,17 +277,33 @@ begin
 		layout = @layout [a; b c]
 )
 	end
-	metric_distribution(sf1,sf2)
-end
+
+# ╔═╡ cb110bb1-1fee-423a-bd8c-8d41383c9203
+md"Without filtering out cells (see filter criteria)"
+
+# ╔═╡ 3079567e-7fb0-4269-a01e-74be600b459f
+dist_met_unfilt = metric_distribution(sf1,sf2)
+
+# ╔═╡ b1fa3d10-dcaa-4bbe-ad1d-d2fe9c85a523
+#Plot.save(dist_met_unfilt, (;savekws..., filt=false));
+
+# ╔═╡ 54e47f2e-13e1-4e2c-86cd-7bd2b39bbfcb
+md"With filtering out bad cells"
 
 # ╔═╡ 9fda323f-46e7-436d-a2a4-8094527b1b10
-metric_distribution(sf1F,sf2F)
+dist_met_filtered = metric_distribution(sf1F,sf2F)
+
+# ╔═╡ b0c247f5-5b52-4da8-b639-0723737bdcef
+Plot.save(metdist_folder, dist_met_filtered, (;savekws...));
 
 # ╔═╡ 5c962c04-b8a1-46e9-8933-b65c16d76ef1
+begin
+sorted_cell_metric_folder = Plot.setfolder("timeshift","sorted_metric_per_cell")
 md"""
-## Plot
-### Straightup side-by-side, unfitlered
+## Visualize each cell metric by sort
+Stored at $sorted_cell_metric_folder
 """
+end
 
 # ╔═╡ 4f98b564-6696-47f9-89cc-0c5b92137753
 normrange=true
@@ -321,19 +361,27 @@ end
 # ╔═╡ 1afbdcbf-3c8d-45ba-9101-8f1f0db13512
 md"Which is run on each cut"
 
-# ╔═╡ 7ce8f6db-6696-411e-8751-06dbcf1d25da
+# ╔═╡ 7933787f-bd79-433f-b2d2-20f0dc72b1ef
 begin
 	function get_metmatrix(sfsmet; met, srt, normrange)	
 		tmpstatmat = shiftmetrics.getstatmat(sfsmet, met; filtval=(met == "coherence" ? NaN : 0), asmat=true, unitnoskip=false, sortby=[srt], (normrange ? (;rangenorm=[0,1]) : (;percentnorm=0.5))...);
 	end
-	function side_by_side_plot(sf1, sf2; met, srt, normrange)
+	@memoize function side_by_side_plot(sf1, sf2; met, srt, normrange, key1, key2, filt)
 		metmatrix1 = get_metmatrix(sf1; met, srt, normrange)
 		metmatrix2 = get_metmatrix(sf2; met, srt, normrange)
 		plot_shift_pop_overall1, plot_shift_pop_overall2 = plot_sorted_mets(sf1, metmatrix1; met, srt, normrange=true, key=key1), plot_sorted_mets(sf2, metmatrix2; met, srt, normrange=true, key=key2)
 		plot(plot_shift_pop_overall1, plot_shift_pop_overall2, size=(800,400))
 	end
-	side_by_side_plot(sf1, sf2; met, srt, normrange)
 end
+
+# ╔═╡ 763ce567-f5a9-4460-a554-ba0ffc557170
+md"### Unfiltered"
+
+# ╔═╡ 7ce8f6db-6696-411e-8751-06dbcf1d25da
+unfilt_sbs = side_by_side_plot(sf1, sf2; met, srt, normrange, key1, key2, filt=false)
+
+# ╔═╡ 6913e35a-de73-495b-a7ff-5a1a63c6302e
+saveon ? Plot.save(sorted_cell_metric_folder, unfilt_sbs, (;savekws...,filt=false)) : nothing;
 
 # ╔═╡ 11f54afb-b588-49b9-81c1-8a8393084916
 md"""
@@ -345,12 +393,14 @@ md"""
 
 # ╔═╡ b5f732e2-369f-4d34-b070-de4352592bec
 md"""
-### Straightup side-by-side, filtered
-Filter the data
+### Filtered
 """
 
 # ╔═╡ b509332f-cd1d-4a6d-8b79-954b02be35b4
-side_by_side_plot(sf1F, sf2F; met, srt, normrange)
+filt_sbs = side_by_side_plot(sf1F, sf2F; met, srt, normrange, key1, key2, filt=true)
+
+# ╔═╡ 7d7e8c09-5e95-4d27-976c-d5516e596ba9
+saveon ? Plot.save(sorted_cell_metric_folder, filt_sbs, (;savekws...,filt=true)) : nothing;
 
 # ╔═╡ a6b29b91-d0fc-46a3-8e12-47cfbb207184
 key1.datacut
@@ -369,7 +419,11 @@ begin
 	end
 	transform!(sf1F, srt => futurepast => :futurepast)
 	transform!(sf2F, srt => futurepast => :futurepast)
-	sfF = vcat(sf1F, sf2F, cols=:union, source = :datacut => [string(key1.datacut), string(key2.datacut)])
+	function combineFtable(sf1F, sf2F)
+		sfF = vcat(sf1F, sf2F, cols=:union, source = :datacut => [string(key1.datacut), string(key2.datacut)])
+		Utils.filtreg.register(cells, sfF; on="unit", transfer=["area"])[2]
+	end
+	sfF = combineFtable(sf1F,sf2F)
 end
 
 # ╔═╡ f4baa229-883a-41df-ba42-581783029bb1
@@ -380,14 +434,26 @@ function futurepast_index(x; thresh=0.1)
 	( (H - L) / (H + L) )
 end
 
+# ╔═╡ 2a6d06f1-b6b9-43c1-be52-2875636f6335
+ zero_indices = combine(groupby(sfF, :datacut), srt => (x->median(abs.(x))) => :zero_dist) #bar(:datacut, :futurepast_index)
+
 # ╔═╡ 000cf56d-bc91-4032-96e0-7f8d35f7b5e3
+begin
  fp_indices = combine(groupby(sfF, :datacut), srt => futurepast_index => :futurepast_index) #bar(:datacut, :futurepast_index)
+ fp_indices_area = combine(groupby(sfF, [:area,:datacut]), srt => futurepast_index => :futurepast_index)
+end
 
 # ╔═╡ 920ba85a-d5d7-420e-9512-95bbb34211fd
-@df fp_indices bar(:datacut, :futurepast_index, label="", ylabel="Future skew")
+if length(unique(fp_indices.datacut)) > 1
+	fs_plot = @df fp_indices bar(:datacut, :futurepast_index, label="", ylabel="Future skew")
+	z_plot = @df zero_indices bar(:datacut, :zero_dist, label="", ylabel="Distance to zero")
+	z_plot_area = @df f
+	
+	plot(fs_plot, z_plot)
+end
 
 # ╔═╡ fd19b849-318c-458c-8b5c-238a13ec7738
-
+saveon ? Plot.save() : nothing
 
 # ╔═╡ 9bd5aef9-e0be-47a4-8994-720b3eea4bb4
 md"We could also clarify this curve by its sigmoidal shape. Namely fit the sigmoid and use it's anatomical features to differentiate"
@@ -400,37 +466,141 @@ md"""
 """
 end
 
-# ╔═╡ 793fe22f-0bf9-41c7-9555-1881d9d5a50b
-compare=dropmissing(unstack(sfF, [:shift, :unit], :datacut, Symbol(srt))) 
+# ╔═╡ 520fbb25-aca6-42e0-9dc2-2c3d7ef8a136
+md"""
+# Neuron "remapping" (or absence thereof)
+"""
 
-# ╔═╡ 23b184e3-af82-4020-ab87-c82f69459ebd
+# ╔═╡ e15508a2-c87e-4097-8bce-98a8e9bf7d55
+F = load_fields();
+
+# ╔═╡ 304ab4a2-c6dd-4c03-915a-d1d937045076
+SF1, SF2 = ShiftedFields(F[key1]), ShiftedFields(F[key2]);
+
+# ╔═╡ 793fe22f-0bf9-41c7-9555-1881d9d5a50b
+compare = Utils.filtreg.register(cells,
+	subset(
+	dropmissing(
+	unstack(sfF, [:shift, :unit], :datacut, Symbol(srt))), 
+	:shift=>x->x .== 0),
+	on="unit", transfer=["area"])[2]
+
+# ╔═╡ 4ccb5ce6-f6e6-4b3c-b09a-49fd1faf6874
 begin
-	scatter(compare[:,key1.datacut], compare[:,key2.datacut], label="")
+neuron_optsrt_folder = Plot.setfolder("timeshift", "neuron_compare_optsrt_aka_optshift")
+md"""
+## Each units optimal $met by $srt
+
+In order to get a sense of thee gestalt point motion between 🔑 = $(key1.datacut) and 🔑 = $(key2.datacut), let's throw a 🔴 for each neuron's shift in each set.
+
+Data saved at $neuron_optsrt_folder
+"""
+end
+
+# ╔═╡ 1771074f-1e67-4e07-833f-4ea231a9fbbe
+@memoize function scatter_opt_shift_compare(compare, key1, key2, srt)
+	m = 6
+	pfc_compare = @subset(compare, :area .== "PFC")
+	ca1_compare = @subset(compare, :area .== "CA1")
+	scatter(ca1_compare[:,key1.datacut], ca1_compare[:,key2.datacut], label="ca1", legend=:outerbottomright, markersize=m)
+	scatter!(pfc_compare[:,key1.datacut], pfc_compare[:,key2.datacut], label="pfc", markersize=m)
 	plot!(-2:2, -2:2, c=:white, linestyle=:dash, xlabel="$(key1.datacut)", ylabel="$(key2.datacut)", label="")
 end
+
+# ╔═╡ 23b184e3-af82-4020-ab87-c82f69459ebd
+sosc = scatter_opt_shift_compare(compare, key1, key2, srt)
+
+# ╔═╡ f8786dd2-4f12-407b-8c33-e8b9885f359e
+saveon ? Plot.save(neuron_optsrt_folder, sosc, (;savekws...)) : nothing;
 
 # ╔═╡ 4950cbeb-2d28-4429-94e7-b63cd14076e5
 md"Make version where whivever axis is closer to y=x, flip that point to the x"
 
 # ╔═╡ 220fff65-a5f0-4643-b0d8-cf67ef2c9683
+cu_sel = @bind compare_unit Slider(sort(compare.unit, by=x->compare[compare.unit.==x, key1.datacut][1]), show_value=true)
+
+# ╔═╡ b7929dc0-9b62-4c9b-8ec4-a37021fbb580
+@memoize get_cell(cell; met, srt, dc1, dc2) =  subset(compare, :unit => (x-> x .== cell))
+
+# ╔═╡ 5957dd62-d656-457f-93fd-cb16649ebe0f
+unit_df = get_cell(compare_unit; met, srt, dc1=key1.datacut, dc2=key2.datacut)
+
+# ╔═╡ 7e514551-8a73-4079-871f-4aeff3dc46fc
+uShifts = unique(sfF.shift)
+
+# ╔═╡ a6d0a348-2918-447d-9fe9-e7ca2fb82c9e
+cs1_sel = @bind compare_shift1 Slider(string.(uShifts), default=string.(unit_df[:,key1.datacut])[1], show_value=true)
+
+# ╔═╡ bdb96423-b903-4f34-b60e-cf2a34b987ce
+cs2_sel = @bind compare_shift2 Slider(string.(uShifts), default=string.(unit_df[:,key2.datacut])[1], show_value=true)
+
+# ╔═╡ d142b74e-33bb-4766-9c22-9e5a4cb47eb3
 begin
-	L = @layout  [a 
-				 [b c d e f]] 
-	plot(
-		Plot.timeshift.shiftedfieldplot(SF[unit], collect(-2:1:2)),
-		plot(@subset(bSF, :unit .== unit).value,  label="unit $unit"),
-		layout=L
-	) 
+neuron_compare_folder = Plot.setfolder("timeshift", "neuron_compare_optsrt_aka_optshift", "neurons")
+md"""
+## 🔍 Focusing on fields of optimal shift pairs
+$neuron_compare_folder
+"""
 end
 
+# ╔═╡ 3f0e03d0-555e-429e-8130-8f47fa8a5887
+@memoize function visualize_cells(compare, key1, key2, srt, compare_unit, compare_shift1, compare_shift2)
+	cs_scat = plot(scatter_opt_shift_compare(compare, key1, key2, srt))
+	scatter!(cs_scat, unit_df[:,key1.datacut], unit_df[:,key2.datacut], label="selected", legend=:outerbottomright)
+	cs_u1=plot(SF1[compare_unit, parse(Float64,compare_shift1)],  titlefontsize=8)
+	cs_u2=plot(SF2[compare_unit, parse(Float64,compare_shift2)],  titlefontsize=8)
+	lay_cs = Plots.@layout [
+		a; 
+		[b c]]
+	plot(cs_scat, cs_u1, cs_u2, layout=lay_cs, size=(800,600), upsamp=1)
+end
+
+# ╔═╡ 82a2ce1b-dd5a-4b4d-b6f0-f12c85be648a
+(;cu_sel, cs1_sel, cs2_sel)
+
+# ╔═╡ 8fea7857-f1da-4c05-8020-256e542b800c
+if saveon
+	best_state = unit_df[1,key1.datacut] == compare_shift1 &&
+				 unit_df[1,key2.datacut] == compare_shift2;
+	Plot.save(neuron_compare_folder, plot_vc, (;savekws..., unit=compare_unit, best=best_state, shift1=compare_shift1, shift2=compare_shift2));
+	nothing
+end
+
+# ╔═╡ 3952f4bd-efd7-4c79-809a-29fa4daf1348
+md"""
+Its possible that some of the more futury cells have fields that emphasize boundary pixels.
+### Pro notes
+-----
+* Cue-error cue-correct, cell 132 :: Picks a time where the fields are more similar than when sampled at time=0
+* Cue-mem, cell 42
+
+### Con notes
+----------
+Some of the cells do not change that much over time. And some of those are at the far end of the shift spectrum.
+* cue-error cue-correct, Cell 81
+* cue-mem, Cell 73
+
+"""
+
+# ╔═╡ 7203e487-380a-4f81-a27b-30353b178028
+
+
+# ╔═╡ 74d7debc-6486-4fb8-83f0-f54fd0d7f1b1
+plot_vc = visualize_cells(compare, key1, key2, srt, compare_unit, "0", "0")
+
 # ╔═╡ 305dda42-217e-4bbb-b683-45e5acc016bf
-SF[unit]
+plot_vc = visualize_cells(compare, key1, key2, srt, compare_unit, compare_shift1, compare_shift2)
 
 # ╔═╡ Cell order:
 # ╟─5005402b-4d25-41a3-916b-4c814faa9065
 # ╟─44079721-eb63-4c82-af86-ee3b4f55ab42
 # ╟─5c008e3c-9395-4f43-be60-ff510a54b97e
 # ╟─e8c8870a-0271-11ed-2ac4-317a38722303
+# ╟─79a1a60c-3c9e-430e-96d0-084f072bbb27
+# ╠═f4edf013-a616-45fa-be5f-0e2308aa3f34
+# ╠═f9a092bb-b74d-4c15-a445-2ba777629ab1
+# ╟─5f59d422-609b-4107-bdeb-a71f85cd443a
+# ╟─fab370fc-4854-4018-92d5-f6808ffdf742
 # ╟─e4174f16-1628-4e7c-8d30-840690422582
 # ╠═e6605880-9bd0-43b3-81dd-643829d32cbc
 # ╠═99b0eff5-6d22-4948-91ae-5080d838580e
@@ -448,16 +618,23 @@ SF[unit]
 # ╠═c1053cca-23a9-40cc-a2db-bbbb07c8a928
 # ╠═1a4cc678-6900-4e07-a6dc-78073df8b06a
 # ╟─fb770592-cbed-4c47-b156-e2cdde09b529
+# ╟─39359b09-54f8-471b-b455-ffdb7e3bdf35
+# ╟─6b0aa168-06ee-463f-a187-e1ba57a8d232
 # ╟─41fbea69-ba6c-48be-8b81-244f2e01d428
-# ╠═9f47b399-bc14-4369-8432-7d2b8b5e872c
-# ╠═4732f7ef-cec0-4435-a2aa-370babc06cd2
-# ╠═ef5b86bb-57f9-464b-9cae-acbf8933de1d
+# ╟─9f47b399-bc14-4369-8432-7d2b8b5e872c
+# ╟─4732f7ef-cec0-4435-a2aa-370babc06cd2
+# ╟─ef5b86bb-57f9-464b-9cae-acbf8933de1d
 # ╠═2266bece-09f2-41a2-87dc-adfb16775361
 # ╟─404416fe-70d8-456a-90e7-52de79fa2eb5
-# ╟─88fa5b09-0fab-4293-89a8-02ca6ba80aa0
+# ╠═88fa5b09-0fab-4293-89a8-02ca6ba80aa0
 # ╟─231d579e-23d6-4ac7-a96d-e37366277965
-# ╟─3079567e-7fb0-4269-a01e-74be600b459f
+# ╟─ccf2fd8a-941c-4cfe-bb4b-9c572605dd0c
+# ╟─cb110bb1-1fee-423a-bd8c-8d41383c9203
+# ╠═3079567e-7fb0-4269-a01e-74be600b459f
+# ╠═b1fa3d10-dcaa-4bbe-ad1d-d2fe9c85a523
+# ╟─54e47f2e-13e1-4e2c-86cd-7bd2b39bbfcb
 # ╠═9fda323f-46e7-436d-a2a4-8094527b1b10
+# ╟─b0c247f5-5b52-4da8-b639-0723737bdcef
 # ╟─5c962c04-b8a1-46e9-8933-b65c16d76ef1
 # ╠═4f98b564-6696-47f9-89cc-0c5b92137753
 # ╟─81ff9d0e-6e15-4182-8dd9-ee10457348e7
@@ -465,23 +642,46 @@ SF[unit]
 # ╠═9ce4497d-2b82-464b-9df9-c2e568a661ac
 # ╟─87171f23-3f8f-4c33-8430-2c5e13732675
 # ╟─1afbdcbf-3c8d-45ba-9101-8f1f0db13512
+# ╟─7933787f-bd79-433f-b2d2-20f0dc72b1ef
+# ╟─763ce567-f5a9-4460-a554-ba0ffc557170
 # ╟─7ce8f6db-6696-411e-8751-06dbcf1d25da
+# ╠═6913e35a-de73-495b-a7ff-5a1a63c6302e
 # ╟─11f54afb-b588-49b9-81c1-8a8393084916
 # ╠═53b84249-b032-4e76-9d35-6dd7856194d9
 # ╟─b5f732e2-369f-4d34-b070-de4352592bec
-# ╠═b509332f-cd1d-4a6d-8b79-954b02be35b4
+# ╟─b509332f-cd1d-4a6d-8b79-954b02be35b4
+# ╠═7d7e8c09-5e95-4d27-976c-d5516e596ba9
 # ╠═51e1b371-da12-403a-ba4e-ce7790bd5d2a
 # ╠═a6b29b91-d0fc-46a3-8e12-47cfbb207184
 # ╠═e24a55c4-2946-47a4-a12a-3ef6654865c9
 # ╠═a0083bf5-a36c-4b70-a077-8758708721da
-# ╠═f4baa229-883a-41df-ba42-581783029bb1
+# ╟─f4baa229-883a-41df-ba42-581783029bb1
+# ╠═2a6d06f1-b6b9-43c1-be52-2875636f6335
 # ╠═000cf56d-bc91-4032-96e0-7f8d35f7b5e3
 # ╠═920ba85a-d5d7-420e-9512-95bbb34211fd
 # ╠═fd19b849-318c-458c-8b5c-238a13ec7738
 # ╟─9bd5aef9-e0be-47a4-8994-720b3eea4bb4
 # ╟─2e27c6f5-f5d2-4dbb-8842-1def4f407476
+# ╟─520fbb25-aca6-42e0-9dc2-2c3d7ef8a136
+# ╟─e15508a2-c87e-4097-8bce-98a8e9bf7d55
+# ╠═304ab4a2-c6dd-4c03-915a-d1d937045076
 # ╟─793fe22f-0bf9-41c7-9555-1881d9d5a50b
+# ╟─4ccb5ce6-f6e6-4b3c-b09a-49fd1faf6874
+# ╟─1771074f-1e67-4e07-833f-4ea231a9fbbe
 # ╟─23b184e3-af82-4020-ab87-c82f69459ebd
+# ╟─f8786dd2-4f12-407b-8c33-e8b9885f359e
 # ╟─4950cbeb-2d28-4429-94e7-b63cd14076e5
-# ╠═220fff65-a5f0-4643-b0d8-cf67ef2c9683
+# ╟─220fff65-a5f0-4643-b0d8-cf67ef2c9683
+# ╟─b7929dc0-9b62-4c9b-8ec4-a37021fbb580
+# ╟─5957dd62-d656-457f-93fd-cb16649ebe0f
+# ╟─7e514551-8a73-4079-871f-4aeff3dc46fc
+# ╟─a6d0a348-2918-447d-9fe9-e7ca2fb82c9e
+# ╟─bdb96423-b903-4f34-b60e-cf2a34b987ce
+# ╟─d142b74e-33bb-4766-9c22-9e5a4cb47eb3
+# ╟─3f0e03d0-555e-429e-8130-8f47fa8a5887
 # ╠═305dda42-217e-4bbb-b683-45e5acc016bf
+# ╟─82a2ce1b-dd5a-4b4d-b6f0-f12c85be648a
+# ╠═74d7debc-6486-4fb8-83f0-f54fd0d7f1b1
+# ╟─8fea7857-f1da-4c05-8020-256e542b800c
+# ╟─3952f4bd-efd7-4c79-809a-29fa4daf1348
+# ╠═7203e487-380a-4f81-a27b-30353b178028

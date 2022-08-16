@@ -5,12 +5,14 @@ module shiftmetrics
     using Infiltrator
     using Statistics
     using AxisArrays
+    using DimensionalData
     import Utils
 
     FieldObj = Union{ShiftedField, ShiftedFields}
     TableObj = Union{DataFrame,GroupedDataFrame, AbstractDataFrame}
 
     export derivative!, best_tau!, best_metric!, worst_tau!, worst_metric!
+    export push_shiftmetric!
 
 # =================================================================
 #                      ,---.          |             |         
@@ -25,8 +27,24 @@ module shiftmetrics
 # =================================================================
                                
 
+    """
+    Adding shift metrics to dimarray objects
+    """
+    function metricapply!(shiftedfields::DimArray, lambda::Function; metric, kws...)
+        dimnum = findfirst(name(shiftedfields.dims) .== :shift)
+        shifts = collect(shiftedfields.dims[dimnum])
+        shiftedfields = eachslice(shiftedfields, dims=:unit)
+        for shiftedfield in shiftedfields
+            mets = vcat([DataFrame(Dict(:shift=>shift,metric=>r[metric]))
+                         for (shift,r) in zip(shifts,shiftedfield)]...)
+            n = names(mets)
+            out= lambda(mets; metric)
+            newname = Symbol(setdiff(names(mets), n)[1])
+            setindex!.(shiftedfield, out, [newname])
+        end
+    end
+    push_shiftmetric! = metricapply!
     function metricapply!(shiftedfields::DictOfShiftOfUnit, lambda::Function; kws...)
-        @infiltrate
         metricapply!(ShiftedFields(shiftedfields), lambda; kws...)
     end
     function metricapply!(shiftedfields::ShiftedFields, lambda::Function; kws...)
@@ -34,7 +52,7 @@ module shiftmetrics
         shiftedfields
     end
     function metricapply!(metricDF::AbstractDataFrame, lambda::Union{Symbol,Function}; kws...)
-        lambda = lambda isa Symbol ? eval(lambda) : key_lambda
+        lambda = lambda isa Symbol ? eval(lambda) : lambda
         G = groupby(metricDF, :unit)
         for unit in G
             unit = lambda(unit; kws...)
@@ -203,6 +221,20 @@ module shiftmetrics
             out
         end
     end
+
+    """
+        get_metmatrix
+
+    Shorthand version of getstatmat
+    """
+	function get_metmatrix(sfsmet; met, srt, normrange)	
+		tmpstatmat = shiftmetrics.getstatmat(sfsmet, met; 
+                                             filtval=(met == "coherence" ? NaN : 0),
+                                             asmat=true,
+                                             unitnoskip=false,
+                                             sortby=[srt],
+                                             (normrange ? (;rangenorm=[0,1]) : (;percentnorm=0.5))...);
+	end
 
 end
 

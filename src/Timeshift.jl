@@ -116,7 +116,7 @@ module Timeshift
             metricfuncs::Union{Function,Symbol,
                          Vector{Symbol},Vector{Function},Nothing}=adaptive.metric_def,
             multi::Union{Bool, Symbol}=true,
-            result_dict::AbstractDict=OrderedDict(),
+            result_dict::AbstractDict=Timeshift.DictOfShiftOfUnit{Float64}(),
             progress::Bool=true,
             prog_fields::Bool=false,
             shiftbeh::Bool=true,
@@ -158,7 +158,7 @@ module Timeshift
             beh  = filtreg.filter(beh; filters, filter_skipmissingcols=true)[1]
         end
         grid = grid === nothing ? gridfunc(beh, props; grid_kws...) : grid
-        occ  = occ === nothing ? occfunc(beh, grid) : occ
+        occ  = occ  === nothing ? occfunc(beh, grid) : occ
 
         ensureTimescale!(data)
         ensureTimescale!(beh)
@@ -169,6 +169,10 @@ module Timeshift
             prog.showspeed = true
         end
         @info shiftbeh
+        if typeof(result_dict) <: Timeshift.AbsDictOfShiftOfUnit 
+            result_dict = Timeshift.DictOfShiftOfUnit{keytype(result_dict)}(result_dict)
+        end
+        sizehint!(result_dict, length(shifts))
         for shift in shifts
             if shiftbeh
                 @debug "shifting beh"
@@ -212,12 +216,7 @@ module Timeshift
             finish!(prog)
         end
         shiftbeh ? reset_shift!(beh) : reset_shift!(data)
-
-        out = OrderedDict(key=>pop!(result_dict, key) 
-                          for key in sort([keys(result_dict)...]))
-        out = Timeshift.DictOfShiftOfUnit{keytype(out)}(out)
-
-        return out
+        return result_dict
     end
 
     using Reexport

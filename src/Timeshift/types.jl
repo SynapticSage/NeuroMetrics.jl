@@ -14,6 +14,7 @@ module types
 
     export ShiftedField, ShiftedFields
     export getshifts, getunits
+    export tensorform, matrixform
 
     function Base.get(S::T where T<:AbsDictOfShiftOfUnit, shift::T where T<:Real, index...) 
         s = S[shift]
@@ -194,7 +195,7 @@ module types
             end
         end
         units = [unit[1] for unit in units]
-        DimArray(M, Dim{:unit}(units), Dim{:shift}(shifts))
+        DimArray(M, (Dim{:unit}(units), Dim{:shift}(shifts)))
     end
 
     """
@@ -214,7 +215,9 @@ module types
         results = permutedims(results, (3,4,1,2))
         fieldaxes = [Dim{Symbol(grid.props[i])}(grid.centers[i]) for
                      i in 1:length(grid.props)]
-        DimArray(results, (M.dims..., fieldaxes...))
+        dimset = Tuple(Dim{name(d)}(collect(d.val)) 
+                       for d in (M.dims..., fieldaxes...,))
+        DimArray(results, dimset)
     end
 
     function tensorform(fields::DimArray)::DimArray
@@ -230,7 +233,9 @@ module types
         results = cat(results...; dims=1)
         fieldaxes = [Dim{Symbol(grid.props[i])}(grid.centers[i]) for
                      i in 1:length(grid.props)]
-        DimArray(results, (fields.axes..., fieldaxes...))
+        dimset = Tuple(Dim{name(d)}(collect(d.val)) 
+                       for d in (fields.dims..., fieldaxes...,))
+        DimArray(results, dimset)
         # Slower but more compact way of doing the top 6 lines
         #sizefield = size(propsel(first(fields)))
         #@time results = reduce(vcat, results);

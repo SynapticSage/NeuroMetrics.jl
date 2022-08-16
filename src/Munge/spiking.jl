@@ -5,7 +5,8 @@ module spiking
     import Utils: binning
     using DataFrames
     using ImageFiltering
-    using AxisArrays
+    using DimensionalData
+    import DimensionalData: DimArray
     using LazySets
     using ProgressMeter
     using Infiltrator
@@ -52,23 +53,23 @@ module spiking
         dims = dims isa Vector ? dims : [dims]
         T =  Munge.tensorize(spikes, dims, :time)
         prog = Progress(length(T); desc="Executing count of $dims")
-        M = Array{AxisArray}(undef, size(T)...)
+        M = Array{DimArray}(undef, size(T)...)
         Threads.@threads for ind in eachindex(T)
             M[ind] = tocount(T[ind]; grid, binsize, kws...) 
             next!(prog)
         end
-        neuronax = T.axes
+        neuronax = T.dims
         if grid == :dynamic
-            AxisArray(M, neuronax...)
+            DimArray(M, neuronax...)
         else
-            timeax = M[1].axes
+            timeax = M[1].dims
             M = hcat(M...)
             M = matten(M, 1, [size(M,1), size(T)...])
-            AxisArray(M, timeax..., neuronax...)
+            DimArray(M, (timeax..., neuronax...))
         end
     end
     function tocount(times::Missing; grid, gaussian=0, binsize=nothing,
-            type::Union{Nothing,Type}=nothing)::AxisArray
+            type::Union{Nothing,Type}=nothing)::DimArray
         if grid == :dynamic
             centers = []
         else
@@ -79,10 +80,10 @@ module spiking
         else
             type  = type === nothing ? UInt8 : type
         end
-        AxisArray(zeros(type, size(centers)), Axis{:time}(centers))
+        DimArray(zeros(type, size(centers)), Dim{:time}(centers))
     end
     function tocount(times::AbstractArray; grid, gaussian=0, binsize=bindefault,
-            type::Union{Nothing,Type}=nothing)::AxisArray
+            type::Union{Nothing,Type}=nothing)::DimArray
         if grid == :dynamic
             grid = minimum(times):binsize:maximum(times)
         end
@@ -99,7 +100,7 @@ module spiking
             type  = type === nothing ? UInt8 : type
             val = convert(Vector{type}, count.weights)
         end
-        AxisArray(val, Axis{:time}(centers))
+        DimArray(val, Dim{:time}(centers))
     end
 
     function torate(spikes::DataFrame, dims=:unit; grid=nothing, kws...)
@@ -112,10 +113,10 @@ module spiking
         dims = dims isa Vector ? dims : [dims]
         T =  Munge.tensorize(spikes, dims, :time)
         M = [torate(x; grid, kws...) for x in T]
-        timeax = M[1].axes
+        timeax = M[1].dims
         M = hcat(M...)
-        neuronax = T.axes
-        AxisArray(M, timeax..., neuronax...)
+        neuronax = T.dims
+        DimArray(M, (timeax..., neuronax...))
     end
 
     function torate_windowdia(times::AbstractArray; grid, windowsize::Real,
@@ -130,24 +131,24 @@ module spiking
         ker = Kernel.gaussian((gaussian,))
         δ  = grid[2] - grid[1]
         centers = collect(grid)
-        AxisArray(imfilter(count ./ δ, ker),
-                  Axis{:time}(centers))
+        DimArray(imfilter(count ./ δ, ker),
+                  Dim{:time}(centers))
     end
-    function torate(times::AbstractArray; grid, gaussian=gaussiandefault)::AxisArray
+    function torate(times::AbstractArray; grid, gaussian=gaussiandefault)::DimArray
         δ  = grid[2] - grid[1]
         count = fit(Histogram, vec(times), grid)
         gaussian = gaussian * 0.1/δ
         ker = Kernel.gaussian((gaussian,))
         centers = binning.edge_to_center(collect(grid))
-        AxisArray(imfilter(count.weights ./ δ, ker),
-                  Axis{:time}(centers))
+        DimArray(imfilter(count.weights ./ δ, ker),
+                  Dim{:time}(centers))
     end
 
     # CELL COFIRING
-    function xcorr(rate::AxisArray, cell1::T , cell2::T; lags=-20:20) where 
+    function xcorr(rate::DimArray, cell1::T , cell2::T; lags=-20:20) where 
         T<:Union{Int16,Int32,Int64}
-        x, y = rate[Axis{:unit}(cell1)],
-               rate[Axis{:unit}(cell2)]
+        x, y = rate[Dim{:unit}(cell1)],
+               rate[Dim{:unit}(cell2)]
         StatsBase.crosscor(x, y, lags)
     end
 
