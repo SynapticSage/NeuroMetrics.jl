@@ -140,7 +140,8 @@ module shuffle
             shuffle_data_generator::Function,
             compute::Symbol, 
             nShuffle::Union{StepRangeLen, Int},
-            result_dict::AbstractDict=OrderedDict{NamedTuple,Any}(),
+            result_dict::AbstractDict=OrderedDict{NamedTuple, 
+                                                  Timeshift.DictOfShiftOfUnit{Float64}}(),
             exfiltrateAfter::Real=Inf,
             skipproc::Bool=true,
             thread_field::Bool=true,
@@ -168,6 +169,7 @@ module shuffle
 
         P = Progress(length(nShuffle); desc="Shuffle")
         P.showspeed = true
+        sizehint!(result_dict, maximum(nShuffle))
         for s in nShuffle
             if skipproc && (;shuffle=s) ∈ keys(result_dict)
                 continue

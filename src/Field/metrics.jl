@@ -3,8 +3,9 @@ module metrics
     using StatsBase
     using Entropies: Probabilities
     using NaNStatistics
-    using DataFrames
+    using DataFrames, DataFramesMeta
     import DataStructures: OrderedDict
+    using DimensionalData
     import ..Field
     import ..Field: ReceptiveField, Grid
     import Table
@@ -15,10 +16,16 @@ module metrics
     using Images, ImageSegmentation, LazySets
     import TextWrap
     using Infiltrator
+    using LazyGrids
 
     export Metrics
     export bitsperspike, bitspersecond, coherence, totalcount, maxrate,
            maxcount 
+    export push_metric!, pop_metric!
+    export run_metrics!
+    export push_celltable!, push_spiketable!
+    export push_dims!
+
     metric_ban = [:hullzone, :hullsegsizes, :hullseg_inds, :hullseg_grid,
                   :hullseg_inds_cent, :hullseg_grid_cent, :convexhull]
     function apply_metric_ban(X::T)::T where T<:AbstractDataFrame
@@ -36,22 +43,28 @@ module metrics
         Metrics()  = new(Dict{Symbol,Any}())
         Metrics(x) = new(x)
     end
-    function Base.getindex(M::Metrics, index...)
-        Base.getindex(M.data, index...)
-    end
-    function Base.setindex!(M::Metrics, val, index::Symbol)
-        M.data[index] = val
-    end
+    Base.getindex(M::Metrics, index...)            = Base.getindex(M.data, index...)
+    Base.setindex!(M::Metrics, val, index::Symbol) = M.data[index] = val
     Base.push!(M::Metrics, p::Pair{Symbol, <:Any}) = push!(M.data, p)
-    Base.pop!(M::Metrics, key)::Any = pop!(M.data, key)
-    Base.iterate(M::Metrics) = iterate(M.data)
-    Base.iterate(M::Metrics, i::Int64) = iterate(M.data, i)
-    Base.length(M::Metrics)  = length(M.data)
+    Base.pop!(M::Metrics, key)::Any                = pop!(M.data, key)
+    Base.iterate(M::Metrics)                       = iterate(M.data)
+    Base.iterate(M::Metrics, i::Int64)             = iterate(M.data, i)
+    Base.length(M::Metrics)                        = length(M.data)
+    Base.keys(M::Metrics)                          = keys(M.data)
+    Base.values(M::Metrics)                        = values(M.data)
+    Base.filter(f::Function, M::Metrics)           = filter(f, M.data)
+    Base.getindex(R::ReceptiveField, ind)       = Base.getindex(R.metrics, ind)
+    Base.setindex!(R::ReceptiveField, val, ind) = Base.setindex!(R.metrics, val, ind)
+    Base.setindex(R::ReceptiveField, val, ind)  = Base.setindex(R.metrics, val, ind)
+    Base.keys(R::ReceptiveField)                = keys(R.metrics.data)
+    Base.values(R::ReceptiveField)              = values(R.metrics.data)
 
     function Base.string(S::T where T<:Metrics; sigdigits=2, width=40)
-        M = ["$k=$(round.(v;sigdigits))" for (k,v) in S
+        M1 = ["$k=$(round.(v;sigdigits))" for (k,v) in S
              if S isa AbstractArray || typeof(v) <: Real]
-        TextWrap.wrap(join(M, " "); width)
+        M2 = ["$k=$v" for (k,v) in S
+             if  typeof(v) <: AbstractString || typeof(v) <: Symbol]
+        TextWrap.wrap(join([M2;M1], " "); width)
     end
 
     function Table.to_dataframe(M::Metrics; kws...) 
@@ -61,6 +74,11 @@ module metrics
         Table.to_dataframe(D; explode=false, kws...)
     end
 
+    """
+    unstackMetricDF
+
+    splays out the metric property into columns
+    """
     function unstackMetricDF(df::DataFrame)
         if all([:metric,:shift] .∈ [propertynames(df)])
             df = unstack(df, 
@@ -72,34 +90,145 @@ module metrics
         df
      end
 
+     """
+     remove a configured set of metrics in the module variable metric_ban 
+     """
     function apply_metric_ban(X::Metrics)::Metrics
         X.data = typeof(X.data)(k=>v for (k,v) in X
                   if k ∉ metric_ban)
         X
     end
 
-    #mutable struct MetricDF
-    #    data::DataFrame
-    #    MetricDF()  = new(DataFrame())
-    #    MetricDF(x::DataFrame) = new(x)
-    #end
-    #function Table.to_dataframe(M::MetricDF; kws...) 
-    #    kws = (;kws..., key_name=["metric"])
-    #    D = M.data[M.data.metric ∉ [metric_ban],:]
-    #    Table.to_dataframe(D; explode=false)
-    #end
 
-    function push_metric!(R::ReceptiveField, F::Function; 
-            name::Union{Symbol,Nothing}=nothing)
-        name = name === nothing ? Symbol(F) : name
-        push!(R.metrics, name => F(R))
+    # ----------------- PUSH AND POP FOR METRICS -----------------
+    """
+        push_metric!
+
+    apply a function with args and kws to generate a metric with a name
+    defauling to Symbol(F)
+    """
+    function push_metric!(R::ReceptiveField, F::Function, args...; 
+            name::Union{Symbol}=Symbol(F), kws...)
+        #name = name === nothing ? Symbol(F) : name
+        push!(R.metrics, name => F(R, args...; kws...))
     end
-    pop_metric!(R::ReceptiveField, name::Symbol) = pop!(R.metrics, name)
+    """
+        push_metric!
+
+    push an existing dict of metrics into metrics
+    """
     function push_metric!(R::ReceptiveField, metrics::AbstractDict)
         for (k, v) in metrics
             push!(R.metrics, k => v)
         end
     end
+    """
+        push_metric!
+
+    push a list of keys.=>values pairs
+    """
+    function push_metric!(R::ReceptiveField, 
+            keys::Union{Base.KeySet,Vector{Symbol}},
+            values::Union{Vector, Base.ValueIterator})
+        for (k, v) in zip(keys, values)
+            push!(R.metrics, k => v)
+        end
+    end
+    """
+        push_metric!
+
+    push a value to a symbol
+    """
+    push_metric!(R::ReceptiveField, key::Symbol, value) = push!(R.metrics, 
+                                                                key => value)
+    """
+        push_metric!
+
+    push to a set of receptive fields
+    """
+    function push_metric!(R::AbstractArray{ReceptiveField}, F::Function, args...; 
+            name::Union{Symbol,Nothing}=nothing, kws...)
+        [push_metric!(r, F, args...; name, kws...) for r in R]
+    end
+    function push_metric!(R::Array{ReceptiveField}, F::Function, args...; 
+            name::Union{Symbol,Nothing}=nothing, kws...)
+        [push_metric!(r, F, args...; name, kws...) for r in R]
+    end
+    function push_metric!(R::Vector{ReceptiveField}, 
+            keys::Union{Vector{Symbol},Base.KeySet},
+            values::Union{Vector, Base.ValueIterator})
+        for (r, k, v) in zip(R, keys, values)
+            push_metric!(r, k, v)
+        end
+    end
+    pop_metric!(R::ReceptiveField, name::Symbol) = pop!(R.metrics, name)
+    Base.push!(R::ReceptiveField, pos...; kws...) = Base.push!(R, pos...;kws...)
+
+    """
+        run_metrics!
+
+    function for mass running metrics on a receptive field or set of fields
+    """
+    function run_metrics!(R::Union{ReceptiveField,
+                                  AbstractArray{ReceptiveField}}, instructions)
+        for (func, (pos, kws)) in instructions
+            push_metric!(R, func, pos...; kws...)
+        end
+    end
+    # ------------------------------------------------------------
+
+    # ---------------- SPECIAL METHODS FOR ADDING METS -----------
+    function push_celltable!(r::ReceptiveField, cells::AbstractDataFrame, 
+            columns...; cell=r.metrics[:unit])
+        for field in columns
+            push_metric!(r, field, @subset(cells, :unit .== cell)[1,field])
+        end
+    end
+    function push_celltable!(R::Array{ReceptiveField}, cells::AbstractDataFrame,
+            columns...)
+        for r in R
+            if :unit ∈ R.metrics
+                cell = R.metrics[:unit]
+            end
+            push_celltable!(r, cells, columns...; cell)
+        end
+    end
+
+    function push_celltable!(R::DimArray{ReceptiveField},
+                             cells::AbstractDataFrame, columns...)
+        units = R.dims[findfirst(name.(R.dims) .== :unit)]
+        units = units .* ones(Broadcast.broadcast_shape(size(units), size(R)))
+
+        for (r,cell) in zip(R, units)
+            push_celltable!(r, cells, columns...; cell)
+        end
+    end
+
+    function push_dims!(R::DimArray{ReceptiveField})
+        dims = ndgrid(collect.(R.dims)...)
+        N = name(R.dims)
+        for (r, D...) in zip(R, dims...)
+            for (n, d) in zip(N,D)
+                push_metric!(r, n, d)
+            end
+        end
+    end
+
+    function push_dims!(R::DimArray{ReceptiveField}, values::AbstractVector; dim, metric::Symbol)
+        N = dim isa Symbol ? name(R.dims) : (1:ndims(R))
+        n = findfirst(N.==dim)
+        values = Utils.permutevec(values, n)
+        values = values .* ones(size(R))
+        for (r, v) in zip(R, values)
+            push_metric!(r, metric, v)
+        end
+    end
+
+    function push_spiketable!(R::ReceptiveField, spikes::AbstractDataFrame, field;
+            cell)
+        push_metric!(R, field, @subset(cells, :unit .== cell)[1,field])
+    end
+    # ---------------- SPECIAL METHODS FOR ADDING METS -----------
 
     skipnan(x) = Iterators.filter(!isnan, x)
     function _convert_to_prob(behProb::AbstractArray)
@@ -107,6 +236,9 @@ module metrics
             behProb = Probabilities(collect(skipnan(vec(behProb))))
         end
     end
+
+
+    # --------------- CELL WISE METRICS --------------------------
 
     information(F::T where T <: ReceptiveField; method=:spatialinformation) = information(F.rate, F.occ.prob; method)
     function information(F::Dict, behProb::Probabilities; method=:spatialinformation)
@@ -289,7 +421,6 @@ module metrics
                                segsizes))
     end
 
-
     function convexhull(field::ReceptiveField;
             thresh=0.85, tophull=Inf, toptwohulls::Bool=false)
 
@@ -301,7 +432,8 @@ module metrics
         hullzones = bw .* labels_map(segments)
 
         # Instruction for how to resort by number of pixels
-        instruction = OrderedDict(sort([k=>sum(hullzones .== k) for k in 									                1:maximum(hullzones)], by=x->x[2], rev=true))
+        instruction = OrderedDict(sort([k=>sum(hullzones .== k) for k in 									               
+                                        1:maximum(hullzones)], by=x->x[2], rev=true))
         
         newhullzones, resorted, segsizes = resort_zones(hullzones, instruction)
         
@@ -333,7 +465,8 @@ module metrics
                      newhullzones .== ordered_seg[2]
 
             mets[:hullseg_inds][:toptwohull] = hull_withlazysets(iszone)
-            mets[:hullseg_grid][:toptwohull] = to_grid(mets[:hullseg_inds][:toptwohull], 												field.grid)
+            mets[:hullseg_grid][:toptwohull] = to_grid(mets[:hullseg_inds][:toptwohull],
+                                                       field.grid)
             
             mets[:hullseg_grid_cent][:toptwohull] = centroid(iszone, field.grid)
             mets[:hullseg_inds_cent][:toptwohull] = centroid(iszone)
@@ -341,26 +474,79 @@ module metrics
 
         mets
     end
-
-
-                                                                    
-    # ,---.               o                            |              
-    # |---',---.,---..   ..,---.,---.,---.    ,---..  ,|--- ,---.,---.
-    # |  \ |---'|   ||   |||    |---'`---.    |---' >< |    |    ,---|
-    # `   ``---'`---|`---'``    `---'`---'    `---''  ``---'`    `---^
-    #               |                                                 
-    #                 
-    #               o     ,---.     
-    #               .,---.|__. ,---.
-    #               ||   ||    |   |
-    #               ``   '`    `---'
-    #               beyond just the fields
-
-    trajdiversity(spikes::AbstractDataFrame, cell::Int) = length(unique(spikes.traj))
+    
+    #trajdiversity(spikes::AbstractDataFrame, cell::Int) = length(unique(spikes.traj))
     function trajdiversity(spikes::DataFrame, beh::DataFrame)
         _, spikes = register(beh,spikes;transfer=["traj"])
         combine(groupby(spikes, :traj), trajdiversity)
     end
+    trajdiversity(R::ReceptiveField, spikes::AbstractDataFrame;
+                  cell=R.metrics[:unit]) = trajdiversity(spikes, cell)
 
+
+    #function fromcelltable(R::DimArray{ReceptiveField}, cells::AbstractDataFrame,
+    #        columns...)
+    #    for r in R
+    #        if :unit ∈ R.metrics
+    #            cell = R.metrics[:unit]
+    #        end
+    #        push_metric!(r, cells, columns...; cell)
+    #    end
+    #end
+
+    #mutable struct MetricDF
+    #    data::DataFrame
+    #    MetricDF()  = new(DataFrame())
+    #    MetricDF(x::DataFrame) = new(x)
+    #end
+    #function Table.to_dataframe(M::MetricDF; kws...) 
+    #    kws = (;kws..., key_name=["metric"])
+    #    D = M.data[M.data.metric ∉ [metric_ban],:]
+    #    Table.to_dataframe(D; explode=false)
+    #end
 
 end
+
+#    function push_celltable!(r::ReceptiveField, cells::AbstractDataFrame, 
+#            columns...; cell=r.metrics[:unit])
+#        for field in columns
+#            push_metric!(r, field, @subset(cells, :unit .== cell)[1,field])
+#        end
+#    end
+#    function push_celltable!(R::Array{ReceptiveField}, cells::AbstractDataFrame,
+#            columns...)
+#        for r in R
+#            if :unit ∈ R.metrics
+#                cell = R.metrics[:unit]
+#            end
+#            push_celltable!(r, cells, columns...; cell)
+#        end
+#    end
+#
+#    function push_celltable!(R::DimArray{ReceptiveField},
+#                             cells::AbstractDataFrame, columns...)
+#        @infiltrate
+#        units = R.dims[findfirst(name.(R.dims) .== :unit)]
+#        units = units .* ones(Broadcast.broadcast_shape(size(units), size(R)))
+#
+#        for (r,cell) in zip(R, units)
+#            push_celltable!(r, cells, columns...; cell)
+#        end
+#    end
+#
+#    function push_dims!(R::DimArray{ReceptiveField})
+#        dims = ndgrid(collect.(R.dims)...)
+#        N = name(R.dims)
+#        for (r, D...) in zip(R, dims...)
+#            for (n, d) in zip(N,D)
+#                push_metric!(r, n, d)
+#            end
+#        end
+#    end
+#
+#    function push_spiketable!(R::ReceptiveField, spikes::AbstractDataFrame, field;
+#            cell)
+#        push_metric!(R, field, @subset(cells, :unit .== cell)[1,field])
+#    end
+#
+#

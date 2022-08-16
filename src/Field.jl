@@ -31,6 +31,7 @@ module Field
     abstract type Grid end
     abstract type ReceptiveField end
     abstract type Occupancy end
+    ReceptiveFields = AbstractArray{<:ReceptiveField}
 
     function Base.push!(R::ReceptiveField, measurement_name::Symbol, measurement_value)
         push!(R.metrics, measurement_name => measurement_value)

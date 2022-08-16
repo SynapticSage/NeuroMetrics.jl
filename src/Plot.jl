@@ -15,6 +15,17 @@ module Plot
         !(isdir(folder)) ? mkpath(folder) : nothing
         folder
     end
+    function path_to_folderargs(arg::String)
+        standard = plotsdir()
+        @assert occursin(standard, arg)
+        args = replace(arg, standard=>"")
+        if startswith(args, "/")
+            args[2:end]
+        else
+            args
+        end
+    end
+    setfolder_from_path(arg::String) = setfolder(path_to_folderargs(arg))
 
     function save(desc::String; rmexist=nothing)
         folder = plotsdir(folder_args...)
@@ -38,6 +49,15 @@ module Plot
         save(pos...; kws...)
         plot
     end
+    function save(folder::String, plot::Plots.Plot, pos...; kws...)
+        setfolder_from_path(folder)
+        save(pos...; kws...)
+        plot
+    end
+		
+    function create_blank_plot()
+		plot(legend=false, grid=false, framestyle=:none, background_color_inside=:match)
+    end
 
     include(srcdir("Plot","raster.jl"))
     @reexport using .raster
@@ -50,6 +70,9 @@ module Plot
 
     include(srcdir("Plot","table.jl"))
     @reexport using .table
+
+    include(srcdir("Plot","notebook_compareTS.jl"))
+    @reexport using .notebook_compareTS
 
     export raster, table
 
