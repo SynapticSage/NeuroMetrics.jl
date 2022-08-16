@@ -60,7 +60,7 @@ using StatsPlots
 
 # ╔═╡ 5005402b-4d25-41a3-916b-4c814faa9065
 md"""
-#### Compare Dataset Metrics
+#### Compare Dataset MetricSet
 Purupose: This notebook exists to do some quick comparisons between datasets. Not intended to be an analysis workhorse.
 """
 

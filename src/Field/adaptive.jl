@@ -3,7 +3,7 @@ module adaptive
     using  ..Field
     import ..Field: Grid, ReceptiveField, Occupancy
     import ..Field: get_boundary, resolution_to_width, return_vals
-    import ..Field.metrics: Metrics, push_metric!, pop_metric!
+    import ..Field.metrics: MetricSet, push_metric!, pop_metric!
     import ..Field: metrics
     import Utils
     import Table
@@ -116,7 +116,7 @@ module adaptive
         occ::AdaptiveOcc
         count::Array{Int32}
         rate::Array{Float32}
-        metrics::Metrics
+        metrics::MetricSet
     end
 
     # Setup iteration
@@ -416,7 +416,7 @@ module adaptive
         end
         count = reshape(count, size(grid))
         rate  = @fastmath occ.camerarate*Float32.(count./occ.count)
-        field = AdaptiveRF(grid, occ, count, rate, Metrics())
+        field = AdaptiveRF(grid, occ, count, rate, MetricSet())
         if metrics !== nothing
             for metric in metrics
                 push_metric!(field, metric)

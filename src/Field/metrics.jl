@@ -18,7 +18,7 @@ module metrics
     using Infiltrator
     using LazyGrids
 
-    export Metrics
+    export MetricSet
     export bitsperspike, bitspersecond, coherence, totalcount, maxrate,
            maxcount 
     export push_metric!, pop_metric!
@@ -38,21 +38,22 @@ module metrics
     end
 
 
-    mutable struct Metrics
+    mutable struct MetricSet
         data::AbstractDict{Symbol, Any}
-        Metrics()  = new(Dict{Symbol,Any}())
-        Metrics(x) = new(x)
+        MetricSet()  = new(Dict{Symbol,Any}())
+        MetricSet(x) = new(x)
     end
-    Base.getindex(M::Metrics, index...)            = Base.getindex(M.data, index...)
-    Base.setindex!(M::Metrics, val, index::Symbol) = M.data[index] = val
-    Base.push!(M::Metrics, p::Pair{Symbol, <:Any}) = push!(M.data, p)
-    Base.pop!(M::Metrics, key)::Any                = pop!(M.data, key)
-    Base.iterate(M::Metrics)                       = iterate(M.data)
-    Base.iterate(M::Metrics, i::Int64)             = iterate(M.data, i)
-    Base.length(M::Metrics)                        = length(M.data)
-    Base.keys(M::Metrics)                          = keys(M.data)
-    Base.values(M::Metrics)                        = values(M.data)
-    Base.filter(f::Function, M::Metrics)           = filter(f, M.data)
+    Metrics = MetricSet # for now I require this alias, but eventually, I need to transition my field objects to MetricSet name -- Metrics prevents me from importing Metrics package (third-party)
+    Base.getindex(M::MetricSet, index...)            = Base.getindex(M.data, index...)
+    Base.setindex!(M::MetricSet, val, index::Symbol) = M.data[index] = val
+    Base.push!(M::MetricSet, p::Pair{Symbol, <:Any}) = push!(M.data, p)
+    Base.pop!(M::MetricSet, key)::Any                = pop!(M.data, key)
+    Base.iterate(M::MetricSet)                       = iterate(M.data)
+    Base.iterate(M::MetricSet, i::Int64)             = iterate(M.data, i)
+    Base.length(M::MetricSet)                        = length(M.data)
+    Base.keys(M::MetricSet)                          = keys(M.data)
+    Base.values(M::MetricSet)                        = values(M.data)
+    Base.filter(f::Function, M::MetricSet)           = filter(f, M.data)
     Base.getindex(R::ReceptiveField, ind)       = Base.getindex(R.metrics, ind)
     Base.setindex!(R::ReceptiveField, val, ind) = Base.setindex!(R.metrics, val, ind)
     Base.setindex(R::ReceptiveField, val, ind)  = Base.setindex(R.metrics, val, ind)
@@ -63,7 +64,7 @@ module metrics
     Base.getindex(R::T where T <: AbstractArray{<:ReceptiveField}, 
                   ind::Symbol) = Base.getindex.(R, ind)
 
-    function Base.string(S::T where T<:Metrics; sigdigits=2, width=40)
+    function Base.string(S::T where T<:MetricSet; sigdigits=2, width=40)
         M1 = ["$k=$(round.(v;sigdigits))" for (k,v) in S
              if S isa AbstractArray || typeof(v) <: Real]
         M2 = ["$k=$v" for (k,v) in S
@@ -71,7 +72,7 @@ module metrics
         TextWrap.wrap(join([M2;M1], " "); width)
     end
 
-    function Table.to_dataframe(M::Metrics; kws...) 
+    function Table.to_dataframe(M::MetricSet; kws...) 
         kws = (;kws..., key_name=["metric"])
         D = Dict(k=>v for (k,v) in M.data 
                  if k ∉ metric_ban || typeof(v) <: AbstractDict)
@@ -97,7 +98,7 @@ module metrics
      """
      remove a configured set of metrics in the module variable metric_ban 
      """
-    function apply_metric_ban(X::Metrics)::Metrics
+    function apply_metric_ban(X::MetricSet)::MetricSet
         X.data = typeof(X.data)(k=>v for (k,v) in X
                   if k ∉ metric_ban)
         X

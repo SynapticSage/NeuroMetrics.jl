@@ -14,7 +14,7 @@ module fixed
     using ..Field
     import ..Field: Grid, ReceptiveField, Occupancy
     import ..Field: get_boundary, resolution_to_width, return_vals
-    import ..Field.metrics: Metrics
+    import ..Field.metrics: MetricSet
     import Utils
     import Table
     import Table: CItype, CItype_plusNull
@@ -74,7 +74,7 @@ module fixed
         occ::FixedOcc
         count::Array{Int32}
         rate::Array{Float32}
-        metrics::Metrics
+        metrics::MetricSet
     end
 
     # Setup iteration

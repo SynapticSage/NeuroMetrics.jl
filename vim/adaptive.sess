@@ -198,17 +198,17 @@ badd +25 ~/Code/projects/goal-code/scripts/timeshift/notebook/Initialize_plot_ex
 badd +3197 ~/Code/projects/goal-code/Manifest.toml
 badd +127 ~/Code/projects/goal-code/Project.toml
 badd +2 ~/Code/projects/goal-code/src/Load/celltet.jl
-badd +30 ~/Code/projects/goal-code/src/Field.jl
+badd +28 ~/Code/projects/goal-code/src/Field.jl
 badd +15 ~/Code/projects/goal-code/src/Load/task.jl
 badd +5 ~/Code/projects/goal-code/src/Munge/task.jl
 badd +1 ~/Code/projects/goal-code/scripts/fields/PlaceField.jl
 badd +69 test_enforce_bound.jl
-badd +215 ~/Code/projects/goal-code/src/Field/adaptive.jl
+badd +420 ~/Code/projects/goal-code/src/Field/adaptive.jl
 badd +69 ~/tmp.jl
 badd +16 ~/Code/projects/goal-code/src/Precompile.jl
 badd +172 ~/Code/projects/goal-code/src/Timeshift/shuffle.jl
 badd +11497 ~/.cache/nvim/lsp.log
-badd +224 ~/Code/projects/goal-code/src/Field/fixed.jl
+badd +77 ~/Code/projects/goal-code/src/Field/fixed.jl
 badd +2 ~/Code/projects/goal-code/src/Utils/plot.jl
 badd +290 ~/Code/projects/goal-code/src/Shuf.jl
 badd +21 ~/Code/projects/goal-code/src/Filt.jl
@@ -221,7 +221,7 @@ badd +1 ~/Code/projects/goal-code/plots/fields/shift.shorter/GOAL_TRAJ_LEN_heatm
 badd +32 ~/Code/projects/goal-code/src/Field/preset.jl
 badd +214 ~/Code/projects/goal-code/src/Field/legacy.jl
 badd +74 ~/Code/projects/goal-code/src/Timeshift/legacy.jl
-badd +515 ~/Code/projects/goal-code/src/Field/metrics.jl
+badd +19 ~/Code/projects/goal-code/src/Field/metrics.jl
 badd +15 ~/Code/projects/goal-code/src/Field/recon_process.jl
 badd +1 ~/Code/projects/goal-code/src/Timeshift/crossval.jl
 badd +89 ~/Code/projects/goal-code/notebooks/TimeshiftDiff.jl
@@ -268,10 +268,11 @@ badd +66 ~/Code/projects/goal-code/src/Plot/notebook_compareTS.jl
 badd +5 ~/Code/projects/goal-code/src/Plot/notebook_examineTS.jl
 badd +1 shortcut_cacheshuffle.jl
 badd +3 ~/Code/projects/goal-code/src/Plot/old_timeshift.jl
-badd +88 test_field_plots.jl
+badd +87 test_field_plots.jl
 badd +22 ~/.local/state/nvim/lsp.log
 badd +1 ~/Code/projects/goal-code/src/Utils/array.jl
 badd +8 ~/Code/projects/goal-code/src/Utils/arr.jl
+badd +75 ~/Code/projects/goal-code/notebooks/Compare_LoadMains.jl
 argglobal
 %argdel
 tabnew +setlocal\ bufhidden=wipe
@@ -290,17 +291,17 @@ tabnext
 edit test_field_plots.jl
 argglobal
 balt ~/Code/projects/goal-code/src/Field/metrics.jl
-let s:l = 76 - ((32 * winheight(0) + 29) / 59)
+let s:l = 78 - ((33 * winheight(0) + 29) / 59)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 76
+keepjumps 78
 normal! 050|
 tabnext
-edit test_field_plots.jl
+edit ~/Code/projects/goal-code/src/Field/metrics.jl
 argglobal
-balt ~/Code/projects/goal-code/src/Plot/receptivefield.jl
-let s:l = 1 - ((0 * winheight(0) + 29) / 59)
+balt ~/Code/projects/goal-code/src/Field.jl
+let s:l = 1 - ((0 * winheight(0) + 17) / 34)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
