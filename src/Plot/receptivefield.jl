@@ -18,6 +18,7 @@ module receptivefield
     using Interpolations
     using ImageFiltering
     using Measures
+    using Colors
 
     using Memoization
     function clear_memoize_receptivefield!() 
@@ -25,11 +26,27 @@ module receptivefield
         Memoization.empty_cache!(gaussianfilt)
     end
     export clear_memoize_receptivefield!
-    
+
+    struct BarDisplay
+        x::Float64
+        y::Float64
+        xw::Float64
+        yw::Float64
+        fraction::Float64
+        text::String
+        foreground::Colorant
+        background::Colorant
+    end
+
+    @recipe function plot_bardisplay(bd::BarDisplay)
+
+    end
+
     @recipe function plot_adaptiverf(field::ReceptiveField, val::Symbol=:rate;
             ztransform::Bool=false, mfunc::Function=nanmean,
             sfunc::Function=nanstd, title_width=40, transpose::Bool=true,
             upsamp::Int=2, gauss::Real=nothing, 
+            bardisp=nothing,
             interpmode=(BSpline(Constant()), BSpline(Constant())))
         seriestype --> :heatmap
         title --> string(field.metrics; width=title_width)

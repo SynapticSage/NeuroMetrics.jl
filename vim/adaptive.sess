@@ -221,7 +221,7 @@ badd +1 ~/Code/projects/goal-code/plots/fields/shift.shorter/GOAL_TRAJ_LEN_heatm
 badd +32 ~/Code/projects/goal-code/src/Field/preset.jl
 badd +214 ~/Code/projects/goal-code/src/Field/legacy.jl
 badd +74 ~/Code/projects/goal-code/src/Timeshift/legacy.jl
-badd +200 ~/Code/projects/goal-code/src/Field/metrics.jl
+badd +515 ~/Code/projects/goal-code/src/Field/metrics.jl
 badd +15 ~/Code/projects/goal-code/src/Field/recon_process.jl
 badd +1 ~/Code/projects/goal-code/src/Timeshift/crossval.jl
 badd +89 ~/Code/projects/goal-code/notebooks/TimeshiftDiff.jl
@@ -246,7 +246,7 @@ badd +1 ~/Code/projects/goal-code/scripts/decode/InitializeCairo.jl
 badd +1 ~/Code/projects/goal-code/src/Table/smooth.jl
 badd +102 ~/Code/projects/goal-code/src/Field/coactivity.jl
 badd +1 ~/Code/projects/goal-code/src/Field/recon.jl
-badd +215 ~/Code/projects/goal-code/src/Plot/receptivefield.jl
+badd +208 ~/Code/projects/goal-code/src/Plot/receptivefield.jl
 badd +1 test_coactivity.jl
 badd +288 ~/.julia/packages/StatsBase/OpnQp/src/signalcorr.jl
 badd +1 ~/Code/projects/goal-code/notebooks/ExamineCoactivity.jl
@@ -259,7 +259,7 @@ badd +7 ~/Code/projects/goal-code/src/Decode.jl
 badd +2 ~/Code/projects/goal-code/intro.jl
 badd +5 ~/Code/projects/goal-code/src/Table/columntype.jl
 badd +1 ~/Code/projects/goal-code/src/Plot/old_rf.jl
-badd +48 ~/Code/projects/goal-code/src/Timeshift/shiftmetrics.jl
+badd +105 ~/Code/projects/goal-code/src/Timeshift/shiftmetrics.jl
 badd +3 ~/.julia/packages/TensorToolbox/6LauI/src/tensor.jl
 badd +90 test_bayes.jl
 badd +100 ~/Code/projects/goal-code/src/Decode/bayes.jl
@@ -268,7 +268,7 @@ badd +66 ~/Code/projects/goal-code/src/Plot/notebook_compareTS.jl
 badd +5 ~/Code/projects/goal-code/src/Plot/notebook_examineTS.jl
 badd +1 shortcut_cacheshuffle.jl
 badd +3 ~/Code/projects/goal-code/src/Plot/old_timeshift.jl
-badd +49 test_field_plots.jl
+badd +88 test_field_plots.jl
 badd +22 ~/.local/state/nvim/lsp.log
 badd +1 ~/Code/projects/goal-code/src/Utils/array.jl
 badd +8 ~/Code/projects/goal-code/src/Utils/arr.jl
@@ -287,59 +287,25 @@ normal! zt
 keepjumps 43
 normal! 022|
 tabnext
-edit ~/Code/projects/goal-code/src/Field/metrics.jl
+edit test_field_plots.jl
 argglobal
-balt test_plot_bayes.jl
-let s:l = 335 - ((6 * winheight(0) + 20) / 41)
+balt ~/Code/projects/goal-code/src/Field/metrics.jl
+let s:l = 76 - ((32 * winheight(0) + 29) / 59)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 335
-normal! 0
+keepjumps 76
+normal! 050|
 tabnext
-edit ~/Code/projects/goal-code/src/Field/metrics.jl
-let s:save_splitbelow = &splitbelow
-let s:save_splitright = &splitright
-set splitbelow splitright
-wincmd _ | wincmd |
-split
-1wincmd k
-wincmd w
-let &splitbelow = s:save_splitbelow
-let &splitright = s:save_splitright
-wincmd t
-let s:save_winminheight = &winminheight
-let s:save_winminwidth = &winminwidth
-set winminheight=0
-set winheight=1
-set winminwidth=0
-set winwidth=1
-exe '1resize ' . ((&lines * 13 + 14) / 29)
-exe '2resize ' . ((&lines * 12 + 14) / 29)
+edit test_field_plots.jl
 argglobal
 balt ~/Code/projects/goal-code/src/Plot/receptivefield.jl
-let s:l = 1 - ((0 * winheight(0) + 6) / 13)
+let s:l = 1 - ((0 * winheight(0) + 29) / 59)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
 keepjumps 1
 normal! 0
-wincmd w
-argglobal
-if bufexists(fnamemodify("~/Code/projects/goal-code/src/Plot/receptivefield.jl", ":p")) | buffer ~/Code/projects/goal-code/src/Plot/receptivefield.jl | else | edit ~/Code/projects/goal-code/src/Plot/receptivefield.jl | endif
-if &buftype ==# 'terminal'
-  silent file ~/Code/projects/goal-code/src/Plot/receptivefield.jl
-endif
-balt test_field_plots.jl
-let s:l = 215 - ((3 * winheight(0) + 6) / 12)
-if s:l < 1 | let s:l = 1 | endif
-keepjumps exe s:l
-normal! zt
-keepjumps 215
-normal! 0
-wincmd w
-exe '1resize ' . ((&lines * 13 + 14) / 29)
-exe '2resize ' . ((&lines * 12 + 14) / 29)
 tabnext 3
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
@@ -347,8 +313,6 @@ endif
 unlet! s:wipebuf
 set winheight=1 winwidth=20
 let &shortmess = s:shortmess_save
-let &winminheight = s:save_winminheight
-let &winminwidth = s:save_winminwidth
 let s:sx = expand("<sfile>:p:r")."x.vim"
 if filereadable(s:sx)
   exe "source " . fnameescape(s:sx)

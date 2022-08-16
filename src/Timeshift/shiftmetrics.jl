@@ -11,7 +11,8 @@ module shiftmetrics
     FieldObj = Union{ShiftedField, ShiftedFields}
     TableObj = Union{DataFrame,GroupedDataFrame, AbstractDataFrame}
 
-    export derivative!, best_tau!, best_metric!, worst_tau!, worst_metric!
+    export derivative!, best_tau!, best_metric!, worst_tau!, worst_metric!,
+           best_tauind!
     export push_shiftmetric!
 
 # =================================================================
@@ -91,6 +92,20 @@ module shiftmetrics
         table[!, target] .= table[max_, :shift]
     end
     function best_tau!(field::FieldObj; metric)
+        metricapply!(field, best_tau!; metric)
+    end
+
+    """
+        best_tauind
+
+    calculates the best shift for a shift set for a metric
+    """
+    function best_tauind!(table::TableObj; metric)
+        target = Symbol("bestshiftind_" * String(metric))
+        max_ = argmax(table[:, metric])
+        table[!, target] .= max_
+    end
+    function best_tauind!(field::FieldObj; metric)
         metricapply!(field, best_tau!; metric)
     end
 

@@ -58,6 +58,10 @@ module metrics
     Base.setindex(R::ReceptiveField, val, ind)  = Base.setindex(R.metrics, val, ind)
     Base.keys(R::ReceptiveField)                = keys(R.metrics.data)
     Base.values(R::ReceptiveField)              = values(R.metrics.data)
+    Base.getindex(R::T where T <: AbstractDimArray{<:ReceptiveField}, 
+                  ind::Symbol) = Base.getindex.(R, ind)
+    Base.getindex(R::T where T <: AbstractArray{<:ReceptiveField}, 
+                  ind::Symbol) = Base.getindex.(R, ind)
 
     function Base.string(S::T where T<:Metrics; sigdigits=2, width=40)
         M1 = ["$k=$(round.(v;sigdigits))" for (k,v) in S
