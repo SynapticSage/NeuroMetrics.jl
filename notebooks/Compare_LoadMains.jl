@@ -585,11 +585,11 @@ Some of the cells do not change that much over time. And some of those are at th
 # ╔═╡ 7203e487-380a-4f81-a27b-30353b178028
 
 
-# ╔═╡ 74d7debc-6486-4fb8-83f0-f54fd0d7f1b1
-plot_vc = visualize_cells(compare, key1, key2, srt, compare_unit, "0", "0")
-
 # ╔═╡ 305dda42-217e-4bbb-b683-45e5acc016bf
 plot_vc = visualize_cells(compare, key1, key2, srt, compare_unit, compare_shift1, compare_shift2)
+
+# ╔═╡ 74d7debc-6486-4fb8-83f0-f54fd0d7f1b1
+plot_vc = visualize_cells(compare, key1, key2, srt, compare_unit, "0", "0")
 
 # ╔═╡ Cell order:
 # ╟─5005402b-4d25-41a3-916b-4c814faa9065
