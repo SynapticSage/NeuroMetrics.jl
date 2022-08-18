@@ -38,8 +38,16 @@ module receptivefield
         background::Colorant
     end
 
+    """
+    Statistic filled bar that appears inset within a plot
+    """
     @recipe function plot_bardisplay(bd::BarDisplay)
+    end
 
+    @userplot StatBarAx
+    function plot(plt::StatBarAx)
+        Y = ylims()
+        X = xlims()
     end
 
     @recipe function plot_adaptiverf(field::ReceptiveField, val::Symbol=:rate;
@@ -56,6 +64,7 @@ module receptivefield
         elseif ndims(zz) == 3
             seriestype --> :volume
         end
+
         title --> string(field.metrics; width=title_width)
         xx = [field.grid.centers[1]...]
         x --> xx
@@ -65,7 +74,6 @@ module receptivefield
         else
             colorbar_title --> String(val)
         end
-        aspect_ratio --> 1
 
         if gauss != 0 && gauss != (0,0) ||
             (gauss === nothing && upsamp != 1)
@@ -73,6 +81,7 @@ module receptivefield
         end
 
         if length(field.grid.centers) > 1
+            aspect_ratio --> 1
             yy = [field.grid.centers[2]...]
             y --> yy
             if upsamp != 1
@@ -80,16 +89,38 @@ module receptivefield
             end
             transpose ? (xx, yy, zz') : _transpose(xx, yy, zz')
         elseif length(field.grid.centers) == 1
-            label --> string(val)
-            fillrange --> (0,Z)
-            ylim --> (0, maximum(Z)*1.3)
-            (X,Z)
+            @series begin
+                seriestype --> :line
+                label --> "firing " *string(val)
+                #fillrange --> (0,zz)
+                xlim --> (minimum(xx), maximum(xx))
+                xx, zz
+            end
+            @series begin
+                seriestype := :vline
+                c := :black
+                linestyle := :dash
+                label := ""
+                ([0])
+            end
+            @series begin
+                seriestype := :scatter
+                markersize := 4
+                label := ""
+                c := :black
+                #fillrange := nothing
+                xx, zz
+            end
+            xlim := (nanminimum(xx), nanmaximum(xx))
+            ylim := (nanminimum(zz)*0.95, nanmaximum(zz)*1.1)
+            label := ""
+            ([NaN],[NaN])
         end
     end
 
     @memoize function gaussianfilt(zz; gauss, upsamp)
         gauss = gauss === nothing ? upsamp * 0.33 : gauss
-        gauss = gauss isa Tuple ? gauss : (gauss, gauss)
+        gauss = gauss isa Tuple ? gauss : Tuple(gauss for _ in 1:ndims(zz))
         nanzz = isnan.(zz)
         zz = replace(zz, NaN=>0)
         zz = imfilter(zz, Kernel.gaussian(gauss))

@@ -30,7 +30,7 @@ begin
 	  using GoalFetchAnalysis
 	  import Utils
 	  import Timeshift
-	  import Plot
+	  #import Plot
 	  using Field.metrics
 	  
 	  adaptive = Field.adaptive
@@ -45,6 +45,9 @@ end
 
 # ╔═╡ 5f6e31d3-7101-49aa-a289-39e3967aa3a8
 using ColorSchemes
+
+# ╔═╡ f5f1dbb9-3623-4628-8407-8809cd3fb118
+using Memoization
 
 # ╔═╡ 348e8178-ae24-4217-93a5-54d979b47d92
 begin
@@ -78,8 +81,11 @@ md"""
 Import packages
 """
 
+# ╔═╡ da7809bb-a94f-440e-96c1-02e1feae9fc3
+import Plot
+
 # ╔═╡ a1ad6173-5ead-4559-bddb-9aee6119b9d0
-prop_sel = @bind prop_str PlutoUI.Radio(["y-x","currentAngle-currentPathLength", "currentAngle"], default="currentAngle")
+prop_sel = @bind prop_str PlutoUI.Radio(["y-x","currentAngle-currentPathLength", "currentAngle","currentPathLength"], default="currentAngle")
 
 # ╔═╡ 31082fe7-ed61-4d37-a025-77420da3f24a
 beh, spikes = begin
@@ -154,8 +160,23 @@ md"""
 ### Visualize fields @ Δt=0
 """
 
-# ╔═╡ 7c6cfeb1-2c78-4480-852b-aa06cc818f76
-unit_select = @bind unit PlutoUI.Slider(sort(unique(spikes.unit)), default=31, show_value=true)
+# ╔═╡ 589f89f4-bc38-49c3-8973-e9e52a26647b
+revise(Plot.receptivefield)
+
+# ╔═╡ c34cfe1f-3663-4901-a258-0015cfa74a38
+# ╠═╡ disabled = true
+#=╠═╡
+Memoization.empty_all_caches!()
+  ╠═╡ =#
+
+# ╔═╡ a0d00fd1-c587-4bee-aa14-d0366a7f65ae
+# ╠═╡ disabled = true
+#=╠═╡
+Plot.setfolder("goal", "pathlength")
+  ╠═╡ =#
+
+# ╔═╡ f2fc5e48-3adc-41d0-b3e9-36bca362415b
+ylims === nothing
 
 # ╔═╡ f9378d49-2f86-4088-bc6d-3b5b227b7c66
 md"""
@@ -289,10 +310,12 @@ Implied linear width of `maxrad[$(nanmaximum(G.radii))]` => $(nanmaximum(G.radii
 """
 
 # ╔═╡ 03586347-83ee-429d-ab29-505754c66734
-plot(
-	plot(G; aspect_ratio, title="radii\nresolution=$(size(G.grid))", ylims=ylim), 
-	heatmap([collect(x) for x in G.centers]..., (G.radii .=== NaN32)'; aspect_ratio, title="nan locations")
-	, ylims=ylim)
+plot(G; title="radii\nresolution=$(size(G.grid))")
+
+# ╔═╡ 5dda1153-5359-49d5-9baf-b3bebc4627a0
+if ndims(G.radii) == 2
+	heatmap([collect(x) for x in G.centers]..., (G.radii .=== NaN32)'; title="nan locations")
+end
 
 # ╔═╡ bf5ec1fc-0443-49df-b90a-164bdd4e8b1b
 G.centers
@@ -307,7 +330,7 @@ unique(G.radii)
 O = @time adaptive.get_occupancy(beh, G);
 
 # ╔═╡ 592d79b4-edf6-4a0c-af73-1d2805d6410e
-plot(O, clim=(0,0.01), ylims=ylim, aspect_ratio)
+plot(O, clim=(0,0.01), ylims=ylim)
 
 # ╔═╡ d7175827-7528-4cfe-bf3f-d9971f682f49
 # ╠═╡ disabled = true
@@ -321,7 +344,7 @@ O
 # @benchmark adaptive.get_adaptivefield(spikes, G, O);
 
 # ╔═╡ 410128bf-2332-4aa2-91cb-441e0235cc4a
-plot(multiunit, aspect_ratio=1)
+plot(multiunit)
 
 # ╔═╡ b88c0ec1-b150-49be-828f-6c32bb770c48
 begin
@@ -329,11 +352,37 @@ begin
 	                               filters=filts[:all]);
 end;
 
+# ╔═╡ 62a6b931-b4ef-4431-8e7f-14db6e011d00
+shifted = Timeshift.shifted_fields(beh, spikes, shifts, G.props;
+                               shiftbeh=false,
+                               widths, 
+							   filters=filts[:all], 
+							   thresh)
+
+# ╔═╡ d0ed9a46-00bb-4ce2-a2db-50bc060ec976
+SFs = Timeshift.ShiftedFields(shifted);
+
+# ╔═╡ bb23f597-480e-43d1-a527-71f05a426d1d
+begin
+	bps = OrderedDict(k=>v[:bitsperspike] for (k,v) in units)
+	sort!(bps, by=k->bps[k], rev=true)
+	units_ordered = [x[1] for x in keys(bps)]
+end
+
+# ╔═╡ 7c6cfeb1-2c78-4480-852b-aa06cc818f76
+unit_select = @bind unit PlutoUI.Slider(units_ordered, default=31, show_value=true)
+
 # ╔═╡ cc1c449e-2b11-40c0-a24c-5edc1ba69457
 U = units[(;unit=unit)];
 
 # ╔═╡ 44abcbd4-5f71-4924-b77d-9680cc96044f
-plot(U; aspect_ratio, ylims=ylim)
+plot(U)
+
+# ╔═╡ 3f6cec15-f43d-43d2-866b-45a04ea5715f
+# ╠═╡ disabled = true
+#=╠═╡
+Plot.save((;desc="pathlength",unit))
+  ╠═╡ =#
 
 # ╔═╡ 4d814c3e-97e1-491a-b1d8-c7ca9c628afd
 μ_firing = begin
@@ -380,16 +429,6 @@ plot(
 # ╔═╡ 0f80805a-76c8-4d8d-91bc-c013575d3a10
 heatmap(plot(field, title="field"), heatmap(Int8.(hullzones)', title="segments"), aspect_ratio=1)
 
-
-# ╔═╡ 62a6b931-b4ef-4431-8e7f-14db6e011d00
-shifted = Timeshift.shifted_fields(beh, spikes, shifts, G.props;
-                               shiftbeh=false,
-                               widths, 
-							   filters=filts[:all], 
-							   thresh)
-
-# ╔═╡ d0ed9a46-00bb-4ce2-a2db-50bc060ec976
-SFs = Timeshift.ShiftedFields(shifted);
 
 # ╔═╡ 16b22203-b96b-4899-80f7-6928864f0543
 plot(SFs[unit,timeshift])
@@ -520,19 +559,21 @@ element(Singleton([50,125])) ∈ HullSet(mets[:hullseg_grid])
 # ╟─0be7ba01-a316-41ce-8df3-a5ae028c74e7
 # ╟─37d7f4fd-80a7-47d0-8912-7f002620109f
 # ╠═44dde9e4-f9ca-11ec-1348-d968780f671c
+# ╠═da7809bb-a94f-440e-96c1-02e1feae9fc3
 # ╠═5f6e31d3-7101-49aa-a289-39e3967aa3a8
-# ╟─a1ad6173-5ead-4559-bddb-9aee6119b9d0
+# ╠═a1ad6173-5ead-4559-bddb-9aee6119b9d0
 # ╟─2f8ac703-417c-4360-a619-e799d8bb594f
 # ╟─31082fe7-ed61-4d37-a025-77420da3f24a
 # ╟─d51ce0f2-03bf-4c88-9302-9fd4bc8621eb
 # ╟─ff355ad4-42da-4493-ae56-3bc9f0d8627c
 # ╠═cbfbe9c9-f7c5-4219-8d81-b335fe5f5ed6
 # ╟─efcdc2f1-5e26-4534-953e-defae4bd8603
-# ╠═301d385b-7879-445d-a903-772c10862750
-# ╠═6bdcf863-9946-4ca3-ab02-fa6aebe4b91d
+# ╟─301d385b-7879-445d-a903-772c10862750
+# ╟─6bdcf863-9946-4ca3-ab02-fa6aebe4b91d
 # ╟─9e635078-bfdb-41bf-8730-e08a968d5e71
 # ╟─92b1c56a-1738-43ba-96c9-8c70c6713c39
 # ╠═03586347-83ee-429d-ab29-505754c66734
+# ╠═5dda1153-5359-49d5-9baf-b3bebc4627a0
 # ╠═bf5ec1fc-0443-49df-b90a-164bdd4e8b1b
 # ╠═93b3a5c7-6c6f-4e80-91e7-01f83d292c9a
 # ╠═5550e97c-a33e-4ae4-b888-90f782506bc2
@@ -550,8 +591,15 @@ element(Singleton([50,125])) ∈ HullSet(mets[:hullseg_grid])
 # ╟─38cff24f-bbc1-42fd-98ae-385323c2480e
 # ╟─7b150cd8-ada8-46bc-b3ea-1f10c1aea9d8
 # ╠═cc1c449e-2b11-40c0-a24c-5edc1ba69457
+# ╠═589f89f4-bc38-49c3-8973-e9e52a26647b
+# ╠═bb23f597-480e-43d1-a527-71f05a426d1d
+# ╠═f5f1dbb9-3623-4628-8407-8809cd3fb118
+# ╠═c34cfe1f-3663-4901-a258-0015cfa74a38
+# ╠═a0d00fd1-c587-4bee-aa14-d0366a7f65ae
 # ╟─7c6cfeb1-2c78-4480-852b-aa06cc818f76
 # ╠═44abcbd4-5f71-4924-b77d-9680cc96044f
+# ╠═3f6cec15-f43d-43d2-866b-45a04ea5715f
+# ╠═f2fc5e48-3adc-41d0-b3e9-36bca362415b
 # ╟─4d814c3e-97e1-491a-b1d8-c7ca9c628afd
 # ╠═eefa56cc-f303-40ee-aa44-dc758eac750b
 # ╟─f9378d49-2f86-4088-bc6d-3b5b227b7c66

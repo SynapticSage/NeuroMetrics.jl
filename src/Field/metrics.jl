@@ -557,6 +557,10 @@ module metrics
     function convexhull(field::ReceptiveField;
             thresh=0.85, tophull=Inf, toptwohulls::Bool=false)
 
+        if ndims(field.rate) < 2
+            return Dict()
+        end
+
         halfmast  = nanquantile(vec(field.rate), thresh)
         bw        = field.rate .> halfmast
         dist      = 1 .- distance_transform(feature_transform(bw))

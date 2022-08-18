@@ -220,7 +220,7 @@ badd +1 ~/Code/projects/goal-code/plots/fields/shift.shorter/GOAL_TRAJ_LEN_heatm
 badd +32 ~/Code/projects/goal-code/src/Field/preset.jl
 badd +214 ~/Code/projects/goal-code/src/Field/legacy.jl
 badd +74 ~/Code/projects/goal-code/src/Timeshift/legacy.jl
-badd +264 ~/Code/projects/goal-code/src/Field/metrics.jl
+badd +582 ~/Code/projects/goal-code/src/Field/metrics.jl
 badd +15 ~/Code/projects/goal-code/src/Field/recon_process.jl
 badd +1 ~/Code/projects/goal-code/src/Timeshift/crossval.jl
 badd +89 ~/Code/projects/goal-code/notebooks/TimeshiftDiff.jl
@@ -245,12 +245,12 @@ badd +1 ~/Code/projects/goal-code/scripts/decode/InitializeCairo.jl
 badd +1 ~/Code/projects/goal-code/src/Table/smooth.jl
 badd +102 ~/Code/projects/goal-code/src/Field/coactivity.jl
 badd +1 ~/Code/projects/goal-code/src/Field/recon.jl
-badd +87 ~/Code/projects/goal-code/src/Plot/receptivefield.jl
+badd +52 ~/Code/projects/goal-code/src/Plot/receptivefield.jl
 badd +288 ~/.julia/packages/StatsBase/OpnQp/src/signalcorr.jl
 badd +1 ~/Code/projects/goal-code/notebooks/ExamineCoactivity.jl
 badd +1 ~/Code/projects/goal-code/src/Table/clean.jl
 badd +9 ~/Code/projects/goal-code/test/runtests.jl
-badd +320 ~/Code/projects/goal-code/notebooks/TestAdaptive.jl
+badd +336 ~/Code/projects/goal-code/notebooks/TestAdaptive.jl
 badd +8 ~/Code/projects/goal-code/scripts/timeshift/make_dataframes.jl
 badd +184 ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl
 badd +2 ~/Code/projects/goal-code/src/Decode.jl
@@ -273,7 +273,7 @@ badd +75 ~/Code/projects/goal-code/notebooks/Compare_LoadMains.jl
 badd +62 ~/Code/projects/goal-code/scripts/behavior/plotTrajectoryStats.jl
 badd +1 ~/Code/projects/goal-code/scripts/behavior/plotPerformanceTables.jl
 badd +27 ~/Code/projects/goal-code/scripts/cells/Coverage.jl
-badd +102 ~/Code/projects/goal-code/scripts/timeshift/Plot_PanelOfFields.jl
+badd +84 ~/Code/projects/goal-code/scripts/timeshift/Plot_PanelOfFields.jl
 badd +1 ~/Code/projects/goal-code/scripts/tensor/tensor_test.jl
 badd +1 ~/Code/projects/goal-code/_research/shortcut_coactivity.jl
 badd +100 test_correlate_tau.jl
@@ -287,10 +287,10 @@ argglobal
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabrewind
-edit ~/Code/projects/goal-code/src/Field/metrics.jl
+edit test_correlate_tau.jl
 argglobal
-balt ~/Code/projects/goal-code/src/Field/adaptive.jl
-let s:l = 1 - ((0 * winheight(0) + 24) / 48)
+balt ~/Code/projects/goal-code/src/Plot/receptivefield.jl
+let s:l = 1 - ((0 * winheight(0) + 28) / 56)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
