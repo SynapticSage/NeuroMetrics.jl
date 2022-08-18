@@ -17,6 +17,8 @@ module metrics
     import TextWrap
     using Infiltrator
     using LazyGrids
+    using MATLAB
+    using ProgressMeter
 
     export MetricSet
     export bitsperspike, bitspersecond, coherence, totalcount, maxrate,
@@ -25,6 +27,8 @@ module metrics
     export run_metrics!
     export push_celltable!, push_spiketable!
     export push_dims!
+
+    mat_initialized = false
 
     metric_ban = [:hullzone, :hullsegsizes, :hullseg_inds, :hullseg_grid,
                   :hullseg_inds_cent, :hullseg_grid_cent, :convexhull]
@@ -152,12 +156,24 @@ module metrics
     push to a set of receptive fields
     """
     function push_metric!(R::AbstractArray{ReceptiveField}, F::Function, args...; 
-            name::Union{Symbol,Nothing}=nothing, kws...)
-        [push_metric!(r, F, args...; name, kws...) for r in R]
+            name::Union{Symbol,Nothing}=nothing, prog::Bool=false, kws...)
+        if prog
+            prog_name = name===nothing ? String(Symbol(F)) : string(name)
+            @info "Starting $prog_name"
+            @showprogress prog_name [push_metric!(r, F, args...; name, kws...) for r in R]
+        else
+            [push_metric!(r, F, args...; name, kws...) for r in R]
+        end
     end
     function push_metric!(R::Array{ReceptiveField}, F::Function, args...; 
             name::Union{Symbol,Nothing}=nothing, kws...)
-        [push_metric!(r, F, args...; name, kws...) for r in R]
+        if prog
+            prog_name = name===nothing ? String(Symbol(F)) : string(name)
+            @info "Starting $prog_name"
+            @showprogress prog_name [push_metric!(r, F, args...; name, kws...) for r in R]
+        else
+            [push_metric!(r, F, args...; name, kws...) for r in R]
+        end
     end
     function push_metric!(R::Vector{ReceptiveField}, 
             keys::Union{Vector{Symbol},Base.KeySet},
@@ -350,32 +366,144 @@ module metrics
 
     computes the spatial coherence of a field
     """
-    function coherence(F::ReceptiveField)
+    function jcoherence(F::ReceptiveField;
+             zscore::Bool=true, 
+             skip_edge::Bool=false,
+            convert_to_sig::Bool=true)
+
+        if ndims(F.rate) > 2
+            return NaN
+        end
+
+
         rate = F.rate
-        rate = (rate .- nanmean(rate))./nanstd(rate)
+        rate = zscore ? (rate .- nanmean(rate))./nanstd(rate) : rate
+
         neighbors = Vector{Float32}(undef, length(vec(rate)))
-        subjects     = Vector{Float32}(undef, length(vec(rate)))
+        subjects  = Vector{Float32}(undef, length(vec(rate)))
+
         interaction_mat = get_interaction_mat(ndims(rate))
-        interaction_mat = get_interaction_mat(ndims(rate))
+
         for (i,ind) in enumerate(CartesianIndices(rate))
+            # Skip the edge of the track
+            if skip_edge && is_edge_pixel(ind.I, rate)
+                neighbors[i] = subjects[i] = NaN
+                continue
+            end
+
+            # Get the subject pixel
             subject = rate[ind]
+
+            # OBTAIN INDICES OF INTERACTION
             interactions = collect(Tuple(ind))[Utils.na,:] .+ interaction_mat
             interactions[:,1] = max.(1, min.(size(rate,1), interactions[:,1]))
             interactions[:,2] = max.(1, min.(size(rate,2), interactions[:,2]))
+
+            # PULL NEIGHBORS for a pixel
             int_samples = [rate[row...] for row in eachrow(interactions)]
+
+            # Store mean neighbor and subject
             neighbors[i] = nanmean(int_samples)
-            subjects[i] = subject
+            subjects[i]  = subject
         end
-        pearson = min(nancor(subjects, neighbors), 1f0)
-        #@info pearson # sometimes, we get values BARELY above 1
-        # project pearson to gaussian for sig
-        0.5 * log( (1+pearson) / (1-pearson) )
+
+        # Throw out any nans (this isn't necessary)
+        good_sample = (!).(isnan.(neighbors) .|| isnan.(subjects))
+        subjects, neighbors = subjects[good_sample], neighbors[good_sample]
+
+        pearson = min(cor(subjects, neighbors), 1f0)
+        convert_to_sig ? fisher(pearson) : pearson
     end
 
+    function coherence(F::ReceptiveField;
+             skip_edge::Bool=false,
+            convert_to_sig::Bool=true)
+
+
+        rate, count, occ = F.rate, F.count, F.occ.count
+        if ndims(rate) != 2
+            return NaN
+        end
+
+
+        neighbors = Vector{Float32}(undef, length(vec(rate)))
+        subjects  = Vector{Float32}(undef, length(vec(rate)))
+
+        interaction_mat = get_interaction_mat(ndims(rate))
+
+        for (i,ind) in enumerate(CartesianIndices(rate))
+            # Skip the edge of the track
+            if skip_edge && is_edge_pixel(ind.I, rate)
+                neighbors[i] = subjects[i] = NaN
+                continue
+            end
+
+            # Get the subject pixel
+            subject = rate[ind]
+
+            # OBTAIN INDICES OF INTERACTION
+            interactions = collect(Tuple(ind))[Utils.na,:] .+ interaction_mat
+            interactions[:,1] = max.(1, min.(size(rate,1), interactions[:,1]))
+            interactions[:,2] = max.(1, min.(size(rate,2), interactions[:,2]))
+
+            # PULL NEIGHBORS for a pixel
+            neigh_spikes = nansum([count[row...] for row in eachrow(interactions)])
+            neigh_occ    = nansum([occ[row...] for row in eachrow(interactions)])
+
+            # Store mean neighbor and subject
+            neighbors[i] = neigh_spikes/neigh_occ
+            subjects[i]  = subject
+        end
+
+        # Throw out any nans (this isn't necessary)
+        good_sample = (!).(isnan.(neighbors) .|| isnan.(subjects))
+        subjects, neighbors = subjects[good_sample], neighbors[good_sample]
+
+        pearson = min(cor(subjects, neighbors), 1f0)
+        convert_to_sig ? fisher(pearson) : pearson
+    end
+
+
+    function fisher(pearson::Real)
+       0.5 * log( (1+pearson) / (1-pearson) )
+    end
+
+    function is_edge_pixel(ind::Tuple, rate::Array)::Bool
+        edge = false
+        for coord in ind
+            if (coord == 1) || (coord == size(rate,coord))
+                edge = true
+                break
+            end
+        end
+        edge
+    end
+
+    function blake_coherence(F::ReceptiveField; zscore::Bool=true)
+        metrics.mat_initialized ? nothing : initialize_mat()
+        mat"blake_coherence(double($(F.count)), double($(F.occ.count)), $(size(F.count,1)), $(size(F.count,2)))"
+    end
+    function jake_coherence_spearman(F::ReceptiveField; significance::Bool=true)
+        metrics.mat_initialized ? nothing : initialize_mat()
+        val = mat"jake_cohenrence(double($(F.rate)), double($(F.occ.count)), 'Spearman')"
+        significance ? fishÿner(val) : val
+    end
+    function jake_coherence_pearson(F::ReceptiveField; significance::Bool=true)
+        metrics.mat_initialized ? nothing : initialize_mat()
+        val = mat"jake_coherence(double($(F.rate)),double($(F.occ.count)), 'Pearson')"
+        significance ? fisher(val) : val
+    end
+    function initialize_mat()
+        @eval metrics mat_initialized = true
+        mat"addpath('~/Code/metrics')"
+    end
+
+
     function get_interaction_mat(n::Int)
-        poss = [1,-1]
+        poss = [1,0,-1]
         all_possible_neighbors = Iterators.product((poss for i in 1:n)...)
-        all_possible_neighbors = collect(all_possible_neighbors)
+        all_possible_neighbors = [x for x in collect(all_possible_neighbors)
+                                    if x != (0,0)]
         all_possible_neighbors = vcat(all_possible_neighbors...)
         vcat([collect(x)[Utils.na, :] for x in all_possible_neighbors]...)
     end

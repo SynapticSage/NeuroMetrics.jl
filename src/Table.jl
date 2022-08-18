@@ -56,6 +56,10 @@ module Table
         period.prop .= property
         return period
     end
+    function isinperiod(x, start, stop)
+        (x >= start) & (x < stop)
+    end
+    isin = isinperiod
 
     function remove_interperiod_time!(raster::DataFrame, period::DataFrame)
         prop = period.prop[1]
@@ -135,6 +139,7 @@ module Table
         X = X[timeset, :];
         return X
     end
+    constrain_into_period = constrain_range
 
 
     """
@@ -298,61 +303,6 @@ module Table
         return spike_cellgroups
     end
 
-    """
-    `occupancy_normalize`
-
-    # Arguments
-    `data`
-    dataframe to normalize
-    `beh`
-    used to compute occupancy
-    `props`
-    properties to split by and normalize by counts within
-    `normalize_cols`
-    columns to normalize by 
-    """
-    function occupancy_normalize(data::DataFrame, beh::DataFrame, 
-            props::Union{Vector{String},String}; 
-            normalize_cols::ColumnSelector=nothing)
-        data = _occupancy_normalize(data, beh, props, normalize_cols=normalize_cols)
-    end
-    function occupancy_normalize!(data::DataFrame, beh::DataFrame, 
-            props::Union{Vector{String},String}; 
-            normalize_cols::ColumnSelector=nothing)
-        _occupancy_normalize(data, beh, props, normalize_cols=normalize_cols, inplace=true);
-        return nothing
-    end
-    function _occupancy_normalize(data::DataFrame, beh::DataFrame, 
-            props::Union{Vector{String}, String}; 
-            normalize_cols::ColumnSelector=nothing, inplace::Bool=false)
-        if !inplace
-            data = copy(data)
-        end
-        if props isa String
-            props = [props]
-        end
-        if normalize_cols === nothing
-            normalize_cols = Not(props)
-        end
-        uProps = [unique(beh[!,prop]) for prop in props]
-        for state in Iterators.product(uProps...)
-            bools = [beh[!,prop] .== state[i] for (i, prop) in enumerate(props)]
-            bools = accumulate(.&, bools)
-            bools = bools[end]
-            count = accumulate(.+, bools)[end]
-            bools = [data[!,prop] .== state[i] for (i, prop) in enumerate(props)]
-            bools = accumulate(.&, bools)
-            bools = bools[end]
-            try
-                data[bools, normalize_cols] ./= count
-            catch InexactError
-                data[!, normalize_cols] = convert.(Float64, data[!, normalize_cols]);
-                data[bools, normalize_cols] ./= count
-            end
-        end
-        return data
-    end
-
     include(srcdir("Table", "clean.jl"))
     @reexport using .clean
     include(srcdir("Table", "convert_types.jl"))
@@ -363,3 +313,59 @@ module Table
     @reexport using .columntype
 
 end
+
+    #"""
+    #`occupancy_normalize`
+
+    ## Arguments
+    #`data`
+    #dataframe to normalize
+    #`beh`
+    #used to compute occupancy
+    #`props`
+    #properties to split by and normalize by counts within
+    #`normalize_cols`
+    #columns to normalize by 
+    #"""
+    #function occupancy_normalize(data::DataFrame, beh::DataFrame, 
+    #        props::Union{Vector{String},String}; 
+    #        normalize_cols::ColumnSelector=nothing)
+    #    data = _occupancy_normalize(data, beh, props, normalize_cols=normalize_cols)
+    #end
+    #function occupancy_normalize!(data::DataFrame, beh::DataFrame, 
+    #        props::Union{Vector{String},String}; 
+    #        normalize_cols::ColumnSelector=nothing)
+    #    _occupancy_normalize(data, beh, props, normalize_cols=normalize_cols, inplace=true);
+    #    return nothing
+    #end
+    #function _occupancy_normalize(data::DataFrame, beh::DataFrame, 
+    #        props::Union{Vector{String}, String}; 
+    #        normalize_cols::ColumnSelector=nothing, inplace::Bool=false)
+    #    if !inplace
+    #        data = copy(data)
+    #    end
+    #    if props isa String
+    #        props = [props]
+    #    end
+    #    if normalize_cols === nothing
+    #        normalize_cols = Not(props)
+    #    end
+    #    uProps = [unique(beh[!,prop]) for prop in props]
+    #    for state in Iterators.product(uProps...)
+    #        bools = [beh[!,prop] .== state[i] for (i, prop) in enumerate(props)]
+    #        bools = accumulate(.&, bools)
+    #        bools = bools[end]
+    #        count = accumulate(.+, bools)[end]
+    #        bools = [data[!,prop] .== state[i] for (i, prop) in enumerate(props)]
+    #        bools = accumulate(.&, bools)
+    #        bools = bools[end]
+    #        try
+    #            data[bools, normalize_cols] ./= count
+    #        catch InexactError
+    #            data[!, normalize_cols] = convert.(Float64, data[!, normalize_cols]);
+    #            data[bools, normalize_cols] ./= count
+    #        end
+    #    end
+    #    return data
+    #end
+

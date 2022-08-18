@@ -48,31 +48,43 @@ module receptivefield
             upsamp::Int=2, gauss::Real=nothing, 
             bardisp=nothing,
             interpmode=(BSpline(Constant()), BSpline(Constant())))
-        seriestype --> :heatmap
+        zz = copy(getproperty(field, val))
+        if ndims(zz) == 2
+            seriestype --> :heatmap 
+        elseif ndims(zz) == 1
+            seriestype --> :line
+        elseif ndims(zz) == 3
+            seriestype --> :volume
+        end
         title --> string(field.metrics; width=title_width)
         xx = [field.grid.centers[1]...]
         x --> xx
-        if length(field.grid.centers) > 1
-            yy = [field.grid.centers[2]...]
-            y --> yy
-        end
-        zz = copy(getproperty(field, val))
         if ztransform
             zz = (zz .- mfunc(zz))./sfunc(zz)
             colorbar_title --> String(val) * " Z-transform"
         else
             colorbar_title --> String(val)
         end
+        aspect_ratio --> 1
 
-        if upsamp != 1
-            xx,yy,zz = upsample(xx,yy,zz; interpmode, upsamp)
-        end
         if gauss != 0 && gauss != (0,0) ||
             (gauss === nothing && upsamp != 1)
             zz = gaussianfilt(zz; gauss, upsamp)
         end
 
-        transpose ? (yy, xx, zz) : _transpose(yy, xx, zz)
+        if length(field.grid.centers) > 1
+            yy = [field.grid.centers[2]...]
+            y --> yy
+            if upsamp != 1
+                xx,yy,zz = upsample(xx,yy,zz; interpmode, upsamp)
+            end
+            transpose ? (xx, yy, zz') : _transpose(xx, yy, zz')
+        elseif length(field.grid.centers) == 1
+            label --> string(val)
+            fillrange --> (0,Z)
+            ylim --> (0, maximum(Z)*1.3)
+            (X,Z)
+        end
     end
 
     @memoize function gaussianfilt(zz; gauss, upsamp)
@@ -104,38 +116,64 @@ module receptivefield
 
     @recipe function plot_adaptiveocc(field::T where T<:Occupancy,
             val::Symbol=:prob, transpose::Bool=true)
-        seriestype --> :heatmap
+        @info "tet"
+        a=1
+        @infiltrate
+        Z = if val==:prob
+            reshape(getproperty(field, val), size(field.grid))
+        else
+            getproperty(grid, val)
+        end
+        z := Z
+        if ndims(Z) == 2
+            seriestype --> :heatmap 
+        elseif ndims(Z) == 1
+            seriestype --> :line
+        elseif ndims(Z) == 3
+            seriestype --> :volume
+        end
         colorbar_title --> String(val)
         X = [field.grid.centers[1]...]
         x --> X
         if length(field.grid.centers) > 1
             Y = [field.grid.centers[2]...]
             y --> Y
-        end
-        z := if val==:prob
-            (X, Y, reshape(getproperty(field, val), size(field.grid))')
+            transpose ? (X,Y,Z') : _transpose(X,Y,Z')
         else
-            (Y, X, getproperty(grid, val))
+            label --> "occupancy " * string(val)
+            fillrange --> (0,Z)
+            ylim --> (0, maximum(Z)*1.3)
+            (X,Z)
         end
-        transpose ? (X,Y,Z') : _transpose(X,Y,Z')
     end
 
     @recipe function plot_adaptivegrid(grid::GridAdaptive, val::Symbol=:radii,
         transpose::Bool=true)
+
+        Z = getproperty(grid, val)
+        Z = Z[1] isa AbstractVector ? sqrt.(prod.(Z)) : Z
+
         colorbar_title --> String(val)
-        seriestype --> :heatmap
+        if ndims(Z) == 2
+            seriestype --> :heatmap 
+        elseif ndims(Z) == 1
+            seriestype --> :line
+        elseif ndims(Z) == 3
+            seriestype --> :volume
+        end
         c --> :thermal
         X = [grid.centers[1]...]
         x --> X
         if length(grid.centers) > 1
             Y = [grid.centers[2]...]
             y --> Y
+            transpose ? (X,Y,Z') : _transpose(X,Y,Z')
+        else
+            label --> string(val)
+            fillrange --> (0,Z)
+            ylim --> (0, maximum(Z)*1.3)
+            (X,Z)
         end
-        Z = getproperty(grid, val)
-        if eltype(Z) == Vector
-            Z = reshape([sqrt(sum(z.^2)) for z in Z], size(Z))
-        end
-        transpose ? (X,Y,Z') : _transpose(X,Y,Z')
     end
 
     function _transpose(X, Y, Z)

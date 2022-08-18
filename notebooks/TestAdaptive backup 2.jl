@@ -79,7 +79,7 @@ Import packages
 """
 
 # ╔═╡ a1ad6173-5ead-4559-bddb-9aee6119b9d0
-prop_sel = @bind prop_str PlutoUI.Radio(["y-x","currentAngle-currentPathLength", "currentAngle"], default="currentAngle")
+prop_sel = @bind prop_str PlutoUI.Radio(["y-x","currentAngle-currentPathLength", "currentAngle"], default="currentAngle-currentPathLength")
 
 # ╔═╡ 31082fe7-ed61-4d37-a025-77420da3f24a
 beh, spikes = begin
@@ -526,6 +526,7 @@ element(Singleton([50,125])) ∈ HullSet(mets[:hullseg_grid])
 # ╟─31082fe7-ed61-4d37-a025-77420da3f24a
 # ╟─d51ce0f2-03bf-4c88-9302-9fd4bc8621eb
 # ╟─ff355ad4-42da-4493-ae56-3bc9f0d8627c
+# ╠═04eec95d-b5cf-47a5-a880-3146088cab00
 # ╠═cbfbe9c9-f7c5-4219-8d81-b335fe5f5ed6
 # ╟─efcdc2f1-5e26-4534-953e-defae4bd8603
 # ╠═301d385b-7879-445d-a903-772c10862750

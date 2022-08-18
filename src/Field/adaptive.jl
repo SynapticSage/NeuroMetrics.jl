@@ -1,6 +1,6 @@
 module adaptive
 
-    using  ..Field
+    using ..Field
     import ..Field: Grid, ReceptiveField, Occupancy
     import ..Field: get_boundary, resolution_to_width, return_vals
     import ..Field.metrics: MetricSet, push_metric!, pop_metric!
@@ -24,13 +24,13 @@ module adaptive
     using Infiltrator
 
     metric_def = [metrics.bitsperspike, metrics.totalcount, metrics.maxrate,
-                  metrics.maxcount, metrics.meanrate, metrics.coherence,
-                  metrics.centroid, metrics.argmax, metrics.convexhull]
-    
+        metrics.maxcount, metrics.meanrate, metrics.coherence,
+        metrics.centroid, metrics.argmax, metrics.convexhull]
+
     using Plots
     using DataFrames: ColumnIndex
-    CItype = Union{ColumnIndex, Vector{<:ColumnIndex}}
-    CItype_plusNull = Union{ColumnIndex, Vector{<:ColumnIndex}, Nothing}
+    CItype = Union{ColumnIndex,Vector{<:ColumnIndex}}
+    CItype_plusNull = Union{ColumnIndex,Vector{<:ColumnIndex},Nothing}
 
     export yartsev
 
@@ -40,7 +40,7 @@ module adaptive
     Determines how much to expand a hyperphere to fit the corners of the grid
     tagent to the sphere
     """
-    function default_radii(centers::Tuple)::Union{Float32, Vector{Float32}}
+    function default_radii(centers::Tuple)::Union{Float32,Vector{Float32}}
         C = Vector{Float32}()
         # Push the max diff of each dimension
         for center in centers
@@ -52,7 +52,7 @@ module adaptive
         # Return the euclidean distance to a corner of the hypercube from the
         # center
         if length(unique(C)) == 1
-            sqrt(sum(C.^2))
+            sqrt(sum(C .^ 2))
         else
             C
         end
@@ -65,18 +65,18 @@ module adaptive
         edges::Tuple
         grid::Array{Array{Float32}}
         radii::Union{Array{Float32},
-                     Array{Vector{Float32}}}
+            Array{Vector{Float32}}}
 
-        function GridAdaptive(props::Vector, centers::Union{Array,Tuple}) 
+        function GridAdaptive(props::Vector, centers::Union{Array,Tuple})
             if eltype(props) == Symbol
                 props = String.(props)
             end
             centers = centers isa Array ? Tuple(centers) : centers
             radii = default_radii(centers)
-            GridAdaptive(props,centers, radii)
+            GridAdaptive(props, centers, radii)
         end
-        function GridAdaptive(props::Vector, centers::Union{<:AbstractArray,Tuple}, 
-                radii::Union{Float32, Vector{Float32}})
+        function GridAdaptive(props::Vector, centers::Union{<:AbstractArray,Tuple},
+            radii::Union{Float32,Vector{Float32}})
             if eltype(props) == Symbol
                 props = String.(props)
             end
@@ -95,7 +95,7 @@ module adaptive
             @assert(size(grid) == size(radii))
             edges = Field.center_to_edge.([[c...] for c in centers])
             edges = Tuple((e...,) for e in edges)
-            new(props,centers,edges,grid,radii)
+            new(props, centers, edges, grid, radii)
         end
         function GridAdaptive(props::Vector; width::Vector, boundary::Vector)
             centers = Tuple(Tuple(collect(s:w:e))
@@ -120,20 +120,20 @@ module adaptive
     end
 
     # Setup iteration
-    Base.length(g::GridAdaptive)  = length(g.grid)
-    Base.size(g::GridAdaptive)    = size(g.grid)
+    Base.length(g::GridAdaptive) = length(g.grid)
+    Base.size(g::GridAdaptive) = size(g.grid)
     Base.iterate(g::GridAdaptive) = Base.iterate(zip(g.grid, g.radii))
     #Base.done(g::GridAdaptive, state::Int) = length(g.centers) == state
     function Base.iterate(g::GridAdaptive, state::Tuple{Int,Int})
-        iterate(zip(g.grid,g.radii), state)
+        iterate(zip(g.grid, g.radii), state)
     end
     cenumerate(g::GridAdaptive) = zip(CartesianIndices(g.grid), g)
 
-    AdaptiveFieldDict    = OrderedDict{<:NamedTuple, AdaptiveRF}
+    AdaptiveFieldDict = OrderedDict{<:NamedTuple,AdaptiveRF}
     #AdaptiveFieldDict(x) = OrderedDict{NamedTuple,   AdaptiveRF}(x)
     #AdaptiveFieldDict()  = OrderedDict{NamedTuple,   AdaptiveRF}()
 
-    
+
     """
         converge_to_radius
 
@@ -143,8 +143,8 @@ module adaptive
     NaN, nullifying this sample.
     """
     function converge_to_radius(vals::Matrix{Float32}, center::Vector{Float32},
-            radius::Float32; dt::Float32, thresh::Float32,
-            maxrad::Float32, radiusinc::Float32, kws...)::Float32
+        radius::Float32; dt::Float32, thresh::Float32,
+        maxrad::Float32, radiusinc::Float32, kws...)::Float32
         #list = []
         #push!(list, radius)
         @inbounds while get_samptime(vals, center, radius; dt) < thresh
@@ -159,9 +159,9 @@ module adaptive
         radius
     end
     function converge_to_radius(vals::Matrix{Float32}, center::Vector{Float32},
-            radius::Vector{Float32}; dt::Float32, thresh::Float32,
-            maxrad::Union{Float32,Vector{Float32}},
-            radiusinc::Union{Float32,Vector{Float32}}, kws...)::Vector{Float32}
+        radius::Vector{Float32}; dt::Float32, thresh::Float32,
+        maxrad::Union{Float32,Vector{Float32}},
+        radiusinc::Union{Float32,Vector{Float32}}, kws...)::Vector{Float32}
         #list = []
         #push!(list, radius)
         #radius = copy(radius)
@@ -179,9 +179,9 @@ module adaptive
     end
 
     function converge_to_radius_w_inertia(vals::Matrix{Float32},
-            center::Vector{Float32}, radius::Float32; dt::Float32,
-            thresh::Float32, maxrad::Float32, radiusinc::Float32,
-            ϵ::Float32, kws...)::Float32
+        center::Vector{Float32}, radius::Float32; dt::Float32,
+        thresh::Float32, maxrad::Float32, radiusinc::Float32,
+        ϵ::Float32, kws...)::Float32
         Δ = []
         tₛ = get_samptime(vals, center, radius; dt)
         δ = tₛ - thresh
@@ -189,14 +189,14 @@ module adaptive
         s = sign(δ)
         tolerance_acheived = abs(δ) < ϵ
         if s == 1
-            tolerance_acheived =true
+            tolerance_acheived = true
         end
         increase_phase = true
         reversal = 1
         while !(tolerance_acheived)
             while s != reversal && !(tolerance_acheived)
                 radius += radiusinc
-                if increase_phase 
+                if increase_phase
                     radiusinc *= 2
                 else
                     radiusinc /= 2
@@ -230,42 +230,45 @@ module adaptive
     if radiusinc is vector, then it will instead expand a hyperbox instead 
     of a hypersphere
     """
-    function get_grid_bounded(behavior::DataFrame, props::Vector; 
-            thresh::Float32=1.25f0, # Threshold in seconds
-            dt::Union{Nothing,Float32}=nothing, # Total time of sample
-            radiusinc::Union{Float32,Vector{Float32}}=0.2f0, # Spatial unit of RF
-            ϵ::Float32=0.1f0,
-            maxrad::Union{Float32,Nothing}=nothing,
-            method::Symbol=:converge_to_radius,
-            info::Bool=false,
-            widths::OrderedDict, boundary::OrderedDict, kws...)::GridAdaptive
+    function get_grid_bounded(behavior::DataFrame, props::Vector;
+        widths::OrderedDict, boundary::OrderedDict,
+        thresh::Float32=1.25f0, # Threshold in seconds
+        adaptive::Bool=true,
+        dt::Union{Nothing,Float32}=nothing, # Total time of sample
+        radiusinc::Union{Float32,Vector{Float32}}=0.2f0, # Spatial unit of RF
+        ϵ::Float32=0.1f0,
+        maxrad::Union{Float32,Nothing}=nothing,
+        method::Symbol=:converge_to_radius,
+        info::Bool=false,
+        kws...)::GridAdaptive
+
         Field.ensureTimescale!(behavior)
-        dt = dt === nothing ? 
-                     median(diff(behavior.time)) : dt
-        widths = OrderedDict(prop=>widths[prop] for prop in props)
-        maxrad = maxrad === nothing ? 3*maximum(values(widths)) : maxrad
+        dt = dt === nothing ?
+             median(diff(behavior.time)) : dt
+        widths = OrderedDict(prop => widths[prop] for prop in props)
+        maxrad = maxrad === nothing ? 3 * maximum(values(widths)) : maxrad
         vals = Field.return_vals(behavior, props)
         cv(x) = collect(values(x))
         G = GridAdaptive(props; width=cv(widths), boundary=cv(boundary))
         radiusinc = ((valtype(G.radii) <: Vector) && !(typeof(radiusinc) <: Vector)) ?
-                fill(radiusinc, length(G.centers)) : radiusinc
+                    fill(radiusinc, length(G.centers)) : radiusinc
         R = Vector{valtype(G.radii)}(undef, length(G))
         if method == :converge_to_radius_w_inertia
             thresh += ϵ
         end
-        method = eval(method)
+        method = adaptive ? eval(method) : fixed_radius
         radiusinc = radiusinc .+ 1
         if info || !(isdefined(Main, :PlutoRunner))
             @info "grid" thresh dt maxrad radiusinc 
+            @info boundary 
             @info widths
             prog = P = Progress(length(G); desc="Grid")
         end
-        #i = 0
         Threads.@threads for (index, (center, radius)) in collect(enumerate(G))
             #i+=1
             #@info "pre $(i)" radius G.radii
             newradius = method(vals, center, radius; dt, thresh, maxrad,
-                            radiusinc, ϵ)
+                radiusinc, ϵ)
             #@info "post $(i)" newradius G.radii
             #@infiltrate
             R[index] = newradius
@@ -278,24 +281,36 @@ module adaptive
     end
 
     function get_grid(behavior::DataFrame, props::Vector;
-            widths::Union{<:Float32, Vector{<:Float32}, OrderedDict},
-            other_kws...)::GridAdaptive
+        widths::Union{<:Float32,Vector{<:Float32},OrderedDict},
+        boundary=nothing,
+        other_kws...)::GridAdaptive
         if typeof(widths) <: Float32
-            widths = OrderedDict{}(prop=>widths for prop in props)
+            widths = OrderedDict{}(prop => widths for prop in props)
         elseif typeof(widths) <: AbstractVector
-            widths = OrderedDict{}(prop=>width for (width,prop) in zip(widths,props))
+            widths = OrderedDict{}(prop => width for (width, prop) in zip(widths, props))
         else
             @assert(widths isa OrderedDict)
         end
-        boundary = Field.get_boundary(behavior, props)
+        bd = Field.get_boundary(behavior, props)
+        boundary = boundary === nothing ? bd :
+                   fill_missing_boundary(boundary, bd)
         get_grid_bounded(behavior, props; widths=widths, boundary, other_kws...)
     end
-    
+
+    function fill_missing_boundary(bd_userinput::AbstractDict,
+                                   bd_template::OrderedDict)::OrderedDict
+        for (key, value) in bd_userinput
+            if value !== nothing
+                bd_template[key] = bd_userinput[key]
+            end
+        end
+        return bd_template
+    end
 
     #################################################
     ##### yartsev paper based  ####################
     #################################################
-    thread_field_default  = true
+    thread_field_default = true
     thread_fields_default = false
 
     """
@@ -304,56 +319,56 @@ module adaptive
     computes an adaptive grid and ratemap based on methods in yartsev papers
     """
     function yartsev(behavior::DataFrame, spikes::DataFrame, props::Vector;
-            splitby::CItype_plusNull=[:unit], 
-            filters::Union{<:AbstractDict, Nothing}=nothing, 
-            metrics::Union{Function, Vector{Function}, Nothing}=metric_def, 
-            thread_field::Bool=thread_field_default,
-            thread_fields::Bool=thread_fields_default,
-            prog_fields::Bool=false,
-            grid_kws...)::Union{AdaptiveFieldDict, AdaptiveRF}
+        splitby::CItype_plusNull=[:unit],
+        filters::Union{<:AbstractDict,Nothing}=nothing,
+        metrics::Union{Function,Vector{Function},Nothing}=metric_def,
+        thread_field::Bool=thread_field_default,
+        thread_fields::Bool=thread_fields_default,
+        prog_fields::Bool=false,
+        grid_kws...)::Union{AdaptiveFieldDict,AdaptiveRF}
         @info "yartsev" prog_fields
         if filters !== nothing
             if Filt.filters_use_precache(filters) &&
-                Filt.missing_precache_output_cols(spikes, filters)
+               Filt.missing_precache_output_cols(spikes, filters)
                 @info "yartsev preacaching"
                 spikes = Filt.precache(spikes, behavior, filters)
             end
             @info "filter and reg"
             @time behavior, spikes = filterAndRegister(behavior, spikes; filters,
-                                                 on="time", transfer=props,
-                                                 filter_skipmissingcols=true)
+                on="time", transfer=props,
+                filter_skipmissingcols=true)
         else
-            exists = intersect(Symbol.(props), 
-                                 propertynames(spikes))
+            exists = intersect(Symbol.(props),
+                propertynames(spikes))
             if length(exists) != length(props)
-                behavior, spikes = register(behavior, spikes; 
-                                            on="time",transfer=String.(props))
-                                                     
+                behavior, spikes = register(behavior, spikes;
+                    on="time", transfer=String.(props))
+
             end
         end
         @info "grid"
         @time grid = get_grid(behavior, props; grid_kws...)
         @info "occupancy"
-        @time occ  = get_occupancy(behavior, grid)
+        @time occ = get_occupancy(behavior, grid)
         @info "dropmissing"
         @time spikes = dropmissing(spikes, props)
         @info "fields"
         @time yartsev(spikes, grid, occ; splitby, metrics,
-                      prog_fields, thread_field, thread_fields,
-                      grid_kws...)
+            prog_fields, thread_field, thread_fields,
+            grid_kws...)
     end
     function yartsev(spikes::DataFrame, grid::GridAdaptive, occ::AdaptiveOcc;
-            splitby::CItype=[:unit],
-            metrics::Union{Function, Vector{Function}, Nothing}=metric_def,
-            thread_field::Bool=thread_field_default,
-            thread_fields::Bool=thread_fields_default,
-            prog_fields::Bool=false,
-            grid_kws...)::Union{AdaptiveFieldDict, AdaptiveRF}
+        splitby::CItype=[:unit],
+        metrics::Union{Function,Vector{Function},Nothing}=metric_def,
+        thread_field::Bool=thread_field_default,
+        thread_fields::Bool=thread_fields_default,
+        prog_fields::Bool=false,
+        grid_kws...)::Union{AdaptiveFieldDict,AdaptiveRF}
 
         @info "yartsev" prog_fields
         get_adaptivefields(groupby(spikes, splitby), grid, occ;
-                                    prog_fields, metrics, thread_field,
-                                    thread_fields)
+            prog_fields, metrics, thread_field,
+            thread_fields)
     end
 
     """
@@ -362,25 +377,25 @@ module adaptive
 
     computes adaptive ratema based on a fixed grid derived from behavior
     """
-    function get_adaptivefields(spikeGroups::GroupedDataFrame, 
-            grid::GridAdaptive, occ::AdaptiveOcc; 
-            thread_fields::Bool=thread_fields_default,
-            prog_fields::Bool=false,
-            metrics::Union{Function, Vector{Function}, Nothing}=metric_def,
+    function get_adaptivefields(spikeGroups::GroupedDataFrame,
+        grid::GridAdaptive, occ::AdaptiveOcc;
+        thread_fields::Bool=thread_fields_default,
+        prog_fields::Bool=false,
+        metrics::Union{Function,Vector{Function},Nothing}=metric_def,
         kws...)::AdaptiveFieldDict
         keys_and_groups = collect(zip(Table.group.nt_keys(spikeGroups),
-                                      spikeGroups))
+            spikeGroups))
         @info "get_adaptivefields" prog_fields
         if thread_fields
-            D = ThreadSafeDict{NamedTuple, AdaptiveRF}()
+            D = ThreadSafeDict{NamedTuple,AdaptiveRF}()
             Threads.@threads for (nt, group) in keys_and_groups
                 D[nt] = get_adaptivefield(DataFrame(group), grid, occ; metrics, kws...)
             end
             D = OrderedDict(D)
         else
-            D = OrderedDict{NamedTuple, AdaptiveRF}()
+            D = OrderedDict{NamedTuple,AdaptiveRF}()
             prog = prog_fields ? Progress(length(keys_and_groups),
-                                                  desc="adaptive fields") : nothing
+                desc="adaptive fields") : nothing
             for (nt, group) in keys_and_groups
                 D[nt] = get_adaptivefield(DataFrame(group), grid, occ; metrics, kws...)
                 prog_fields ? next!(prog) : nothing
@@ -395,27 +410,27 @@ module adaptive
 
     computes adaptive ratemap based on a fixed grid derived from behavior
     """
-    function get_adaptivefield(spikes::DataFrame, 
-            grid::GridAdaptive, occ::AdaptiveOcc;
-            metrics::Union{Function, Vector{Function}, Nothing}=metric_def,
-            thread_field::Bool=thread_field_default,
-        )::AdaptiveRF
+    function get_adaptivefield(spikes::DataFrame,
+        grid::GridAdaptive, occ::AdaptiveOcc;
+        metrics::Union{Function,Vector{Function},Nothing}=metric_def,
+        thread_field::Bool=thread_field_default
+    )::AdaptiveRF
         vals = Field.return_vals(spikes, grid.props)
         count = zeros(Int32, size(grid))
         if thread_field
             #@info "thread single field"
             Threads.@threads for (index, (center, radius)) in
-                collect(enumerate(grid))
+                                 collect(enumerate(grid))
                 @inbounds count[index] = sum(inside(vals, center, radius))
             end
         else
             @inbounds for (index, (center, radius)) in
-                collect(enumerate(grid))
+                          collect(enumerate(grid))
                 count[index] = sum(inside(vals, center, radius))
             end
         end
         count = reshape(count, size(grid))
-        rate  = @fastmath occ.camerarate*Float32.(count./occ.count)
+        rate = @fastmath occ.camerarate * Float32.(count ./ occ.count)
         field = AdaptiveRF(grid, occ, count, rate, MetricSet())
         if metrics !== nothing
             for metric in metrics
@@ -432,8 +447,8 @@ module adaptive
             @inbounds count[index] = sum(inside(vals, center, radius))
         end
         count = reshape(count, size(grid))
-        prob  = Probabilities(Float32.(vec(count)))
-        camerarate = Float32(1/median(diff(behavior.time)))
+        prob = Probabilities(Float32.(vec(count)))
+        camerarate = Float32(1 / median(diff(behavior.time)))
         if camerarate > 300
             camerarate /= 60
         end
@@ -445,13 +460,13 @@ module adaptive
     # ----------------
     # Radius measurements
     function vector_dist(vals::Array, center::Array)::Vector{Float32}
-        @inbounds @fastmath sqrt.(sum((vals .- center[Utils.na, :]).^2,dims=2)[:,1]) # HUGE SAVINGS FAST MATH HERE
+        @inbounds @fastmath sqrt.(sum((vals .- center[Utils.na, :]) .^ 2, dims=2)[:, 1]) # HUGE SAVINGS FAST MATH HERE
     end
     function inside(vals::Array, center::Array, radius::Float32)::BitVector
         vector_dist(vals, center) .< radius
     end
     function get_samptime(vals::Array, center::Array, radius::Float32;
-            dt::Float32=1/30)::Float32
+        dt::Float32=1 / 30)::Float32
         @fastmath sum(inside(vals, center, radius)) * dt
     end
     # Vector radius measurments
@@ -462,21 +477,21 @@ module adaptive
         Utils.squeeze(all(indiv_dist(vals, center) .< radius[Utils.na, :], dims=2))
     end
     function get_samptime(vals::Array, center::Array, radius::Vector{Float32};
-            dt::Float32=1/30)::Float32
+        dt::Float32=1 / 30)::Float32
         @fastmath sum(inside(vals, center, radius)) * dt
     end
     ## --------
     ## UTILITIES
     ## --------
     function Utils.to_dict(F::AdaptiveRF)
-        FF = Dict{Symbol, Any}()
-        FF[:count]        = F.count
-        FF[:rate]         = F.rate
-        FF[:occ_prob]     = reshape(F.occ.prob, size(F.grid.grid))
-        FF[:occ_count]    = F.occ.count
+        FF = Dict{Symbol,Any}()
+        FF[:count] = F.count
+        FF[:rate] = F.rate
+        FF[:occ_prob] = reshape(F.occ.prob, size(F.grid.grid))
+        FF[:occ_count] = F.occ.count
         FF[:grid_centers] = F.grid.centers
-        FF[:props]        = F.grid.props
-        FF[:radii]        = F.grid.radii
+        FF[:props] = F.grid.props
+        FF[:radii] = F.grid.radii
         FF
     end
 

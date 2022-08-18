@@ -3,6 +3,9 @@
 
 Tools for implementing bayesian decoding using Fields.jl and 
 Timeshift.jl elements.
+
+TODO this needs to be updated with code from test_bayes.jl in _research/
+folder
 """
 module bayes
 

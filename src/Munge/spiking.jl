@@ -11,6 +11,7 @@ module spiking
     using ProgressMeter
     using Infiltrator
     using TensorToolbox
+    using Table
 
     import Field: ReceptiveField
 
@@ -46,6 +47,11 @@ module spiking
     end
 
 
+    """
+        tocount
+
+    getting spike count matrix/tensor from DF of spikes
+    """
     function tocount(spikes::DataFrame, dims=:unit; binsize=bindefault, grid=nothing, kws...)
         if grid === nothing
             grid = minimum(spikes.time):binsize:maximum(spikes.time)
@@ -68,6 +74,7 @@ module spiking
             DimArray(M, (timeax..., neuronax...))
         end
     end
+
     function tocount(times::Missing; grid, gaussian=0, binsize=nothing,
             type::Union{Nothing,Type}=nothing)::DimArray
         if grid == :dynamic
@@ -82,9 +89,10 @@ module spiking
         end
         DimArray(zeros(type, size(centers)), Dim{:time}(centers))
     end
+
     function tocount(times::AbstractArray; grid, gaussian=0, binsize=bindefault,
             type::Union{Nothing,Type}=nothing)::DimArray
-        if grid == :dynamic
+        if grid === nothing
             grid = minimum(times):binsize:maximum(times)
         end
         δ = grid[2] - grid[1]
@@ -103,21 +111,62 @@ module spiking
         DimArray(val, Dim{:time}(centers))
     end
 
-    function torate(spikes::DataFrame, dims=:unit; grid=nothing, kws...)
+    
+    """
+        torate (w/behavior)
+
+    if passed with behavior, it attempts to lay out bins centered at each
+    behavioral sample
+
+    see torate(spikes::DataFrame, dims) for doc of the rest of the 
+    functionalities
+    """
+    function torate(spikes::DataFrame, beh::DataFrame, dims=:unit; kws...)
+        grid = copy(beh.time)
+        δ = median(diff(beh.time))
+        grid = grid .- (1/2)δ
+        epoch_periods = Table.get_periods(beh, "epoch")
+        in_period = [Table.isin.(spikes.time,
+                                 epoch_period.start, epoch_period.stop) 
+         for epoch_period in eachrow(epoch_periods)]
+        in_period = sum(in_period)
+        spikes = spikes[in_period .> 0, :]
+        torate(spikes, dims; kws..., grid)
+    end
+
+    """
+        torate
+
+    get rate matrix from a dataframe of spikes per cut of the data in 
+    dims=:unit
+    """
+    function torate(spikes::DataFrame, dims=:unit; binsize=bindefault,
+                    grid=nothing, kws...)
 
         if grid === nothing
-            grid = minimum(spikes.time):0.01:maximum(spikes.time)
-        elseif typeof(grid) <: Real
-            grid = minimum(spikes.time):grid:maximum(spikes.time)
+            grid = minimum(spikes.time):binsize:maximum(spikes.time)
         end
         dims = dims isa Vector ? dims : [dims]
         T =  Munge.tensorize(spikes, dims, :time)
-        M = [torate(x; grid, kws...) for x in T]
-        timeax = M[1].dims
-        M = hcat(M...)
+        M = Array{DimArray}(undef, size(T)...)
+        prog = Progress(length(T); desc="Executing count of $dims")
+        for ind in eachindex(T)
+            M[ind] = torate(T[ind]; grid, binsize, kws...) 
+            next!(prog)
+        end
         neuronax = T.dims
-        DimArray(M, (timeax..., neuronax...))
+        if grid == :dynamic
+            DimArray(M, neuronax...)
+        else
+            timeax = M[1].dims
+            M = hcat(M...)
+            M = matten(M, 1, [size(M,1), size(T)...])
+            DimArray(M, (timeax..., neuronax...))
+        end
     end
+
+    torate(times::Missing; kws...)::DimArray = tocount(times; kws...)
+
 
     function torate_windowdia(times::AbstractArray; grid, windowsize::Real,
             gaussian::Real=0)
@@ -134,13 +183,14 @@ module spiking
         DimArray(imfilter(count ./ δ, ker),
                   Dim{:time}(centers))
     end
-    function torate(times::AbstractArray; grid, gaussian=gaussiandefault)::DimArray
-        δ  = grid[2] - grid[1]
+
+    function torate(times::AbstractArray; grid, gaussian=gaussiandefault,
+            binsize=grid[2]-grid[1])::DimArray
         count = fit(Histogram, vec(times), grid)
-        gaussian = gaussian * 0.1/δ
+        gaussian = gaussian * 0.1/binsize
         ker = Kernel.gaussian((gaussian,))
         centers = binning.edge_to_center(collect(grid))
-        DimArray(imfilter(count.weights ./ δ, ker),
+        DimArray(imfilter(count.weights ./ binsize, ker),
                   Dim{:time}(centers))
     end
 

@@ -1,4 +1,3 @@
-
 @time begin
     using Timeshift
     using Timeshift.types
@@ -28,10 +27,8 @@ end
 # Setup basic metrics, like the area and dimensions of the dimarray
 push_celltable!( M, cells, :unit, :area)
 push_shiftmetric!(M, best_tau!; metric=:bitsperspike)
-push_dims!(M); dim=:unit, metric=:coh_at_zero)
+push_dims!(M)
 push_dims!(M, vec(getindex.(m, :coherence)); dim=:unit, metric=:coh_at_zero)
-
-
 
 # Prefilter our fields : we could do this in the plot, but, we want a stable set over these figures
 metricfilter = x->
@@ -43,14 +40,36 @@ inds = vec(any(hcat(
                     [[metricfilter(mm) for mm in m]
                      for m in eachslice(M, dims=:unit)]...), dims=1))
 Msub = M[inds,:]
+Msub0 = getshift(Msub, 0)
+Plot.setfolder("timeshift","population","panel_of_fields")
+
+# Push different versions of my metric
+push_metric!(Msub0, metrics.coherence;               name=:coherence, prog=true, skip_edge=true)
+push_metric!(Msub0, metrics.bcoherence;              name=:bcoherence, prog=true, skip_edge=true)
+push_metric!(Msub0, metrics.blake_coherence;         name=:blake_coherence, prog=true)
+push_metric!(Msub0, metrics.jake_coherence_pearson;  name=:jake_coherence_pearson, prog=true)
+push_metric!(Msub0, metrics.jake_coherence_spearman; name=:jake_coherence_spearman, prog=true)
+plts=[]; fs=[:jake_coherence_spearman, :jake_coherence_pearson, :blake_coherence, :coherence, :bcoherence];for (x,y) in Iterators.product(fs,fs); 
+push!(plts,
+      scatter(Msub0[x], Msub0[y], camera=(i,30), xlabel=string(x), ylabel=string(y))
+     ); 
+plot!(0:2,0:2, c=:white,linestyle=:dash,linewidth=3, ylim=(0,2), xlim=(0,2))
+end
+plot(plts..., size=(1200,1200))
+
+
+
+#push_metric!(Msub0, metrics.jake_coherence;  name=:jake_coherence2, prog=true)
+push_celltable!( Msub0, cells, :unit, :area)
+push_shiftmetric!(Msub0, best_tau!; metric=:bitsperspike)
 
 # Display the fields at a zero shift
-Plot.setfolder("timeshift","population","panel_of_fields")
-fieldsplay(getshift(Msub, 0); colorbar=false, metricdisp=[:area, :coherence, :meanrate,:unit],
+fieldsplay(Msub0; colorbar=false, 
+           metricdisp=[:coherence, :unit, :blake_coherence, :bcoherence, :area, :meanrate, :maxrate],
            scale_spg=2, metricfilter, totalarea_aspect=1,
-           srt=[:area,:coh_at_zero],
+           srt=[:area, :bcoherence],
            title_width=20,area_conditional_c)
-Plot.save("fields_at_zero_shift_srt=coherence_at_zero")
+Plot.save("fields_at_zero_shift_srt=blake_coherence")
 
 
 # GET A GIF OF ACTIVITY
@@ -103,12 +122,13 @@ Plot.save("fields_at_BEST_shift_srt=>coherence")
 
 
 fieldsplay(m; colorbar=false, 
-           metricdisp=[:area, :shift,
+           metricdisp=[:area,     :shift,
                        :meanrate, :coh_at_zero], 
            scale_spg=2, 
            totalarea_aspect=1,
            metricfilter,
-           srt=[:area,:bitsperspike],
+           srt=[:area, :bitsperspike],
            title_width=20,
            area_conditional_c)
+
 Plot.save("fields_at_BEST_shift_srt=>bitsperspike")

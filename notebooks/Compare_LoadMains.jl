@@ -547,7 +547,7 @@ end
 # ╔═╡ 3f0e03d0-555e-429e-8130-8f47fa8a5887
 @memoize function visualize_cells(compare, key1, key2, srt, compare_unit, compare_shift1, compare_shift2)
 	cs_scat = plot(scatter_opt_shift_compare(compare, key1, key2, srt))
-	scatter!(cs_scat, unit_df[:,key1.datacut], unit_df[:,key2.datacut], label="selected", legend=:outerbottomright)
+	scatter!(cs_scat, unit_df[:,key1.datacut], unit_df[:,key2.datacut], label="selected", legend=:outerbottomright, markersize=3, )
 	vline!([0], c=:gray, linestyle=:dash, label="τ = 0")
 	cs_u1=plot(SF1[compare_unit, parse(Float64,compare_shift1)],  titlefontsize=8)
 	cs_u2=plot(SF2[compare_unit, parse(Float64,compare_shift2)],  titlefontsize=8)
@@ -682,7 +682,7 @@ Some of the cells do not change that much over time. And some of those are at th
 # ╟─a6d0a348-2918-447d-9fe9-e7ca2fb82c9e
 # ╟─bdb96423-b903-4f34-b60e-cf2a34b987ce
 # ╟─d142b74e-33bb-4766-9c22-9e5a4cb47eb3
-# ╟─3f0e03d0-555e-429e-8130-8f47fa8a5887
+# ╠═3f0e03d0-555e-429e-8130-8f47fa8a5887
 # ╟─305dda42-217e-4bbb-b683-45e5acc016bf
 # ╟─82a2ce1b-dd5a-4b4d-b6f0-f12c85be648a
 # ╟─8fea7857-f1da-4c05-8020-256e542b800c

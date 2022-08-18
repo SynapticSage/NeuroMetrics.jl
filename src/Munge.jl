@@ -20,3 +20,4 @@ module Munge
     @reexport using .spiking
 
 end
+
