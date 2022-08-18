@@ -58,15 +58,24 @@ module metrics
     Base.keys(M::MetricSet)                          = keys(M.data)
     Base.values(M::MetricSet)                        = values(M.data)
     Base.filter(f::Function, M::MetricSet)           = filter(f, M.data)
-    Base.getindex(R::ReceptiveField, ind)       = Base.getindex(R.metrics, ind)
-    Base.setindex!(R::ReceptiveField, val, ind) = Base.setindex!(R.metrics, val, ind)
-    Base.setindex(R::ReceptiveField, val, ind)  = Base.setindex(R.metrics, val, ind)
-    Base.keys(R::ReceptiveField)                = keys(R.metrics.data)
-    Base.values(R::ReceptiveField)              = values(R.metrics.data)
+    Base.getindex(R::ReceptiveField, ind::Symbol)       = Base.getindex(R.metrics, ind)
+    Base.setindex!(R::ReceptiveField, val, ind::Symbol) = Base.setindex!(R.metrics, val, ind)
+    #Base.setindex(R::ReceptiveField, val, ind)  = Base.setindex(R.metrics, val, ind)
+    Base.keys(R::ReceptiveField)     = keys(R.metrics.data)
+    Base.values(R::ReceptiveField)   = values(R.metrics.data)
     Base.getindex(R::T where T <: AbstractDimArray{<:ReceptiveField}, 
                   ind::Symbol) = Base.getindex.(R, ind)
     Base.getindex(R::T where T <: AbstractArray{<:ReceptiveField}, 
                   ind::Symbol) = Base.getindex.(R, ind)
+    function Base.setindex!(R::T where T <: AbstractArray{<:ReceptiveField}, 
+                  val::Union{Real,AbstractArray}, ind::Symbol)
+        setindex!.(R, val, ind)
+    end
+    function Base.setindex!(R::T where T <: AbstractDimArray{<:ReceptiveField}, 
+                  val::Union{Real,AbstractArray}, ind::Symbol) 
+        R = [r.data for r in R]
+        setindex!.(R, val, ind)
+    end
 
     function Base.string(S::T where T<:MetricSet; sigdigits=2, width=40)
         M1 = ["$k=$(round.(v;sigdigits))" for (k,v) in S
@@ -90,9 +99,7 @@ module metrics
     """
     function unstackMetricDF(df::DataFrame)
         if all([:metric,:shift] .∈ [propertynames(df)])
-            df = unstack(df, 
-                               :shift, :metric, :value, 
-                               allowduplicates=true)
+            df = unstack(df, :shift, :metric, :value, allowduplicates=true)
             sort!(df, :shift)
             vec_arrayofarrays!(df)
         end

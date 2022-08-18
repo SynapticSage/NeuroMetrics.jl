@@ -198,8 +198,8 @@ badd +25 ~/Code/projects/goal-code/scripts/timeshift/notebook/Initialize_plot_ex
 badd +3197 ~/Code/projects/goal-code/Manifest.toml
 badd +127 ~/Code/projects/goal-code/Project.toml
 badd +2 ~/Code/projects/goal-code/src/Load/celltet.jl
-badd +28 ~/Code/projects/goal-code/src/Field.jl
-badd +16 ~/Code/projects/goal-code/src/Load/task.jl
+badd +160 ~/Code/projects/goal-code/src/Field.jl
+badd +1 ~/Code/projects/goal-code/src/Load/task.jl
 badd +5 ~/Code/projects/goal-code/src/Munge/task.jl
 badd +1 ~/Code/projects/goal-code/scripts/fields/PlaceField.jl
 badd +69 test_enforce_bound.jl
@@ -220,7 +220,7 @@ badd +1 ~/Code/projects/goal-code/plots/fields/shift.shorter/GOAL_TRAJ_LEN_heatm
 badd +32 ~/Code/projects/goal-code/src/Field/preset.jl
 badd +214 ~/Code/projects/goal-code/src/Field/legacy.jl
 badd +74 ~/Code/projects/goal-code/src/Timeshift/legacy.jl
-badd +582 ~/Code/projects/goal-code/src/Field/metrics.jl
+badd +73 ~/Code/projects/goal-code/src/Field/metrics.jl
 badd +15 ~/Code/projects/goal-code/src/Field/recon_process.jl
 badd +1 ~/Code/projects/goal-code/src/Timeshift/crossval.jl
 badd +89 ~/Code/projects/goal-code/notebooks/TimeshiftDiff.jl
@@ -231,13 +231,13 @@ badd +19 ~/Code/projects/goal-code/scripts/timeshift/TimeShift_setsOfInterest.jl
 badd +1 ~/Code/projects/goal-code/src/Plot/rf.jl
 badd +219 ~/Code/projects/goal-code/src/Timeshift/types.jl
 badd +118 ~/Code/projects/goal-code/notebooks/Examine_LoadMains.jl
-badd +70 ~/Code/projects/goal-code/src/Utils.jl
+badd +91 ~/Code/projects/goal-code/src/Utils.jl
 badd +113 ~/Code/projects/goal-code/src/Munge/tensor.jl
 badd +172 ~/Code/projects/goal-code/src/Munge/spiking.jl
 badd +173 ~/Code/utilities/+units/getRateMatrix.m
 badd +118 ~/Code/utilities/+units/sparseToDense.m
 badd +219 ~/Code/projects/goal-code/src/Utils/filtreg.jl
-badd +4 ~/Code/projects/goal-code/src/Utils/binning.jl
+badd +42 ~/Code/projects/goal-code/src/Utils/binning.jl
 badd +1 test_convexhull.jl
 badd +79 ~/Code/projects/goal-code/scripts/decode/StillRipplePlots.jl
 badd +1 ~/Code/projects/goal-code/scripts/decode/VideoPerRipple.jl
@@ -268,7 +268,7 @@ badd +1 shortcut_cacheshuffle.jl
 badd +3 ~/Code/projects/goal-code/src/Plot/old_timeshift.jl
 badd +22 ~/.local/state/nvim/lsp.log
 badd +1 ~/Code/projects/goal-code/src/Utils/array.jl
-badd +6 ~/Code/projects/goal-code/src/Utils/arr.jl
+badd +3 ~/Code/projects/goal-code/src/Utils/arr.jl
 badd +75 ~/Code/projects/goal-code/notebooks/Compare_LoadMains.jl
 badd +62 ~/Code/projects/goal-code/scripts/behavior/plotTrajectoryStats.jl
 badd +1 ~/Code/projects/goal-code/scripts/behavior/plotPerformanceTables.jl
@@ -276,21 +276,32 @@ badd +27 ~/Code/projects/goal-code/scripts/cells/Coverage.jl
 badd +84 ~/Code/projects/goal-code/scripts/timeshift/Plot_PanelOfFields.jl
 badd +1 ~/Code/projects/goal-code/scripts/tensor/tensor_test.jl
 badd +1 ~/Code/projects/goal-code/_research/shortcut_coactivity.jl
-badd +100 test_correlate_tau.jl
 badd +49 ~/Code/projects/goal-code/scripts/timeshift/plot_tau-xy.jl
 badd +1 ~/Code/projects/goal-code/plots/behavior/maze/bounary.png
 badd +3 ~/Code/projects/goal-code/scripts/behavior/plotPathsDLC.jl
 badd +1 ~/Code/projects/goal-code/scripts/behavior/plot_matlab_vectorToGoals_variables.jl
-badd +10 ~/Code/projects/goal-code/src/Plot/task.jl
+badd +15 ~/Code/projects/goal-code/src/Plot/task.jl
+badd +0 ~/Code/projects/goal-code/scripts/timeshift/Plot_correlate_tau_SPACE_or_TIME.jl
 argglobal
 %argdel
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabrewind
-edit test_correlate_tau.jl
+edit ~/Code/projects/goal-code/scripts/timeshift/Plot_correlate_tau_SPACE_or_TIME.jl
+let s:save_splitbelow = &splitbelow
+let s:save_splitright = &splitright
+set splitbelow splitright
+let &splitbelow = s:save_splitbelow
+let &splitright = s:save_splitright
+wincmd t
+let s:save_winminheight = &winminheight
+let s:save_winminwidth = &winminwidth
+set winminheight=0
+set winheight=1
+set winminwidth=0
+set winwidth=1
 argglobal
-balt ~/Code/projects/goal-code/src/Plot/receptivefield.jl
-let s:l = 1 - ((0 * winheight(0) + 28) / 56)
+let s:l = 1 - ((0 * winheight(0) + 20) / 41)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
@@ -300,7 +311,7 @@ tabnext
 edit ~/Code/projects/goal-code/notebooks/TestAdaptive.jl
 argglobal
 balt ~/Code/projects/goal-code/src/Field/adaptive.jl
-let s:l = 102 - ((16 * winheight(0) + 24) / 48)
+let s:l = 102 - ((13 * winheight(0) + 20) / 41)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
@@ -310,7 +321,7 @@ tabnext
 edit ~/Code/projects/goal-code/src/Decode/bayes.jl
 argglobal
 balt test_bayes.jl
-let s:l = 15 - ((14 * winheight(0) + 24) / 48)
+let s:l = 15 - ((12 * winheight(0) + 20) / 41)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
@@ -329,6 +340,7 @@ if filereadable(s:sx)
 endif
 let &g:so = s:so_save | let &g:siso = s:siso_save
 set hlsearch
+nohlsearch
 let g:this_session = v:this_session
 let g:this_obsession = v:this_session
 doautoall SessionLoadPost

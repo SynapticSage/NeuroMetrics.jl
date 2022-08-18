@@ -79,6 +79,18 @@ module Utils
             x = x .* diff(minmax) .+ minmax[1]
         end
     end
+    function nannorm_extrema(x::AbstractArray{T1}, minmax::Union{Vector{T2},Tuple{T2, T2}}) where
+        T1 <: Real where T2 <: Real
+        if minmax isa Tuple
+            minmax = [minmax...]
+        end
+        if minmax[2] == minmax[1]
+            x = minmax[1] * ones(size(x))
+        else
+            x = (x .- nanminimum(x))./(nanmaximum(x) - nanminimum(x))
+            x = x .* diff(minmax) .+ minmax[1]
+        end
+    end
 
     function norm_percent(x::AbstractArray{T1}, quant::Real) where T1 <: Real 
         Q = any(isnan.(x)) ? nanquantile(x, quant) : quantile(x,quant)
