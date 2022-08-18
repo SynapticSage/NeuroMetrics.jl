@@ -1,5 +1,10 @@
 """
 Correlation(τ) and Correlation(rateᵢⱼ)
+
+TODOs
+----
+- Higher resolution for XY analyses
+
 """
 
 using Timeshift
@@ -27,13 +32,13 @@ Plot.setfolder("timeshift","functional_connectivity")
 @time F = load_fields();
 filt = get_filters()
 
-datacut = :cue
+datacut = :mem_error
 spikes, beh = Load.load("RY16",36; data_source=["spikes","behavior"])
 @time i = I[bestpartialmatch(keys(F), (;datacut, widths=5))];
 @time f = F[bestpartialmatch(keys(F), (;datacut, widths=5))];
 f = ShiftedFields(deepcopy(f))
 unitshift = Timeshift.types.matrixform(f)
-getshift(M::DimArray, s) = M[:, M.dims[2].==s];
+getshift(arrayOfFields::DimArray, s) = arrayOfFields[:, arrayOfFields.dims[2].==s];
 shifts = collect(unitshift.dims[2])
 push_celltable!( unitshift, cells, :unit, :area)
 push_dims!(unitshift)
@@ -44,11 +49,13 @@ push_shiftmetric!(unitshift, best_tau!; metric=:bitsperspike)
 metricfilter = x->
 (x[:area] .=="CA1" .&& x[:meanrate] .> 0.01 && x[:meanrate] .< 7 .&& x[:maxrate] < 35) .||
 (x[:area] .=="PFC" .&& x[:meanrate] .> 0.005 .&& x[:maxrate] < 100)
+
+# Get filtered shift=0 fields
 shift0 = filter(metricfilter, getshift(unitshift,0))
 shift0 = shift0[sortperm(shift0[:unit])]
+
 spikes = subset(spikes, :unit=>x->Utils.squeeze(any(x .∈ shift0[:unit]',dims=2)))
 spikes = Utils.filtreg.filterAndRegister(beh,spikes; filters=filt[datacut], on="time",  transfer=["velVec"], filter_skipmissingcols=true)[2]
-
 sort(unique(spikes.unit))
 
 # ------------------------
@@ -151,6 +158,7 @@ Plot.save((;desc="Best_tau_of_field_centroids"))
 
 # -------------------------
 # FUTURE/PRESENT/PAST INFO
+# shift = 0
 # -------------------------
 
 # Create quintiles of bestshift and plot field averages
@@ -190,5 +198,64 @@ plot([heatmap(aver, aspect_ratio=1, framestyle=:none)
 
 plot([heatmap(aver, aspect_ratio=1, framestyle=:none) 
       for aver in averages_t0[:normB]]...)
+
+
+# -------------------------
+# FUTURE/PRESENT/PAST INFO
+# shift = best
+# -------------------------
+
+# Create quintiles of bestshift and plot field averages
+B = [findfirst(row) for row in eachrow(unitshift[:,1][:bestshift_bitsperspike].data .== shifts')]
+shiftB = [unit[b] for (unit,b) in zip(eachrow(unitshift),B)]
+shiftB = filter(metricfilter, shiftB)
+
+shiftB[:bestshift_bins] =  Utils.binning.digitize(
+                            shiftB[:bestshift_bitsperspike], 5)
+
+averages_tB = Dict(
+    :standard=>[],
+    :norm01 =>[],
+    :normBSP=>[],
+    :normB=>[],
+    )
+for bin = 1:5
+    fields_in_bin = shiftB[shiftB[:bestshift_bins] .== bin]
+    to_average = [f.rate for f in fields_in_bin]
+    bitsperspike  = fields_in_bin[:bitsperspike]
+    bits = fields_in_bin[:bitsperspike] .* fields_in_bin[:totalcount]
+    push!(averages_tB[:standard], mean(to_average))
+    push!(averages_tB[:norm01],   mean(map(x->Utils.nannorm_extrema(x, [0, 1]),
+                                        to_average)))
+    bitsperspike_norm(x::AbstractArray,bsp::Real) = Utils.nannorm_extrema(x, [0, bsp])
+    push!(averages_tB[:normBSP],  mean(map(bitsperspike_norm,
+                                        to_average, bitsperspike)))
+    push!(averages_tB[:normB],  mean(map(bitsperspike_norm,
+                                        to_average, bits)))
+end
+
+# Field averages, without scaling each neuron
+plot([heatmap(aver, aspect_ratio=1, framestyle=:none) 
+      for aver in averages_tB[:standard]]...)
+
+# Field averages, scaling each neuron 0-1
+plot([heatmap(aver, aspect_ratio=1, framestyle=:none) 
+      for aver in averages_tB[:norm01]]...)
+
+# Field averages, scaling each neuron by bits per spike
+plot([heatmap(aver, aspect_ratio=1, framestyle=:none) 
+      for aver in averages_tB[:normBSP]]...)
+
+# Field averages, scaling each neuron by bits per spike
+plot([heatmap(aver, aspect_ratio=1, framestyle=:none) 
+      for aver in averages_tB[:normB]]...)
+
+# -------------------------
+# FUTURE/PRESENT/PAST INFO
+#
+# Rather than *just* best shifts, 
+# we can also try all shifts
+# -------------------------
+
 
 

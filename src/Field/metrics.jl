@@ -58,8 +58,10 @@ module metrics
     Base.keys(M::MetricSet)                          = keys(M.data)
     Base.values(M::MetricSet)                        = values(M.data)
     Base.filter(f::Function, M::MetricSet)           = filter(f, M.data)
-    Base.getindex(R::ReceptiveField, ind::Symbol)       = Base.getindex(R.metrics, ind)
-    Base.setindex!(R::ReceptiveField, val, ind::Symbol) = Base.setindex!(R.metrics, val, ind)
+    Base.getindex(R::ReceptiveField, ind::Symbol)    = 
+                                                Base.getindex(R.metrics, ind)
+    Base.setindex!(R::ReceptiveField, val, ind::Symbol) =
+                                           Base.setindex!(R.metrics, val, ind)
     #Base.setindex(R::ReceptiveField, val, ind)  = Base.setindex(R.metrics, val, ind)
     Base.keys(R::ReceptiveField)     = keys(R.metrics.data)
     Base.values(R::ReceptiveField)   = values(R.metrics.data)
