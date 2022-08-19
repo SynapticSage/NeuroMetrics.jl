@@ -12,6 +12,7 @@ module checkpoint
     import Field: ReceptiveField
     import Field.metrics: metric_ban, apply_metric_ban, unstackMetricDF
     import Table: to_dataframe
+    import Load: save_table_at_path
 
     export ts_plotdir
     export save_mains, save_shuffles, save_fields
@@ -65,6 +66,21 @@ module checkpoint
     shuffleskeys(;kws) = storekeys("shuffles";kws...)
     fieldskeys(;kws)   = storekeys("fields";kws...)
 
+    function save_store(store, data; dataframe::Bool=false)
+        if dataframe
+            name = path(store) * "_dataframe"
+            save_table_at_path(data, name, "arrow")
+        else
+            name = path(store)
+            if overwrite
+                serialize(name, data)
+            else
+                store = load_store(store)
+                data  = merge(store, data)
+                serialize(name, data)
+            end
+        end
+    end
 
     function load_store(store; dataframe::Bool=false)
         if dataframe
@@ -79,6 +95,23 @@ module checkpoint
     load_shuffles(;kws...)      = load_store("shuffles"; kws...)
     load_fields(;kws...)        = load_store("fields"; kws...)
     load_shufflefields(;kws...) = load_store("shufflefields"; kws...)
+
+    function change_store(store, λ::Function; filt::Function=x->true,
+            stoponfirst::Bool=true)
+        store = load_store(store; dataframe=false)
+        store = filter(filt, store)
+        for (i,(key,value)) in enumerate(store)
+            if stoponfirst && i == 1
+                println("Before")
+                @infiltrate
+            end
+            store[key] = λ[value]
+            if stoponfirst && i == 1
+                println("Before")
+                @infiltrate
+            end
+        end
+    end
 
 
     """
@@ -139,8 +172,6 @@ module checkpoint
         end
         R
     end
-    
-
 
     function save_fields(M::AbstractDict; overwrite::Bool=false)
         if any(x->x === nothing, values(M))
