@@ -204,7 +204,7 @@ badd +5 ~/Code/projects/goal-code/src/Munge/task.jl
 badd +1 ~/Code/projects/goal-code/scripts/fields/PlaceField.jl
 badd +69 test_enforce_bound.jl
 badd +2 ~/Code/projects/goal-code/src/Field/adaptive.jl
-badd +1 ~/tmp.jl
+badd +175 ~/tmp.jl
 badd +16 ~/Code/projects/goal-code/src/Precompile.jl
 badd +172 ~/Code/projects/goal-code/src/Timeshift/shuffle.jl
 badd +11497 ~/.cache/nvim/lsp.log
@@ -264,7 +264,7 @@ badd +8 ~/Code/projects/goal-code/src/Decode/bayes.jl
 badd +43 test_plot_bayes.jl
 badd +66 ~/Code/projects/goal-code/src/Plot/notebook_compareTS.jl
 badd +5 ~/Code/projects/goal-code/src/Plot/notebook_examineTS.jl
-badd +1 shortcut_cacheshuffle.jl
+badd +132 shortcut_cacheshuffle.jl
 badd +3 ~/Code/projects/goal-code/src/Plot/old_timeshift.jl
 badd +22 ~/.local/state/nvim/lsp.log
 badd +1 ~/Code/projects/goal-code/src/Utils/array.jl
@@ -282,7 +282,7 @@ badd +3 ~/Code/projects/goal-code/scripts/behavior/plotPathsDLC.jl
 badd +1 ~/Code/projects/goal-code/scripts/behavior/plot_matlab_vectorToGoals_variables.jl
 badd +15 ~/Code/projects/goal-code/src/Plot/task.jl
 badd +1 \'
-badd +312 ~/Code/projects/goal-code/scripts/timeshift/Plot_correlate_tau_SPACE_or_TIME.jl
+badd +281 ~/Code/projects/goal-code/scripts/timeshift/Plot_correlate_tau_SPACE_or_TIME.jl
 argglobal
 %argdel
 tabnew +setlocal\ bufhidden=wipe
@@ -300,7 +300,7 @@ normal! 027|
 tabnext
 edit ~/Code/projects/goal-code/scripts/timeshift/Plot_correlate_tau_SPACE_or_TIME.jl
 argglobal
-balt ~/tmp.jl
+balt shortcut_cacheshuffle.jl
 let s:l = 1 - ((0 * winheight(0) + 23) / 47)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l

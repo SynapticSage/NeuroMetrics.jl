@@ -26,6 +26,7 @@ using Plots
 using GLM
 using StatsBase, StatsPlots
 using ElectronDisplay
+using ProgressMeter
 Plot.setfolder("timeshift","functional_connectivity")
 
 @time spikes, beh, cells = Load.load("RY16", 36, data_source=["spikes","behavior", "cells"])
@@ -41,9 +42,11 @@ metricfilters = Dict(
    )
 metricfilters[:CA1PFC] = x-> metricfilters[:CA1](x) || metricfilters[:PFC](x)
 
-for (datacut, region) in Iterators.product(
+@showprogress for (datacut, region) in Iterators.product(
     [:all, :cue, :memory, :task, :nontask, :cue_correct, :cue_error, :mem_correct, :mem_error],
     [:CA1,:PFC,:CA1PFC])
+
+    @info "loop" datacut region
 
     datacutStr = string(datacut)
 
