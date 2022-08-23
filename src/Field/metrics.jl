@@ -75,7 +75,8 @@ module metrics
     end
     function Base.setindex!(R::T where T <: AbstractDimArray{<:ReceptiveField}, 
                   val::Union{Real,AbstractArray}, ind::Symbol) 
-        R = [r.data for r in R]
+        #@infiltrate
+        R = [r for r in R]
         setindex!.(R, val, ind)
     end
 
@@ -126,8 +127,8 @@ module metrics
     defauling to Symbol(F)
     """
     function push_metric!(R::ReceptiveField, F::Function, args...; 
-            name::Union{Symbol}=Symbol(F), kws...)
-        #name = name === nothing ? Symbol(F) : name
+            name::Union{Symbol,Nothing}=Symbol(F), kws...)
+        name =  name === nothing ? Symbol(F) : name
         push!(R.metrics, name => F(R, args...; kws...))
     end
     """
@@ -175,6 +176,7 @@ module metrics
         end
     end
     function push_metric!(R::Array{ReceptiveField}, F::Function, args...; 
+            prog::Bool=true,
             name::Union{Symbol,Nothing}=nothing, kws...)
         if prog
             prog_name = name===nothing ? String(Symbol(F)) : string(name)

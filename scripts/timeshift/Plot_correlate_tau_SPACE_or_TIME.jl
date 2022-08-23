@@ -69,6 +69,7 @@ metricfilters[:CA1PFC] = x-> metricfilters[:CA1](x) || metricfilters[:PFC](x)
     shift0 = filter(metricfilter, getshift(unitshift,0))
     shift0 = shift0[sortperm(shift0[:unit])]
 
+    # Subset spikes by our filtration schema
     spikes = subset(spikes, :unit=>x->Utils.squeeze(any(x .∈ shift0[:unit]',dims=2)))
     spikes = Utils.filtreg.filterAndRegister(beh,spikes; filters=filt[datacut], on="time",  transfer=["velVec"], filter_skipmissingcols=true)[2]
     sort(unique(spikes.unit))
