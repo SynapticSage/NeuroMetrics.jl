@@ -301,24 +301,12 @@ keepjumps 111
 normal! 027|
 tabnext
 edit ~/Code/projects/goal-code/scripts/nonlocality/test_nonlocality.jl
-let s:save_splitbelow = &splitbelow
-let s:save_splitright = &splitright
-set splitbelow splitright
-let &splitbelow = s:save_splitbelow
-let &splitright = s:save_splitright
-wincmd t
-let s:save_winminheight = &winminheight
-let s:save_winminwidth = &winminwidth
-set winminheight=0
-set winheight=1
-set winminwidth=0
-set winwidth=1
 argglobal
-let s:l = 1 - ((0 * winheight(0) + 33) / 66)
+let s:l = 148 - ((22 * winheight(0) + 23) / 46)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 1
+keepjumps 148
 normal! 0
 tabnext
 edit ~/Code/projects/goal-code/src/Decode/bayes.jl

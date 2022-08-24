@@ -76,12 +76,6 @@ Purpose: Test out my base adaptive field codes. Make sure the various steps (gri
 # ╔═╡ 0be7ba01-a316-41ce-8df3-a5ae028c74e7
 PlutoUI.TableOfContents(title="🚀 Adaptive RFs" )
 
-# ╔═╡ 4de35a08-0866-421b-9bba-0d4e4f289faf
-md"""
-!!! warning
-	test
-"""
-
 # ╔═╡ 37d7f4fd-80a7-47d0-8912-7f002620109f
 md"""
 # Preamble 
@@ -564,7 +558,6 @@ element(Singleton([50,125])) ∈ HullSet(mets[:hullseg_grid])
 # ╔═╡ Cell order:
 # ╟─ff1db172-c3ab-41ea-920c-1dbf831c1336
 # ╟─0be7ba01-a316-41ce-8df3-a5ae028c74e7
-# ╠═4de35a08-0866-421b-9bba-0d4e4f289faf
 # ╟─37d7f4fd-80a7-47d0-8912-7f002620109f
 # ╠═44dde9e4-f9ca-11ec-1348-d968780f671c
 # ╠═da7809bb-a94f-440e-96c1-02e1feae9fc3
