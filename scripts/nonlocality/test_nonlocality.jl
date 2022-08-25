@@ -27,6 +27,22 @@ using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
 using Plots
 #using ElectronDisplay
 using LazySets
+
+function pfunc(x::Real)
+    if x < 1e-3
+        "***"
+    elseif x < 1e-2
+        "**"
+    elseif x < 0.05
+        "*"
+    elseif x < 0.1
+        "†"
+    else
+        ""  
+    end
+end
+pfunc(x::Vector{<:Real}) = pfunc.(x)
+
 Plot.setfolder("nonlocality")
 
 # Get our dataframes of interest and the field objects
@@ -215,20 +231,49 @@ infield_cuememunit = DataFrame()
         )
 end
 
+clab = OrderedDict(-1 => "nontask", 0 => "cue", 1=> "mem")
+
 D = DataFrame()
-@showprogress for group in groupby(infield_cuememunit,[:cuemem])
-     test =  OneWayANOVATest(@subset(group,:infield.==0).rate,
-                  @subset(group,:infield.==1).rate)
+@time @showprogress for group in groupby(infield_cuememunit,[:cuemem])
+     outrate= @subset(group,:infield.==0).rate
+     inrate= @subset(group,:infield.==1).rate
+     test =  UnequalVarianceTTest(outrate, inrate)
      pval = pvalue(test)
      append!(D, OrderedDict(
-        :test => test,
-        :pval => pval,
         :cuemem => group.cuemem[1],
+        :cuemem_label => clab[group.cuemem[1]],
+        :diff => mean(outrate) - mean(inrate),
+        :pval => pval,
+        :test => test,
+       ))
+end
+transform!(D, DataFrames.All(), :pval => pfunc => :pval_label)
+@df D bar(:cuemem, :diff, xticks=([-1,0,1], collect(values(clab))) )
+markers = text.(D.pval_label, :white)
+@df D annotate!(:cuemem, :diff * 1.025, markers)
+
+Du = DataFrame()
+@time @showprogress for group in groupby(infield_cuememunit,[:cuemem,:unit])
+     outrate= @subset(group,:infield.==0).rate
+     inrate= @subset(group,:infield.==1).rate
+     test =  UnequalVarianceTTest(outrate, inrate)
+     pval = pvalue(test)
+     append!(D, OrderedDict(
+        :cuemem => group.cuemem[1],
+        :cuemem_label => clab[group.cuemem[1]],
+        :unit => group.unit[1],
+        :diff => mean(outrate) - mean(inrate),
+        :pval => pval,
+        :test => test,
        ))
 end
 
-@df infield_unit boxplot(:infield, :rate, title="TTest=$(round(pvalue(srt),sigdigits=2)) difference of individual cells",
-                         xticks=([0,1], collect(values(ifnames))), outliers=false)
+transform!(D, DataFrames.All(), :pval => pfunc => :pval_label)
+@df D bar(:cuemem, :diff, xticks=([-1,0,1], collect(values(clab))) )
+markers = text.(D.pval_label, :white)
+@df D annotate!(:cuemem, :diff * 1.025, markers)
+
+
 
 # SHEER NUMBER OF OUT OF FIELDERS
 if_counts = combine(groupby(spikes, [:cuemem, :infield]), nrow)

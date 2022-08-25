@@ -233,7 +233,7 @@ badd +2 ~/Code/projects/goal-code/src/Timeshift/types.jl
 badd +118 ~/Code/projects/goal-code/notebooks/Examine_LoadMains.jl
 badd +91 ~/Code/projects/goal-code/src/Utils.jl
 badd +113 ~/Code/projects/goal-code/src/Munge/tensor.jl
-badd +172 ~/Code/projects/goal-code/src/Munge/spiking.jl
+badd +218 ~/Code/projects/goal-code/src/Munge/spiking.jl
 badd +173 ~/Code/utilities/+units/getRateMatrix.m
 badd +118 ~/Code/utilities/+units/sparseToDense.m
 badd +2 ~/Code/projects/goal-code/src/Utils/filtreg.jl
@@ -284,7 +284,7 @@ badd +15 ~/Code/projects/goal-code/src/Plot/task.jl
 badd +1 \'
 badd +48 ~/Code/projects/goal-code/scripts/timeshift/Plot_correlate_tau_SPACE_or_TIME.jl
 badd +36 ~/.julia/config/startup.jl
-badd +0 ~/Code/projects/goal-code/scripts/nonlocality/test_nonlocality.jl
+badd +8 ~/Code/projects/goal-code/scripts/nonlocality/test_nonlocality.jl
 argglobal
 %argdel
 tabnew +setlocal\ bufhidden=wipe
@@ -300,14 +300,15 @@ normal! zt
 keepjumps 111
 normal! 027|
 tabnext
-edit ~/Code/projects/goal-code/scripts/nonlocality/test_nonlocality.jl
+edit ~/Code/projects/goal-code/src/Munge/spiking.jl
 argglobal
-let s:l = 148 - ((22 * winheight(0) + 23) / 46)
+balt ~/Code/projects/goal-code/scripts/nonlocality/test_nonlocality.jl
+let s:l = 218 - ((53 * winheight(0) + 27) / 55)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 148
-normal! 0
+keepjumps 218
+normal! 040|
 tabnext
 edit ~/Code/projects/goal-code/src/Decode/bayes.jl
 argglobal

@@ -212,5 +212,34 @@ module spiking
         end
     end
 
+    function nextandprev!(spikes::DataFrame)
+        combine(groupby(spikes, :unit), nextandprev!)
+    end
+    function nextandprev!(spikes::SubDataFrame)
+        sort!(spikes, :time)
+        for field in [:prevt, :nextt, :prevd, :nextd, :neard]
+            if field ∉ propertynames(spikes)
+                spikes[!,field] = fill(NaN, size(spikes,1))
+            end
+        end
+        for (r,row) in enumerate(eachrow(spikes))
+            p, n = max(1,r-1), min(r+1,size(spikes,1))
+            row.prevt = spikes[p,:time]
+            row.nextt = spikes[n,:time]
+            row.prevd = row.time - spikes[p,:time]
+            row.nextd = spikes[n,:time] - row.time
+            row.neard = min(row.prevd, row.nextd)
+        end
+        spikes
+    end
+
+    function isolated(spikes::DataFrame,  theta::Union{DataFrame,Nothing})
+        if :theta_cycle ∉ propertynames(spikes)
+            Utils.filtreg.register(theta, spikes; on="time", transfer=["theta_cycle"])
+        end
+
+
+    end
+
 end
 
