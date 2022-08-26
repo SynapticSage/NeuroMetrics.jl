@@ -44,16 +44,27 @@ module Table
     # `    `---'`   '`---'`---'``---'`   '`---^`---'``---'`---|
     #                                                     `---'
     #
-    function get_periods(df::DataFrame, property::String, pos...;
-            removeMissing=false, end_period=:stop, kws...)
+    function get_periods(df::DataFrame, property::CItype, pos...;
+            removeMissing=false, end_period=:stop,
+            timefract::Union{Function,Nothing,Pair}=nothing,
+            kws...)
         if removeMissing
             df = dropmissing(df);
+        end
+        if timefract !== nothing
+            timefract = if timefract isa Pair 
+                sym, func = timefract
+                sym => (x -> mean(func.(x))) => :frac
+            else
+                (x -> mean(timefract.(x))) => :frac
+            end
+            pos = [pos..., timefract]
         end
         period = groupby(df, property)
         period = combine(period, pos..., :time => (x->minimum(x)) => :start,
                                          :time => (x->maximum(x)) => end_period)
         period.δ = period[!,end_period] .- period.start;
-        period.prop .= property
+        period.prop .= property isa Vector ? join(String.(property)," ") : String(property)
         return period
     end
     function isinperiod(x, start, stop)
@@ -152,7 +163,7 @@ module Table
             matchstr = String(matchstr)
         end
         if matchstr === nothing
-            matching_cols = Vector{String}()
+            matching_cols = VectorString()
         else
             matching_cols = sort(filter(name -> occursin(matchstr, name),
                                         names(df)))

@@ -20,6 +20,10 @@
     mm = m[1:10]
     @time spikes, beh, ripples, cells = Load.load("RY16", 36);
     getshift(M::DimArray, s) = M[:, M.dims[2].==s];
+    function getshift(M::DimArray, s::Symbol)
+        B = [findfirst(row) for row in eachrow(unitshift[:,1][:bestshift_bitsperspike].data .== shifts')]
+        shiftB = [unit[b] for (unit,b) in zip(eachrow(unitshift),B)]
+    end
     shifts = getshifts(f)
     nothing
 end

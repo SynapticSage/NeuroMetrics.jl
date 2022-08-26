@@ -183,6 +183,7 @@ module Load
 
     function load_table(animal::String, day::Int, pos...; 
             tablepath=nothing, 
+            append="",
             load_kws::Union{Nothing,NamedTuple}=(;),
             kws...)
         if tablepath === nothing
@@ -196,6 +197,11 @@ module Load
             type = kws[:type]
         else
             type = load_default
+        end
+        if append != ""
+            path = split(path, ".")
+            path[1] = path[1] * "$append"
+            path = join(path, ".")
         end
 
         data = load_table_at_path(path, type; load_kws...)
@@ -217,15 +223,23 @@ module Load
             Arrow.write(path, data; save_kws...)
         end
     end
-    function save_table(data::AbstractDataFrame, pos...; tablepath=nothing, kws...)
+    function save_table(data::AbstractDataFrame, pos...; tablepath=nothing,
+            append::String="", kws...)
         if tablepath === nothing
             throw(ArgumentError("Must provide tablepath symbol... see path_functions dict in this module"))
         end
         tablepath = String(tablepath)
         path = path_functions[tablepath](pos...; kws...)
         println("Saving $(tablepath) data at $path")
+        if append != ""
+            path = split(path, ".")
+            path[1] = path[1] * "$append"
+            path = join(path, ".")
+        end
         if :type in keys(kws)
             type = kws[:type]
+        elseif occursin(".", path)
+            type = String(split(path,".")[2])
         else
             type = "csv"
         end

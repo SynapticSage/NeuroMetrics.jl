@@ -107,7 +107,7 @@ module checkpoint
             end
             store[key] = λ[value]
             if stoponfirst && i == 1
-                println("Before")
+                println("After")
                 @infiltrate
             end
         end

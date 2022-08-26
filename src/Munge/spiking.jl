@@ -12,6 +12,7 @@ module spiking
     using Infiltrator
     using TensorToolbox
     using Table
+    import Utils
 
     import Field: ReceptiveField
 
@@ -233,12 +234,40 @@ module spiking
         spikes
     end
 
-    function isolated(spikes::DataFrame,  theta::Union{DataFrame,Nothing})
-        if :theta_cycle ∉ propertynames(spikes)
-            Utils.filtreg.register(theta, spikes; on="time", transfer=["theta_cycle"])
+    """
+        isolated
+
+    find isolated spikes in the manneer of Jai/Frank 2021
+    """
+    function isolated(spikes::DataFrame,  theta::Union{DataFrame,Nothing}; 
+                      cycle=:cycle, kws...)
+        if !hasproperty(spikes, Symbol(cycle))
+            Utils.filtreg.register(theta, spikes; on="time", transfer=[String(cycle)])
         end
-
-
+        combine(groupby(spikes, :unit), x->isolated(x; kws...) )
+    end
+    function isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle)
+        explore = setdiff(-N:N,0)
+        if !hasproperty(spikes, :isolated)
+            spikes[!,:isolated] = Vector{Bool}(undef, size(spikes,1))
+        end
+        cycles = groupby(spikes, cycle_prop)
+        @assert length(cycles) > 1 "You only have 1 cycle ... something is wrong"
+        #(c,cycle) =  first(enumerate(cycles))
+        for (c,cycle) in enumerate(cycles)
+            # find the N closest cycles
+            explore_cycles = unique(max.(min.(c .+ explore, [size(cycles,1)]),[1]))
+            if length(explore_cycles) < length(explore)
+                cycle.isolated .= false
+            else
+                order = sortperm([mean(c.time) for c in cycles[explore_cycles]])
+                nearest = explore_cycles[order[1:N]]
+                isolated = mean([cycle[1,cycle_prop] - other_cyc[1,cycle_prop] 
+                for other_cyc in cycles[nearest]]) > thresh
+                cycle.isolated .= isolated
+            end
+        end
+        spikes
     end
 
 end

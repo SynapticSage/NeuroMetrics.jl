@@ -200,8 +200,7 @@ module Utils
         #replace(Z .!= nothing, missing=>false)
     end
     function ismember_trans(X::AbstractVector, Y::AbstractVector)
-        Z = any(X .== Y', dims=2)
-        #replace(Z .!= nothing, missing=>false)
+        any(X .== Y', dims=2)
     end
 
     function notisnan(X::Vector)
@@ -221,6 +220,7 @@ module Utils
     include(srcdir("Utils", "binning.jl"))
     include(srcdir("Utils", "filtreg.jl"))
     include(srcdir("Utils", "arr.jl"))
+    #include(srcdir("Utils", "stat.jl"))
     @reexport using .dict
     @reexport using .namedtup
     @reexport using .plot
@@ -228,5 +228,6 @@ module Utils
     @reexport using .binning
     @reexport using .filtreg
     @reexport using .arr
+    #@reexport using .stat
 
 end

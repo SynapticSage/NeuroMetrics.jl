@@ -18,6 +18,8 @@ module Munge
     @reexport using .tensor
     include(srcdir("Munge","spiking.jl"))
     @reexport using .spiking
+    include(srcdir("Munge","timeshift.jl"))
+    @reexport using .timeshift
 
 end
 

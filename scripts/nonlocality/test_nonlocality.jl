@@ -27,21 +27,9 @@ using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
 using Plots
 #using ElectronDisplay
 using LazySets
+using Munge.timeshift: getshift
+using Utils.stats: pfunc
 
-function pfunc(x::Real)
-    if x < 1e-3
-        "***"
-    elseif x < 1e-2
-        "**"
-    elseif x < 0.05
-        "*"
-    elseif x < 0.1
-        "†"
-    else
-        ""  
-    end
-end
-pfunc(x::Vector{<:Real}) = pfunc.(x)
 
 Plot.setfolder("nonlocality")
 
@@ -66,7 +54,7 @@ metricfilters[:CA1PFC] = x-> metricfilters[:CA1](x) || metricfilters[:PFC](x)
 
 
 # Which cut of data for fields and spikes?
-datacut = :all
+datacut    = :all
 datacutStr = string(datacut)
 
 # Grab the key of interest given our datacut
@@ -76,7 +64,6 @@ f = ShiftedFields(deepcopy(f))
 unitshift = Timeshift.types.matrixform(f)
 
 # Setup a  shift-getting convenience method, the shifts, and a few metrics
-getshift(arrayOfFields::DimArray, s) = arrayOfFields[:, arrayOfFields.dims[2].==s];
 shifts = collect(unitshift.dims[2])
 push_celltable!( unitshift, cells, :unit, :area)
 push_dims!(unitshift)
@@ -291,4 +278,19 @@ Plot.save((; desc="sheer fraction of outfielder spikes by cue and mem and nontas
 # -----------------------------------------------------
 # Reverse the direction: CA1 out of field per PFC spike
 # -----------------------------------------------------
+
+
+Plot.setfolder("nonlocality", "pfc_rates")
+Rpfc =  Munge.spiking.torate(@subset(allspikes, :area .== "PFC"), beh)
+Dpfc = DataFrame([0;Rpfc], :auto)
+Dpfc.cuemem = beh.cuemem
+pfc_cell_means = Matrix(combine(groupby(Dpfc, "cuemem"), 1:21 .=> mean))[:,2:end]
+pfc_cell_means./maximum(pfc_cell_means,dims=1)
+heatmap(["Nontask","Cue","Memory"], 1:size(pfc_cell_means,2), pfc_cell_means./maximum(pfc_cell_means,dims=1))
+Plot.save("Average PFC cell firing rates per task type")
+
+bar(["Nontask","Cue","Memory"], mean(pfc_cell_means./maximum(pfc_cell_means,dims=1), dims=2))
+Plot.save("Average of PFC cell firing, mean(norm0)")
+bar(["Nontask","Cue","Memory"], mean(pfc_cell_means, dims=2))
+Plot.save("Average of PFC cell firing, mean(rate)")
 
