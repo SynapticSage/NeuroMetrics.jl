@@ -5,11 +5,13 @@ load_from_checkpoint = true
 
 if !(load_from_checkpoint)
 
+    @time spikes, beh, cells, lfp, ripples = Load.load("RY16", 36, data_source=["spikes","behavior", "cells", "lfp", "ripples"])
+
     # --------------------
     # Preprocess BEHAHVIOR
     # TODO Turn this into a function
     # --------------------
-    beh = raw.behavior.annotate_pastFutureGoals(beh; doPrevPast=false)
+    beh = Munge.behavior.annotate_pastFutureGoals(beh; doPrevPast=false)
 
     # --------------
     # Preprocess LFP

@@ -164,7 +164,7 @@ module checkpoint
                 R[k] = to_dataframe(apply_metric_ban(v.metrics); explode=false)
             elseif v isa Timeshift.ShiftedField || v isa  Timeshift.ShiftedFields
                 R[k] = unstackMetricDF(to_dataframe(apply_metric_ban(v.metrics); explode=false))
-            elseif v isa AbstractDataFrame
+            elseif v isa AbstractDataFrame && !hasproperty(v, :unit)
                 R[k] = unstackMetricDF(apply_metric_ban(v))
             else
                 R[k] = v

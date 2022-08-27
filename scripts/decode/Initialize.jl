@@ -13,8 +13,8 @@ set_theme!(theme_dark())
 __revise_mode__ = :eval
 
 using GoalFetchAnalysis
-using .decode
-using .raw.behavior
+using .Decode
+using .Load.behavior
 
 # Debugger?
 ENV["JULIA_DEBUG"] = nothing
@@ -49,6 +49,6 @@ end
 
 video="/Volumes/Colliculus/RY16_experiment/actualVideos/RY16_69_0$(epoch)_CMt.1.mp4"
 outputVideo = "animation.$(decoder_type)_$(transition_type)_test_0_$(variable)_$(basename(video))"
-decode_file = raw.decodepath(animal, day, epoch, transition="empirical",
+decode_file = Load.decodepath(animal, day, epoch, transition="empirical",
                              method="sortedspike", split=0,
                              type="test", speedup=20.0)

@@ -220,7 +220,7 @@ module Utils
     include(srcdir("Utils", "binning.jl"))
     include(srcdir("Utils", "filtreg.jl"))
     include(srcdir("Utils", "arr.jl"))
-    #include(srcdir("Utils", "stat.jl"))
+    include(srcdir("Utils", "statistic.jl"))
     @reexport using .dict
     @reexport using .namedtup
     @reexport using .plot
@@ -228,6 +228,6 @@ module Utils
     @reexport using .binning
     @reexport using .filtreg
     @reexport using .arr
-    #@reexport using .stat
+    @reexport using .statistic
 
 end
