@@ -49,7 +49,8 @@ module Shuf
                     shuffle_func = :jitterBy,
                     split        = [:unit, :traj],
                     distribution = :uniform,
-                    prop         = :time
+                    prop         = :time,
+                    shufpostfunc = nothing
                    ),
 
         :dotson => (;fullname="split by trajreltime_bin and permute traj",
@@ -57,8 +58,9 @@ module Shuf
                     1, where 0 and 1 are beginning and end. shuffle spikes to
                     keep the their value i ∈ [0,1].""",
                     shuffle_func = :permuteBy,
-                    split        = [:unit, :trajreltime_bin],
-                    prop         = :time
+                    split        = [:unit],
+                    prop         = :trajreltime,
+                    shufpostfunc = [:trajreltime, :trajstart] => ((rel, beg) -> rel .+ beg) => :time
                    ),
        )
 
@@ -98,6 +100,16 @@ module Shuf
         settings = utils.namedtuple_to_dict(settings)
         applyStandardShuffle(settings; precompute_dist)
     end
+
+    """
+    applyStandardShuffle
+
+    final step in creating a partial that generates DataFrames
+    
+    # Note
+    I may be taking some performance hits here. I should use dispatch more
+    to cut that down.
+    """
     function applyStandardShuffle(settings::NamedTuple; precompute_dist::Bool=true)
         @info "Settings=$settings"
         dist_type = occursin("jitter", lowercase(String(settings[:shuffle_func])))
@@ -109,11 +121,21 @@ module Shuf
                                      settings...)
             end
         end
-        partial(pos...; newkws...) = func(pos...; settings..., newkws...)
-        if dist_type
-            return partial_dist, partial
+        has_post = :shufpostfunc in keys(settings)
+        if has_post
+            @info "adding shuffle post function"
+            shufpostfunc = settings[:shufpostfunc]
+            settings = Utils.namedtup.pop(settings, :shufpostfunc)
+            postpartial(pos...; newkws...) = transform!(func(pos...; newkws...),
+                                                    shufpostfunc)
         else
-            return partial
+            partial(pos...; newkws...) = func(pos...; settings..., newkws...)
+        end
+        if dist_type
+            return partial_dist, 
+                  (has_post ? postpartial : partial)
+        else
+            return (has_post ? postpartial : partial)
         end
     end
 
@@ -127,7 +149,7 @@ module Shuf
             only_prop::Bool=false, kws...)::DataFrame
         @debug "addSampleOfDist where distribution::Distribution=$distribution"
         #spikes = copy(spikes)
-        spikes = transform(spikes, :time => identity => :time, copycols=false)
+        spikes = transform(spikes, :time => identity => :time; copycols=false)
         spikes.time .+= rand(distribution, 1) 
         only_prop ? spikes[!,:time] : spikes
     end
@@ -143,12 +165,17 @@ module Shuf
     end
     
     # ---- Permute samples of a property -----
-    function permuteSamples(spikes::DataFrame; prop::Symbol=:time, kws...)
-        spikes = transform(spikes, :time => identity => :time, copycols=false)
+    function permuteSamples(spikes::DataFrame; prop::Symbol=:time, 
+            shufpostfunc::Union{Function,Pair,Nothing}=nothing, kws...)
+        spikes = transform(spikes, :time => identity => :time; copycols=false)
         shuffle!(spikes[!, prop])
         spikes
     end
-
+    function permuteSamples(shufpostfunc::Union{Function,Pair},
+            spikes::DataFrame; kws...)
+        spikes = permuteSamples(spikes; kws...)
+        transform!(spikes, shufpostfunc)
+    end
     function permuteSamples(spikes::SubDataFrame; prop::Symbol=:time, 
             keepold::Bool=false, kws...)
         if keepold
@@ -157,6 +184,13 @@ module Shuf
         shuffle!(spikes[!, prop])
         spikes
     end
+    function permuteSamples(shufpostfunc::Union{Pair,Function}, 
+            spikes::SubDataFrame;
+            kws...)
+        spikes = permuteSamples(spikes; kws...)
+        transform!(spikes, shufpostfunc)
+    end
+
 
     # ----- Jitter per spike elelemnt -----
     """
@@ -216,7 +250,7 @@ module Shuf
             split::SplitType=[:unit,:traj], kws...)::DataFrame
         @debug "by() with distribution=$distribution"
         spikes = transform(spikes, :time => identity => :time, copycols=false)
-        spikes = combine(groupby(spikes, split, sort=sort),
+        combine(groupby(spikes, split, sort=sort),
                          sp->permuteSamples(sp; kws...))
     end
 
@@ -265,7 +299,8 @@ module Shuf
             end
             data = data[inds, :]
             G = combine(groupby(data, :traj, sort=false),
-                              :time=> (x->diff([minimum(x), maximum(x)])) => :range).range;
+                              :time=> (x->diff([minimum(x),
+                                                maximum(x)])) => :range).range;
         catch e
             if e isa ArgumentError
                 @warn "ArugmentError: try using data=beh if keys are missing"

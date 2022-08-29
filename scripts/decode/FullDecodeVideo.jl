@@ -2,10 +2,13 @@ using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
 include(scriptsdir("decode","Initialize.jl"))
 load_from_checkpoint = true
-
+dothresh = false
+dosweep = false
+dothetaphase, doripplephase = false, false
+ 
 if !(load_from_checkpoint)
 
-    @time spikes, beh, cells, lfp, ripples = Load.load("RY16", 36, data_source=["spikes","behavior", "cells", "lfp", "ripples"])
+    include(scriptsdir("decode", "LoadData.jl"))
 
     # --------------------
     # Preprocess BEHAHVIOR
@@ -19,15 +22,15 @@ if !(load_from_checkpoint)
     include(scriptsdir("decode", "PreprocessLFP.jl"))
 
     # Checkpoint pre-video data
-    decode.save_checkpoint(Main, decode_file; split=split_num)
+    Decode.save_checkpoint(Main, decode_file; split=0)
 else
-    D = decode.load_checkpoint(decode_file)
+    D = Decode.load_checkpoint(decode_file)
     for (key,value) in D
         eval(Meta.parse("$key = D[:$key]"))
     end
     for df in [beh, lfp, cycles, ripples]
-        raw.fix_complex(df)
-        raw.fix_rgba(df)
+        Load.fix_complex(df)
+        Load.fix_rgba(df)
     end
 end
 
@@ -35,15 +38,16 @@ lfp, theta, ripples, non = begin
     # ------------------------------
     # Separate DECODES by EVENTS
     # ------------------------------
-    theta, ripple, non = separate_theta_ripple_and_non_decodes(T, lfp, dat;
-                                                               doRipplePhase=doRipplePhase)
+    @time theta, ripple, non = separate_theta_ripple_and_non_decodes(T, lfp, dat;
+                                                               quantile_range=(0.7,1),
+                                                               doThetaPhase,
+                                                               doRipplePhase)
     if dosweep
-        theta, ripples = convert_to_sweeps(lfp, theta, ripples;
-                                           doRipplePhase=doRipplePhase)
+        theta, ripples = convert_to_sweeps(lfp, theta, ripples; doRipplePhase)
     end
-    no_cycle_happening = utils.squeeze(all(isnan.(theta), dims=(1,2)))
+    no_cycle_happening = Utils.squeeze(all(isnan.(theta), dims=(1,2)))
     lfp[!, :color_phase] = RGBA.(get(ColorSchemes.romaO, lfp[!, :phase]))
-    lfp[utils.searchsortednearest.([lfp.time], T[no_cycle_happening]), :color_phase] .= RGBA{Float64}(0, 0, 0, 0)
+    lfp[Utils.searchsortednearest.([lfp.time], T[no_cycle_happening]), :color_phase] .= RGBA{Float64}(0, 0, 0, 0)
     lfp, theta, ripples, non
 end
 
@@ -57,44 +61,62 @@ end
 boundary = task[(task.name.=="boundary") .& (task.epoch .== epoch), :]
 append!(boundary, DataFrame(boundary[1,:]))
 
-raw.behavior.annotate_relative_xtime!(beh)
-cycles  = decode.annotate_explodable_cycle_metrics(beh, cycles, dat, x, y, T)
-ripples = decode.annotate_explodable_cycle_metrics(beh, ripples, dat, x, y, T)
-cells = raw.load_cells(animal, day, "*")
+# Other data
+iso = Load.column_load_spikes("isolated", "RY16", 36)
+Load.register(iso, spikes, on="time", transfer=["isolated"])
+
+
+Munge.behavior.annotate_relative_xtime!(beh)
+cycles  = Decode.annotate_explodable_cycle_metrics(beh, cycles, dat, x, y, T)
+ripples = Decode.annotate_explodable_cycle_metrics(beh, ripples, dat, x, y, T)
+cells = Load.load_cells(animal, day, "*")
 GC.gc()
+
+## FIGURE SETTINGS
+visualize = :slider
+# Spike colors
+colorby    = "isolated" # nothing | a column of a dataframe
+#colorby    = "vs(𝔾|ℙ,ℙ|𝔾)" # nothing | a column of a dataframe
+#colorby    = "vs(ℙₛ|ℙ,ℙ|ℙₛ)" # nothing | a column of a dataframe
+colorwhere = :spikes # dataframe sampling from
+plotNon = false
+#theta_phase_color = :specific_color_of_phase # how the theta WAVE is drawn
+theta_phase_color = :rainbow_event
+
+# Color any sorting along yaxis
+#colorby    = "bestTau_marginal=x-y_datacut=:all" # nothing | a column of a dataframe
+#resort_cell_order = :meanrate
+colorby    = "isolated" # nothing | a column of a dataframe
+resort_cell_order = [:area, :meanrate]
 
 # --------------------
 # RUN VIDEO 
 # --------------------
-## FIGURE SETTINGS
-visualize = :slider
-# Spike colors
-colorby    = "bestTau_marginal=x-y_datacut=:all" # nothing | a column of a dataframe
-#colorby    = "vs(𝔾|ℙ,ℙ|𝔾)" # nothing | a column of a dataframe
-#colorby    = "vs(ℙₛ|ℙ,ℙ|ℙₛ)" # nothing | a column of a dataframe
-colorwhere = :cells # dataframe sampling from
-plotNon = false
-resort_cell_order = :meanrate
-theta_phase_color = :specific_color_of_phase
-cells, spikes = raw.cell_resort(cells, spikes, resort_cell_order)
+cells, spikes = Load.cell_resort(cells, spikes, resort_cell_order)
 
 Δ_bounds = [0.20, 0.20] # seconds
-tr = Dict("beh"=>utils.searchsortednearest(beh.time, T[1]),
-          "lfp"=>utils.searchsortednearest(beh.time, T[1]))
+tr = Dict("beh"=>Utils.searchsortednearest(beh.time, T[1]),
+          "lfp"=>Utils.searchsortednearest(beh.time, T[1]))
 Δt = Dict("beh"=>median(diff(beh.time)),
           "lfp"=>median(diff(lfp.time)),
           "prob"=>median(diff(T)))
 Δi = Dict("beh"=>(Δt["beh"]/Δt["prob"])^-1,
           "lfp"=>(Δt["lfp"]/Δt["prob"])^-1)
-get_extrema(df, col) = nanextrema(dropmissing(df[!, [colorby]])[!,colorby])
+
+function get_extrema(df, col) 
+    x = dropmissing(spikes[!, [:isolated]])[!,colorby]
+    x = Bool <: eltype(x) ? Int64.(x) : x
+    nanextrema(x)
+end
 
 spike_colorrange = begin
-    if colorby == nothing
+    if colorby === nothing
         (-Inf, Inf)
     else
         if colorwhere == :behavior
             get_extrema(beh, colorby)
         elseif colorwhere == :spikes
+            spikes[!, colorby] = disallowmissing(replace(spikes[!, colorby], missing=>NaN))
             get_extrema(spikes, colorby)
         elseif colorwhere == :cells
             cells[!,colorby] = replace(cells[!, colorby], missing=>NaN)
@@ -104,10 +126,11 @@ spike_colorrange = begin
         end
     end
 end
-if spikes_abovebelow_quantile != nothing
+spikes_abovebelow_quantile = nothing
+if spikes_abovebelow_quantile !== nothing
     spike_colorrange=(-1, 1)
 end
-spike_colormap = if utils.in_range([0], spike_colorrange)[1]
+spike_colormap = if Utils.in_range([0], spike_colorrange)[1]
     top_value = max(abs.(spike_colorrange)...)
     spike_colorrange = (-top_value,top_value)
     (spike_cmap_with0,0.9)
@@ -115,8 +138,8 @@ else
     (spike_cmap_zeroless,0.9)
 end
 
-if resort_cell_order
-    cells, spikes = raw.cell_resort(cells, spikes, resort_cell_order)
+if resort_cell_order !== nothing
+    cells, spikes = Load.cell_resort(cells, spikes, resort_cell_order)
 end
 
 ## ---------------
@@ -145,7 +168,7 @@ end
 # - Events
 #   - event :: number that counts across theta/ripple events
 #   - (option) vspan current event or all events in plot window
-#
+
 
 # ======
 # FIGURE
@@ -164,23 +187,29 @@ end
 # ======
 # DATA
 # ======
-@time beh_window     = @lift select_range($t, T, data=beh, Δ_bounds=[-0.01, 0.60])
+@time beh_window   = @lift select_range($t, T, data=beh, Δ_bounds=[-0.01, 0.60])
 @time spike_window = @lift select_range($t, T, data=spikes, Δ_bounds=Δ_bounds)
-@time lfp_window   = @lift select_est_range($t, T, tr["lfp"], Δt["lfp"], 
+@time lfp_window   = @lift select_est_range($t, T, tr["lfp"], Δt["lfp"],
                                             data=lfp, Δ_bounds=Δ_bounds)
-@time ripple_window = @lift decode.select_events($t, T, events=ripples)
-@time cycle_window  = @lift decode.select_events($t, T, events=cycles)
+@time ripple_window = @lift Decode.select_events($t, T, events=ripples)
+@time cycle_window  = @lift Decode.select_events($t, T, events=cycles)
 theta_prob  = @lift select_prob($t, T; prob=theta)
 ripple_prob = @lift select_prob4($t, T; prob=ripple)
 
 lfp_now    = @lift Int32(round(size($lfp_window,1)/2))
 lfp_window = @lift transform($lfp_window, 
-                             [:phase,:amp] => ((x,y)->x.*(y.^1.9)) => :phaseamp)
+                             [:phase,:amp] => ((x,y)->x.*(y.^1.9)) => :phaseamp,
+                             :time => (x->x.-mean(x)) => :time
+                            )
+now = 1
+cmlabel = Dict(0=>"cue", 1=>"mem", -1=>"nontask")
 
 # Grids
 # Axes
 TT = length(T)
 correct = @lift $beh_window.correct[1]
+# Arena data AXIS :: Behavior
+cuemem_future  = @lift cmlabel[$beh_window.cuemem[now]]
 @time title_str = @lift "i=$($t), %=$(@sprintf("%2.2f",100*$t/TT)) \ncorr=$($correct), goal=$($beh_window.stopWell[1]), vel=$(@sprintf("%2.1f",abs($beh_window.velVec[1])))"
 
 axArena  = Axis(Fig[1,1], xlabel="x", ylabel="y", title=title_str)
@@ -194,18 +223,21 @@ controls = Fig[1:2, 3]
 
 # THETA RAINBOW phase middle
 if theta_phase_color == :rainbow_event
+    start = @lift mean($lfp_window.time) .- Δ_bounds[1]
+    stop  = @lift mean($lfp_window.time) .+ Δ_bounds[2]
     nan_color = RGBA(1,1,1,1)
-    zerod_phase = ((lfp_sub.time .-start))./(stop-start)
-    zerod_phase[(zerod_phase .> 1) .| (zerod_phase .< 0)] .= NaN
+    zerod_phase = @lift (($lfp_window.time .-$start))./($stop-$start)
+    @lift $zerod_phase[($zerod_phase .> 1) .| ($zerod_phase .< 0)] .= NaN
     zerod_phase = get_color.(zerod_phase, :hawaii, nan_color)
-    lines!(axSpikes, lfp_sub.time, lfp_sub.raw, colormap=:hawaii,
-           color=zerod_phase, linewidth=2)
+    lines_theta = @lift lines!(axLFPsum, $lfp_window.time, $lfp_window.raw, colormap=:hawaii,
+           color=$zerod_phase, linewidth=2)
 elseif theta_phase_color == :rainbow
 elseif theta_phase_color == :specific_color_of_phase
     ln_theta_color = @lift mean($lfp_window.color_phase[-10+$lfp_now:10+$lfp_now])
 end
 ln_phase_xy = @lift([Point2f(Tuple(x)) for x in eachrow($lfp_window[!,[:time,:phaseamp]])]) 
 ln_theta    = lines!(axLFPsum,   ln_phase_xy, color=ln_theta_color, linestyle=:dash)
+xlims!(axLFPsum, Δ_bounds .* (-1,1))
 
 # -----------------
 # LFP Raw data AXIS
@@ -222,19 +254,20 @@ axLFPsum.yticks = 0:0
 # ----------------
 spike_cmap_with0 = :vik
 spike_cmap_zeroless = :viridis
-spike_cbar = colorby==nothing ? nothing : Colorbar(gNeural[3:8, 2], limits =
+spike_cbar = colorby===nothing ? nothing : Colorbar(gNeural[3:8, 2], limits =
                                                    spike_colorrange,
-                                                   colormap=spike_cmap, label =
+                                                   colormap=spike_cmap_zeroless, label =
                                                    string(colorby), flipaxis = false,
                                                    vertical=true)
+
 spike_colors = @lift begin
-    if colorby == nothing
+    if colorby === nothing
         :white
     else
         if colorwhere == :behavior
             $beh_window[!, colorby]
         elseif colorwhere == :spikes
-            $spikes[!, colorby]
+            $spike_window[!, colorby]
         elseif colorwhere == :cells
             cells[$spike_window[!, :unit], colorby]
         else
@@ -242,10 +275,12 @@ spike_colors = @lift begin
         end
     end
 end
+
 sc_sp_window = @lift([Point2f(Tuple(x)) for x in
                       eachrow($spike_window[!,[:time,:unit]])])
-sc = scatter!(axNeural, sc_sp_window, colormap=spike_colormap, color=spike_colors,
-              markersize=6, colorrange=spike_colorrange)
+
+sc = scatter!(axNeural, sc_sp_window, colormap=spike_colormap, markersize=6, colorrange=spike_colorrange, color=spike_colors)
+
 if resort_cell_order == :meanrate
     hlines!(axNeural, findfirst(cells.meanrate .>6), color=:darkgrey, linestyle=:dash)
 end
@@ -275,8 +310,6 @@ if plotNon
     hm_non = heatmap!(axArena, x,y, non_prob, colormap=(:bamako,0.8))
 end
 
-# Arena data AXIS :: Behavior
-now = 1
 
 # ----------------
 # Animal and wells
@@ -331,6 +364,13 @@ past₁_well_xy    = @lift (($past₁ == -1) || ($past₁ == $future₁)) ? Poin
 sc_future₁_well = scatter!(axArena, future₁_well_xy,  alpha=0.5, marker='𝐅', markersize=60, color=correctColor, glowwidth=29)
 sc_future₂_well = scatter!(axArena, future₂_well_xy,  alpha=0.5, marker='𝐟', markersize=60, color=:white,       glowwidth=5)
 sc_past_well    = scatter!(axArena, past₁_well_xy,    alpha=0.5, marker='𝐏', markersize=60, color=:white,       glowwidth=5)
+justify = 5
+cuemem_future₂ = @lift cmlabel[$beh_window.futureCuemem[now]]
+cuemem_past  = @lift cmlabel[$beh_window.pastCuemem[now]]
+textsize=10
+an_future₁_well = annotations!(axArena, cuemem_future,   future₁_well_xy, textsize, color=:blue)
+an_future₂_well = annotations!(axArena, cuemem_future₂,  future₂_well_xy, textsize, color=:blue )
+an_past_well    = annotations!(axArena, cuemem_past,     past₁_well_xy, textsize, color=:blue  )
 if doPrevPast
     past₂   = @lift($beh_window.pastStopWell[now])
     past₂_well_xy    = @lift (($past₂ == -1) || ($past₂ == $future₁)) ? Point2f(NaN, NaN) : Point2f(wells.x[$past₂], wells.y[$past₂])

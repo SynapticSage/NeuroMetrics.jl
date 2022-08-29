@@ -109,7 +109,7 @@ module types
         shifts::Vector{<:Real}
         metrics::DataFrame
 
-        function ShiftedField(data::OrderedDict{<:Any, <:Field.ReceptiveField})
+        function ShiftedField(data::OrderedDict{<:Any, <:Union{<:Field.ReceptiveField, Missing}})
             shifts = collect(keys(data))
             metrics = OrderedDict(k=>apply_metric_ban(v.metrics) 
                                   for (k,v) in data 

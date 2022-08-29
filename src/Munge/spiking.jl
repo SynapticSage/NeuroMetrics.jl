@@ -252,7 +252,9 @@ module spiking
             spikes[!,:isolated] = Vector{Bool}(undef, size(spikes,1))
         end
         cycles = groupby(spikes, cycle_prop)
-        @assert length(cycles) > 1 "You only have 1 cycle ... something is wrong"
+        if length(cycles) > 1
+            @warn  "You only have 1 cycle ... something is wrong"
+        end
         #(c,cycle) =  first(enumerate(cycles))
         for (c,cycle) in enumerate(cycles)
             # find the N closest cycles

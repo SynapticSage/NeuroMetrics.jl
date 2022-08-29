@@ -12,6 +12,7 @@ module lfp_decode
     using ProgressMeter
     using LazyGrids: ndgrid
     using Statistics, NaNStatistics
+    using ..Munge
     import Load
     import Table
     import Utils
@@ -24,11 +25,11 @@ module lfp_decode
 
     function get_theta_cycles(lfp::DataFrame, beh::DataFrame)
         beh, lfp = Load.register(beh, lfp; transfer=["velVec"], on="time")
-        lfp = Load.lfp.annotate_cycles(lfp, method="peak-to-peak")
-        lfp.phase = Load.lfp.phase_to_radians(lfp.phase)
+        lfp = Munge.lfp.annotate_cycles(lfp, method="peak-to-peak")
+        lfp.phase = Munge.lfp.phase_to_radians(lfp.phase)
         cycles = Table.get_periods(lfp, "cycle", 
                        :amp=>mean,
-                       :velVec => (x->median(abs.(x))) => :velVec_median; 
+                       :velVec => (x->nanmedian(abs.(replace(x,missing=>NaN)))) => :velVec_median; 
                        end_period=:stop)
         transform!(cycles, [:start,:stop] => ((x,y)->mean([x,y])) => :time)
         cycles = filter(:amp_mean => amp->(amp .> 50) .& (amp .< 600), cycles)
@@ -169,7 +170,9 @@ module lfp_decode
     end
 
 
-    function separate_theta_ripple_and_non_decodes(T, lfp, dat; doRipplePhase::Bool=false)
+    function separate_theta_ripple_and_non_decodes(T, lfp, dat; 
+            quantile_range=(0,1),
+            doThetaPhase::Bool=true, doRipplePhase::Bool=false)
         if lfp isa GroupedDataFrame
             lfp = combine(lfp, identity)
         end
@@ -201,12 +204,27 @@ module lfp_decode
 
                     if doRipplePhase
                         ρ[(!).(isnan.(ρ))]   .= lfp.rip_phase[I]
+                    elseif quantile_range != (0,1)
+                        Q = [quantile(vec(ρ[(!).(insnan(ρ))]), q) 
+                             for q in quantile_range]
+                        ρ[Utils.not_in_range(ρ, Q)] .== NaN
                     end
                 else
                     ρ .= NaN
+                    if quantile_range != (0,1)
+                        Q = [quantile(vec(n[(!).(insnan(n))]), q) 
+                             for q in quantile_range]
+                        n[Utils.not_in_range(n, Q)] .== NaN
+                    end
                 end
             else # THETA CYCLE
-                θ[(!).(isnan.(θ))] .= lfp.phase[I]
+                if doThetaPhase
+                    θ[(!).(isnan.(θ))] .= lfp.phase[I]
+                elseif quantile_range != (0,1)
+                    Q = [quantile(vec(θ[(!).(insnan(θ))]), q) 
+                         for q in quantile_range]
+                    θ[Utils.not_in_range(θ, Q)] .== NaN
+                end
                 ρ .= NaN
                 n .= NaN
             end

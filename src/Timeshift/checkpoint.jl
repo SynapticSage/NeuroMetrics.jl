@@ -119,7 +119,7 @@ module checkpoint
     new = OrderedCollections.OrderedDict{Float64, OrderedCollections.OrderedDict{NamedTuple,AdaptiveRF}}
     """
     function save_mains(M::AbstractDict; overwrite::Bool=false)
-        if any(x->x .=== nothing, values(M))
+        if any(x->x === nothing, values(M))
             M = typeof(M)(k=>v for (k,v) in M if v !== nothing)
         end
         M = cut_the_fat(M)
@@ -257,9 +257,10 @@ module checkpoint
         archivepath = path * archive
     end
 
-    function archive(store::String, keysearch::NamedTuple; archive=".archive", overwrite::Bool=false)
+    function archive(store::String, keysearch::NamedTuple; archive="archive", overwrite::Bool=false)
         storepath = path(store)
         archivepath = path(store; archive)
+        @info "Loading archive=$storepath and archivepath=$archivepath"
         store, archive = deserialize(storepath), 
                          overwrite ? OrderedDict() : deserialize(archivepath)
         matches = match(keys(store), keysearch)

@@ -326,7 +326,7 @@ module adaptive
         thread_fields::Bool=thread_fields_default,
         prog_fields::Bool=false,
         grid_kws...)::Union{AdaptiveFieldDict,AdaptiveRF}
-        @info "yartsev" prog_fields
+        #@info "yartsev" prog_fields
         if filters !== nothing
             if Filt.filters_use_precache(filters) &&
                Filt.missing_precache_output_cols(spikes, filters)
@@ -365,7 +365,7 @@ module adaptive
         prog_fields::Bool=false,
         grid_kws...)::Union{AdaptiveFieldDict,AdaptiveRF}
 
-        @info "yartsev" prog_fields
+        #@info "yartsev" prog_fields
         get_adaptivefields(groupby(spikes, splitby), grid, occ;
             prog_fields, metrics, thread_field,
             thread_fields)
@@ -385,7 +385,7 @@ module adaptive
         kws...)::AdaptiveFieldDict
         keys_and_groups = collect(zip(Table.group.nt_keys(spikeGroups),
             spikeGroups))
-        @info "get_adaptivefields" prog_fields
+        #@info "get_adaptivefields" prog_fields
         if thread_fields
             D = ThreadSafeDict{NamedTuple,AdaptiveRF}()
             Threads.@threads for (nt, group) in keys_and_groups

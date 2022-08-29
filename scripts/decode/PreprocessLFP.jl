@@ -3,8 +3,7 @@
 using Munge.lfp
 using Munge.lfp_decode
 
-@time cycles = get_theta_cycles(lfp, beh)
-
+#@time cycles = get_theta_cycles(lfp, beh)
 @time ripples, cycles = annotate_vector_info(ripples, cycles, beh, lfp, dat, x, y, T)
 
 # Cast to Float32(for makie) and range for plotting

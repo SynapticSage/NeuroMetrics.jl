@@ -12,9 +12,11 @@ module behavior
         for (g,group) in enumerate(beh)
             if g!=length(beh)
                 group.futureStopWell .= beh[g+1].stopWell[1]
+                group.futureCuemem   .= beh[g+1].cuemem[1]
             end
             if g!=1
                 group.pastStopWell .= beh[g-1].stopWell[1]
+                group.pastCuemem .= beh[g-1].cuemem[1]
             end
         end
         beh = sort(combine(beh, identity), :time)

@@ -18,6 +18,7 @@ module Utils
     import SearchSortedNearest
     searchsortednearest = SearchSortedNearest.searchsortednearest
     searchsortednext    = SearchSortedNearest.searchsortednext
+    searchsortedprevious    = SearchSortedNearest.searchsortedprevious
 
     export skipnan
     export itsizeof, piso
@@ -105,6 +106,9 @@ module Utils
     end
     function in_range(X::Real, range::Union{Tuple, Vector})
         X ≥ range[1] .&& X < range[2]
+    end
+    function not_in_range(X::Union{Real,AbstractArray}, range::Union{Tuple, Vector})
+        (!).(in_range(X, range))
     end
 
     function squeeze(A::AbstractArray)  

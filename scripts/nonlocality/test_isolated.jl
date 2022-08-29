@@ -49,6 +49,9 @@ task_pers = Table.get_periods(beh2, [:traj, :cuemem], timefract= :velVec => x->a
 task_pers = combine(groupby(task_pers, [:cuemem]), [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
 Utils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
 
+"""
+Title: Sheer diffferent rate of events (adjacent/isolated) over cue, mem, nontask
+"""
 # Acqruire events per time as events  / time spent
 iso_sum.events_per_time = iso_sum.x1 ./ (iso_sum.timespent)
 iso_sum.cuearea = iso_sum.area .* "\n" .* getindex.([clab], iso_sum.cuemem)
@@ -74,8 +77,10 @@ Plot.save((;desc="isolated spikes per second"))
 Plot.setfolder("nonlocality", "isolated_ca1_rate_pfc")
 
 
-# Isolated spikees by ISI
-# -----------------------
+
+"""
+Isolated spikes ISI
+"""
 Munge.spiking.nextandprev!(spikes)
 perc = round(mean(spikes.neard .> .4)*100,sigdigits=2)
 histogram(log10.(spikes.neard),label="nearest spike")
@@ -91,11 +96,10 @@ isolated = last(groupby(subset(spikes, :isolated=>x->(!).(isnan.(x))) ,
                                         :isolated))
 @assert all(isolated.isolated .== true)
 
-# ----------------------
-"Mean of rates, per cell"
-# ----------------------
-
-isolated_mean = DataFrame()
+"""
+Mean of PFC cell rates, isolated and adjacent
+"""
+pfc_rate_isoAdjacent_meanOfTimes = DataFrame()
 for isolated in groupby(spikes, :isolated)
     sample = [R[time=B, unit=At(pfc_units)]
                 for B in Between.(isolated.time.-0.02, isolated.time.+0.02)]
@@ -103,7 +107,7 @@ for isolated in groupby(spikes, :isolated)
     @time sample = vcat(sample...)
     rate_mean   = mean(sample, dims=1)
     #rate_mean = mean(sample[sample.!=0])
-    append!(isolated_mean,
+    append!(pfc_rate_isoAdjacent_meanOfTimes,
     DataFrame(OrderedDict(
     :unit => vec(pfc_units),
     :isolated => isolated.isolated[1],
@@ -111,18 +115,18 @@ for isolated in groupby(spikes, :isolated)
     #push!(isolated_mean, isolated.isolated[1] => rate_mean)
 end
 
-transform!(isolated_mean, DataFrames.All(), :isolated => (x->[isonames[xx] for xx in x]) => :isolated_label)
-@subset!(isolated_mean, :isolated .== 0 .|| :isolated .== 1)
-srt = SignedRankTest(@subset(isolated_mean,:isolated.==0).rate,
-              @subset(isolated_mean,:isolated.==1).rate)
-@df isolated_mean boxplot(:isolated, :rate, title="SignedRankPval=$(round(pvalue(srt),sigdigits=2)), with N=$(srt.n) PFC cells",
+transform!(pfc_rate_isoAdjacent_meanOfTimes, DataFrames.All(), :isolated => (x->[isonames[xx] for xx in x]) => :isolated_label)
+@subset!(pfc_rate_isoAdjacent_meanOfTimes, :isolated .== 0 .|| :isolated .== 1)
+srt = SignedRankTest(@subset(pfc_rate_isoAdjacent_meanOfTimes,:isolated.==0).rate,
+              @subset(pfc_rate_isoAdjacent_meanOfTimes,:isolated.==1).rate)
+@df pfc_rate_isoAdjacent_meanOfTimes boxplot(:isolated, :rate, title="SignedRankPval=$(round(pvalue(srt),sigdigits=2)), with N=$(srt.n) PFC cells",
                          xticks=([0,1], collect(values(isonames))))
-@df isolated_mean scatter!(:isolated, :rate, group=:isolated)
+@df pfc_rate_isoAdjacent_meanOfTimes scatter!(:isolated, :rate, group=:isolated)
 Plot.save((;save_kws...,desc="meanmean_pfc_cell_rate"))
 
-# ------------------------------
-# Mean of rates, per cell x time
-# ------------------------------
+"""
+Mean of rates, per cell x time
+"""
 isolated_unit = DataFrame()
 for cell_isolation_group in groupby(spikes, :isolated)
     sample = [R[time=B, unit=At(pfc_units)]

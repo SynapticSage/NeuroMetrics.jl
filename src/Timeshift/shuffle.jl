@@ -47,7 +47,7 @@ module shuffle
                 nShuffle::Int=100, 
                 compute::Symbol=:single,
                 postfunc::Union{Function,Nothing}=nothing,
-                safe_dict::AbstractDict=ThreadSafeDict(),
+                safe_dict::AbstractDict=OrderedDict(),
                 prefilter::Bool=true,
                 exfiltrateAfter::Real=Inf,
                 get_field_kws...)::AbstractDict
@@ -93,7 +93,7 @@ module shuffle
                 nShuffle::Int=100, 
                 compute::Symbol=:single,
                 postfunc::Union{Function,Nothing}=nothing,
-                safe_dict::AbstractDict=ThreadSafeDict(),
+                safe_dict::AbstractDict=OrderedDict(),
                 exfiltrateAfter::Real=Inf,
                 field_kws...)::AbstractDict
 
@@ -117,7 +117,7 @@ module shuffle
                 nShuffle::Int=100, 
                 compute::Symbol=:single,
                 postfunc::Union{Function,Nothing}=nothing,
-                safe_dict::AbstractDict=ThreadSafeDict(),
+                safe_dict::AbstractDict=OrderedDict(),
                 exfiltrateAfter::Real=Inf,
                 field_kws...)::AbstractDict
 
@@ -170,6 +170,7 @@ module shuffle
         P = Progress(length(nShuffle); desc="Shuffle")
         P.showspeed = true
         sizehint!(result_dict, maximum(nShuffle))
+        prevtmp = nothing
         for s in nShuffle
             if skipproc && (;shuffle=s) ∈ keys(result_dict)
                 continue
@@ -188,6 +189,7 @@ module shuffle
                 @time @exfiltrate
             end
             next!(P)
+            #prevtmp = tmp
         end
 
         #safe_dict = Dict(result_dict...)
