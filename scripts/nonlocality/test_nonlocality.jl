@@ -19,7 +19,6 @@ using DataStructures: OrderedDict
 using DimensionalData
 import DimensionalData: Between
 using ProgressMeter
-import Plot
 using Munge.spiking
 using Filt
 using DataFrames, DataFramesMeta
@@ -58,16 +57,13 @@ datacut    = :all
 datacutStr = string(datacut)
 
 # Grab the key of interest given our datacut
-@time i = I[bestpartialmatch(keys(F), (;datacut, widths=5))];
-@time f = F[bestpartialmatch(keys(F), (;datacut, widths=5))];
+@time i = I[bestpartialmatch(keys(F), (;datacut, widths=5, coactivity=nothing), nothing_means_removekey=true)];
+@time f = F[bestpartialmatch(keys(F), (;datacut, widths=5, coactivity=nothing), nothing_means_removekey=true)];
 f = ShiftedFields(deepcopy(f))
 unitshift = Timeshift.types.matrixform(f)
 
 # Setup a  shift-getting convenience method, the shifts, and a few metrics
 shifts = collect(unitshift.dims[2])
-push_celltable!( unitshift, cells, :unit, :area)
-push_dims!(unitshift)
-push_shiftmetric!(unitshift, best_tau!; metric=:bitsperspike)
 
 # Which cells pass our criteria?
 region = :CA1
@@ -82,32 +78,65 @@ spikes = subset(spikes, :unit=>x->Utils.squeeze(any(x .∈ shift0[:unit]',dims=2
 spikes = Utils.filtreg.filterAndRegister(beh,spikes; filters=filt[datacut], on="time",  transfer=["velVec"], filter_skipmissingcols=true)[2]
 sort(unique(spikes.unit))
 
-# Add convex hull
-push_metric!(shift0, metrics.convexhull; thresh=0.90)
-hsg = [x[:convexhull][:hullseg_grid] for x in shift0];
-shift0[:hullseg_grid] = hsg;
-shift0 = DimArray(shift0, Dim{:unit}(shift0[:unit]));
 
-# Obtain nonlocal spikes
-P = []
-for unit in shift0[:unit]
-    @info "unit" unit
-    inds = findall(spikes.unit .== unit .&& (!).(ismissing.(spikes.x)))
-    if isempty(inds); continue; end
-    spu = view(spikes, inds, :)
-    histogram2d(spu.x, spu.y)
-    cellspace = OrderedDict(r.time => Float32.(element(Singleton(r.x,r.y)))
-                    for r in eachrow(spu))
-    U = shift0[unit=At(unit)]
-    hull = VPolygon(U[:hullseg_grid][1])
-    V = collect(values(cellspace))
-    infield = V .∈ [hull]
-    spu.infield = infield
-    title="unit=$unit,\nmean infield=$(round(mean(infield), sigdigits=2))"
-    push!(P, plot(U; transpose=true))
-    plot!(hull; title)
+function annotate_nonlocal_spikes!(spikes::DataFrame, unitshift::DimArray, shift::Union{<:Real, Symbol}=0;
+                                    thresh=0.8, hullmax=1,
+                                    n_examples=20, shuf=true)
+    # Push details about fields and best shift
+    push_celltable!(unitshift,   cells, :unit, :area)
+    push_dims!(unitshift)
+    push_shiftmetric!(unitshift, best_tau!; metric=:bitsperspike)
+    shift0 = unitshift[shift=At(shift)]
+    # Add convex hull
+    push_metric!(shift0, metrics.convexhull; thresh=0.80)
+    hsg = [x[:convexhull][:hullseg_grid] for x in shift0];
+    shift0[:hullseg_grid] = hsg;
+    shift0 = DimArray(shift0, Dim{:unit}(shift0[:unit]));
+    # Obtain nonlocal spikes
+    P = []
+    spikes.infield .= Vector{Union{Missing,Bool}}(undef, size(spikes,1))
+    #trans(X) = [x[end:-1:begin] for x in X]
+    for unit in shift0[:unit]
+        inds = findall(spikes.unit .== unit .&& (!).(ismissing.(spikes.x)))
+        if isempty(inds) || shift0[unit=At(unit)][:totalcount] == 0; 
+        @info "skipping" unit
+        continue; 
+        else
+        @info "processing" unit
+        end
+        spu = view(spikes, inds, :)
+        histogram2d(spu.x, spu.y)
+        cellspace = OrderedDict(r.time => Float32.(element(Singleton(r.x,r.y)))
+                        for r in eachrow(spu))
+        U = shift0[unit=At(unit)]
+        hull = [VPolygon(U[:hullseg_grid][i])
+                for i in 1:length(U[:hullseg_grid])][Utils.na, :]
+        #hullT = [VPolygon(trans(U[:hullseg_grid][i]))
+        #        for i in 1:length(U[:hullseg_grid])][Utils.na, :]
+        if isempty(hull)
+            @warn "no hull"
+            continue
+        else
+            #@infiltrate
+        end
+        V = collect(values(cellspace))
+        infield = V .∈ hull[:,1:hullmax]
+        #infieldT = V .∈ hullT
+        spu.infield = vec(any(infield,dims=2))
+        title="unit=$unit,\nmean infield=$(round(mean(infield), sigdigits=2))"
+        push!(P, Plots.plot(U; transpose=true))
+        for h in 1:hullmax
+        Plots.plot!(hull[h]; title)
+        end
+    end
+    if shuf == true 
+        Random.shuffle(P) 
+    end
+    Plots.plot(P[1:n_examples]...; 
+    colorbar=false, titlefontsize=6, tickfontsize=6, framestyle=:none, size=(800,800))
 end
-plot(P[1:20]...; colorbar=false, titlefontsize=6, tickfontsize=6, framestyle=:none, size=(800,800))
+
+annotate_nonlocal_spikes!(spikes, shift0)
 Plot.save((;desc="example of convex hulls"))
 
 # Get likelihood of nonlocal

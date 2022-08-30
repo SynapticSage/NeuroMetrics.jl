@@ -244,17 +244,29 @@ module spiking
         if !hasproperty(spikes, Symbol(cycle))
             Utils.filtreg.register(theta, spikes; on="time", transfer=[String(cycle)])
         end
-        combine(groupby(spikes, :unit), x->isolated(x; kws...) )
+        prog = Progress(length(unique(spikes.unit)); desc="Adding isolation stats")
+        combine(groupby(spikes, :unit), 
+                     x->(i=isolated(x; kws...);next!(prog);i)
+                     )
     end
-    function isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle)
+    function isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle, include_samples::Bool=false)
         explore = setdiff(-N:N,0)
         if !hasproperty(spikes, :isolated)
-            spikes[!,:isolated] = Vector{Bool}(undef, size(spikes,1))
+            spikes[!,:isolated] = Vector{Union{Missing,Bool}}(missing, size(spikes,1))
+        end
+        if !hasproperty(spikes, :nearestcyc)
+            spikes[!,:nearestcyc] = Vector{Union{Missing,Int32}}(missing, size(spikes,1))
+        end
+        if !hasproperty(spikes, :meancyc)
+            spikes[!,:meancyc] = Vector{Union{Missing,Float32}}(missing, size(spikes,1))
+        end
+        if include_samples && !hasproperty(spikes, :isosamples)
+            spikes[!,:meancyc] = Vector{Union{Missing,Vector}}(missing, size(spikes,1))
         end
         cycles = groupby(spikes, cycle_prop)
-        if length(cycles) > 1
-            @warn  "You only have 1 cycle"
-        end
+        #if length(cycles) > 1
+            #@warn  "You only have 1 cycle"
+        #end
         #(c,cycle) =  first(enumerate(cycles))
         for (c,cycle) in enumerate(cycles)
             # find the N closest cycles
@@ -264,9 +276,18 @@ module spiking
             else
                 order = sortperm([mean(c.time) for c in cycles[explore_cycles]])
                 nearest = explore_cycles[order[1:N]]
-                isolated = mean([cycle[1,cycle_prop] - other_cyc[1,cycle_prop] 
-                for other_cyc in cycles[nearest]]) > thresh
-                cycle.isolated .= isolated
+                cycle_prox = [abs(cycle[1,cycle_prop] - other_cyc[1,cycle_prop])
+                              for other_cyc in cycles[nearest]]
+                @infiltrate
+                nearestcyc = minimum(cycle_prox)
+                meancyc    = mean(cycle_prox)
+                isolated   = meancyc > thresh
+                cycle.isolated   .= isolated
+                cycle.meancyc    .= meancyc
+                cycle.nearestcyc .= nearestcyc
+                if include_samples
+                    cycle.isosamples .= [cycle_prox]
+                end
             end
         end
         spikes

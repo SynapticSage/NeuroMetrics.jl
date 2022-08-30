@@ -3,7 +3,7 @@ module makie_observable
     using DataFramesMeta
     import Utils
     export select_range, select_est_range, select_time, 
-           select_prob, select_prob4
+           select_prob, select_prob4, select_events, get_color
 
     function select_range(t, T; data::DataFrame=DataFrame(), Δ_bounds=nothing)
         time  = T[t]
@@ -55,5 +55,16 @@ module makie_observable
         select = (T[t] .>= events.start) .&& (T[t] .< events.stop)
         events[select, :]
     end
+
+    function get_color(x,cmap,nan_color,alpha_all=1)
+        if isnan(x)
+            nan_color
+        else
+            col=get(cgrad(cmap), x)
+            RGBA(col.r, col.g, col.b, alpha_all)
+        end
+    end
+
+
 
 end

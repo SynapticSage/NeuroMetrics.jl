@@ -180,7 +180,7 @@ module lfp_decode
         # Theta : Create probability chunks by phase
         dat = Float32.(dat)
         theta, ripple, non = copy(dat), repeat(copy(dat), outer=(1,1,1,4)), copy(dat)
-        @time for (t,time) in collect(enumerate(T))
+        @time Threads.@threads for (t,time) in collect(enumerate(T))
             I = Utils.searchsortednearest(lfp.time, time)
             θ, ρ, n  = view(theta, :, :, t), view(ripple, :, :, t, :),
                        view(non, :, :, t)
@@ -207,15 +207,15 @@ module lfp_decode
                     elseif quantile_range != (0,1)
                         Q = [nanquantile(vec(ρ), q) 
                              for q in quantile_range]
-                        @infiltrate
-                        ρ[Utils.not_in_range(ρ, Q)] .== NaN
+                        #@infiltrate
+                        ρ[Utils.not_in_range(ρ, Q)] .= NaN
                     end
                 else
                     ρ .= NaN
                     if quantile_range != (0,1)
                         Q = [nanquantile(vec(n), q) 
                              for q in quantile_range]
-                        n[Utils.not_in_range(n, Q)] .== NaN
+                        n[Utils.not_in_range(n, Q)] .= NaN
                     end
                 end
             else # THETA CYCLE
@@ -224,7 +224,7 @@ module lfp_decode
                 elseif quantile_range != (0,1)
                     Q = [nanquantile(vec(θ), q) 
                          for q in quantile_range]
-                    θ[Utils.not_in_range(θ, Q)] .== NaN
+                    θ[Utils.not_in_range(θ, Q)] .= NaN
                 end
                 ρ .= NaN
                 n .= NaN

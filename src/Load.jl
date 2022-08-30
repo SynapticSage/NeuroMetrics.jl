@@ -382,7 +382,8 @@ module Load
                 try
                     df[!,i] = fix_complex(df[!,i])
                 catch
-                    @infiltrate
+                    #@infiltrate
+                    @warn "exception caught in fix_complex"
                 end
             end
         end
@@ -398,7 +399,8 @@ module Load
                 try
                     df[!,i] = fix_rgba(df[!,i])
                 catch
-                    @infiltrate
+                    #@infiltrate
+                    @warn "exception caught in fix_complex"
                 end
             end
         end

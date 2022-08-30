@@ -68,7 +68,7 @@ D = nothing
 nmint = minimum(beh[beh.epoch.==epoch,:].time)
 
 @info "Initial lfp cycle steps"
-using Munge.decode_lfp
+using Munge.lfp_decode
 ripples      = velocity_filter_ripples(beh,ripples)
 @assert ripples isa DataFrame
 lfp, cycles  = get_theta_cycles(lfp, beh)

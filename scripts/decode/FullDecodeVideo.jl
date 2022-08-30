@@ -4,8 +4,9 @@ include(scriptsdir("decode","Initialize.jl"))
 load_from_checkpoint = true
 dothresh = false
 dosweep = false
+doPrevPast = false
 doThetaPhase, doRipplePhase = false, false
- 
+animal,day,epoch="RY16",36 ,2
 
 if !(load_from_checkpoint)
 
@@ -15,7 +16,7 @@ if !(load_from_checkpoint)
     # Preprocess BEHAHVIOR
     # TODO Turn this into a function
     # --------------------
-    beh = Munge.behavior.annotate_pastFutureGoals(beh; doPrevPast=false)
+    beh = Munge.behavior.annotate_pastFutureGoals(beh; doPrevPast)
 
     # --------------
     # Preprocess LFP
@@ -27,7 +28,7 @@ if !(load_from_checkpoint)
     # Checkpoint pre-video data
     Decode.save_checkpoint(Main, decode_file; split=0)
 else
-    #D = Decode.load_checkpoint(decode_file)
+
     D = Decode.load_checkpoint("/Volumes/FastData/decode/sortedspike.empirical.notbinned.n_split=4.downsamp=1.speedup=20.0/split=0_decode.h5")
     for (key,value) in D
         eval(Meta.parse("$key = D[:$key]"))
@@ -36,20 +37,22 @@ else
         Load.fix_complex(df)
         Load.fix_rgba(df)
     end
+
 end
 
 
 # -------- END OF CHECKPOINTED DATA PREPROC ----------------------------
 
+# GET A DECODE OBJECT PER WAVE BAND OF INTEREST
 lfp, theta, ripples, non = begin
     # ------------------------------
     # Separate DECODES by EVENTS
     # ------------------------------
     using Munge.lfp_decode
     @time theta, ripple, non = separate_theta_ripple_and_non_decodes(T, lfp, dat;
-                                                               quantile_range=(0.7,1),
+                                                               quantile_range=(0.9,1),
                                                                doThetaPhase,
-                                                               doRipplePhase)
+                                                               doRipplePhase);
     if dosweep
         theta, ripples = convert_to_sweeps(lfp, theta, ripples; doRipplePhase)
     end
@@ -59,7 +62,8 @@ lfp, theta, ripples, non = begin
     lfp, theta, ripples, non
 end
 
-@time task   = raw.load_task(animal,     day)
+# RELOAD WELL INFO
+@time task   = Load.load_task(animal,     day)
 wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
 homeWell, arenaWells = begin
     hw = argmax(StatsBase.fit(StatsBase.Histogram, filter(b->b!=-1,beh.stopWell), 1:6).weights)
@@ -72,8 +76,12 @@ append!(boundary, DataFrame(boundary[1,:]))
 # Other data
 #iso = Load.column_load_spikes("isolated", "RY16", 36)
 #Load.register(iso, spikes, on="time", transfer=["isolated"])
+Munge.spiking.isolated(spikes, lfp)
+spikes[!,:isolated_area] = convert(Vector{Float16}, spikes.isolated)
+spikes[spikes.isolated_area .== 1 .&& spikes.area.=="PFC",:isolated_area] .= 0.5
 
 
+import Munge
 Munge.behavior.annotate_relative_xtime!(beh)
 cycles  = annotate_explodable_cycle_metrics(beh, cycles, dat, x, y, T)
 ripples = annotate_explodable_cycle_metrics(beh, ripples, dat, x, y, T)
@@ -91,7 +99,7 @@ colorby    = "isolated" # nothing | a column of a dataframe
 colorwhere = :spikes # dataframe sampling from
 plotNon = false
 #theta_phase_color = :specific_color_of_phase # how the theta WAVE is drawn
-theta_phase_color = :rainbow_event
+theta_phase_color = :specific_color_of_phase
 
 # Color any sorting along yaxis
 #colorby    = "bestTau_marginal=x-y_datacut=:all" # nothing | a column of a dataframe
@@ -105,11 +113,16 @@ resort_cell_order = [:area, :meanrate]
 cells, spikes = Load.cell_resort(cells, spikes, resort_cell_order)
 
 Δ_bounds = [0.20, 0.20] # seconds
+
 tr = Dict("beh"=>Utils.searchsortednearest(beh.time, T[1]),
-          "lfp"=>Utils.searchsortednearest(beh.time, T[1]))
+          "lfp"=>Utils.searchsortednearest(lfp.time, T[1]))
+
+# Period of sample
 Δt = Dict("beh"=>median(diff(beh.time)),
           "lfp"=>median(diff(lfp.time)),
           "prob"=>median(diff(T)))
+
+# Samples to step
 Δi = Dict("beh"=>(Δt["beh"]/Δt["prob"])^-1,
           "lfp"=>(Δt["lfp"]/Δt["prob"])^-1)
 
@@ -197,6 +210,8 @@ end
 # ======
 # DATA
 # ======
+using Decode
+using Decode.makie_observable
 @time beh_window   = @lift select_range($t, T, data=beh, Δ_bounds=[-0.01, 0.60])
 @time spike_window = @lift select_range($t, T, data=spikes, Δ_bounds=Δ_bounds)
 @time lfp_window   = @lift select_est_range($t, T, tr["lfp"], Δt["lfp"],
@@ -258,6 +273,7 @@ ln_broad    = lines!(axLFP, ln_broad_xy, color=:gray,  linestyle=:dash)
 ln_theta    = lines!(axLFP, ln_theta_xy, color=ln_theta_color, linestyle=:dash)
 axLFP.yticks = 100:100
 axLFPsum.yticks = 0:0
+xlims!(axLFP, Δ_bounds .* (-1,1))
 
 # ----------------
 # Neural data AXIS

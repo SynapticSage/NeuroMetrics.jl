@@ -25,11 +25,14 @@ isonames =  OrderedDict(false => :adjacent, true=>:isolated)
 filt_desc = OrderedDict(:all => "> 2cm/s")
 save_kws = (;pfc_rate_analy=true)
 filt = Filt.get_filters()
+datacut = :all
 
-
+# ===================
+# ACQUIRE DATA
+# ===================
 # Acquire data
 @time spikes, beh, cells = Load.load("RY16", 36, data_source=["spikes","behavior", "cells"])
-beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes, on="time", transfer=["x","y","cuemem"], filters=filt[:all], filter_skipmissingcols=true)
+beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes, on="time", transfer=["x","y","cuemem"], filters=filt[datacut], filter_skipmissingcols=true)
 allspikes = copy(spikes)
 beh2 = Load.load_behavior("RY16",36)
 
@@ -38,29 +41,82 @@ lfp = Load.load_lfp("RY16", 36, tet=5);
 lfp.time = lfp.time .- Load.min_time_records[1]
 lfp = Munge.lfp.annotate_cycles(lfp)
 #sp = @subset(spikes, :tetrode .== 6);
+
+F = load_fields()
+@time f = F[bestpartialmatch(keys(F), (;datacut, widths=5))];
+f = ShiftedFields(deepcopy(f))
+unitshift = Timeshift.types.matrixform(f)
+annotate_nonlocal_spikes!(spikes, getshift(unitshift, 0))
+
+# ===================
+# OUT OF FIELD SPIKES
+# ===================
+# Setup a  shift-getting convenience method, the shifts, and a few metrics
+shifts = collect(unitshift.dims[2])
+push_celltable!( unitshift, cells, :unit, :area)
+push_dims!(unitshift)
+push_shiftmetric!(unitshift, best_tau!; metric=:bitsperspike)
+
+# Which cells pass our criteria?
+region = :CA1
+metricfilter = metricfilters[region]
+
+# Get filtered shift=0 fields
+shift0 = filter(metricfilter, getshift(unitshift,0))
+shift0 = shift0[sortperm(shift0[:unit])]
+
+# Subset spikes by our filtration schema
+spikes = subset(spikes, :unit=>x->Utils.squeeze(any(x .∈ shift0[:unit]',dims=2)))
+spikes = Utils.filtreg.filterAndRegister(beh,spikes; filters=filt[datacut], on="time",  transfer=["velVec"], filter_skipmissingcols=true)[2]
+sort(unique(spikes.unit))
+
+
+# ===================
+# ISOLATED SPIKING
+# ===================
 Munge.spiking.isolated(spikes, lfp)
 
+"""
+Mean cycle dist
+"""
+Plot.setfolder("nonlocality","isolation-basic_column_plots")
+histogram(filter(x->!ismissing(x) && x<100, @subset(spikes,:area.=="CA1", :interneuron .!= true).meancyc), bins=40, yscale=:log10)
+Plot.save((;desc="Mean cycle, all cells"))
+histogram(filter(x->!ismissing(x) && x<100, @subset(spikes,:area.=="CA1", :interneuron .!= true).nearestcyc), bins=40, yscale=:log10)
+Plot.save((;desc="Nearest cycle, all cells"))
+
+
+
 # Split by isolated spikes and discover the fraction of isolated spikes
-iso_sum = combine(groupby(spikes, [:area, :cuemem]), :isolated => mean, (x->nrow(x)))
-
-# Calculate time animal spends in each cuemem segment
-task_pers = Table.get_periods(beh2, [:traj, :cuemem], timefract= :velVec => x->abs(x) > 2)
-
-# Total that time and register that column to the isolation summary
-task_pers = combine(groupby(task_pers, [:cuemem]), [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
-Utils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
+function get_isolation_summary(spikes,split=[:cuemem])
+    iso_sum = combine(groupby(dropmissing(spikes,:isolated), [:area, split...]), [:isolated,:nearestcyc,:meancyc] .=> mean, (x->nrow(x)))
+    # Calculate time animal spends in each cuemem segment
+    task_pers = Table.get_periods(beh2, [:traj, :cuemem], timefract= :velVec => x->abs(x) > 2)
+    # Total that time and register that column to the isolation summary
+    task_pers = combine(groupby(task_pers, [:cuemem]), [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
+    Utils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
+    # Acqruire events per time as events  / time spent
+    iso_sum.events_per_time = iso_sum.x1 ./ (iso_sum.timespent)
+    iso_sum.cuearea = iso_sum.area .* "\n" .* getindex.([clab], iso_sum.cuemem)
+    iso_sum.cmlab = getindex.([clab], iso_sum.cuemem)
+    iso_sum.isolated_events_per_time = iso_sum.isolated_mean .* iso_sum.events_per_time
+    ord = Dict("nontask"=>1,"cue"=>2,"mem"=>3)
+    iso_sum = sort(iso_sum, [DataFrames.order(:cmlab, by=x->ord[x]),:cuearea])
+end
 
 """
 Title: Sheer diffferent rate of events (adjacent/isolated) over cue, mem, nontask
 """
-# Acqruire events per time as events  / time spent
-iso_sum.events_per_time = iso_sum.x1 ./ (iso_sum.timespent)
-iso_sum.cuearea = iso_sum.area .* "\n" .* getindex.([clab], iso_sum.cuemem)
-iso_sum.cmlab = getindex.([clab], iso_sum.cuemem)
-iso_sum.isolated_events_per_time = iso_sum.isolated_mean .* iso_sum.events_per_time
+iso_sum = get_isolation_summary(spikes)
+sort!(iso_sum, [:area, :cuemem])
 
-ord = Dict("nontask"=>1,"cue"=>2,"mem"=>3)
-iso_sum = sort(iso_sum, [DataFrames.order(:cmlab, by=x->ord[x]),:cuearea])
+pfc_units = @subset(cells,:area.=="PFC").unit
+R = Munge.spiking.torate(allspikes, beh)
+pfc_units = intersect(pfc_units, collect(R.dims[2]))
+
+isolated = last(groupby(subset(spikes, :isolated=>x->(!).(isnan.(x))) ,
+                                        :isolated))
+@assert all(isolated.isolated .== true)
 
 # =========PLOTS =======================================
 Plot.setfolder("nonlocality","MUA and isolated MUA")
@@ -76,6 +132,33 @@ Plot.save((;desc="isolated spikes per second"))
 # ======================================================
 
 
+Load.register(cells, spikes, on="unit", transfer=["meanrate"])
+spikes.interneuron = spikes.meanrate .> 6
+iso_sum_celltype = get_isolation_summary(spikes,[:cuemem, :interneuron])
+sort!(iso_sum_celltype, [:area, :interneuron, :cuemem])
+
+# =========PLOTS =======================================
+# ======================================================
+
+
+"""
+Relation of isolated to out of field?
+
+Answer: Confusing or not much! At least explored with hulls. Maybe still fits Jai's
+"""
+isoin_sum = combine(groupby(spikes, [:isolated,:interneuron]),:infield => x->mean(skipmissing(x)))
+dropmissing!(isoin_sum)
+
+@df isoin_sum bar(:isolated, :infield, group=:interneuron; xticks=([0,1],["adj","iso"]))
+
+isoin_sum_celltype = combine(groupby(spikes, [:unit, :isolated, :interneuron]),:infield=>x->nanmean(skipmissing(x));renamecols=false)
+isoin_sum_celltype[!,:infield] = replace(isoin_sum_celltype.infield, NaN=>missing)
+dropmissing!(isoin_sum_celltype)
+
+Plot.setfolder("nonlocality","isolation-infield")
+@df isoin_sum_celltype boxplot(:isolated, :infield, xticks=([0,1],["adj","iso"]))
+@df isoin_sum_celltype scatter!(:isolated + randn(size(:isolated)).*0.1, :infield, group=:interneuron, xticks=([0,1],["adj","iso"]))
+Plot.save((;desc="Not much difference adjacent-iso in percent infield spikes",hullmax=1,thresh=0.8))
 
 
 """
@@ -93,73 +176,96 @@ Plot.save("nearest spike isolation")
 # ======================================================
 
 
-pfc_units = @subset(cells,:area.=="PFC").unit
-R = Munge.spiking.torate(allspikes, beh)
-pfc_units = intersect(pfc_units, collect(R.dims[2]))
-
-isolated = last(groupby(subset(spikes, :isolated=>x->(!).(isnan.(x))) ,
-                                        :isolated))
-@assert all(isolated.isolated .== true)
-
 """
 PFC FIRING DURING CA1 ISOLATION VERSUS ADJACENT
 """
+using Infiltrator
 
 function get_pos_labels(group; grouping, labels)
     p = []
+    grouping = !(grouping isa Vector) ? [grouping] : grouping
     for g in grouping
-        push!(p, g => group[1, g])
+        push!(p, Symbol(g) => group[1, g])
     end
     for (k,lab) in labels
-        push!(p, String(k) * "_label" => lab[group[1, k]])
+        push!(p, Symbol(String(k) * "_label") => lab[group[1, k]])
     end
     #:cuemem => group.cuemem[1],
     #:cuemem_label => clab[group.cuemem[1]],
     p
 end
 
-function get_pfcrate_samples_at_spike(spikes, R; grouping=[], labels)
+function get_pfcrate_samples_at_spike(spikes, R; grouping=[], labels=Dict())
     pfc_rate_isoAdjacent_meanOfTimes = DataFrame()
-    @showprogress for group in groupby(dropmissing(spikes,grouping), [:isolated,grouping...])
-        @info "samples" size(group.time)
+    spikes = grouping == [] ? spikes : dropmissing(spikes, grouping)
+    @showprogress for group in groupby(spikes, [:isolated,grouping...])
+        #@info "samples" size(group.time)
         sample = [R[time=B, unit=At(pfc_units)]
-                    for B in Between.(group.time.-0.02, group.time.+0.02)]
+                    for B in Between.(group.time.-0.015, group.time.+0.015)]
         sample = [s for s in sample if !isempty(s)]
-        @time sample = vcat(sample...)
+        sample = vcat(sample...)
         unit = repeat(vec(pfc_units)', size(sample,1))
         append!(pfc_rate_isoAdjacent_meanOfTimes,
         DataFrame(OrderedDict(
             :unit => vec(unit),
-            :rate => vec(sample) )),
-            get_pos_labels(group; [:isolated,grouping...], labels)...
-            )
+            :rate => vec(sample),
+            get_pos_labels(group; grouping=[:isolated, grouping...], labels)...
+           )))
     end
+    pfc_rate_isoAdjacent_meanOfTimes.rankrate = sortperm(pfc_rate_isoAdjacent_meanOfTimes.rate)
     pfc_rate_isoAdjacent_meanOfTimes
 end
-function compute_differences_df(pfc_rate_isoAdjacent, 
-        grouping=[:cuemem], 
+
+function compute_differences_df(pfc_rate_isoAdjacent; 
+        grouping=[], 
+        addsamps=false,
         labels=Dict())
-
-
     D = DataFrame()
-    @time @showprogress for group in groupby(pfc_rate_isoAdjacent,grouping)
+    grouping = Symbol.(grouping)
+    groups = groupby(pfc_rate_isoAdjacent, grouping)
+    @info "groups" length(groups)
+    for group in groups
          adjacent_spikes = @subset(group,:isolated.==0).rate
          iso_spikes      = @subset(group,:isolated.==1).rate
-         test =  UnequalVarianceTTest(adjacent_spikes, iso_spikes)
-         pval = pvalue(test)
+         radjacent_spikes = @subset(group,:isolated.==0).rankrate
+         riso_spikes      = @subset(group,:isolated.==1).rankrate
+         zadjacent_spikes = zscore(@subset(group,:isolated.==0).rate)
+         ziso_spikes      = zscore(@subset(group,:isolated.==1).rate)
+         test = missing
+         pval = missing
+         rtest = missing
+         rpval = missing
+         try
+             test =  UnequalVarianceTTest(iso_spikes, adjacent_spikes)
+             pval = pvalue(test,tail=:right)
+             rtest =  UnequalVarianceTTest(riso_spikes, radjacent_spikes)
+             rpval = pvalue(rtest,tail=:right)
+         catch
+            continue
+         end
+         sampgroups = addsamps ? [
+            :samp_iso => [iso_spikes],
+            :samp_adj => [adjacent_spikes],
+           ] : []
          
          append!(D, OrderedDict(
             :diff            => mean(iso_spikes) - mean(adjacent_spikes),
+            :rankdiff        => median(riso_spikes) - median(radjacent_spikes),
+            :zdiff           => mean(ziso_spikes) - mean(zadjacent_spikes),
+            :zdiv            => mean(ziso_spikes)/mean(zadjacent_spikes),
+            :div             => mean(iso_spikes)/mean(adjacent_spikes),
             :iso_spikes      => mean(iso_spikes),
             :adjacent_spikes => mean(adjacent_spikes),
             :pval => pval,
             :test => test,
-            get_pos_labels(group; grouping, labels)...
+            :rpval => rpval,
+            :rtest => rtest,
+            get_pos_labels(group; grouping, labels)...,
+            sampgroups...
            ))
     end
     D
 end
-
 
 pfc_rate_isoAdjacent_meanOfTimes = get_pfcrate_samples_at_spike(spikes, R;
                                                                 grouping=[],
@@ -167,13 +273,13 @@ pfc_rate_isoAdjacent_meanOfTimes = get_pfcrate_samples_at_spike(spikes, R;
 
 #transform!(pfc_rate_isoAdjacent_meanOfTimes, DataFrames.All(), :isolated => (x->[isonames[xx] for xx in x]) => :isolated_label)
 @subset!(pfc_rate_isoAdjacent_meanOfTimes, :isolated .== 0 .|| :isolated .== 1)
-srt = SignedRankTest(@subset(pfc_rate_isoAdjacent_meanOfTimes,:isolated.==0).rate,
-              @subset(pfc_rate_isoAdjacent_meanOfTimes,:isolated.==1).rate)
+srt = UnequalVarianceTTest(@subset(pfc_rate_isoAdjacent_meanOfTimes,:isolated.==0).rate,
+                           @subset(pfc_rate_isoAdjacent_meanOfTimes,:isolated.==1).rate)
 
 
 # =========PLOTS =======================================
 Plot.setfolder("nonlocality", "isolated_ca1_rate_pfc")
-@df pfc_rate_isoAdjacent_meanOfTimes boxplot(:isolated, :rate, title="SignedRankPval=$(round(pvalue(srt),sigdigits=2)), with N=$(srt.n) PFC cells",
+@df pfc_rate_isoAdjacent_meanOfTimes boxplot(:isolated, :rate, title="TTest=$(round(pvalue(srt),sigdigits=2)), with N=$(srt.df) PFC cells",
                          xticks=([0,1], collect(values(isonames))))
 @df pfc_rate_isoAdjacent_meanOfTimes scatter!(:isolated, :rate, group=:isolated)
 Plot.save((;save_kws...,desc="meanmean_pfc_cell_rate"))
@@ -182,7 +288,8 @@ Plot.save((;save_kws...,desc="meanmean_pfc_cell_rate"))
 """
 Mean of rates, per cell x time
 """
-D = compute_differences_df(pfc_rate_isoAdjacent_meanOfTimes; grouping=[], labels=Dict(:isolated=>isolated_label))
+D = compute_differences_df(pfc_rate_isoAdjacent_meanOfTimes; grouping=[], 
+                           labels=Dict(:isolated=>isonames))
 
 @subset!(D, :isolated .== 0 .|| :isolated .== 1)
 transform!(D, DataFrames.All(), :isolated => (x->[isonames[xx] for xx in x]) => :isolated_label)
@@ -248,11 +355,15 @@ Plot.save((;save_kws..., desc="diff of iso adjacent in each state"))
 """
 # Split by cuemem and pfc unit
 """
+pfc_rate_isoAdjacent_meanOfTimes = get_pfcrate_samples_at_spike(spikes, R; grouping=[:cuemem,:unit], labels=Dict(:cuemem=>clab))
 Du = compute_differences_df(pfc_rate_isoAdjacent_meanOfTimes; grouping=[:unit,:cuemem], labels=Dict(:cuemem=>clab))
-@df Du scatter!(:cuemem .+ 0.05 .* randn(size(:cuemem)) , :diff, xticks=([-1,0,1], collect(values(clab))) )
+Du.sig = (Du.pval .< 0.05/21)
+Du.rsig = (Du.rpval .< 0.05/21)
+@df Du scatter(:cuemem + 0.1.*randn(size(:cuemem)), :diff, xticks=([-1,0,1], collect(values(clab))), group=:area, legend_position=:outerbottomright, ylabel="Δ(iso-adj) \$MUA_{pfc}\$ hz")
+hline!([0])
 
-# SHEER NUMBER OF OUT OF FIELDERS
-if_counts = combine(groupby(spikes, [:cuemem, :isolated]), nrow)
+# SHEER NUMBER OF ISOLATED SPIKES (ALSO computer atop this script)
+if_counts = combine(groupby(Du, [:cuemem, :isolated]), nrow)
 subset!(if_counts, :isolated => x->(!).(isnan.(x)))
 if_perc = combine(groupby(if_counts, [:cuemem]), :isolated, :nrow => (x->x./(sum(x))) => :perc)
 iflab = Dict(0 => "out", 1=> "in")
@@ -275,7 +386,7 @@ pfc_cell_means./maximum(pfc_cell_means,dims=1)
 heatmap(["Nontask","Cue","Memory"], 1:size(pfc_cell_means,2), pfc_cell_means./maximum(pfc_cell_means,dims=1))
 Plot.save("Average PFC cell firing rates per task type")
 
-bar(["Nontask","Cue","Memory"], mean(pfc_cell_means./maximum(pfc_cell_means,dims=1), dims=2))
+#bar(["Nontask","Cue","Memory"], mean(pfc_cell_means./maximum(pfc_cell_means,dims=1), dims=2))
 
 Plot.save("Average of PFC cell firing, mean(norm0)")
 bar(["Nontask","Cue","Memory"], mean(pfc_cell_means, dims=2))
@@ -294,9 +405,11 @@ pfc_cell_means./maximum(pfc_cell_means,dims=1)
 heatmap(["Nontask","Cue","Memory"], 1:size(pfc_cell_means,2), pfc_cell_means./maximum(pfc_cell_means,dims=1))
 Plot.save("Average PFC cell firing rates per task type")
 
-bar(["Nontask","Cue","Memory"], mean(pfc_cell_means, dims=2))
 
+
+bar(["Nontask","Cue","Memory"], mean(pfc_cell_means, dims=2))
 Plot.save("Average of PFC cell firing, mean(norm0)")
+
 bar(["Nontask","Cue","Memory"], mean(pfc_cell_means, dims=2))
 Plot.save("Average of PFC cell firing, mean(rate)")
 
