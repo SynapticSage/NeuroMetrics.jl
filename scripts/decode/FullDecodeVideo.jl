@@ -4,8 +4,9 @@ include(scriptsdir("decode","Initialize.jl"))
 load_from_checkpoint = true
 dothresh = false
 dosweep = false
-dothetaphase, doripplephase = false, false
+doThetaPhase, doRipplePhase = false, false
  
+
 if !(load_from_checkpoint)
 
     include(scriptsdir("decode", "LoadData.jl"))
@@ -21,10 +22,13 @@ if !(load_from_checkpoint)
     # --------------
     include(scriptsdir("decode", "PreprocessLFP.jl"))
 
+    Munge.spiking.isolated(spikes, lfp)
+
     # Checkpoint pre-video data
     Decode.save_checkpoint(Main, decode_file; split=0)
 else
-    D = Decode.load_checkpoint(decode_file)
+    #D = Decode.load_checkpoint(decode_file)
+    D = Decode.load_checkpoint("/Volumes/FastData/decode/sortedspike.empirical.notbinned.n_split=4.downsamp=1.speedup=20.0/split=0_decode.h5")
     for (key,value) in D
         eval(Meta.parse("$key = D[:$key]"))
     end
@@ -34,10 +38,14 @@ else
     end
 end
 
+
+# -------- END OF CHECKPOINTED DATA PREPROC ----------------------------
+
 lfp, theta, ripples, non = begin
     # ------------------------------
     # Separate DECODES by EVENTS
     # ------------------------------
+    using Munge.lfp_decode
     @time theta, ripple, non = separate_theta_ripple_and_non_decodes(T, lfp, dat;
                                                                quantile_range=(0.7,1),
                                                                doThetaPhase,
@@ -62,15 +70,17 @@ boundary = task[(task.name.=="boundary") .& (task.epoch .== epoch), :]
 append!(boundary, DataFrame(boundary[1,:]))
 
 # Other data
-iso = Load.column_load_spikes("isolated", "RY16", 36)
-Load.register(iso, spikes, on="time", transfer=["isolated"])
+#iso = Load.column_load_spikes("isolated", "RY16", 36)
+#Load.register(iso, spikes, on="time", transfer=["isolated"])
 
 
 Munge.behavior.annotate_relative_xtime!(beh)
-cycles  = Decode.annotate_explodable_cycle_metrics(beh, cycles, dat, x, y, T)
-ripples = Decode.annotate_explodable_cycle_metrics(beh, ripples, dat, x, y, T)
+cycles  = annotate_explodable_cycle_metrics(beh, cycles, dat, x, y, T)
+ripples = annotate_explodable_cycle_metrics(beh, ripples, dat, x, y, T)
 cells = Load.load_cells(animal, day, "*")
 GC.gc()
+
+# -------- END of non-checkpointed PREPROC ----------------------------
 
 ## FIGURE SETTINGS
 visualize = :slider

@@ -169,13 +169,13 @@ badd +11 ~/Code/projects/goal-code/scripts/timeshift/TimeShift.jl
 badd +54 ~/Code/projects/goal-code/scripts/decode/Initialize.jl
 badd +7 ~/Code/projects/goal-code/scripts/fields/Initialize.jl
 badd +10 ~/Code/projects/goal-code/scripts/fields/Include.jl
-badd +91 ~/Code/projects/goal-code/src/Load.jl
+badd +209 ~/Code/projects/goal-code/src/Load.jl
 badd +21 ~/Code/projects/goal-code/src/Load/spikes.jl
 badd +2 ~/Code/projects/goal-code/src/Load/behavior.jl
 badd +8 ~/Code/projects/goal-code/src/Load/ripples.jl
 badd +4 ~/Code/projects/goal-code/src/Load/utils.jl
 badd +41 ~/Code/projects/goal-code/src/Timeshift.jl
-badd +267 ~/Code/projects/goal-code/src/Timeshift/checkpoint.jl
+badd +1 ~/Code/projects/goal-code/src/Timeshift/checkpoint.jl
 badd +87 ~/Code/projects/goal-code/src/Table/convert_types.jl
 badd +61 ~/Code/projects/goal-code/src/Table.jl
 badd +9 ~/Code/projects/goal-code/src/Utils/dict.jl
@@ -231,9 +231,9 @@ badd +19 ~/Code/projects/goal-code/scripts/timeshift/TimeShift_setsOfInterest.jl
 badd +1 ~/Code/projects/goal-code/src/Plot/rf.jl
 badd +113 ~/Code/projects/goal-code/src/Timeshift/types.jl
 badd +118 ~/Code/projects/goal-code/notebooks/Examine_LoadMains.jl
-badd +110 ~/Code/projects/goal-code/src/Utils.jl
+badd +21 ~/Code/projects/goal-code/src/Utils.jl
 badd +113 ~/Code/projects/goal-code/src/Munge/tensor.jl
-badd +256 ~/Code/projects/goal-code/src/Munge/spiking.jl
+badd +42 ~/Code/projects/goal-code/src/Munge/spiking.jl
 badd +173 ~/Code/utilities/+units/getRateMatrix.m
 badd +118 ~/Code/utilities/+units/sparseToDense.m
 badd +11 ~/Code/projects/goal-code/src/Utils/filtreg.jl
@@ -264,7 +264,7 @@ badd +15 ~/Code/projects/goal-code/src/Decode/bayes.jl
 badd +43 test_plot_bayes.jl
 badd +66 ~/Code/projects/goal-code/src/Plot/notebook_compareTS.jl
 badd +5 ~/Code/projects/goal-code/src/Plot/notebook_examineTS.jl
-badd +112 shortcut_cacheshuffle.jl
+badd +107 shortcut_cacheshuffle.jl
 badd +3 ~/Code/projects/goal-code/src/Plot/old_timeshift.jl
 badd +22 ~/.local/state/nvim/lsp.log
 badd +1 ~/Code/projects/goal-code/src/Utils/array.jl
@@ -284,18 +284,19 @@ badd +15 ~/Code/projects/goal-code/src/Plot/task.jl
 badd +1 \'
 badd +249 ~/Code/projects/goal-code/scripts/timeshift/Plot_correlate_tau_SPACE_or_TIME.jl
 badd +11 ~/Code/projects/goal-code/scripts/decode/PreprocessLFP.jl
-badd +66 ~/Code/projects/goal-code/scripts/decode/LoadData.jl
+badd +71 ~/Code/projects/goal-code/scripts/decode/LoadData.jl
 badd +32 ~/Code/projects/goal-code/src/Munge/lfp.jl
-badd +5 ~/Code/projects/goal-code/src/Load/decode.jl
+badd +6 ~/Code/projects/goal-code/src/Load/decode.jl
 badd +40 ~/Code/projects/goal-code/src/Load/lfp.jl
+badd +140 ~/Code/projects/goal-code/src/Decode/checkpoint.jl
 badd +19 ~/Code/projects/goal-code/src/Munge/behavior.jl
 badd +36 ~/.julia/config/startup.jl
 badd +117 ~/Code/projects/goal-code/scripts/nonlocality/test_nonlocality.jl
 badd +1 ~/Code/projects/goal-code/src/Munge/timeshift.jl
 badd +364 ~/.julia/packages/Arrow/ZlMFU/src/table.jl
-badd +135 ~/Code/projects/goal-code/scripts/nonlocality/test_isolated.jl
+badd +40 ~/Code/projects/goal-code/scripts/nonlocality/test_isolated.jl
 badd +0 ~/Code/projects/goal-code/src/Utils/statistic.jl
-badd +208 ~/Code/projects/goal-code/src/Munge/lfp_decode.jl
+badd +195 ~/Code/projects/goal-code/src/Munge/lfp_decode.jl
 badd +1 test_change_keys.jl
 badd +27 ~/Code/projects/goal-code/scripts/timeshift/ChangeKeys.jl
 badd +1 ~/Code/projects/goal-code/LocalPreferences.toml
@@ -305,46 +306,78 @@ tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabrewind
-edit ~/Code/projects/goal-code/scripts/nonlocality/test_isolated.jl
-argglobal
-balt ~/Code/projects/goal-code/src/Utils.jl
-let s:l = 156 - ((28 * winheight(0) + 29) / 59)
-if s:l < 1 | let s:l = 1 | endif
-keepjumps exe s:l
-normal! zt
-keepjumps 156
-normal! 04|
-tabnext
-edit shortcut_cacheshuffle.jl
-argglobal
-balt ~/Code/projects/goal-code/src/Timeshift.jl
-let s:l = 107 - ((22 * winheight(0) + 29) / 59)
-if s:l < 1 | let s:l = 1 | endif
-keepjumps exe s:l
-normal! zt
-keepjumps 107
-normal! 0
-tabnext
 edit ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl
 argglobal
-balt ~/Code/projects/goal-code/src/Timeshift/shuffle.jl
-let s:l = 1 - ((0 * winheight(0) + 21) / 43)
+balt ~/Code/projects/goal-code/src/Munge/lfp_decode.jl
+let s:l = 2 - ((1 * winheight(0) + 39) / 78)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 1
+keepjumps 2
 normal! 0
 tabnext
-edit ~/Code/projects/goal-code/src/Munge/spiking.jl
+edit ~/Code/projects/goal-code/scripts/nonlocality/test_isolated.jl
 argglobal
-balt ~/Code/projects/goal-code/src/Timeshift/shuffle.jl
-let s:l = 260 - ((30 * winheight(0) + 22) / 45)
+balt shortcut_cacheshuffle.jl
+let s:l = 256 - ((48 * winheight(0) + 39) / 78)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 260
-normal! 040|
-tabnext 3
+keepjumps 256
+normal! 03|
+tabnext
+edit ~/Code/projects/goal-code/src/Munge/lfp_decode.jl
+let s:save_splitbelow = &splitbelow
+let s:save_splitright = &splitright
+set splitbelow splitright
+wincmd _ | wincmd |
+split
+1wincmd k
+wincmd w
+let &splitbelow = s:save_splitbelow
+let &splitright = s:save_splitright
+wincmd t
+let s:save_winminheight = &winminheight
+let s:save_winminwidth = &winminwidth
+set winminheight=0
+set winheight=1
+set winminwidth=0
+set winwidth=1
+wincmd =
+argglobal
+balt ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl
+let s:l = 186 - ((19 * winheight(0) + 19) / 39)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 186
+normal! 0
+wincmd w
+argglobal
+if bufexists(fnamemodify("~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl", ":p")) | buffer ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl | else | edit ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl | endif
+if &buftype ==# 'terminal'
+  silent file ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl
+endif
+balt ~/Code/projects/goal-code/src/Decode/checkpoint.jl
+let s:l = 50 - ((29 * winheight(0) + 19) / 38)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 50
+normal! 0
+wincmd w
+wincmd =
+tabnext
+edit ~/Code/projects/goal-code/src/Timeshift/shuffle.jl
+argglobal
+balt ~/Code/projects/goal-code/src/Munge/spiking.jl
+let s:l = 166 - ((42 * winheight(0) + 39) / 78)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 166
+normal! 034|
+tabnext 2
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
 endif
@@ -357,6 +390,7 @@ if filereadable(s:sx)
 endif
 let &g:so = s:so_save | let &g:siso = s:siso_save
 set hlsearch
+nohlsearch
 let g:this_session = v:this_session
 let g:this_obsession = v:this_session
 doautoall SessionLoadPost

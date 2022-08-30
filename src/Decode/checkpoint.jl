@@ -7,8 +7,10 @@ module checkpoint
     using ProgressMeter
     using Infiltrator
     using Glob
+    using DataFrames
 
     pathname(x, decode_file, type="arrow") = joinpath(dirname(decode_file), "split=$(extract_splitnum(decode_file))_$(x).$type")
+
     export load_checkpoints, save_checkpoint, load_checkpoint, extract_splitnum
 
     function save_checkpoint(m::Module, decode_file; split, overwrite=true)
@@ -31,9 +33,11 @@ module checkpoint
                 create_group(file, "decode")
                 println(file["decode"])
                 file["decode/dat"] = m.dat
-                file["decode/ripple"] = m.ripple
-                file["decode/theta"] = m.theta
-                file["decode/non"] = m.non
+                #if hasproperty(m, :ripple)
+                #    file["decode/ripple"] = m.ripple
+                #    file["decode/theta"] = m.theta
+                #    file["decode/non"] = m.non
+                #end
                 file["decode/x"]   = m.x
                 file["decode/y"]   = m.y
                 file["decode/T"]   = m.T
@@ -44,25 +48,24 @@ module checkpoint
 
 
     function get_arrow_vars()
-        arrow_vars  = [:cells, :spikes, :beh, :lfp, :cycles, :ripples]
+        [:cells, :spikes, :beh, :lfp, :cycles, :ripples]
     end
     function get_h5_vars()
-        h5_vars     = [:dat, :theta, :ripple, :non, :x, :y, :T]
+        [:dat, :theta, :ripple, :non, :x, :y, :T]
     end
 
     function extract_splitnum(file::String)
         file = basename(file)
         file = split(file, ".")[begin]
-        num = parse(Int, split(file, "split=")[end])
+        parse(Int, split(split(file, "split=")[end],"_")[begin])
     end
-
 
     function load_checkpoint(decode_file::String; vars=nothing)
         pn(x) = pathname(x, decode_file) 
         D = Dict()
         arrow_vars  = get_arrow_vars()
         h5_vars     = get_h5_vars()
-        if vars != nothing
+        if vars !== nothing
             arrow_vars = filter(x->x∈vars, arrow_vars)
             h5_vars    = filter(x->x∈vars, h5_vars)
         end
@@ -70,9 +73,16 @@ module checkpoint
         for var in arrow_vars
             D[var]    = DataFrame(Arrow.Table(pn(String(var))))
         end
-        h5open(pathname("decode", decode_file, "h5"), "r") do file
+        filename = if isfile(decode_file)
+            decode_file
+        elseif isfile(pathname("decode", decode_file, "h5"))
+            pathname("decode", decode_file, "h5")
+        end
+        h5open(filename, "r") do file
             for var in h5_vars
-                D[var]    = read(file, "decode/$(String(var))")
+                if "$(String(var))" in keys(file["decode"])
+                    D[var]    = read(file, "decode/$(String(var))")
+                end
             end
         end
         return D
@@ -130,8 +140,8 @@ module checkpoint
                 @infiltrate
             end
             tmp = load_checkpoint(file, vars=vars)
-            tmp = raw.fix_complex(tmp)
-            tmp = raw.fix_rgba(tmp)
+            tmp = Load.fix_complex(tmp)
+            tmp = Load.fix_rgba(tmp)
             if i == 1
                 D = merge(D,tmp)
             else

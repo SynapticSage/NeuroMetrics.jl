@@ -24,11 +24,12 @@ clab = OrderedDict(-1 => "nontask", 0 => "cue", 1=> "mem", missing=>"sleep")
 isonames =  OrderedDict(false => :adjacent, true=>:isolated)
 filt_desc = OrderedDict(:all => "> 2cm/s")
 save_kws = (;pfc_rate_analy=true)
+filt = Filt.get_filters()
 
 
 # Acquire data
 @time spikes, beh, cells = Load.load("RY16", 36, data_source=["spikes","behavior", "cells"])
-beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes, on="time", transfer=["x","y"], filters=filt[:all])
+beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes, on="time", transfer=["x","y","cuemem"], filters=filt[:all], filter_skipmissingcols=true)
 allspikes = copy(spikes)
 beh2 = Load.load_behavior("RY16",36)
 
@@ -36,8 +37,8 @@ beh2 = Load.load_behavior("RY16",36)
 lfp = Load.load_lfp("RY16", 36, tet=5);
 lfp.time = lfp.time .- Load.min_time_records[1]
 lfp = Munge.lfp.annotate_cycles(lfp)
-sp = @subset(spikes, :tetrode .== 6);
-Munge.spiking.isolated(sp, lfp)
+#sp = @subset(spikes, :tetrode .== 6);
+Munge.spiking.isolated(spikes, lfp)
 
 # Split by isolated spikes and discover the fraction of isolated spikes
 iso_sum = combine(groupby(spikes, [:area, :cuemem]), :isolated => mean, (x->nrow(x)))
@@ -61,8 +62,8 @@ iso_sum.isolated_events_per_time = iso_sum.isolated_mean .* iso_sum.events_per_t
 ord = Dict("nontask"=>1,"cue"=>2,"mem"=>3)
 iso_sum = sort(iso_sum, [DataFrames.order(:cmlab, by=x->ord[x]),:cuearea])
 
-Plot.setfolder("nonlocality","MUA and isolated MUA")
 # =========PLOTS =======================================
+Plot.setfolder("nonlocality","MUA and isolated MUA")
 kws=(;legend_position=Symbol("outerbottomright"))
 @df @subset(iso_sum,:area.=="CA1") bar(:cmlab, :timespent, ylabel="Time spent", group=:cuemem; kws...)
 Plot.save((;desc="time spent"))
@@ -74,7 +75,6 @@ Plot.save((;desc="fraction of isolated spikes"))
 Plot.save((;desc="isolated spikes per second"))
 # ======================================================
 
-Plot.setfolder("nonlocality", "isolated_ca1_rate_pfc")
 
 
 
@@ -83,9 +83,14 @@ Isolated spikes ISI
 """
 Munge.spiking.nextandprev!(spikes)
 perc = round(mean(spikes.neard .> .4)*100,sigdigits=2)
+
+
+# =========PLOTS =======================================
+Plot.setfolder("nonlocality", "isolated_ca1_rate_pfc")
 histogram(log10.(spikes.neard),label="nearest spike")
 vline!([log10(.400)], label="thresh", title="$perc % isolated")
 Plot.save("nearest spike isolation")
+# ======================================================
 
 
 pfc_units = @subset(cells,:area.=="PFC").unit
@@ -97,61 +102,100 @@ isolated = last(groupby(subset(spikes, :isolated=>x->(!).(isnan.(x))) ,
 @assert all(isolated.isolated .== true)
 
 """
-Mean of PFC cell rates, isolated and adjacent
+PFC FIRING DURING CA1 ISOLATION VERSUS ADJACENT
 """
-pfc_rate_isoAdjacent_meanOfTimes = DataFrame()
-for isolated in groupby(spikes, :isolated)
-    sample = [R[time=B, unit=At(pfc_units)]
-                for B in Between.(isolated.time.-0.02, isolated.time.+0.02)]
-    sample = [s for s in sample if !isempty(s)]
-    @time sample = vcat(sample...)
-    rate_mean   = mean(sample, dims=1)
-    #rate_mean = mean(sample[sample.!=0])
-    append!(pfc_rate_isoAdjacent_meanOfTimes,
-    DataFrame(OrderedDict(
-    :unit => vec(pfc_units),
-    :isolated => isolated.isolated[1],
-    :rate => vec(rate_mean))))
-    #push!(isolated_mean, isolated.isolated[1] => rate_mean)
+
+function get_pos_labels(group; grouping, labels)
+    p = []
+    for g in grouping
+        push!(p, g => group[1, g])
+    end
+    for (k,lab) in labels
+        push!(p, String(k) * "_label" => lab[group[1, k]])
+    end
+    #:cuemem => group.cuemem[1],
+    #:cuemem_label => clab[group.cuemem[1]],
+    p
 end
 
-transform!(pfc_rate_isoAdjacent_meanOfTimes, DataFrames.All(), :isolated => (x->[isonames[xx] for xx in x]) => :isolated_label)
+function get_pfcrate_samples_at_spike(spikes, R; grouping=[], labels)
+    pfc_rate_isoAdjacent_meanOfTimes = DataFrame()
+    @showprogress for group in groupby(dropmissing(spikes,grouping), [:isolated,grouping...])
+        @info "samples" size(group.time)
+        sample = [R[time=B, unit=At(pfc_units)]
+                    for B in Between.(group.time.-0.02, group.time.+0.02)]
+        sample = [s for s in sample if !isempty(s)]
+        @time sample = vcat(sample...)
+        unit = repeat(vec(pfc_units)', size(sample,1))
+        append!(pfc_rate_isoAdjacent_meanOfTimes,
+        DataFrame(OrderedDict(
+            :unit => vec(unit),
+            :rate => vec(sample) )),
+            get_pos_labels(group; [:isolated,grouping...], labels)...
+            )
+    end
+    pfc_rate_isoAdjacent_meanOfTimes
+end
+function compute_differences_df(pfc_rate_isoAdjacent, 
+        grouping=[:cuemem], 
+        labels=Dict())
+
+
+    D = DataFrame()
+    @time @showprogress for group in groupby(pfc_rate_isoAdjacent,grouping)
+         adjacent_spikes = @subset(group,:isolated.==0).rate
+         iso_spikes      = @subset(group,:isolated.==1).rate
+         test =  UnequalVarianceTTest(adjacent_spikes, iso_spikes)
+         pval = pvalue(test)
+         
+         append!(D, OrderedDict(
+            :diff            => mean(iso_spikes) - mean(adjacent_spikes),
+            :iso_spikes      => mean(iso_spikes),
+            :adjacent_spikes => mean(adjacent_spikes),
+            :pval => pval,
+            :test => test,
+            get_pos_labels(group; grouping, labels)...
+           ))
+    end
+    D
+end
+
+
+pfc_rate_isoAdjacent_meanOfTimes = get_pfcrate_samples_at_spike(spikes, R;
+                                                                grouping=[],
+                                                                labels=[])
+
+#transform!(pfc_rate_isoAdjacent_meanOfTimes, DataFrames.All(), :isolated => (x->[isonames[xx] for xx in x]) => :isolated_label)
 @subset!(pfc_rate_isoAdjacent_meanOfTimes, :isolated .== 0 .|| :isolated .== 1)
 srt = SignedRankTest(@subset(pfc_rate_isoAdjacent_meanOfTimes,:isolated.==0).rate,
               @subset(pfc_rate_isoAdjacent_meanOfTimes,:isolated.==1).rate)
+
+
+# =========PLOTS =======================================
+Plot.setfolder("nonlocality", "isolated_ca1_rate_pfc")
 @df pfc_rate_isoAdjacent_meanOfTimes boxplot(:isolated, :rate, title="SignedRankPval=$(round(pvalue(srt),sigdigits=2)), with N=$(srt.n) PFC cells",
                          xticks=([0,1], collect(values(isonames))))
 @df pfc_rate_isoAdjacent_meanOfTimes scatter!(:isolated, :rate, group=:isolated)
 Plot.save((;save_kws...,desc="meanmean_pfc_cell_rate"))
+# ======================================================
 
 """
 Mean of rates, per cell x time
 """
-isolated_unit = DataFrame()
-for cell_isolation_group in groupby(spikes, :isolated)
-    sample = [R[time=B, unit=At(pfc_units)]
-                for B in Between.(cell_isolation_group.time.-0.02,
-                                  cell_isolation_group.time.+0.02)]
-    sample = [s for s in sample if !isempty(s)]
-    @time sample = vcat(sample...)
-    unit = repeat(vec(pfc_units)', size(sample,1))
-    append!(isolated_unit,
-    DataFrame(OrderedDict(
-        :unit     => vec(unit),
-        :isolated => cell_isolation_group.isolated[1],
-        :rate     => vec(sample) ))
-        )
-end
+D = compute_differences_df(pfc_rate_isoAdjacent_meanOfTimes; grouping=[], labels=Dict(:isolated=>isolated_label))
 
-@subset!(isolated_unit, :isolated .== 0 .|| :isolated .== 1)
-transform!(isolated_unit, DataFrames.All(), :isolated => (x->[isonames[xx] for xx in x]) => :isolated_label)
-#srt_units
+@subset!(D, :isolated .== 0 .|| :isolated .== 1)
+transform!(D, DataFrames.All(), :isolated => (x->[isonames[xx] for xx in x]) => :isolated_label)
+srt = UnequalVarianceTTest(@subset(D,:isolated.==0).rate,
+                          @subset(D,:isolated.==1).rate)
 
-srt = UnequalVarianceTTest(@subset(isolated_unit,:isolated.==0).rate,
-              @subset(isolated_unit,:isolated.==1).rate)
-@df isolated_unit boxplot(:isolated, :rate, title="Firing rate samples per spike\nTTest=$(round(pvalue(srt),sigdigits=2)) difference of individual cells",
+
+# =========PLOTS =======================================
+Plot.setfolder("nonlocality", "isolated_ca1_rate_pfc")
+@df isoadj_cellandtime boxplot(:isolated, :rate, title="Firing rate samples per spike\nTTest=$(round(pvalue(srt),sigdigits=2)) difference of individual cells",
                          xticks=([0,1], collect(values(isonames))), outliers=false)
 Plot.save((;save_kws...,desc="firing rate samples per spike"))
+# ======================================================
 
 """
 DO SAME split by cue and memory!
@@ -162,7 +206,7 @@ DO SAME split by cue and memory!
 
 srt   = OrderedDict()
 diffs = OrderedDict()
-@showprogress for U in groupby(isolated_unit, :unit)
+@showprogress for U in groupby(isoadj_cellandtime, :unit)
     push!(srt,
             U.unit[1] => UnequalVarianceTTest(@subset(U,:isolated.==0).rate,
                                               @subset(U,:isolated.==1).rate))
@@ -171,6 +215,8 @@ diffs = OrderedDict()
 
 end
 
+# =========PLOTS =======================================
+Plot.setfolder("nonlocality", "isolated_ca1_rate_pfc")
 pv_higheradjacent = pvalue.(values(srt)) .< 0.05/length(srt) .&& values(diffs) .> 0
 pv_higherisolated  = pvalue.(values(srt)) .< 0.05/length(srt) .&& values(diffs) .< 0
 pv_nonsig    = pvalue.(values(srt)) .> 0.05/length(srt)
@@ -180,66 +226,15 @@ bar([0, 1, 2], mean.([pv_nonsig, pv_higheradjacent, pv_higherisolated]),
     ylabel="Percent", title="Nonlocality: PFC firing conditioned on CA1 field")
 
 Plot.save((;save_kws...,desc="bonferroni sig per cell, firing rate samples per spike"))
+# ======================================================
 
-# -----------------------------------------------------
+"""
 # Split by cuemem
-# -----------------------------------------------------
+"""
 Utils.filtreg.register(beh,spikes, on="time", transfer=["cuemem"])
 
-# RATE MOD
-isolated_cuememunit = DataFrame()
-@showprogress for group in groupby(dropmissing(spikes,:cuemem), [:isolated,:cuemem])
-    @info "samples" size(group.time)
-    sample = [R[time=B, unit=At(pfc_units)]
-                for B in Between.(group.time.-0.02, group.time.+0.02)]
-    sample = [s for s in sample if !isempty(s)]
-    @time sample = vcat(sample...)
-    unit = repeat(vec(pfc_units)', size(sample,1))
-    append!(isolated_cuememunit,
-    DataFrame(OrderedDict(
-        :unit => vec(unit),
-        :isolated => group.isolated[1],
-        :cuemem => group.cuemem[1],
-        :rate => vec(sample) ))
-        )
-end
-
-clab = OrderedDict(-1 => "nontask", 0 => "cue", 1=> "mem")
-
-D = DataFrame()
-@time @showprogress for group in groupby(isolated_cuememunit,[:cuemem])
-     adjacent_spikes = @subset(group,:isolated.==0).rate
-     iso_spikes      = @subset(group,:isolated.==1).rate
-     test =  UnequalVarianceTTest(adjacent_spikes, iso_spikes)
-     pval = pvalue(test)
-     append!(D, OrderedDict(
-        :cuemem => group.cuemem[1],
-        :cuemem_label => clab[group.cuemem[1]],
-        :diff            => mean(iso_spikes) - mean(adjacent_spikes),
-        :iso_spikes      => mean(iso_spikes),
-        :adjacent_spikes => mean(adjacent_spikes),
-        :pval => pval,
-        :test => test,
-       ))
-end
-Du = DataFrame()
-@time @showprogress for group in groupby(isolated_cuememunit,[:cuemem,:unit])
-     adjacent_spikes = @subset(group,:isolated.==0).rate
-     iso_spikes      = @subset(group,:isolated.==1).rate
-     test =  UnequalVarianceTTest(adjacent_spikes, iso_spikes)
-     pval = pvalue(test)
-     append!(Du, OrderedDict(
-        :cuemem => group.cuemem[1],
-        :cuemem_label => clab[group.cuemem[1]],
-        :unit => group.unit[1],
-        :diff => mean(iso_spikes) - mean(adjacent_spikes),
-        :iso_spikes      => mean(iso_spikes),
-        :adjacent_spikes => mean(adjacent_spikes),
-        :pval => pval,
-        :test => test,
-       ))
-end
-
+pfc_rate_isoAdjacent_meanOfTimes = get_pfcrate_samples_at_spike(spikes, R; grouping=[:cuemem], labels=Dict(:cuemem=>clab))
+D  = compute_differences_df(pfc_rate_isoAdjacent_meanOfTimes; grouping=:cuemem, labels=Dict(:cuemem=>clab))
 D.clabel = getindex.([clab], D.cuemem)
 
 transform!(D, Colon(), :pval => Utils.pfunc => :pval_label)
@@ -250,10 +245,11 @@ markers = text.(D.pval_label, :white)
 #transform!(Du, DataFrames.All(), :pval => Utils.pfunc => :pval_label)
 Plot.save((;save_kws..., desc="diff of iso adjacent in each state"))
 
+"""
+# Split by cuemem and pfc unit
+"""
+Du = compute_differences_df(pfc_rate_isoAdjacent_meanOfTimes; grouping=[:unit,:cuemem], labels=Dict(:cuemem=>clab))
 @df Du scatter!(:cuemem .+ 0.05 .* randn(size(:cuemem)) , :diff, xticks=([-1,0,1], collect(values(clab))) )
-
-#markers = text.(D.pval_label, :white)
-#@df Du annotate!(:cuemem, :diff * 1.025, markers)
 
 # SHEER NUMBER OF OUT OF FIELDERS
 if_counts = combine(groupby(spikes, [:cuemem, :isolated]), nrow)
@@ -267,10 +263,9 @@ sort!(if_perc, :isolated)
 
 Plot.save((;save_kws..., desc="cellcounts sig"))
 
-
-# -----------------------------------------------------
+"""
 # PFC firign rates norm by 0-1
-# -----------------------------------------------------
+"""
 Plot.setfolder("nonlocality", "isolated_ca1_pfc_rates")
 Rpfc =  Munge.spiking.torate(@subset(allspikes, :area .== "PFC"), beh)
 Dpfc = DataFrame([0;Rpfc], :auto)
@@ -286,9 +281,9 @@ Plot.save("Average of PFC cell firing, mean(norm0)")
 bar(["Nontask","Cue","Memory"], mean(pfc_cell_means, dims=2))
 Plot.save("Average of PFC cell firing, mean(rate)")
 
-# -----------------------------------------------------
+"""
 # PFC firing rates norm by zscore
-# -----------------------------------------------------
+"""
 Plot.setfolder("nonlocality", "isolated_ca1_pfc_rates")
 Rpfc =  Munge.spiking.torate(@subset(allspikes, :area .== "PFC"), beh)
 Rpfc =  (Rpfc.-Matrix(mean(Rpfc,dims=1)))./Matrix(std(Rpfc,dims=1))
