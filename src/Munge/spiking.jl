@@ -274,11 +274,11 @@ module spiking
             if length(explore_cycles) < length(explore)
                 cycle.isolated .= false
             else
-                order = sortperm([mean(c.time) for c in cycles[explore_cycles]])
+                center_times = [abs(mean(c.time)-mean(cycle.time)) for c in cycles[explore_cycles]]
+                order = sortperm(center_times)
                 nearest = explore_cycles[order[1:N]]
                 cycle_prox = [abs(cycle[1,cycle_prop] - other_cyc[1,cycle_prop])
                               for other_cyc in cycles[nearest]]
-                @infiltrate
                 nearestcyc = minimum(cycle_prox)
                 meancyc    = mean(cycle_prox)
                 isolated   = meancyc > thresh

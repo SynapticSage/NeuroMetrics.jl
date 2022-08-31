@@ -83,7 +83,7 @@ function annotate_nonlocal_spikes!(spikes::DataFrame, unitshift::DimArray, shift
                                     thresh=0.8, hullmax=1,
                                     n_examples=20, shuf=true)
     # Push details about fields and best shift
-    push_celltable!(unitshift,   cells, :unit, :area)
+    push_celltable!(unitshift, cells, :unit, :area)
     push_dims!(unitshift)
     push_shiftmetric!(unitshift, best_tau!; metric=:bitsperspike)
     shift0 = unitshift[shift=At(shift)]
@@ -136,7 +136,7 @@ function annotate_nonlocal_spikes!(spikes::DataFrame, unitshift::DimArray, shift
     colorbar=false, titlefontsize=6, tickfontsize=6, framestyle=:none, size=(800,800))
 end
 
-annotate_nonlocal_spikes!(spikes, shift0)
+annotate_nonlocal_spikes!(spikes, unitshift)
 Plot.save((;desc="example of convex hulls"))
 
 # Get likelihood of nonlocal

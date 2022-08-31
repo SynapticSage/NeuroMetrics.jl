@@ -74,7 +74,8 @@ sort(unique(spikes.unit))
 # ===================
 # ISOLATED SPIKING
 # ===================
-Munge.spiking.isolated(spikes, lfp)
+Munge.spiking.isolated(sp, lfp, include_samples=true)
+Munge.spiking.isolated(spikes, lfp, include_samples=true)
 
 """
 Mean cycle dist

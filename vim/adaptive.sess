@@ -7,7 +7,6 @@ let Tlist_Show_One_File =  0
 let NERDTreeMinimalUI =  0 
 let WebDevIconsNerdTreeGitPluginForceVAlign =  1 
 let NERDTreeRespectWildIgnore =  0 
-let NERDTreeMapHelp = "?"
 let NERDTreeMapToggleHidden = "I"
 let NERDTreeWinSize =  31 
 let UltiSnipsRemoveSelectModeMappings =  1 
@@ -15,7 +14,9 @@ let LanguageClient_loaded =  1
 let NERDTreeMapMenu = "m"
 let JuliaFormatter_sysimage_path = "/home/ryoung/.vim/plugged/JuliaFormatter.vim/scripts/juliaformatter.so"
 let NERDTreeMapJumpParent = "p"
-let NERDTreeNodeDelimiter = ""
+let NERDTreeAutoCenter =  1 
+let ScreenImpl = "Tmux"
+let NERDTreeCascadeOpenSingleChildDir =  1 
 let NERDTreeShowBookmarks =  0 
 let NERDTreeMouseMode =  1 
 let NERDTreeCreatePrefix = "silent"
@@ -23,19 +24,18 @@ let NERDTreeMapOpenSplit = "i"
 let JuliaFormatter_root = "/home/ryoung/.vim/plugged/JuliaFormatter.vim"
 let NERDTreeShowLineNumbers =  0 
 let NERDTreeHighlightCursorline =  1 
-let UltiSnipsExpandTrigger = "<C-j>"
+let UltiSnipsEnableSnipMate =  1 
 let Tlist_GainFocus_On_ToggleOpen =  0 
 let Tlist_Auto_Update =  1 
 let Lf_StlColorscheme = "one"
 let NERDTreeMapPreviewVSplit = "gs"
 let NERDTreeMapJumpRoot = "P"
 let NERDTreeGlyphReadOnly = "RO"
-let NERDTreeMapDeleteBookmark = "D"
+let NERDTreeAutoDeleteBuffer =  0 
 let NERDTreeMapRefreshRoot = "R"
-let NERDTreeAutoCenter =  1 
-let NERDTreeCascadeOpenSingleChildDir =  1 
 let NERDTreeMapOpenVSplit = "s"
 let UltiSnipsDebugHost = "localhost"
+let NERDTreeMapDeleteBookmark = "D"
 let Tlist_File_Fold_Auto_Close =  0 
 let UltiSnipsEditSplit = "vertical"
 let NERDTreeMapJumpFirstChild = "K"
@@ -60,6 +60,7 @@ let WebDevIconsUnicodeDecorateFileNodes =  1
 let UltiSnipsPMDebugBlocking =  0 
 let Tlist_Display_Tag_Scope =  1 
 let NERDTreeMapOpenInTabSilent = "T"
+let NERDTreeMapHelp = "?"
 let NERDTreeMapJumpPrevSibling = "<C-k>"
 let NERDTreeMapOpenInTab = "t"
 let NERDTreeChDirMode =  0 
@@ -69,9 +70,8 @@ let NERDTreeShowFiles =  1
 let NERDTreeHijackNetrw =  1 
 let Tlist_Max_Submenu_Items =  20 
 let NERDTreeBookmarksSort =  1 
-let NERDTreeNaturalSort =  0 
+let WebDevIconsNerdTreeBeforeGlyphPadding = " "
 let JuliaFormatter_loaded =  1 
-let NERDTreeMapToggleFilters = "f"
 let NERDTreeMinimalMenu =  0 
 let Tlist_WinWidth =  30 
 let Tlist_Close_On_Select =  0 
@@ -88,8 +88,7 @@ let Tlist_Use_SingleClick =  0
 let UltiSnipsUsePythonVersion =  3 
 let NERDTreeMapCloseDir = "x"
 let NERDTreeSortHiddenFirst =  1 
-let UltiSnipsEnableSnipMate =  1 
-let NERDTreeAutoDeleteBuffer =  0 
+let UltiSnipsExpandTrigger = "<C-j>"
 let DevIconsEnableFoldersOpenClose =  0 
 let NERDTreeUseTCD =  0 
 let JuliaFormatter_log = "/home/ryoung/.vim/plugged/JuliaFormatter.vim/scripts/juliaformatter.log"
@@ -130,15 +129,15 @@ let NERDTreeNotificationThreshold =  100
 let NERDTreeMapActivateNode = "o"
 let NERDTreeWinPos = "left"
 let NERDTreeStatusline = "%{exists('b:NERDTree')?b:NERDTree.root.path.str():''}"
-let ScreenImpl = "Tmux"
+let NERDTreeMapToggleFilters = "f"
+let NERDTreeNodeDelimiter = ""
 let VM_Mono_hl = "VMCursor"
 let LanguageClient_serverStatus =  0 
 let DevIconsArtifactFixChar = " "
-let DevIconsEnableNERDTreeRedraw =  0 
 let Tlist_WinHeight =  10 
 let Tlist_Inc_Winwidth =  1 
 let NERDTreeMapCWD = "CD"
-let WebDevIconsNerdTreeBeforeGlyphPadding = " "
+let NERDTreeNaturalSort =  0 
 let NERDTreeMenuDown = "j"
 let NERDTreeMapUpdir = "u"
 let WebDevIconsUnicodeDecorateFolderNodesSymlinkSymbol = ""
@@ -150,9 +149,10 @@ let NERDTreeMapJumpLastChild = "J"
 let NERDTreeMapJumpNextSibling = "<C-j>"
 let NERDTreeCopyCmd = "cp -r "
 let NERDTreeMapQuit = "q"
-let Tlist_Use_Right_Window =  0 
 let NERDTreeDirArrowCollapsible = "▾"
+let DevIconsEnableNERDTreeRedraw =  0 
 let NERDTreeQuitOnOpen =  0 
+let Tlist_Use_Right_Window =  0 
 silent only
 silent tabonly
 cd ~/Code/projects/goal-code/_research
@@ -233,7 +233,7 @@ badd +113 ~/Code/projects/goal-code/src/Timeshift/types.jl
 badd +118 ~/Code/projects/goal-code/notebooks/Examine_LoadMains.jl
 badd +21 ~/Code/projects/goal-code/src/Utils.jl
 badd +113 ~/Code/projects/goal-code/src/Munge/tensor.jl
-badd +255 ~/Code/projects/goal-code/src/Munge/spiking.jl
+badd +278 ~/Code/projects/goal-code/src/Munge/spiking.jl
 badd +173 ~/Code/utilities/+units/getRateMatrix.m
 badd +118 ~/Code/utilities/+units/sparseToDense.m
 badd +11 ~/Code/projects/goal-code/src/Utils/filtreg.jl
@@ -252,7 +252,7 @@ badd +1 ~/Code/projects/goal-code/src/Table/clean.jl
 badd +9 ~/Code/projects/goal-code/test/runtests.jl
 badd +102 ~/Code/projects/goal-code/notebooks/TestAdaptive.jl
 badd +8 ~/Code/projects/goal-code/scripts/timeshift/make_dataframes.jl
-badd +9 ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl
+badd +29 ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl
 badd +2 ~/Code/projects/goal-code/src/Decode.jl
 badd +2 ~/Code/projects/goal-code/intro.jl
 badd +31 ~/Code/projects/goal-code/src/Table/columntype.jl
@@ -293,10 +293,10 @@ badd +17 ~/Code/projects/goal-code/scripts/decode/StillThetaSeqPlots.jl
 badd +140 ~/Code/projects/goal-code/src/Decode/checkpoint.jl
 badd +19 ~/Code/projects/goal-code/src/Munge/behavior.jl
 badd +36 ~/.julia/config/startup.jl
-badd +137 ~/Code/projects/goal-code/scripts/nonlocality/test_nonlocality.jl
+badd +87 ~/Code/projects/goal-code/scripts/nonlocality/test_nonlocality.jl
 badd +1 ~/Code/projects/goal-code/src/Munge/timeshift.jl
 badd +364 ~/.julia/packages/Arrow/ZlMFU/src/table.jl
-badd +81 ~/Code/projects/goal-code/scripts/nonlocality/test_isolated.jl
+badd +18 ~/Code/projects/goal-code/scripts/nonlocality/test_isolated.jl
 badd +0 ~/Code/projects/goal-code/src/Utils/statistic.jl
 badd +227 ~/Code/projects/goal-code/src/Munge/lfp_decode.jl
 badd +1 test_change_keys.jl
@@ -309,9 +309,9 @@ tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabrewind
-edit ~/Code/projects/goal-code/src/Munge/spiking.jl
+edit ~/Code/projects/goal-code/scripts/nonlocality/test_isolated.jl
 argglobal
-balt ~/Code/projects/goal-code/scripts/nonlocality/test_isolated.jl
+balt ~/Code/projects/goal-code/src/Munge/spiking.jl
 let s:l = 1 - ((0 * winheight(0) + 28) / 57)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
@@ -322,11 +322,11 @@ tabnext
 edit ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl
 argglobal
 balt ~/Code/projects/goal-code/src/Decode/makie_observable.jl
-let s:l = 25 - ((24 * winheight(0) + 28) / 57)
+let s:l = 81 - ((28 * winheight(0) + 28) / 57)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 25
+keepjumps 81
 normal! 0
 tabnext
 edit ~/Code/projects/goal-code/src/Munge/lfp_decode.jl
