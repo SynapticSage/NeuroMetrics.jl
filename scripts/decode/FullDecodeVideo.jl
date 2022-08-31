@@ -77,6 +77,7 @@ append!(boundary, DataFrame(boundary[1,:]))
 #iso = Load.column_load_spikes("isolated", "RY16", 36)
 #Load.register(iso, spikes, on="time", transfer=["isolated"])
 Munge.spiking.isolated(spikes, lfp)
+
 spikes[!,:isolated_area] = convert(Vector{Float16}, spikes.isolated)
 spikes[spikes.isolated_area .== 1 .&& spikes.area.=="PFC",:isolated_area] .= 0.5
 
@@ -114,7 +115,7 @@ cells, spikes = Load.cell_resort(cells, spikes, resort_cell_order)
 
 Δ_bounds = [0.20, 0.20] # seconds
 
-tr = Dict("beh"=>Utils.searchsortednearest(beh.time, T[1]),
+start_index = Dict("beh"=>Utils.searchsortednearest(beh.time, T[1]),
           "lfp"=>Utils.searchsortednearest(lfp.time, T[1]))
 
 # Period of sample
@@ -132,34 +133,6 @@ function get_extrema(df, col)
     nanextrema(x)
 end
 
-spike_colorrange = begin
-    if colorby === nothing
-        (-Inf, Inf)
-    else
-        if colorwhere == :behavior
-            get_extrema(beh, colorby)
-        elseif colorwhere == :spikes
-            spikes[!, colorby] = disallowmissing(replace(spikes[!, colorby], missing=>NaN))
-            get_extrema(spikes, colorby)
-        elseif colorwhere == :cells
-            cells[!,colorby] = replace(cells[!, colorby], missing=>NaN)
-            get_extrema(cells[spikes[!,:unit],:], colorby)
-        else
-            @error "Unrecognized symbol=$colorwhere"
-        end
-    end
-end
-spikes_abovebelow_quantile = nothing
-if spikes_abovebelow_quantile !== nothing
-    spike_colorrange=(-1, 1)
-end
-spike_colormap = if Utils.in_range([0], spike_colorrange)[1]
-    top_value = max(abs.(spike_colorrange)...)
-    spike_colorrange = (-top_value,top_value)
-    (spike_cmap_with0,0.9)
-else
-    (spike_cmap_zeroless,0.9)
-end
 
 if resort_cell_order !== nothing
     cells, spikes = Load.cell_resort(cells, spikes, resort_cell_order)
@@ -214,11 +187,11 @@ using Decode
 using Decode.makie_observable
 @time beh_window   = @lift select_range($t, T, data=beh, Δ_bounds=[-0.01, 0.60])
 @time spike_window = @lift select_range($t, T, data=spikes, Δ_bounds=Δ_bounds)
-@time lfp_window   = @lift select_est_range($t, T, tr["lfp"], Δt["lfp"],
-                                            data=lfp, Δ_bounds=Δ_bounds)
+@time lfp_window   = @lift select_est_range($t, T, start_index["lfp"], Δt["lfp"],
+                                            data=lfp, Δ_bounds=Δ_bounds) # TODO warning this only works for an epoch alone, times skip are not constant across epoch borders
 @time ripple_window = @lift Decode.select_events($t, T, events=ripples)
 @time cycle_window  = @lift Decode.select_events($t, T, events=cycles)
-theta_prob  = @lift select_prob($t, T; prob=theta)
+theta_prob  = @lift select_prob($t,  T; prob=theta)
 ripple_prob = @lift select_prob4($t, T; prob=ripple)
 
 lfp_now    = @lift Int32(round(size($lfp_window,1)/2))
@@ -278,13 +251,45 @@ xlims!(axLFP, Δ_bounds .* (-1,1))
 # ----------------
 # Neural data AXIS
 # ----------------
-spike_cmap_with0 = :vik
-spike_cmap_zeroless = :viridis
-spike_cbar = colorby===nothing ? nothing : Colorbar(gNeural[3:8, 2], limits =
-                                                   spike_colorrange,
-                                                   colormap=spike_cmap_zeroless, label =
-                                                   string(colorby), flipaxis = false,
-                                                   vertical=true)
+spike_colorrange = begin
+    if colorby === nothing
+        (-Inf, Inf)
+    else
+        if colorwhere == :behavior
+            get_extrema(beh, colorby)
+        elseif colorwhere == :spikes
+            spikes[!, colorby] = disallowmissing(replace(spikes[!, colorby],
+                                                         missing=>NaN))
+            get_extrema(spikes, colorby)
+        elseif colorwhere == :cells
+            cells[!,colorby] = replace(cells[!, colorby], missing=>NaN)
+            get_extrema(cells[spikes[!,:unit],:], colorby)
+        else
+            @error "Unrecognized symbol=$colorwhere"
+        end
+    end
+end
+spikes_abovebelow_quantile = nothing
+if spikes_abovebelow_quantile !== nothing
+    spike_colorrange=(-1, 1)
+end
+spike_colormap = if Utils.in_range([0], spike_colorrange)[1]
+    top_value = max(abs.(spike_colorrange)...)
+    spike_colorrange = (-top_value,top_value)
+    (spike_cmap_with0,0.9)
+else
+    (spike_cmap_zeroless,0.9)
+end
+
+# COLORBAR :: TODO, make this derive from the spike_colors arg
+#spike_cmap_with0 = :vik
+#spike_cmap_zeroless = :viridis
+#spike_cbar = colorby===nothing ? nothing : Colorbar(gNeural[3:8,2],
+#                                                   limits=spike_colorrange,
+#                                                   colormap=spike_cmap_zeroless,
+#                                                   label=string(colorby),
+#                                                   flipaxis=false,
+#                                                   vertical=true)
 
 spike_colors = @lift begin
     if colorby === nothing
@@ -305,7 +310,9 @@ end
 sc_sp_window = @lift([Point2f(Tuple(x)) for x in
                       eachrow($spike_window[!,[:time,:unit]])])
 
-sc = scatter!(axNeural, sc_sp_window, colormap=spike_colormap, markersize=6, colorrange=spike_colorrange, color=spike_colors)
+sc = scatter!(axNeural, sc_sp_window, colormap=spike_colormap, markersize=6,
+              colorrange=spike_colorrange, color=spike_colors)
+xlims!((Δ_bounds .* (-1,1))...)
 
 if resort_cell_order == :meanrate
     hlines!(axNeural, findfirst(cells.meanrate .>6), color=:darkgrey, linestyle=:dash)
@@ -335,6 +342,8 @@ if plotNon
     non_prob = @lift select_prob($t, T, prob=non)
     hm_non = heatmap!(axArena, x,y, non_prob, colormap=(:bamako,0.8))
 end
+xlims!(axArena, 40,175)
+ylims!(axArena, 10, 95)
 
 
 # ----------------
@@ -347,6 +356,12 @@ sc_arena = scatter!(axArena, arenaWells.x, arenaWells.y, marker=:star5, markersi
 sc_home  = scatter!(axArena, [homeWell.x], [homeWell.y],   marker='𝐇', markersize=25,   color=:gray)
 ln_xy = lines!(axArena, line_xy, color=:white, linestyle=:dash)
 lines!(axArena, boundary.x, boundary.y, color=:grey)
+
+# -----------------
+# Show place fields
+# -----------------
+if hasproperty(Main,:F)
+end
 
 # ----------------
 # Sequence vectors
@@ -393,8 +408,9 @@ sc_past_well    = scatter!(axArena, past₁_well_xy,    alpha=0.5, marker='𝐏'
 justify = 5
 cuemem_future₂ = @lift cmlabel[$beh_window.futureCuemem[now]]
 cuemem_past  = @lift cmlabel[$beh_window.pastCuemem[now]]
-textsize=10
-an_future₁_well = annotations!(axArena, cuemem_future,   future₁_well_xy, textsize, color=:blue)
+textsize=20
+an_future₁_well = text!(axArena, cuemem_future, align=(:right,:bottom),  position=future₁_well_xy, 
+                        textsize=textsize, color=:blue)
 an_future₂_well = annotations!(axArena, cuemem_future₂,  future₂_well_xy, textsize, color=:blue )
 an_past_well    = annotations!(axArena, cuemem_past,     past₁_well_xy, textsize, color=:blue  )
 if doPrevPast

@@ -1,4 +1,5 @@
 module makie_observable
+using Infiltrator
 
     using DataFramesMeta
     import Utils
@@ -27,7 +28,7 @@ module makie_observable
             Δ = -Int(round(Δ_bounds[1]/Δt)) : Int(round(Δ_bounds[2]/Δt))
             center_time = data.time[I]
             @debug "I=$I, Δ=$Δ"
-            data = data[min.(max.(I.+Δ,1), length(T)),:]
+            data = data[min.(max.( I.+ Δ,), size(data,1)),:]
             data.time .-= center_time
         else
             data = DataFrame(lfp[1,:])

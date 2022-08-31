@@ -252,7 +252,7 @@ badd +1 ~/Code/projects/goal-code/src/Table/clean.jl
 badd +9 ~/Code/projects/goal-code/test/runtests.jl
 badd +102 ~/Code/projects/goal-code/notebooks/TestAdaptive.jl
 badd +8 ~/Code/projects/goal-code/scripts/timeshift/make_dataframes.jl
-badd +29 ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl
+badd +364 ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl
 badd +2 ~/Code/projects/goal-code/src/Decode.jl
 badd +2 ~/Code/projects/goal-code/intro.jl
 badd +31 ~/Code/projects/goal-code/src/Table/columntype.jl
@@ -284,7 +284,7 @@ badd +15 ~/Code/projects/goal-code/src/Plot/task.jl
 badd +1 \'
 badd +249 ~/Code/projects/goal-code/scripts/timeshift/Plot_correlate_tau_SPACE_or_TIME.jl
 badd +11 ~/Code/projects/goal-code/scripts/decode/PreprocessLFP.jl
-badd +6 ~/Code/projects/goal-code/src/Decode/makie_observable.jl
+badd +26 ~/Code/projects/goal-code/src/Decode/makie_observable.jl
 badd +72 ~/Code/projects/goal-code/scripts/decode/LoadData.jl
 badd +32 ~/Code/projects/goal-code/src/Munge/lfp.jl
 badd +6 ~/Code/projects/goal-code/src/Load/decode.jl
@@ -296,7 +296,7 @@ badd +36 ~/.julia/config/startup.jl
 badd +87 ~/Code/projects/goal-code/scripts/nonlocality/test_nonlocality.jl
 badd +1 ~/Code/projects/goal-code/src/Munge/timeshift.jl
 badd +364 ~/.julia/packages/Arrow/ZlMFU/src/table.jl
-badd +18 ~/Code/projects/goal-code/scripts/nonlocality/test_isolated.jl
+badd +116 ~/Code/projects/goal-code/scripts/nonlocality/test_isolated.jl
 badd +0 ~/Code/projects/goal-code/src/Utils/statistic.jl
 badd +227 ~/Code/projects/goal-code/src/Munge/lfp_decode.jl
 badd +1 test_change_keys.jl
@@ -312,22 +312,22 @@ tabrewind
 edit ~/Code/projects/goal-code/scripts/nonlocality/test_isolated.jl
 argglobal
 balt ~/Code/projects/goal-code/src/Munge/spiking.jl
-let s:l = 1 - ((0 * winheight(0) + 28) / 57)
+let s:l = 116 - ((27 * winheight(0) + 28) / 56)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 1
-normal! 0
+keepjumps 116
+normal! 032|
 tabnext
 edit ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl
 argglobal
 balt ~/Code/projects/goal-code/src/Decode/makie_observable.jl
-let s:l = 81 - ((28 * winheight(0) + 28) / 57)
+let s:l = 364 - ((16 * winheight(0) + 28) / 56)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 81
-normal! 0
+keepjumps 364
+normal! 04|
 tabnext
 edit ~/Code/projects/goal-code/src/Munge/lfp_decode.jl
 let s:save_splitbelow = &splitbelow
@@ -393,6 +393,7 @@ if filereadable(s:sx)
 endif
 let &g:so = s:so_save | let &g:siso = s:siso_save
 set hlsearch
+nohlsearch
 let g:this_session = v:this_session
 let g:this_obsession = v:this_session
 doautoall SessionLoadPost

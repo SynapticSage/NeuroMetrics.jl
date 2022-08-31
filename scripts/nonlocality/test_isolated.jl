@@ -74,18 +74,8 @@ sort(unique(spikes.unit))
 # ===================
 # ISOLATED SPIKING
 # ===================
-Munge.spiking.isolated(sp, lfp, include_samples=true)
+#Munge.spiking.isolated(sp, lfp, include_samples=true)
 Munge.spiking.isolated(spikes, lfp, include_samples=true)
-
-"""
-Mean cycle dist
-"""
-Plot.setfolder("nonlocality","isolation-basic_column_plots")
-histogram(filter(x->!ismissing(x) && x<100, @subset(spikes,:area.=="CA1", :interneuron .!= true).meancyc), bins=40, yscale=:log10)
-Plot.save((;desc="Mean cycle, all cells"))
-histogram(filter(x->!ismissing(x) && x<100, @subset(spikes,:area.=="CA1", :interneuron .!= true).nearestcyc), bins=40, yscale=:log10)
-Plot.save((;desc="Nearest cycle, all cells"))
-
 
 
 # Split by isolated spikes and discover the fraction of isolated spikes
@@ -140,6 +130,43 @@ sort!(iso_sum_celltype, [:area, :interneuron, :cuemem])
 
 # =========PLOTS =======================================
 # ======================================================
+
+Load.register(beh, spikes, on="time", transfer=["period","correct"])
+iso_sum_celltype_per = get_isolation_summary(spikes, [:cuemem, :interneuron, :period, :correct])
+sort!(iso_sum_celltype_per, [:area, :interneuron, :cuemem, :period])
+@subset!(iso_sum_celltype_per, (:cuemem .== -1 .&& :correct .== -1) .||
+                                (:cuemem .== 0 .&& :correct .!= -1) .||
+                                (:cuemem .== 1 .&& :correct .!= -1))
+
+
+@df @subset(iso_sum_celltype_per, :interneuron .== false) scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), :events_per_time, group=:correct)
+@df @subset(iso_sum_celltype_per, :interneuron .== false) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :events_per_time, group=:correct, alpha=0.5)
+
+@df iso_sum_celltype_per scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), :events_per_time, group=:interneuron)
+@df iso_sum_celltype_per scatter(:cuemem .+ 0.25.*(:interneuron .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :events_per_time, group=:interneuron, alpha=0.5)
+
+
+@df @subset(iso_sum_celltype_per, :interneuron .== false) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:correct, alpha=0.5)
+@df iso_sum_celltype_per scatter(:cuemem .+ 0.25.*(:interneuron .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:interneuron, alpha=0.5)
+
+@df @subset(iso_sum_celltype_per, :interneuron .== false) scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), :isolated_events_per_time, group=:correct)
+@df @subset(iso_sum_celltype_per, :interneuron .== false) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_events_per_time, group=:correct, alpha=0.5)
+
+anim = @gif for i in 1:360
+    p1=@df @subset(iso_sum_celltype_per, :interneuron .== false, :cuemem .== 0) scatter(:isolated_mean, :isolated_events_per_time, :events_per_time, group=:correct, alpha=0.5, camera=(i,30), xlabel="fraction(isolated)",ylabel="isolated multiunit/s", zlabel="multiunit/s")
+    p2=@df @subset(iso_sum_celltype_per, :interneuron .== false, :cuemem .== 1) scatter(:isolated_mean, :isolated_events_per_time, :events_per_time, group=:correct, alpha=0.5, camera=(i,30),ylabel="isolated multiunit/s", zlabel="multiunit/s")
+    plot(p1,p2)
+end
+
+"""
+Mean cycle dist
+"""
+Plot.setfolder("nonlocality","isolation-basic_column_plots")
+histogram(filter(x->!ismissing(x) && x<100, @subset(spikes,:area.=="CA1", :interneuron .!= true).meancyc), bins=40, yscale=:log10)
+Plot.save((;desc="Mean cycle, all cells"))
+histogram(filter(x->!ismissing(x) && x<100, @subset(spikes,:area.=="CA1", :interneuron .!= true).nearestcyc), bins=40, yscale=:log10)
+Plot.save((;desc="Nearest cycle, all cells"))
+
 
 
 """
