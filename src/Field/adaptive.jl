@@ -178,6 +178,18 @@ module adaptive
         radius
     end
 
+    function fixed_radius(vals::Matrix{Float32}, center::Vector{Float32},
+        radius::Vector{Float32}; dt::Float32, thresh::Float32,
+        maxrad::Union{Float32,Vector{Float32}},
+        radiusinc::Union{Float32,Vector{Float32}}, kws...)::Vector{Float32}
+
+        samptime = get_samptime(vals, center, radius; dt)
+        if samptime == 0
+            radius = fill(NaN32, size(radius))
+        end
+        radius
+    end
+
     function converge_to_radius_w_inertia(vals::Matrix{Float32},
         center::Vector{Float32}, radius::Float32; dt::Float32,
         thresh::Float32, maxrad::Float32, radiusinc::Float32,
@@ -264,10 +276,10 @@ module adaptive
             @info widths
             prog = P = Progress(length(G); desc="Grid")
         end
-        Threads.@threads for (index, (center, radius)) in collect(enumerate(G))
+        Threads.@threads for (index, (this_center, radius)) in collect(enumerate(G))
             #i+=1
             #@info "pre $(i)" radius G.radii
-            newradius = method(vals, center, radius; dt, thresh, maxrad,
+            newradius = method(vals, this_center, radius; dt, thresh, maxrad,
                 radiusinc, ϵ)
             #@info "post $(i)" newradius G.radii
             #@infiltrate
@@ -417,18 +429,20 @@ module adaptive
     )::AdaptiveRF
         vals = Field.return_vals(spikes, grid.props)
         count = zeros(Int32, size(grid))
-        if thread_field
-            #@info "thread single field"
-            Threads.@threads for (index, (center, radius)) in
-                                 collect(enumerate(grid))
-                @inbounds count[index] = sum(inside(vals, center, radius))
-            end
-        else
-            @inbounds for (index, (center, radius)) in
-                          collect(enumerate(grid))
-                count[index] = sum(inside(vals, center, radius))
+        if size(vals, 1) > 1
+            if thread_field
+                Threads.@threads for (index, (center, radius)) in collect(enumerate(grid))
+                    if all((!).(isnan.(radius)))
+                        @inbounds count[index] = sum(inside(vals, center, radius)) 
+                    end
+                end
+            else
+                @inbounds for (index, (center, radius)) in collect(enumerate(grid))
+                    count[index] = sum(inside(vals, center, radius))
+                end
             end
         end
+        #@infiltrate all(count .== 0)
         count = reshape(count, size(grid))
         rate = @fastmath occ.camerarate * Float32.(count ./ occ.count)
         field = AdaptiveRF(grid, occ, count, rate, MetricSet())

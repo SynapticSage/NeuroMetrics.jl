@@ -89,7 +89,8 @@ module lfp_decode
         function matchdxy(time::Real) 
             I =  Utils.searchsortednearest(T, time)
             D = replace(dat[:,:,I], NaN=>0)
-            xi = argmax(maximum(D, dims=2), dims=1)
+            @infiltrate
+            xi = argmax(Utils.squeeze(maximum(D, dims=2)), dims=1)
             yi = argmax(Utils.squeeze(maximum(D, dims=1)), dims=1)
             ComplexF64(x[xi][1] + y[yi][1]im)
         end
@@ -125,10 +126,11 @@ module lfp_decode
             end
         end
 
+        subset!(cycles, :time => x->abs.(x .- T[Utils.searchsortednearest.([T], x)]) .< 2)
         removal_list = [:act₀, :act₁, :dec₀, :dec₁, :act₀₁, :dec₀₁]
         remove = [elem for elem in removal_list if elem in propertynames(cycles)]
         @debug remove
-        cylces = cycles[!, Not(remove)]
+        cycles = cycles[!, Not(remove)]
         cycles = transform(cycles, :start => (t->(match(t, [:x,:y]))) => :act₀,
                                    :stop  => (t->(match(t, [:x,:y]))) => :act₁,
                                    :start => (x->(matchdxy.(x)))   => :dec₀,
@@ -152,6 +154,7 @@ module lfp_decode
         cycles[!,:dec_ϕdu] = cycles.dec_ϕu - cycles.dec_ϕd
 
 
+        subset!(ripples, :time => x->abs.(x .- T[Utils.searchsortednearest.([T], x)]) .< 2)
         removal_list = [:act₀, :act₁, :dec₀, :dec₁, :act₀₁, :dec₀₁]
         remove = [elem for elem in removal_list if elem in propertynames(ripples)]
         @debug remove

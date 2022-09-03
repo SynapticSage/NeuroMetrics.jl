@@ -68,7 +68,8 @@ module Utils
     #    end
     #end
 
-    function norm_extrema(x::AbstractArray{T1}, minmax::Union{Vector{T2},Tuple{T2, T2}}) where
+    function norm_extrema(x::AbstractArray{T1}, 
+             minmax::Union{Vector{T2},Tuple{T2, T2}}=[0,1] ) where
         T1 <: Real where T2 <: Real
         if minmax isa Tuple
             minmax = [minmax...]
@@ -225,6 +226,7 @@ module Utils
     include(srcdir("Utils", "filtreg.jl"))
     include(srcdir("Utils", "arr.jl"))
     include(srcdir("Utils", "statistic.jl"))
+    include(srcdir("Utils", "mlj.jl"))
     @reexport using .dict
     @reexport using .namedtup
     @reexport using .plot
@@ -233,5 +235,6 @@ module Utils
     @reexport using .filtreg
     @reexport using .arr
     @reexport using .statistic
+    @reexport using .mlj
 
 end

@@ -113,7 +113,7 @@ resort_cell_order = [:area, :meanrate]
 # --------------------
 cells, spikes = Load.cell_resort(cells, spikes, resort_cell_order)
 
-Δ_bounds = [0.20, 0.20] # seconds
+Δ_bounds = [0.40, 0.40] # seconds
 
 start_index = Dict("beh"=>Utils.searchsortednearest(beh.time, T[1]),
           "lfp"=>Utils.searchsortednearest(lfp.time, T[1]))
@@ -361,6 +361,8 @@ lines!(axArena, boundary.x, boundary.y, color=:grey)
 # Show place fields
 # -----------------
 if hasproperty(Main,:F)
+
+    
 end
 
 # ----------------

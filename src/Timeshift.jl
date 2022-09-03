@@ -114,7 +114,7 @@ module Timeshift
             occfunc::Union{Function, Symbol,Nothing}=nothing,
             postfunc::Union{Function,Nothing}=nothing,
             metricfuncs::Union{Function,Symbol,
-                         Vector{Symbol},Vector{Function},Nothing}=adaptive.metric_def,
+                         Vector{Symbol},Vector{Function},Nothing}=nothing,
             multi::Union{Bool, Symbol}=true,
             result_dict::AbstractDict=Timeshift.DictOfShiftOfUnit{Float64}(),
             progress::Bool=true,
@@ -129,8 +129,12 @@ module Timeshift
 
         # Process preset options
         if fieldpreset !== nothing
-            fieldfunc, gridfunc, occfunc, metricfuncs, postfunc =
-                return_preset_funcs(fieldpreset)
+            f, g, o, m, p = return_preset_funcs(fieldpreset)
+            fieldfunc    = fieldfunc   === nothing ? f : fieldfunc
+            gridfunc     = gridfunc    === nothing ? g : gridfunc
+            occfunc      = occfunc     === nothing ? o : occfunc
+            metricsfuncs = metricfuncs === nothing ? m : metricfuncs
+            postfunc     = postfunc    === nothing ? p : postfunc
         end
         fieldfunc   = _functionalize(fieldfunc)
         occfunc     = _functionalize(occfunc)
@@ -146,6 +150,7 @@ module Timeshift
         if multi isa Bool
             multi = multi ? :thread : :single
         end
+        @info metricfuncs
 
         if filters !== nothing
             if Filt.filters_use_precache(filters) &&
@@ -160,8 +165,8 @@ module Timeshift
         grid = grid === nothing ? gridfunc(beh, props; grid_kws...) : grid
         occ  = occ  === nothing ? occfunc(beh, grid) : occ
 
-        ensureTimescale!(data)
-        ensureTimescale!(beh)
+        #ensureTimescale!(data)
+        #ensureTimescale!(beh)
         shiftbeh ? reset_shift!(beh) : reset_shift!(data)
 
         if !(isdefined(Main, :PlutoRunner)) && progress
@@ -208,6 +213,7 @@ module Timeshift
                                      thread_field, thread_fields))
                            )
             end
+            #@infiltrate all(isnan.([value[:maxrate] for value in values(result_dict[shift])]))
             if !(isdefined(Main, :PlutoRunner)) && progress
                 next!(prog)
             end

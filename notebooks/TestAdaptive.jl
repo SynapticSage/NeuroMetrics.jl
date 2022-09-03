@@ -1,124 +1,3 @@
-### A Pluto.jl notebook ###
-# v0.19.9
-
-using Markdown
-using InteractiveUtils
-
-# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
-macro bind(def, element)
-    quote
-        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
-        local el = $(esc(element))
-        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
-        el
-    end
-end
-
-# ╔═╡ 44dde9e4-f9ca-11ec-1348-d968780f671c
-# ╠═╡ show_logs = false
-begin
-	  using DrWatson
-	  quickactivate(expanduser("~/Projects/goal-code"))
-	  using Plots
-	  using Revise
-	  using DataFrames
-	  using NaNStatistics
-	  import ProgressLogging
-	  using PlutoUI
-	  using DataStructures: OrderedDict
-
-	  using GoalFetchAnalysis
-	  import Utils
-	  import Timeshift
-	  #import Plot
-	  using Field.metrics
-	  
-	  adaptive = Field.adaptive
-      metrics = Field.metrics
-	  WIDTHS = OrderedDict(
-		  "x"=>2.5f0, "y"=>2.5f0, "currentPathLength"=>2f0,
-          "currentAngle"=>Float32(2pi/80)
-	  )
-      filts = Filt.get_filters_precache()
-	maxrad = nothing
-end
-
-# ╔═╡ 5f6e31d3-7101-49aa-a289-39e3967aa3a8
-using ColorSchemes
-
-# ╔═╡ f5f1dbb9-3623-4628-8407-8809cd3fb118
-using Memoization
-
-# ╔═╡ 348e8178-ae24-4217-93a5-54d979b47d92
-begin
-	using ImageSegmentation, Images, LazySets, Statistics
-end
-
-# ╔═╡ ff1db172-c3ab-41ea-920c-1dbf831c1336
-md"""
-!!! notebook
-	🚀 **Adaptive receptive fields**
-
-Purpose: Test out my base adaptive field codes. Make sure the various steps (grid, occupancy, and fields) are working. Also make sure downstream shifted objects are working.
-
-##### *TODO*
-* metrics(shifted fields)
-* shifted field plot recipes
-* radii vector support
-  * plot recipe
-  * selection via 10 increase in base sample width
-* to_dataframe
-  * fields
-  * metrics
-  * shifted fields
-"""
-
-# ╔═╡ 0be7ba01-a316-41ce-8df3-a5ae028c74e7
-PlutoUI.TableOfContents(title="🚀 Adaptive RFs" )
-
-# ╔═╡ 37d7f4fd-80a7-47d0-8912-7f002620109f
-md"""
-# Preamble 
-Import packages
-"""
-
-# ╔═╡ da7809bb-a94f-440e-96c1-02e1feae9fc3
-import Plot
-
-# ╔═╡ a1ad6173-5ead-4559-bddb-9aee6119b9d0
-prop_sel = @bind prop_str PlutoUI.Radio(["y-x","currentAngle-currentPathLength", "currentAngle","currentPathLength"], default="currentAngle")
-
-# ╔═╡ 31082fe7-ed61-4d37-a025-77420da3f24a
-beh, spikes = begin
-	props = Vector{String}(split(prop_str, "-"))
-	@info props
-	@time spikes, beh, ripples, cells = Load.load("RY16", 36);
-	@time beh, spikes  = Load.register(beh, spikes; on="time", transfer=props)
-    spikes = dropmissing(spikes, props)
-    beh, spikes
-end;
-
-# ╔═╡ 2f8ac703-417c-4360-a619-e799d8bb594f
-md"""
-Loadup (spikes,beh) dataframes and transfer $(join(props,"-")) to spikes structure
-"""
-
-# ╔═╡ d51ce0f2-03bf-4c88-9302-9fd4bc8621eb
-grid_select = begin
-	width_select =  @bind width  Slider(0f0:0.2f0:2f0, show_value=true, default=2f0)
-	thresh_select = @bind thresh Slider(1f0:1f0:6f0, show_value=true, default=1.5f0)
-	(;width_select, thresh_select)
-end
-
-# ╔═╡ cbfbe9c9-f7c5-4219-8d81-b335fe5f5ed6
-radiusinc, ylim, aspect_ratio = if prop_sel == "y-x"
-	0.1f0, nothing, 1
-elseif prop_sel == "currentAngle-currentPathLength"
-    0.05f0, (0, 100), 1/18
-else
-	0.05f0, nothing, 1
-end
-
 # ╔═╡ efcdc2f1-5e26-4534-953e-defae4bd8603
 md"""
 # Δt = 0 only
@@ -190,10 +69,58 @@ we're going to want codes that take a set of receptive fields and turn them into
 """
 
 # ╔═╡ d1fe3b02-34f5-46ae-8da8-4bac71c86d84
-shifts = -3:0.25:3
+shifts = -2.5:0.2:2.5
+
+# ╔═╡ 014d81aa-5441-41c1-8b71-a347dd03ac9a
+
 
 # ╔═╡ 316dab79-015f-46e4-88f5-7051529484e5
 @bind timeshift Slider(shifts, default=0)
+
+# ╔═╡ 69d37df3-69d3-4c91-8adf-ff8ecd4c9df1
+md"## Isolated spiking"
+
+# ╔═╡ 664fba69-e498-462a-8e84-522a22f2498d
+if !hasproperty(spikes, :isolated)
+	@time lfp = Load.load_lfp("RY16",36,tet=5)
+	@time Munge.lfp.annotate_cycles(lfp)
+	lfp.time .-= Load.min_time_records[1]
+	@time Munge.spiking.isolated(spikes,lfp)
+end
+
+# ╔═╡ bf12b73f-c146-4ab2-be79-5b8097add3f3
+begin
+	datacut_sl = @bind datacut_str PlutoUI.Radio(["all","cue","memory","nontask"], default="memory")
+
+	norm_sl = @bind norm PlutoUI.Radio(["01","percent"],default="percent")
+	
+	iso_sl=(;datacut_sl, norm_sl)
+end
+
+# ╔═╡ 00936498-8061-43da-bdb3-0c7b000770bb
+datacut = Symbol(datacut_str)
+
+# ╔═╡ ffe4b420-41ae-4c58-8bd6-d5d684f48b78
+if norm == "percent"
+		normf = Utils.norm_percent
+	else
+		normf = Utils.norm_extrema
+	end
+
+# ╔═╡ fff27c22-7c2c-45d0-a670-6920b9bd6a31
+all((!).(spikes.isolated))
+
+# ╔═╡ 85cf402a-eb7b-4d3c-972b-810ac1708632
+isotab = combine(groupby(spikes, :unit), :isolated=>mean=>:isofraction)
+
+# ╔═╡ ebe2194d-e79d-4a5e-bd83-a06eae95932f
+isotab.unit
+
+# ╔═╡ 9a2edeed-d33b-45e3-8dfc-1d03b967accc
+F = @formula isofraction ~ 1 * Not(isofraction)
+
+# ╔═╡ 3989392b-2f71-4613-ad85-d2fb828379d7
+
 
 # ╔═╡ 588bff56-6518-4410-b19a-dc745cf067e7
 md"""
@@ -357,11 +284,159 @@ end;
 shifted = Timeshift.shifted_fields(beh, spikes, shifts, G.props;
                                shiftbeh=false,
                                widths, 
-							   filters=filts[:all], 
-							   thresh)
+							   filters=filts[datacut], 
+							   thresh);
 
 # ╔═╡ d0ed9a46-00bb-4ce2-a2db-50bc060ec976
 SFs = Timeshift.ShiftedFields(shifted);
+
+# ╔═╡ 7cb361f2-09c9-48ad-ad01-971ac273ecd3
+begin
+	f = types.matrixform(SFs);
+	push_shiftmetric!(f, best_tau!; metric=:bitsperspike);
+end
+
+# ╔═╡ f4466cd6-9f84-4fe4-a420-e77efc0c8ff8
+begin
+	idx_typ = sortperm(f[:bestshift_bitsperspike][:,1])
+	f_s = f[idx_typ,:]
+	M=Matrix(f_s[:bitsperspike])
+end
+
+# ╔═╡ 6c9a2819-b121-4b9a-a94d-11b3eb85fa7c
+size(M)
+
+# ╔═╡ bc93bf68-b7ac-4926-a7fd-dfff5b657f6a
+heatmap(hcat([Utils.norm_extrema(m) for m in  eachrow(M)]...)')
+
+# ╔═╡ 79b0a225-9019-4379-b9d0-61ff3408a690
+metrics.push_dims!(f_s)
+
+# ╔═╡ 60ba0b7b-e30d-42c8-9ff6-e17b5163ff53
+isotau = leftjoin( DataFrame([f_s[:bestshift_bitsperspike][:,1] f_s[:unit][:,1]], [:bestshift_bitsperspike, :unit]), isotab; on=:unit)
+
+# ╔═╡ e1136496-d5fa-442b-85b0-a69379c0335a
+@df isotau scatter(:bestshift_bitsperspike, :isofraction)
+
+# ╔═╡ 3c7440bf-0e77-4287-870c-3b88b0539607
+begin
+	shifted_iso = @memoize Timeshift.shifted_fields(beh, @subset(spikes,:isolated .== true), shifts, G.props;
+							   shiftbeh=false,
+							   widths, 
+							   filters=filts[datacut], 
+							   thresh);
+	
+	shifted_adj = @memoize Timeshift.shifted_fields(beh, @subset(spikes,:isolated .== false), shifts, G.props;
+							   shiftbeh=false,
+							   widths, 
+							   filters=filts[datacut], 
+							   thresh);
+end
+
+# ╔═╡ 129a57c7-aa83-41dc-8071-d6d7213d56b9
+begin
+		is_sfs = ShiftedFields(shifted_iso);
+		f_is = types.matrixform(is_sfs);
+		push_shiftmetric!(f_is, best_tau!; metric=:bitsperspike);
+end
+
+# ╔═╡ a279c651-b6f2-46d1-a0d6-c529a64517bf
+adj_sfs = ShiftedFields(shifted_adj);
+
+# ╔═╡ 65bed4d7-d800-4664-a152-6408a3621ab0
+f_adj = types.matrixform(adj_sfs);
+
+# ╔═╡ 45ad932d-922f-4e54-862e-b5db0c2f3658
+push_shiftmetric!(f_adj, best_tau!; metric=:bitsperspike);
+
+# ╔═╡ f4da9ee3-9882-4cd3-b3df-7f67e5f60ce1
+begin
+	idx = sortperm(f_is[:bestshift_bitsperspike][:,1])
+	f_sort = f_is[idx,:]
+	M_iso=Matrix(f_sort[:bitsperspike])
+	
+	idx = sortperm(f_adj[:bestshift_bitsperspike][:,1])
+	f_sort_adj = f_adj[idx,:]
+	M_adj = Matrix(f_sort_adj[:bitsperspike])
+end
+
+# ╔═╡ 444a4624-c446-4995-b4c2-c46241d3c668
+begin
+	pppp=plot()
+	labs = Dict(1=>"total", 2=>"isolated", 3=>"adjacent")
+	for (i, x) in enumerate([f_s[:,1][:bestshift_bitsperspike], vec(f_is[:,1][:bestshift_bitsperspike]), vec(f_adj[:,1][:bestshift_bitsperspike])])
+		violin!(fill(i, size(x)), x, c=:gray, label="")
+		scatter!(fill(i, size(x)) .+ 0.1 .* randn(size(x)), x, label=labs[i])
+	end
+	pppp
+end
+
+# ╔═╡ aff279a1-e837-484c-a5bd-112331cf2769
+begin
+	pppp
+	Plot.setfolder("nonlocality","isolated-shifted")
+	Plot.save((;desc="shifted sum of isolated firing (percent normed, around median)", filt=datacut, norm=norm));
+end
+
+# ╔═╡ 1bb9e911-b027-4f2b-a6d1-bdf81d0f174b
+begin
+	ppppp=plot()
+	for (i, x) in enumerate([vec(f_s[:,1][:bestshift_bitsperspike]), vec(f_is[:,1][:bestshift_bitsperspike]), vec(f_adj[:,1][:bestshift_bitsperspike])])
+		plot!(ecdf(x), label=labs[i])
+	end
+	ppppp
+end
+
+# ╔═╡ b873baf8-ceaa-47b5-b805-76f6bcfa49b2
+begin
+	ppppp
+	Plot.setfolder("nonlocality","isolated-shifted")
+	Plot.save((;desc="ecdf compare shifted sum of isolated firing (percent normed, around median)", filt=datacut, norm=norm));
+end
+
+# ╔═╡ 18abe083-65fd-4b6f-9bee-589c57f16b3f
+begin
+	sh_iso,un_iso = getshifts(is_sfs),[x[1] for x in getunits(is_sfs)]
+	sh_adj,un_adj = getshifts(adj_sfs),[x[1] for x in getunits(adj_sfs)]
+end
+
+# ╔═╡ 697ffe5f-d3e6-44a5-b8ec-57a04a84a4e4
+begin
+
+	h_typ = heatmap(shifts,1:length(units),hcat([Utils.norm_percent(m,.5) for m in eachrow(M)]...)'; clim=(-50,50))
+	vline!([0], c=:black, linestyle=:dash, linewidth=2, legend=:none)
+	
+	h_iso = heatmap(sh_iso,1:length(un_iso),hcat([Utils.norm_percent(m,.5) for m in eachrow(M_iso)]...)'; clim=(-50,50))
+	vline!([0], c=:black, linestyle=:dash, linewidth=2, legend=:none)
+	
+	h_adj = heatmap(sh_iso,1:length(un_adj),hcat([Utils.norm_percent(m,.5) for m in eachrow(M_adj)]...)'; clim=(-50,50))
+	vline!([0], c=:black, linestyle=:dash, linewidth=2, legend=:none)
+
+	L = Plots.@layout [[ddd{0.25w} orig_h dd{0.25w}]; grid(1,2)]
+	b=Plot.create_blank_plot()
+	hhhh=plot(b,h_typ,b, h_adj,h_iso; layout=L)
+	
+end
+
+# ╔═╡ 1167b4a7-1185-46f3-8e78-0a2bd97903ae
+begin
+	hhhh
+	Plot.setfolder("nonlocality","isolated-shifted")
+	Plot.save((;desc="shifted heatmap of isolated firing (percent normed, around median)", filt=datacut, norm=norm));
+end
+
+# ╔═╡ 671cb2a4-e6c0-4c23-9e15-41c861d8f383
+begin
+	widths["stopWell"] = 0.50
+	Utils.filtreg.register(beh,spikes,on="time",transfer=["stopWell"])
+	shifted_wg = Timeshift.shifted_fields(beh, spikes, shifts, ["x","y","stopWell"];
+	                               shiftbeh=false,
+	                               widths, 
+								   adaptive=false,
+                                   metricfuncs=[metrics.bitsperspike,metrics.totalcount,metrics.maxrate,metrics.meanrate],
+								   filters=filts[datacut], 
+								   thresh);
+end
 
 # ╔═╡ bb23f597-480e-43d1-a527-71f05a426d1d
 begin
@@ -395,46 +470,70 @@ end
 field = units[(;unit=unit)]
 
 # ╔═╡ 9405b2bd-c10c-4ba7-aeda-b9f56e2b33ee
+# ╠═╡ disabled = true
+#=╠═╡
 begin
 	halfmast = nanquantile(vec(field.rate), qthresh)
 	bw = field.rate .> halfmast
 	dist = 1 .- distance_transform(feature_transform(bw))
 	markers = label_components( (!).(dist .< 0))
 end;
+  ╠═╡ =#
 
 # ╔═╡ ce81a2d1-7ba8-44fb-b401-760411421a71
+#=╠═╡
 segments = watershed(dist, markers)
+  ╠═╡ =#
 
 # ╔═╡ 8bfb8c40-942d-41b8-a441-5a71f6bbafb7
+#=╠═╡
 sortperm(collect(values(segments.segment_pixel_count)))
 
 
+  ╠═╡ =#
 
 # ╔═╡ 794aae46-914a-4da3-a093-d76f1308c55b
+#=╠═╡
 hullzones = bw .* labels_map(segments);
+  ╠═╡ =#
 
 # ╔═╡ 3ce5d298-62eb-4c78-93d8-aa12671fbdce
+#=╠═╡
 hullzones
+  ╠═╡ =#
 
 # ╔═╡ b5e2ef6a-942a-4782-9c36-cd2778de2c66
+#=╠═╡
 unique(hullzones)
+  ╠═╡ =#
 
 # ╔═╡ 99c12e94-8d3e-4700-ab50-146165f654bd
+#=╠═╡
 plot(
 	plot(field, 	 title="field"), 
 	heatmap(bw', 	 title="thresholded"), 
 	heatmap(dist', 	 title="distance computation"),
 	heatmap(markers',title="markers"),
 	aspect_ratio=1)
+  ╠═╡ =#
 
 # ╔═╡ 0f80805a-76c8-4d8d-91bc-c013575d3a10
+#=╠═╡
 heatmap(plot(field, title="field"), heatmap(Int8.(hullzones)', title="segments"), aspect_ratio=1)
 
+  ╠═╡ =#
 
 # ╔═╡ 16b22203-b96b-4899-80f7-6928864f0543
 plot(SFs[unit,timeshift])
 
+# ╔═╡ 39562c46-79fb-4a0c-b59e-099108258190
+keys(filts)
+
+# ╔═╡ 8fc086f1-e619-4d44-a22b-7e9b9feee7fc
+keys(f[1])
+
 # ╔═╡ d48e9bc9-4d67-4e7b-a0f7-25b975813ccd
+#=╠═╡
 begin
 	
 	mets = Dict()
@@ -499,61 +598,92 @@ begin
 	
 end;
 
+  ╠═╡ =#
 
 # ╔═╡ 333fe5bf-4168-4931-8856-987d7e76e265
+#=╠═╡
 instruction
+  ╠═╡ =#
 
 # ╔═╡ efd65ca8-457c-4f83-9aaf-162c089404c5
+#=╠═╡
 plot(heatmap(newhullzones'),heatmap(hullzones'))
+  ╠═╡ =#
 
 # ╔═╡ 346a2e86-47be-47ca-9895-fbf4806fc17a
+#=╠═╡
 ordered_seg
+  ╠═╡ =#
 
 # ╔═╡ 70d62e08-77b4-407d-bad8-4850abf5f00a
+#=╠═╡
 h = hull_withlazysets(hullzones .== 1)
+  ╠═╡ =#
 
 # ╔═╡ 8ce9d392-b7bd-483f-b87a-78c6f7657024
+#=╠═╡
 typeof(h), typeof([h...])
+  ╠═╡ =#
 
 # ╔═╡ 0dd5dfe7-321d-466e-9799-ac6c40cc8fb0
+#=╠═╡
 begin
 	plot(VPolygon(h))
 	plot!([Singleton(hh) for hh in h], markersize=20)
 	plot!(Singleton([3.2f0,8.2f0]), markersize=20)
 end
+  ╠═╡ =#
 
 # ╔═╡ 30af0459-297b-4c57-95f9-24436d57209c
+#=╠═╡
 Singleton([3.2f0,8.2f0]) ⊇ VPolygon(h)
+  ╠═╡ =#
 
 # ╔═╡ b6b7f2e0-68f7-4324-a78b-197b4143339c
+#=╠═╡
 Singleton([3.2f0,8.2f0]) ⊆ VPolygon(h)
+  ╠═╡ =#
 
 # ╔═╡ 05d6904a-1dfa-4a2f-a385-aaafacc80b0a
+#=╠═╡
 element(Singleton([3.2f0,8.2f0])) ∈ VPolygon(h)
+  ╠═╡ =#
 
 # ╔═╡ d5569288-bc83-408f-8219-5d945cbc6871
 segmentation_thresh
 
 # ╔═╡ 0030f529-dd82-4269-aa50-02cc832b9f07
+#=╠═╡
 begin
 	p_with_seghulls = plot(field, aspect_ratio=1)
 	plothullset!(HullSet(mets[:hullseg_grid]))
 	p_with_seghulls
 end
+  ╠═╡ =#
 
 # ╔═╡ e06ae752-f36b-465c-9303-74d406b915bf
+#=╠═╡
 begin
 	p_with_seghulls_top = plot(field, aspect_ratio=1)
 	plot!(VPolygon(mets[:hullseg_grid][:toptwohull]))
 	annotate!(mets[:hullseg_grid_cent][:toptwohull]..., text(string(:toptwohull), :white))
 	p_with_seghulls_top
 end
+  ╠═╡ =#
 
 # ╔═╡ b101021d-e065-4593-b39a-3fee7dbbaf83
+#=╠═╡
 element(Singleton([50,125])) ∈ HullSet(mets[:hullseg_grid])
+  ╠═╡ =#
 
 # ╔═╡ 719c49c0-f156-472c-ba15-26719753621f
 
+
+# ╔═╡ 42d6cb62-93a8-426f-9542-d66fb8dd4d80
+using Memoization
+
+# ╔═╡ f5f1dbb9-3623-4628-8407-8809cd3fb118
+using Memoization
 
 # ╔═╡ Cell order:
 # ╟─ff1db172-c3ab-41ea-920c-1dbf831c1336
@@ -561,6 +691,7 @@ element(Singleton([50,125])) ∈ HullSet(mets[:hullseg_grid])
 # ╟─37d7f4fd-80a7-47d0-8912-7f002620109f
 # ╠═44dde9e4-f9ca-11ec-1348-d968780f671c
 # ╠═da7809bb-a94f-440e-96c1-02e1feae9fc3
+# ╠═42d6cb62-93a8-426f-9542-d66fb8dd4d80
 # ╠═5f6e31d3-7101-49aa-a289-39e3967aa3a8
 # ╠═a1ad6173-5ead-4559-bddb-9aee6119b9d0
 # ╟─2f8ac703-417c-4360-a619-e799d8bb594f
@@ -606,9 +737,49 @@ element(Singleton([50,125])) ∈ HullSet(mets[:hullseg_grid])
 # ╟─f9378d49-2f86-4088-bc6d-3b5b227b7c66
 # ╠═d1fe3b02-34f5-46ae-8da8-4bac71c86d84
 # ╠═62a6b931-b4ef-4431-8e7f-14db6e011d00
+# ╠═014d81aa-5441-41c1-8b71-a347dd03ac9a
 # ╠═d0ed9a46-00bb-4ce2-a2db-50bc060ec976
 # ╠═316dab79-015f-46e4-88f5-7051529484e5
 # ╠═16b22203-b96b-4899-80f7-6928864f0543
+# ╠═7cb361f2-09c9-48ad-ad01-971ac273ecd3
+# ╠═f4466cd6-9f84-4fe4-a420-e77efc0c8ff8
+# ╠═6c9a2819-b121-4b9a-a94d-11b3eb85fa7c
+# ╠═bc93bf68-b7ac-4926-a7fd-dfff5b657f6a
+# ╠═69d37df3-69d3-4c91-8adf-ff8ecd4c9df1
+# ╠═664fba69-e498-462a-8e84-522a22f2498d
+# ╠═6390cdc5-7d0e-456b-a46b-359ef1bdc63d
+# ╠═bf12b73f-c146-4ab2-be79-5b8097add3f3
+# ╠═00936498-8061-43da-bdb3-0c7b000770bb
+# ╠═ffe4b420-41ae-4c58-8bd6-d5d684f48b78
+# ╠═fff27c22-7c2c-45d0-a670-6920b9bd6a31
+# ╠═28b0690b-e491-4cb0-be43-a3d23fc4903a
+# ╠═39562c46-79fb-4a0c-b59e-099108258190
+# ╠═3c7440bf-0e77-4287-870c-3b88b0539607
+# ╠═129a57c7-aa83-41dc-8071-d6d7213d56b9
+# ╠═a279c651-b6f2-46d1-a0d6-c529a64517bf
+# ╠═65bed4d7-d800-4664-a152-6408a3621ab0
+# ╠═45ad932d-922f-4e54-862e-b5db0c2f3658
+# ╠═8fc086f1-e619-4d44-a22b-7e9b9feee7fc
+# ╠═f4da9ee3-9882-4cd3-b3df-7f67e5f60ce1
+# ╠═18abe083-65fd-4b6f-9bee-589c57f16b3f
+# ╠═697ffe5f-d3e6-44a5-b8ec-57a04a84a4e4
+# ╠═1167b4a7-1185-46f3-8e78-0a2bd97903ae
+# ╠═444a4624-c446-4995-b4c2-c46241d3c668
+# ╠═aff279a1-e837-484c-a5bd-112331cf2769
+# ╠═f4ddcd9b-a940-40b3-8a31-25c1b2e103d9
+# ╠═1bb9e911-b027-4f2b-a6d1-bdf81d0f174b
+# ╠═b873baf8-ceaa-47b5-b805-76f6bcfa49b2
+# ╠═85cf402a-eb7b-4d3c-972b-810ac1708632
+# ╠═ebe2194d-e79d-4a5e-bd83-a06eae95932f
+# ╠═79b0a225-9019-4379-b9d0-61ff3408a690
+# ╠═1d93735a-1573-44cf-a650-dc639566a027
+# ╠═60ba0b7b-e30d-42c8-9ff6-e17b5163ff53
+# ╠═bb7c51b0-bac8-4aba-83df-30f301be4e65
+# ╠═e1136496-d5fa-442b-85b0-a69379c0335a
+# ╠═9bdea77f-22cc-414a-b675-3bd8bbe7cdf8
+# ╠═9a2edeed-d33b-45e3-8dfc-1d03b967accc
+# ╠═671cb2a4-e6c0-4c23-9e15-41c861d8f383
+# ╠═3989392b-2f71-4613-ad85-d2fb828379d7
 # ╟─588bff56-6518-4410-b19a-dc745cf067e7
 # ╠═348e8178-ae24-4217-93a5-54d979b47d92
 # ╟─f02a79c9-01b8-4550-b321-7b5a6f0d5a28
