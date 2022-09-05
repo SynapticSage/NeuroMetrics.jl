@@ -933,14 +933,6 @@ git-tree-sha1 = "187198a4ed8ccd7b5d99c41b69c679269ea2b2d4"
 uuid = "f6369f11-7733-5829-9624-2563aa707210"
 version = "0.10.32"
 
-[[deps.FourierAnalysis]]
-deps = ["AbstractFFTs", "DSP", "FFTW", "LinearAlgebra", "PosDefManifold", "RecipesBase", "Statistics"]
-git-tree-sha1 = "194ffd110b9d23eb88381690c1d0a7a231337138"
-repo-rev = "master"
-repo-url = "/home/ryoung/Code/projects/FourierAnalysis.jl"
-uuid = "e7e9c730-dc46-11e9-3633-f1ab55cc17e1"
-version = "1.2.2"
-
 [[deps.FreeType]]
 deps = ["CEnum", "FreeType2_jll"]
 git-tree-sha1 = "cabd77ab6a6fdff49bfd24af2ebe76e6e018a2b4"
@@ -2516,12 +2508,6 @@ deps = ["Artifacts", "Cairo_jll", "Fontconfig_jll", "Glib_jll", "JLLWrappers", "
 git-tree-sha1 = "02148a0cb2532f22c0589ceb75c110e168fb3d1f"
 uuid = "9c32591e-4766-534b-9725-b71a8799265b"
 version = "21.9.0+0"
-
-[[deps.PosDefManifold]]
-deps = ["LinearAlgebra", "Statistics"]
-git-tree-sha1 = "54ada42dbaca60ecc4ffcf0c5db02de37e6ee520"
-uuid = "f45a3650-5c51-11e9-1e9a-133aa5e309cf"
-version = "0.5.0"
 
 [[deps.PrecompileSignatures]]
 git-tree-sha1 = "18ef344185f25ee9d51d80e179f8dad33dc48eb1"

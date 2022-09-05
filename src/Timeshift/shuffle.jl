@@ -7,6 +7,9 @@ module shuffle
     import Shuf
     import Utils: filtreg
     import Filt
+    import Dates
+    using DrWatson
+    using Serialization
 
     using ThreadSafeDicts
     using DataFrames
@@ -47,9 +50,11 @@ module shuffle
                 nShuffle::Int=100, 
                 compute::Symbol=:single,
                 postfunc::Union{Function,Nothing}=nothing,
-                safe_dict::AbstractDict=OrderedDict(),
+                result_dict::AbstractDict=OrderedDict(),
                 prefilter::Bool=true,
+                skipproc::Bool=false,
                 exfiltrateAfter::Real=Inf,
+                shufStart::Int=1,
                 get_field_kws...)::AbstractDict
 
         @info "Applying shufflepreset=$shufflepreset"
@@ -74,8 +79,8 @@ module shuffle
         end
 
         _apply_partials(beh, data, shifts, props, initial_data_partials;
-                        nShuffle, compute, postfunc,
-                        safe_dict, exfiltrateAfter, get_field_kws...)
+                        nShuffle, compute, postfunc, shufStart, skipproc,
+                        result_dict, exfiltrateAfter, get_field_kws...)
     end
 
     # ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
@@ -91,9 +96,11 @@ module shuffle
                 props::Vector,
                 initial_data_partials::Tuple{<:Function,<:Function};
                 nShuffle::Int=100, 
+                skipproc::Bool=false,
                 compute::Symbol=:single,
                 postfunc::Union{Function,Nothing}=nothing,
-                safe_dict::AbstractDict=OrderedDict(),
+                shufStart::Int=1,
+                result_dict::AbstractDict=OrderedDict(),
                 exfiltrateAfter::Real=Inf,
                 field_kws...)::AbstractDict
 
@@ -102,7 +109,8 @@ module shuffle
         shuffle_data_generator() = partial(data, distribution)
 
         _run_partial_functional(beh, data, shifts, shuffle_data_generator;
-                                      compute, nShuffle, postfunc, safe_dict,
+                                      compute, nShuffle, postfunc, result_dict,
+                                      shufStart, skipproc,
                                       exfiltrateAfter, field_kws...)
     end
 
@@ -115,9 +123,11 @@ module shuffle
                 props::Vector,
                 initial_data_partials::T where T <: Function;
                 nShuffle::Int=100, 
+                skipproc::Bool=false,
                 compute::Symbol=:single,
                 postfunc::Union{Function,Nothing}=nothing,
-                safe_dict::AbstractDict=OrderedDict(),
+                shufStart::Int=1,
+                result_dict::AbstractDict=OrderedDict(),
                 exfiltrateAfter::Real=Inf,
                 field_kws...)::AbstractDict
 
@@ -126,7 +136,8 @@ module shuffle
 
         _run_partial_functional(beh, data, shifts, props; 
                                       shuffle_data_generator, compute, nShuffle,
-                                      postfunc, safe_dict, exfiltrateAfter,
+                                      postfunc, result_dict, exfiltrateAfter,
+                                      shufStart, skipproc,
                                       field_kws...)
     end
 
@@ -140,15 +151,19 @@ module shuffle
             shuffle_data_generator::Function,
             compute::Symbol, 
             nShuffle::Union{StepRangeLen, Int},
+            shufStart::Int=1,
             result_dict::AbstractDict=OrderedDict{NamedTuple, 
                                                   Timeshift.DictOfShiftOfUnit{Float64}}(),
-            exfiltrateAfter::Real=Inf,
-            skipproc::Bool=true,
+            saveAfter::Real=5,
+            savename=nothing,
+            skipproc::Bool=false,
             thread_field::Bool=true,
             precomputegridocc::Union{Bool,Nothing}=nothing,
             shiftbeh::Bool=false,
             field_kws...)
 
+        @info "start" shufStart nShuffle savename saveAfter skipproc
+        #@infiltrate shufStart > 1
 
         # Collect sets we will iterate
         if nShuffle isa Int
@@ -156,7 +171,13 @@ module shuffle
         else
             shuffle_sets = collect(enumerate(nShuffle))
         end
-        nShuffle = nShuffle isa Int ? (1:nShuffle) : nShuffle
+
+        P = Progress(length(nShuffle); desc="Shuffle")
+        P.showspeed = true
+        sizehint!(result_dict, maximum(nShuffle))
+
+        nShuffle = nShuffle isa Int ? (shufStart:(nShuffle+shufStart-1)) : nShuffle
+        @info "nShuffle" nShuffle
 
         if precomputegridocc === nothing
             precomputegridocc = shiftbeh ? false : true
@@ -167,11 +188,9 @@ module shuffle
             field_kws = (;field_kws..., grid, occ)
         end
 
-        P = Progress(length(nShuffle); desc="Shuffle")
-        P.showspeed = true
-        sizehint!(result_dict, maximum(nShuffle))
         prevtmp = nothing
         for s in nShuffle
+            #@infiltrate skipproc && (;shuffle=s) ∈ keys(result_dict)
             if skipproc && (;shuffle=s) ∈ keys(result_dict)
                 continue
             end
@@ -180,13 +199,22 @@ module shuffle
                                                                shifts, props;
                                                        overwrite_precache=true,
                                                        thread_field,
-                                                       shiftbeh,
+                                                       shiftbeh, 
                                                        field_kws...)
             result_dict[(;shuffle=s)] = tmp
             isdefined(Main, :PlutoRunner) ? @info("finished 1 shuf") : nothing
-            if mod(s, exfiltrateAfter)==0
-                @info "Exfiltrating"
-                @time @exfiltrate
+            @info "modulus" mod(s,saveAfter)
+            if mod(s, saveAfter) == 0
+                if savename === nothing
+                    @info "Exfiltrating"
+                    @exfiltrate
+                else
+                    dShuf = maximum(nShuffle) - minimum(nShuffle)
+                    K = collect(keys(result_dict))[max(s-dShuf,1):s]
+                    chfile = datadir("checkpoints","shuffle_$(savename)_$(Dates.now()).serial")
+                    @info "SERIALIZING" chfile K
+                    @time serialize(chfile, OrderedDict(k=>result_dict[k] for k in K))
+                end
             end
             next!(P)
             #prevtmp = tmp

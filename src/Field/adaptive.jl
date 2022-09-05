@@ -45,6 +45,7 @@ module adaptive
         # Push the max diff of each dimension
         for center in centers
             c = maximum(diff([center...]))
+            @exfiltrate
             push!(C, c)
         end
         # Turn diameter into radius
@@ -179,9 +180,7 @@ module adaptive
     end
 
     function fixed_radius(vals::Matrix{Float32}, center::Vector{Float32},
-        radius::Vector{Float32}; dt::Float32, thresh::Float32,
-        maxrad::Union{Float32,Vector{Float32}},
-        radiusinc::Union{Float32,Vector{Float32}}, kws...)::Vector{Float32}
+            radius::Union{Float32,Vector{Float32}}; dt::Float32, kws...)::Vector{Float32}
 
         samptime = get_samptime(vals, center, radius; dt)
         if samptime == 0
@@ -189,6 +188,15 @@ module adaptive
         end
         radius
     end
+    function fixed_radius(vals::Matrix{Float32}, center::Vector{Float32},
+            radius::Float32; dt::Float32, kws...)::Float32
+        samptime = get_samptime(vals, center, radius; dt)
+        if samptime == 0
+            radius = NaN32
+        end
+        radius
+    end
+
 
     function converge_to_radius_w_inertia(vals::Matrix{Float32},
         center::Vector{Float32}, radius::Float32; dt::Float32,

@@ -49,14 +49,14 @@ begin
       )
 end;
 
+# ╔═╡ 51e1b371-da12-403a-ba4e-ce7790bd5d2a
+using StatsPlots
+
 # ╔═╡ f4edf013-a616-45fa-be5f-0e2308aa3f34
 using Memoization
 
 # ╔═╡ 9ce4497d-2b82-464b-9df9-c2e568a661ac
 using Serialization
-
-# ╔═╡ 51e1b371-da12-403a-ba4e-ce7790bd5d2a
-using StatsPlots
 
 # ╔═╡ 5005402b-4d25-41a3-916b-4c814faa9065
 md"""
@@ -94,17 +94,20 @@ cells = Load.load_cells("RY16",36);
 @time I = Timeshift.load_mains();
 
 # ╔═╡ ffa1cf80-e6c5-4d5f-b3fb-555018fc5f75
-function table_transform(x)
+function table_transform(x; area_filt="CA1-PFC")
 	x = transform(Table.to_dataframe( x, key_name=[:shift], explode=true), All(), :dim_1 => (x->replace(x,missing=>0)), renamecols=false)
 	x = flatten(x, [:value, :dim_1])
 	x = unstack(x, :metric, :value)
 	x = filtreg.register(cells, x, on="unit", transfer=["area"])[2]
-
+	if area_filt != "CA1-PFC"
+		x = subset(x, :area => xx-> xx .== area_filt)
+	end
+	@info typeof(x)
 	dropmissing!(x, :bitsperspike)
 	for (on, measure) in Iterators.product([:bitsperspike, :coherence, :maxrate],			 								   [:best_tau!, :worst_tau!])
 		shiftmetrics.metricapply!(x, measure; metric=on)
 	end
-
+	x = subset(x, :maxcount => xx -> xx .> 0)
 	x
 end
 
@@ -135,13 +138,8 @@ key1 = Timeshift.pluto_executekey(I, actuals, :thresh=>thresh_key1,
                                   #:coactivity=>coactive1, 
                                   :datacut=>datacut_key1)
 
-# ╔═╡ 63772ff9-2b0c-4d30-a084-3369e3e809e0
-# ╠═╡ show_logs = false
-begin
-	sf1 = table_transform(I[key1])
-	@assert length(unique(sf1.bestshift_bitsperspike)) > 1
-	sf1
-end;
+# ╔═╡ 32ec6eae-4c2e-4222-af93-340562f26e79
+table_transform(I[key1])
 
 # ╔═╡ 4cfc656c-957c-4394-833d-93af05eff81c
 md"""
@@ -163,10 +161,6 @@ key2 = Timeshift.pluto_executekey(I, actuals, :thresh=>thresh_key2,
                                   #:coactivity=>coactive2, 
                                   :datacut=>datacut_key2)
 
-# ╔═╡ 4902ca06-9f29-48c7-a3f3-8a6178ddaa4c
-# ╠═╡ show_logs = false
-sf2 = table_transform(I[key2]);
-
 # ╔═╡ 58591957-b16f-4c4a-b3e7-f6c36feca331
 md"Shortcut names for keys"
 
@@ -181,6 +175,20 @@ end;
 # ╔═╡ 1a4cc678-6900-4e07-a6dc-78073df8b06a
 k1
 
+# ╔═╡ 39359b09-54f8-471b-b455-ffdb7e3bdf35
+md"Properties attached to our saved figures in general"
+
+# ╔═╡ 4dcdb745-3a63-42f6-be0c-8a822669566a
+area_filt_sel = @bind area_filt Radio(["CA1","PFC","CA1-PFC"], default="CA1-PFC")
+
+# ╔═╡ 63772ff9-2b0c-4d30-a084-3369e3e809e0
+# ╠═╡ show_logs = false
+begin
+	sf1 = table_transform(I[key1]; area_filt)
+	@assert length(unique(sf1.bestshift_bitsperspike)) > 1
+	sf1
+end;
+
 # ╔═╡ fb770592-cbed-4c47-b156-e2cdde09b529
 begin
 	sel_prop = @bind met Radio(["bitsperspike", "coherence", "maxrate"], default="bitsperspike")
@@ -188,11 +196,12 @@ begin
 	sel = (;prop=sel_prop, srt=sel_sort)
 end
 
-# ╔═╡ 39359b09-54f8-471b-b455-ffdb7e3bdf35
-md"Properties attached to our saved figures in general"
+# ╔═╡ 4902ca06-9f29-48c7-a3f3-8a6178ddaa4c
+# ╠═╡ show_logs = false
+sf2 = table_transform(I[key2]; area_filt);
 
 # ╔═╡ 6b0aa168-06ee-463f-a187-e1ba57a8d232
-savekws = (;met, srt, cut1=key1.datacut,cut2=key2.datacut)
+savekws = (;met, srt, area_filt, cut1=key1.datacut,cut2=key2.datacut)
 
 # ╔═╡ 41fbea69-ba6c-48be-8b81-244f2e01d428
 md"""
@@ -314,10 +323,14 @@ md"Munge matrices encoding our snakes"
 # ╔═╡ 8723bf8e-93cc-4d55-a274-7699daec4044
 md"And encode the plot function"
 
+# ╔═╡ 17daf9be-0c92-4ac5-bf69-555f3cb28a71
+sum(sf1.bitsperspike .< 0.1)
+
 # ╔═╡ 87171f23-3f8f-4c33-8430-2c5e13732675
 begin
-	function plot_sorted_mets(sfsmet, tmpstatmat; met, srt, normrange, key)
+	function plot_sorted_mets(sfsmet, tmpstatmat; met, srt, normrange, key, bins=11)
 
+		# HEATMAP
 		plot_heatdist = heatmap(tmpstatmat.axes[2].val, 1:length(tmpstatmat.axes[1].val), tmpstatmat, ylabel="unit", title="$(key.datacut): $met by\n $srt\n", clim=(normrange ? (-Inf,Inf) : (-25,50)), colorbar_title=(normrange ? "Neuron Min(0) to Max(1)" : "Percent above median per neuron"), colorbar_titlefontrotation= 180)
 		vline!([0], c=:black, linestyle=:dash, linewidth=2,label="")
 		
@@ -326,34 +339,54 @@ begin
 		xlim = (minimum(shifts), maximum(shifts))
 		#@info xlim
 		shiftdist = dropmissing(sfsmet, srt)[!,srt]
+		@info shiftdist
 		#@info shiftdist
 
+		# IF WE HAVE TWO BRAIN AREAS, ANNOTATE PFC?
 		annotate_pfc = true
-		if annotate_pfc
+		if length(unique(sfsmet.area)) > 1 && annotate_pfc
 			sfsmet_pfc = @subset(sfsmet, :area .== "PFC", :shift .== 0, :unit .∈ [tmpstatmat.axes[1].val])
 			sort!(sfsmet_pfc, srt)
 			rows_to_mark = findall(any(sfsmet_pfc.unit' .∈ tmpstatmat.axes[1].val; dims=2)[:,1])
 			@assert issorted(sfsmet_pfc[:,srt])
 			@assert issorted(rows_to_mark)
-			@info sfsmet_pfc[:,srt]
+			#@info sfsmet_pfc[:,srt]
 			@assert size(rows_to_mark) == size(sfsmet_pfc[:,srt])
 			annotate!(sfsmet_pfc[:,srt], rows_to_mark, text("*", :gray))
 			serialize(datadir("test.serial"),(;sfsmet_pfc, rows_to_mark, tmpstatmat, srt))
 		end
-		
-		plot_histdist = 
-			histogram(shiftdist;  xlim, normalize=:pdf, alpha=0.5, label="", xlabel="shift", ylabel="pdf")
-		vline!([0], c=:black, linestyle=:dash, linewidth=2,label="")
-		density!(sfsmet[:,srt]; xlim, label="", ylim=(0,0.4))
 
-		
+		edges=LinRange(minimum(shifts), maximum(shifts), bins+1)
+
+		# HISTOGRAM ("PDF")
+		plot_histdist = 
+			histogram(shiftdist; bins=edges,  xlim, normalize=:probability, alpha=0.5, label="", xlabel="shift", ylabel="pdf")
+		vline!([0], c=:black, linestyle=:dash, linewidth=2,label="")
+		if length(unique(sfsmet.unit)) > 75
+			density!(sfsmet[:,srt]; xlim, label="", ylim=(0,0.4))
+		end
+
+		# HISTOGRAM ("CDF")
+		dist = fit(Histogram, shiftdist, edges)
+		dist = StatsBase.normalize(dist, mode=:probability)
+		#@info "here"
+		plot_histdist_cdf = 
+			bar(dist.edges, cumsum(dist.weights); xlim, alpha=0.5, label="", xlabel="shift", ylabel="cdf")
+		vline!([0], c=:black, linestyle=:dash, linewidth=2,label="")
+
+		# create a blank plot
 		blank = plot(legend=false, grid=false, framestyle=:none, background_color_inside=:match)
-	
-		lay = @layout [a;b c{0.015w}]
+
+		# How to layout the plots
+		lay = @layout [heatmap_sortedd_dist;
+					   [
+						   hist_pdf empty_plot{0.015w};
+					   	   hist_pdf_cdf empty_plot{0.015w}
+					   ]]
 		
-		plot_shift_pop_overall = plot(plot_heatdist, plot_histdist, blank, layout=lay, link=:x, size=(700,700))
+		# Unite the plots
+		plot_shift_pop_overall = plot(plot_heatdist, plot_histdist, blank, plot_histdist_cdf, blank, layout=lay, link=:x, size=(700,700))
 		
-		plot_shift_pop_overall = plot(plot_heatdist, plot_histdist, blank, layout=lay, link=:x, size=(700,700))
 		plots=plot_shift_pop_overall
 	end
 end
@@ -370,7 +403,7 @@ begin
 		metmatrix1 = get_metmatrix(sf1; met, srt, normrange)
 		metmatrix2 = get_metmatrix(sf2; met, srt, normrange)
 		plot_shift_pop_overall1, plot_shift_pop_overall2 = plot_sorted_mets(sf1, metmatrix1; met, srt, normrange=true, key=key1), plot_sorted_mets(sf2, metmatrix2; met, srt, normrange=true, key=key2)
-		plot(plot_shift_pop_overall1, plot_shift_pop_overall2, size=(800,400))
+		plot(plot_shift_pop_overall1, plot_shift_pop_overall2, size=(600,800))
 	end
 end
 
@@ -383,13 +416,14 @@ unfilt_sbs = side_by_side_plot(sf1, sf2; met, srt, normrange, key1, key2, filt=f
 # ╔═╡ 6913e35a-de73-495b-a7ff-5a1a63c6302e
 saveon ? Plot.save(sorted_cell_metric_folder, unfilt_sbs, (;savekws...,filt=false)) : nothing;
 
-# ╔═╡ 11f54afb-b588-49b9-81c1-8a8393084916
+# ╔═╡ e7e4ef82-392c-40a4-abd0-abc32c0d6880
 md"""
-* Why are PFC asterisks in the wrong place?
+!!! info "Combinations of interest"
+	all, task/nontask, cue/memory, memory_correct/memory_error, cue_correct/cue_error, odds/evens, firsthalf/lasthalf, correct/error
 """
 
 # ╔═╡ 53b84249-b032-4e76-9d35-6dd7856194d9
-(;console1, console2)
+(;console1, console2, area_filt_sel)
 
 # ╔═╡ b5f732e2-369f-4d34-b070-de4352592bec
 md"""
@@ -423,6 +457,7 @@ begin
 		sfF = vcat(sf1F, sf2F, cols=:union, source = :datacut => [string(key1.datacut), string(key2.datacut)])
 		Utils.filtreg.register(cells, sfF; on="unit", transfer=["area"])[2]
 	end
+	sf = combineFtable(sf1,sf2)
 	sfF = combineFtable(sf1F,sf2F)
 end
 
@@ -475,13 +510,25 @@ md"""
 F = load_fields();
 
 # ╔═╡ 304ab4a2-c6dd-4c03-915a-d1d937045076
+# ╠═╡ disabled = true
+#=╠═╡
 SF1, SF2 = ShiftedFields(F[key1]), ShiftedFields(F[key2]);
+  ╠═╡ =#
 
 # ╔═╡ 793fe22f-0bf9-41c7-9555-1881d9d5a50b
 compare = Utils.filtreg.register(cells,
 	subset(
 	dropmissing(
 	unstack(sfF, [:shift, :unit], :datacut, Symbol(srt), allowduplicates=true)
+	), 
+	:shift=>x->x .== 0),
+	on="unit", transfer=["area"])[2]
+
+# ╔═╡ 16e13b07-06a0-4244-a1d9-3e3034c35e44
+compare_unfilt = Utils.filtreg.register(cells,
+	subset(
+	dropmissing(
+	unstack(sf, [:shift, :unit], :datacut, Symbol(srt), allowduplicates=true)
 	), 
 	:shift=>x->x .== 0),
 	on="unit", transfer=["area"])[2]
@@ -514,6 +561,12 @@ sosc = scatter_opt_shift_compare(compare, key1, key2, srt)
 # ╔═╡ f8786dd2-4f12-407b-8c33-e8b9885f359e
 saveon ? Plot.save(neuron_optsrt_folder, sosc, (;savekws...)) : nothing;
 
+# ╔═╡ 7a0a39ee-daa6-4929-9812-e9a3efddcb7c
+sosc_unf = scatter_opt_shift_compare(compare_unfilt, key1, key2, srt)
+
+# ╔═╡ 6aa96188-e8f7-47d8-b222-ed80c3f230b5
+saveon ? Plot.save(neuron_optsrt_folder, sosc_unf, (;savekws..., unfilt=true)) : nothing;
+
 # ╔═╡ 4950cbeb-2d28-4429-94e7-b63cd14076e5
 md"Make version where whivever axis is closer to y=x, flip that point to the x"
 
@@ -545,6 +598,7 @@ $neuron_compare_folder
 end
 
 # ╔═╡ 3f0e03d0-555e-429e-8130-8f47fa8a5887
+#=╠═╡
 @memoize function visualize_cells(compare, key1, key2, srt, compare_unit, compare_shift1, compare_shift2)
 	cs_scat = plot(scatter_opt_shift_compare(compare, key1, key2, srt))
 	scatter!(cs_scat, unit_df[:,key1.datacut], unit_df[:,key2.datacut], label="selected", legend=:outerbottomright, markersize=3, )
@@ -560,35 +614,38 @@ end
 	]
 	plot(cs_scat, cs_u1, cs_u2, cs_u1_zero, cs_u2_zero, layout=lay_cs, size=(650,750), upsamp=1, aspect_ratio=1)
 end
+  ╠═╡ =#
 
 # ╔═╡ 305dda42-217e-4bbb-b683-45e5acc016bf
+#=╠═╡
 plot_vc = visualize_cells(compare, key1, key2, srt, compare_unit, compare_shift1, compare_shift2)
+  ╠═╡ =#
 
 # ╔═╡ 82a2ce1b-dd5a-4b4d-b6f0-f12c85be648a
 (;cu_sel, cs1_sel, cs2_sel)
 
 # ╔═╡ 8fea7857-f1da-4c05-8020-256e542b800c
+#=╠═╡
 if saveon
 	best_state = unit_df[1,key1.datacut] == compare_shift1 &&
 				 unit_df[1,key2.datacut] == compare_shift2;
 	Plot.save(neuron_compare_folder, plot_vc, (;savekws..., unit=compare_unit, best=best_state, shift1=compare_shift1, shift2=compare_shift2));
 	nothing
 end
+  ╠═╡ =#
 
 # ╔═╡ 3952f4bd-efd7-4c79-809a-29fa4daf1348
 md"""
 Its possible that some of the more futury cells have fields that emphasize boundary pixels.
-### Pro notes
------
-* Cue-error cue-correct, cell 132 :: Picks a time where the fields are more similar than when sampled at time=0
-* Cue-mem, cell 42
-* 1stH-LstH, Cell 45, pfc
+!!! good "Pro notes"
+	* Cue-error cue-correct, cell 132 :: Picks a time where the fields are more similar than when sampled at time=0
+	* Cue-mem, cell 42
+	* 1stH-LstH, Cell 45, pfc
 
-### Con notes
-----------
-Some of the cells do not change that much over time. And some of those are at the far end of the shift spectrum.
-* cue-error cue-correct, Cell 81
-* cue-mem, Cell 73
+!!! danger "Con notes"
+	Some of the cells do not change that much over time. And some of those are at the far end of the shift spectrum.
+	* cue-error cue-correct, Cell 81
+	* cue-mem, Cell 73
 
 """
 
@@ -600,6 +657,7 @@ Some of the cells do not change that much over time. And some of those are at th
 # ╟─44079721-eb63-4c82-af86-ee3b4f55ab42
 # ╟─5c008e3c-9395-4f43-be60-ff510a54b97e
 # ╟─e8c8870a-0271-11ed-2ac4-317a38722303
+# ╠═51e1b371-da12-403a-ba4e-ce7790bd5d2a
 # ╟─79a1a60c-3c9e-430e-96d0-084f072bbb27
 # ╠═f4edf013-a616-45fa-be5f-0e2308aa3f34
 # ╠═f9a092bb-b74d-4c15-a445-2ba777629ab1
@@ -608,12 +666,13 @@ Some of the cells do not change that much over time. And some of those are at th
 # ╟─e4174f16-1628-4e7c-8d30-840690422582
 # ╠═e6605880-9bd0-43b3-81dd-643829d32cbc
 # ╠═99b0eff5-6d22-4948-91ae-5080d838580e
-# ╟─ffa1cf80-e6c5-4d5f-b3fb-555018fc5f75
+# ╠═ffa1cf80-e6c5-4d5f-b3fb-555018fc5f75
 # ╠═01000490-e094-4c88-ac60-7b9fdeba3ccc
 # ╟─c753704b-f9bc-4824-a3ec-27b6f8ff3f8b
 # ╟─502701a1-9c58-48ca-b85b-b580b6fecde7
 # ╟─635d367d-accb-438d-b67d-3a9e5fdd7cb7
 # ╠═63772ff9-2b0c-4d30-a084-3369e3e809e0
+# ╠═32ec6eae-4c2e-4222-af93-340562f26e79
 # ╟─4cfc656c-957c-4394-833d-93af05eff81c
 # ╟─d600f8bf-555b-4972-94b3-fc0a07a241c0
 # ╟─21e1d7d4-0120-41b6-81c0-f98819e0dd13
@@ -623,7 +682,8 @@ Some of the cells do not change that much over time. And some of those are at th
 # ╠═1a4cc678-6900-4e07-a6dc-78073df8b06a
 # ╟─fb770592-cbed-4c47-b156-e2cdde09b529
 # ╟─39359b09-54f8-471b-b455-ffdb7e3bdf35
-# ╟─6b0aa168-06ee-463f-a187-e1ba57a8d232
+# ╠═4dcdb745-3a63-42f6-be0c-8a822669566a
+# ╠═6b0aa168-06ee-463f-a187-e1ba57a8d232
 # ╟─41fbea69-ba6c-48be-8b81-244f2e01d428
 # ╟─9f47b399-bc14-4369-8432-7d2b8b5e872c
 # ╟─4732f7ef-cec0-4435-a2aa-370babc06cd2
@@ -638,24 +698,24 @@ Some of the cells do not change that much over time. And some of those are at th
 # ╠═b1fa3d10-dcaa-4bbe-ad1d-d2fe9c85a523
 # ╟─54e47f2e-13e1-4e2c-86cd-7bd2b39bbfcb
 # ╠═9fda323f-46e7-436d-a2a4-8094527b1b10
-# ╟─b0c247f5-5b52-4da8-b639-0723737bdcef
+# ╠═b0c247f5-5b52-4da8-b639-0723737bdcef
 # ╟─5c962c04-b8a1-46e9-8933-b65c16d76ef1
 # ╠═4f98b564-6696-47f9-89cc-0c5b92137753
 # ╟─81ff9d0e-6e15-4182-8dd9-ee10457348e7
 # ╟─8723bf8e-93cc-4d55-a274-7699daec4044
 # ╠═9ce4497d-2b82-464b-9df9-c2e568a661ac
+# ╠═17daf9be-0c92-4ac5-bf69-555f3cb28a71
 # ╟─87171f23-3f8f-4c33-8430-2c5e13732675
 # ╟─1afbdcbf-3c8d-45ba-9101-8f1f0db13512
-# ╟─7933787f-bd79-433f-b2d2-20f0dc72b1ef
+# ╠═7933787f-bd79-433f-b2d2-20f0dc72b1ef
 # ╟─763ce567-f5a9-4460-a554-ba0ffc557170
-# ╟─7ce8f6db-6696-411e-8751-06dbcf1d25da
+# ╠═7ce8f6db-6696-411e-8751-06dbcf1d25da
 # ╠═6913e35a-de73-495b-a7ff-5a1a63c6302e
-# ╟─11f54afb-b588-49b9-81c1-8a8393084916
 # ╠═53b84249-b032-4e76-9d35-6dd7856194d9
+# ╟─e7e4ef82-392c-40a4-abd0-abc32c0d6880
 # ╟─b5f732e2-369f-4d34-b070-de4352592bec
 # ╟─b509332f-cd1d-4a6d-8b79-954b02be35b4
 # ╠═7d7e8c09-5e95-4d27-976c-d5516e596ba9
-# ╠═51e1b371-da12-403a-ba4e-ce7790bd5d2a
 # ╠═a6b29b91-d0fc-46a3-8e12-47cfbb207184
 # ╠═e24a55c4-2946-47a4-a12a-3ef6654865c9
 # ╠═a0083bf5-a36c-4b70-a077-8758708721da
@@ -669,11 +729,14 @@ Some of the cells do not change that much over time. And some of those are at th
 # ╟─520fbb25-aca6-42e0-9dc2-2c3d7ef8a136
 # ╟─e15508a2-c87e-4097-8bce-98a8e9bf7d55
 # ╠═304ab4a2-c6dd-4c03-915a-d1d937045076
-# ╟─793fe22f-0bf9-41c7-9555-1881d9d5a50b
+# ╠═793fe22f-0bf9-41c7-9555-1881d9d5a50b
+# ╠═16e13b07-06a0-4244-a1d9-3e3034c35e44
 # ╟─4ccb5ce6-f6e6-4b3c-b09a-49fd1faf6874
 # ╠═1771074f-1e67-4e07-833f-4ea231a9fbbe
-# ╟─23b184e3-af82-4020-ab87-c82f69459ebd
-# ╟─f8786dd2-4f12-407b-8c33-e8b9885f359e
+# ╠═23b184e3-af82-4020-ab87-c82f69459ebd
+# ╠═f8786dd2-4f12-407b-8c33-e8b9885f359e
+# ╠═7a0a39ee-daa6-4929-9812-e9a3efddcb7c
+# ╠═6aa96188-e8f7-47d8-b222-ed80c3f230b5
 # ╟─4950cbeb-2d28-4429-94e7-b63cd14076e5
 # ╟─220fff65-a5f0-4643-b0d8-cf67ef2c9683
 # ╟─b7929dc0-9b62-4c9b-8ec4-a37021fbb580

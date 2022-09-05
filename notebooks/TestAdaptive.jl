@@ -1,3 +1,142 @@
+### A Pluto.jl notebook ###
+# v0.19.9
+
+using Markdown
+using InteractiveUtils
+
+# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
+macro bind(def, element)
+    quote
+        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local el = $(esc(element))
+        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
+        el
+    end
+end
+
+# ╔═╡ 44dde9e4-f9ca-11ec-1348-d968780f671c
+# ╠═╡ show_logs = false
+begin
+	  using DrWatson
+	  quickactivate(expanduser("~/Projects/goal-code"))
+	  using Plots
+	  using Revise
+	  using DataFrames
+	  using NaNStatistics
+	  import ProgressLogging
+	  using PlutoUI
+	  using DataStructures: OrderedDict
+
+	  using GoalFetchAnalysis
+	  import Utils
+	  import Timeshift
+	  #import Plot
+	  using Field.metrics
+	  
+	  adaptive = Field.adaptive
+      metrics = Field.metrics
+	  WIDTHS = OrderedDict(
+		  "x"=>2.5f0, "y"=>2.5f0, "currentPathLength"=>2f0,
+          "currentAngle"=>Float32(2pi/80)
+	  )
+      filts = Filt.get_filters_precache()
+	maxrad = nothing
+end
+
+# ╔═╡ 5f6e31d3-7101-49aa-a289-39e3967aa3a8
+using ColorSchemes
+
+# ╔═╡ 6390cdc5-7d0e-456b-a46b-359ef1bdc63d
+using DataFramesMeta
+
+# ╔═╡ 28b0690b-e491-4cb0-be43-a3d23fc4903a
+begin
+	using Timeshift.types
+	using Timeshift.shiftmetrics
+end
+
+# ╔═╡ f4ddcd9b-a940-40b3-8a31-25c1b2e103d9
+using StatsBase
+
+# ╔═╡ 1d93735a-1573-44cf-a650-dc639566a027
+using DimensionalData
+
+# ╔═╡ bb7c51b0-bac8-4aba-83df-30f301be4e65
+using StatsPlots
+
+# ╔═╡ 9bdea77f-22cc-414a-b675-3bd8bbe7cdf8
+using GLM
+
+# ╔═╡ 348e8178-ae24-4217-93a5-54d979b47d92
+begin
+	using ImageSegmentation, Images, LazySets, Statistics
+end
+
+# ╔═╡ ff1db172-c3ab-41ea-920c-1dbf831c1336
+md"""
+!!! notebook
+	🚀 **Adaptive receptive fields**
+
+Purpose: Test out my base adaptive field codes. Make sure the various steps (grid, occupancy, and fields) are working. Also make sure downstream shifted objects are working.
+
+##### *TODO*
+* metrics(shifted fields)
+* shifted field plot recipes
+* radii vector support
+  * plot recipe
+  * selection via 10 increase in base sample width
+* to_dataframe
+  * fields
+  * metrics
+  * shifted fields
+"""
+
+# ╔═╡ 0be7ba01-a316-41ce-8df3-a5ae028c74e7
+PlutoUI.TableOfContents(title="🚀 Adaptive RFs" )
+
+# ╔═╡ 37d7f4fd-80a7-47d0-8912-7f002620109f
+md"""
+# Preamble 
+Import packages
+"""
+
+# ╔═╡ da7809bb-a94f-440e-96c1-02e1feae9fc3
+import Plot
+
+# ╔═╡ a1ad6173-5ead-4559-bddb-9aee6119b9d0
+prop_sel = @bind prop_str PlutoUI.Radio(["y-x","currentAngle-currentPathLength", "currentAngle","currentPathLength"], default="y-x")
+
+# ╔═╡ 31082fe7-ed61-4d37-a025-77420da3f24a
+beh, spikes = begin
+	props = Vector{String}(split(prop_str, "-"))
+	@info props
+	@time spikes, beh, ripples, cells = Load.load("RY16", 36);
+	@time beh, spikes  = Load.register(beh, spikes; on="time", transfer=props)
+    spikes = dropmissing(spikes, props)
+    beh, spikes
+end;
+
+# ╔═╡ 2f8ac703-417c-4360-a619-e799d8bb594f
+md"""
+Loadup (spikes,beh) dataframes and transfer $(join(props,"-")) to spikes structure
+"""
+
+# ╔═╡ d51ce0f2-03bf-4c88-9302-9fd4bc8621eb
+grid_select = begin
+	width_select =  @bind width  Slider(0f0:0.2f0:2f0, show_value=true, default=2f0)
+	thresh_select = @bind thresh Slider(1f0:1f0:6f0, show_value=true, default=1.5f0)
+	(;width_select, thresh_select)
+end
+
+# ╔═╡ cbfbe9c9-f7c5-4219-8d81-b335fe5f5ed6
+radiusinc, ylim, aspect_ratio = if prop_sel == "y-x"
+	0.1f0, nothing, 1
+elseif prop_sel == "currentAngle-currentPathLength"
+    0.05f0, (0, 100), 1/18
+else
+	0.05f0, nothing, 1
+end
+
 # ╔═╡ efcdc2f1-5e26-4534-953e-defae4bd8603
 md"""
 # Δt = 0 only
@@ -115,6 +254,9 @@ isotab = combine(groupby(spikes, :unit), :isolated=>mean=>:isofraction)
 
 # ╔═╡ ebe2194d-e79d-4a5e-bd83-a06eae95932f
 isotab.unit
+
+# ╔═╡ ee0d1046-02c1-4fc0-ab5e-901dc48bfd0c
+
 
 # ╔═╡ 9a2edeed-d33b-45e3-8dfc-1d03b967accc
 F = @formula isofraction ~ 1 * Not(isofraction)
@@ -313,7 +455,10 @@ heatmap(hcat([Utils.norm_extrema(m) for m in  eachrow(M)]...)')
 metrics.push_dims!(f_s)
 
 # ╔═╡ 60ba0b7b-e30d-42c8-9ff6-e17b5163ff53
-isotau = leftjoin( DataFrame([f_s[:bestshift_bitsperspike][:,1] f_s[:unit][:,1]], [:bestshift_bitsperspike, :unit]), isotab; on=:unit)
+isotau = leftjoin( 
+	DataFrame([f_s[:bestshift_bitsperspike][:,1] f_s[:unit][:,1]], [:bestshift_bitsperspike, :unit]), 
+	isotab; 
+	on=:unit)
 
 # ╔═╡ e1136496-d5fa-442b-85b0-a69379c0335a
 @df isotau scatter(:bestshift_bitsperspike, :isofraction)
@@ -414,7 +559,7 @@ begin
 
 	L = Plots.@layout [[ddd{0.25w} orig_h dd{0.25w}]; grid(1,2)]
 	b=Plot.create_blank_plot()
-	hhhh=plot(b,h_typ,b, h_adj,h_iso; layout=L)
+	hhhh=plot(b,h_typ,b, h_adj,h_iso; layout=L, size=(500,1000))
 	
 end
 
@@ -427,13 +572,12 @@ end
 
 # ╔═╡ 671cb2a4-e6c0-4c23-9e15-41c861d8f383
 begin
-	widths["stopWell"] = 0.50
+	widths["stopWell"] = 0.5
 	Utils.filtreg.register(beh,spikes,on="time",transfer=["stopWell"])
 	shifted_wg = Timeshift.shifted_fields(beh, spikes, shifts, ["x","y","stopWell"];
 	                               shiftbeh=false,
 	                               widths, 
-								   adaptive=false,
-                                   metricfuncs=[metrics.bitsperspike,metrics.totalcount,metrics.maxrate,metrics.meanrate],
+								   adpative=false,
 								   filters=filts[datacut], 
 								   thresh);
 end
@@ -776,6 +920,7 @@ using Memoization
 # ╠═60ba0b7b-e30d-42c8-9ff6-e17b5163ff53
 # ╠═bb7c51b0-bac8-4aba-83df-30f301be4e65
 # ╠═e1136496-d5fa-442b-85b0-a69379c0335a
+# ╠═ee0d1046-02c1-4fc0-ab5e-901dc48bfd0c
 # ╠═9bdea77f-22cc-414a-b675-3bd8bbe7cdf8
 # ╠═9a2edeed-d33b-45e3-8dfc-1d03b967accc
 # ╠═671cb2a4-e6c0-4c23-9e15-41c861d8f383
