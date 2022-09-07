@@ -14,6 +14,7 @@ module Munge
     include(srcdir("Munge","timeshift.jl"))
     include(srcdir("Munge","lfp_decode.jl"))
     include(srcdir("Munge","nonlocal.jl"))
+    include(srcdir("Munge","SpikeTrains.jl"))
     @reexport using .chrono
     @reexport using .behavior
     @reexport using .lfp
@@ -24,6 +25,7 @@ module Munge
     @reexport using .timeshift
     @reexport using .lfp_decode
     @reexport using .nonlocal
+    @reexport using .SpikeTrains
 
 end
 

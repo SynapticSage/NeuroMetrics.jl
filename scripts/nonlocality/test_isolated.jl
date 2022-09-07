@@ -81,11 +81,31 @@ Munge.spiking.isolated(spikes, lfp, include_samples=false)
 # Split by isolated spikes and discover the fraction of isolated spikes
 function get_isolation_summary(spikes,split=[:cuemem])
     iso_sum = combine(groupby(dropmissing(spikes,:isolated), [:area, split...]), [:isolated,:nearestcyc,:meancyc] .=> mean, (x->nrow(x)))
-    # Calculate time animal spends in each cuemem segment
-    task_pers = Table.get_periods(beh2, [:traj, :cuemem], timefract= :velVec => x->abs(x) > 2)
-    # Total that time and register that column to the isolation summary
-    task_pers = combine(groupby(task_pers, [:cuemem]), [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
-    Utils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
+    if :period ∈ split
+        # Calculate time animal spends in each cuemem segment
+        task_pers = Table.get_periods(beh2, [:period, :cuemem], 
+                                      timefract=:velVec => x->abs(x) > 2)
+        # Total that time and register that column to the isolation summary
+        task_pers = combine(groupby(task_pers, [:period, :cuemem]),
+                            [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
+        Utils.filtreg.register(task_pers, iso_sum, on="period", transfer=["timespent"])
+    elseif :traj ∈ split
+        # Calculate time animal spends in each cuemem segment
+        task_pers = Table.get_periods(beh2, [:traj, :cuemem], 
+                                      timefract=:velVec => x->abs(x) > 2)
+        # Total that time and register that column to the isolation summary
+        task_pers = combine(groupby(task_pers, [:period, :cuemem]),
+                            [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
+        Utils.filtreg.register(task_pers, iso_sum, on="traj", transfer=["timespent"])
+    else
+        # Calculate time animal spends in each cuemem segment
+        task_pers = Table.get_periods(beh2, [:period, :cuemem], 
+                                      timefract=:velVec => x->abs(x) > 2)
+        # Total that time and register that column to the isolation summary
+        task_pers = combine(groupby(task_pers, [:cuemem]), [:δ,:frac] =>
+                            ((x,y)->sum(x.*y)) => :timespent)
+        Utils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
+    end
     # Acqruire events per time as events  / time spent
     iso_sum.events_per_time = iso_sum.x1 ./ (iso_sum.timespent)
     iso_sum.cuearea = iso_sum.area .* "\n" .* getindex.([clab], iso_sum.cuemem)
@@ -140,9 +160,9 @@ Plot.save((;desc="isolated spikes per second, celltype"))
 """
 Period-wise calculations
 """
-
 Load.register(beh, spikes, on="time", transfer=["period","correct"])
-iso_sum_celltype_per = get_isolation_summary(spikes, [:cuemem, :interneuron, :period, :correct])
+iso_sum_celltype_per = get_isolation_summary(spikes, [:cuemem, :interneuron,
+                                                      :period, :correct])
 sort!(iso_sum_celltype_per, [:area, :interneuron, :cuemem, :period])
 @subset!(iso_sum_celltype_per, (:cuemem .== -1 .&& :correct .== -1) .||
                                 (:cuemem .== 0 .&& :correct .!= -1) .||
@@ -153,6 +173,7 @@ sort!(iso_sum_celltype_per, [:area, :interneuron, :cuemem, :period])
 # -------- mua per second ------------------------------
 Plot.setfolder("nonlocality","MUA and isolated MUA", "period-wise")
 @df @subset(iso_sum_celltype_per, :interneuron .== false) scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), :events_per_time, group=:correct, xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA events/time", xlabel="task", ylabel="events × time\$^{-1}\$, pyr cells", legend_title="correct/error", legend_position=:outerbottomright)
+@df @subset(iso_sum_celltype_per, :interneuron .== true) scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), :events_per_time, group=:correct, xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA events/time", xlabel="task", ylabel="events × time\$^{-1}\$, pyr cells", legend_title="correct/error", legend_position=:outerbottomright)
 Plot.save((;desc="mua-per-time",group=:correct,pyr=true))
 
 @df @subset(iso_sum_celltype_per, :interneuron .== false) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :events_per_time, group=:correct, alpha=0.5, xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA events/time", xlabel="task", ylabel="events × time\$^{-1}\$, pyr cells", legend_title="correct/error", legend_position=:outerbottomright)
@@ -166,9 +187,35 @@ Plot.save((;desc="mua-per-time",group=:interneuron,group_sep=true))
 
 # -------- percent isolated spikes ---------------------
 @df @subset(iso_sum_celltype_per, :interneuron .== false) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:correct, alpha=0.5, xtick=([-1,0,1],["nontask","cue","mem"]),title="Isolation", xlabel="task", ylabel="%percent isolated spikes", legend_title="correct/error", legend_position=:outerbottomright)
+
 Plot.save((;desc="isolation", group=:correct, group_sep=true, ))
+
 @df iso_sum_celltype_per scatter(:cuemem .+ 0.25.*(:interneuron .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:interneuron, alpha=0.5)
+
 Plot.save((;desc="isolation", group=:interneuron, group_sep=true))
+
+@df iso_sum_celltype_per scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:correct, alpha=0.5)
+
+cpyr_ce = @df @subset(iso_sum_celltype_per, :area.=="CA1", :interneuron.==false) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:correct, alpha=0.5, title="ca1 pyr")
+cint_ce = @df @subset(iso_sum_celltype_per, :area.=="CA1", :interneuron.==true) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:correct, alpha=0.5, title="ca1 int")
+
+ppyr_ce = @df @subset(iso_sum_celltype_per, :area.=="PFC", :interneuron.==false) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:correct, alpha=0.5, title="pfc pyr")
+#pint_ce = @df @subset(iso_sum_celltype_per, :area.=="PFC", :interneuron.==true) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:correct, alpha=0.5, title="pfc int")
+pint_ce = Plot.create_blank_plot()
+
+plot(cpyr_ce, cint_ce, ppyr_ce, pint_ce, layout=grid(2,2))
+Plot.save((;desc="isolation cell type and correct"))
+
+cpyr_ce = @df @subset(iso_sum_celltype_per, :area.=="CA1", :interneuron.==false) boxplot(:cuemem .+ 0.25.*(:correct .- 0.5), :isolated_mean, group=:correct, alpha=0.5, title="ca1 pyr")
+cint_ce = @df @subset(iso_sum_celltype_per, :area.=="CA1", :interneuron.==true) boxplot(:cuemem .+ 0.25.*(:correct .- 0.5), :isolated_mean, group=:correct, alpha=0.5, title="ca1 int")
+
+ppyr_ce = @df @subset(iso_sum_celltype_per, :area.=="PFC", :interneuron.==false) boxplot(:cuemem .+ 0.25.*(:correct .- 0.5), :isolated_mean, group=:correct, alpha=0.5, title="pfc pyr")
+#pint_ce = @df @subset(iso_sum_celltype_per, :area.=="PFC", :interneuron.==true) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:correct, alpha=0.5, title="pfc int")
+pint_ce = Plot.create_blank_plot()
+
+plot(cpyr_ce, cint_ce, ppyr_ce, pint_ce, layout=grid(2,2))
+Plot.save((;desc="isolation cell type and correct"))
+
 
 # -------- isolated per second spikes ------------------
 @df @subset(iso_sum_celltype_per, :interneuron .== false) scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), :isolated_events_per_time, group=:correct)
@@ -223,23 +270,23 @@ SVM: All three variables
 Plot.setfolder("nonlocality", "svm")
 using MLJ
 @load SVC pkg=LIBSVM
-#cv = StratifiedCV(nfolds=2)
-cv = Holdout(fraction_train=0.80, shuffle=true)
+cv = StratifiedCV(nfolds=2, shuffle=true)
+#cv = Holdout(fraction_train=0.80, shuffle=true)
 
 function eva(cv::ResamplingStrategy, svc::Machine; n=100)
     measure=[accuracy, measure_0, measure_1]
-    if typeof(cv) <: StratifiedCV
-        res = MLJ.evaluate!(svc; resampling=cv,
-                           verbosity=0,measure)
-        df = DataFrame(res)
-    elseif typeof(cv) <: Holdout
+    #if typeof(cv) <: StratifiedCV
+    #    res = MLJ.evaluate!(svc; resampling=cv,
+    #                       verbosity=0,measure)
+    #    df = DataFrame(res)
+    #elseif typeof(cv) <: Holdout
         res = [MLJ.evaluate!(svc; resampling=cv,
                            verbosity=0, measure)
               for _ in 1:n]
         df = [transform!(DataFrame(r), :measure=>(x->i*ones(size(DataFrame(r),1)))=>:replicate) 
               for (i,r) in enumerate(res)]
         df = vcat(df...)
-    end
+    #end
     res, df
 end
 function measure_0(y,ŷ)
@@ -256,11 +303,11 @@ cmt=Dict("accuracy"=>"accuracy", "measure_0 "=>"pred. cue\npred. error", "measur
 
 svm_data = @subset(iso_sum_celltype_per, :correct .== 0 .|| :correct .== 1);
 svm_data = dropmissing(svm_data[:,[:isolated_mean,:events_per_time,:isolated_events_per_time,:correct, :cuemem]]);
-X = MLJ.table(Matrix(svm_data[!, [:isolated_mean,:events_per_time,:isolated_events_per_time]]));
+XX = Matrix(svm_data[!, [:isolated_mean,:events_per_time,:isolated_events_per_time]]);
 
 y = categorical(svm_data[!,:correct]);
 svc_mdl = MLJLIBSVMInterface.SVC(degree=Int32(4));
-svc = machine(svc_mdl, X, y);
+svc = machine(svc_mdl, XX, y);
 res, df = eva(cv, svc)
 ld = Utils.mlj.measureidxDict(df)
 xtick = (collect(values(ld)), getindex.([cmt],collect(keys(ld))))
@@ -269,11 +316,13 @@ xtick = (collect(values(ld)), getindex.([cmt],collect(keys(ld))))
 
 y = categorical(svm_data[!,:cuemem]);
 svc_mdl = MLJLIBSVMInterface.SVC(degree=Int32(4));
-svc = machine(svc_mdl, X, y);
+svc = machine(svc_mdl, XX, y);
 res, df = eva(cv, svc)
 xtick = (collect(values(ld)), getindex.([cmt],collect(keys(ld))))
-@df df scatter!(:idxmeasure .+ 0.1 .* randn(size(:idxmeasure)), :measurement; ylim=(0,1), label="Predict cuemem",
+@df df scatter!(:idxmeasure .+ 0.1 .* randn(size(:idxmeasure)), :measurement; ylim=(0,1), label="Predict cuemem", legend=:none,
                xtick)
+
+
 Plot.save("all three vars")
 
 """
@@ -282,23 +331,23 @@ SVM: events_per_time
 
 svm_data = @subset(iso_sum_celltype_per, :correct .== 0 .|| :correct .== 1);
 svm_data = dropmissing(svm_data[:,[:events_per_time,:correct, :cuemem]]);
-X = MLJ.table(Matrix(svm_data[!, [:events_per_time,]]))
+XX = MLJ.table(Matrix(svm_data[!, [:events_per_time,]]))
 
 y = categorical(svm_data[!,:correct]);
 svc_mdl = MLJLIBSVMInterface.SVC(degree=Int32(4));
-svc = machine(svc_mdl, X, y);
+svc = machine(svc_mdl, XX, y);
 res, df = eva(cv, svc)
-xtick = (collect(values(ld)), cmt.[collect(keys(ld))])
+xtick = (collect(values(ld)), getindex.([cmt], collect(keys(ld))))
 @df df scatter(:idxmeasure .+ 0.1 .* randn(size(:idxmeasure)), :measurement; ylim=(0,1), label="Predict correct",
                xtick)
 
 y = categorical(svm_data[!,:cuemem]);
 svc_mdl = MLJLIBSVMInterface.SVC(degree=Int32(4));
-svc = machine(svc_mdl, X, y);
+svc = machine(svc_mdl, XX, y);
 res, df = eva(cv, svc)
-xtick = (collect(values(ld)), getindex.([cmt],collect(keys(ld))))
 @df df scatter!(:idxmeasure .+ 0.1 .* randn(size(:idxmeasure)), :measurement; ylim=(0,1), label="Predict cuemem",
                xtick)
+
 Plot.save("events per time")
 
 """
@@ -307,11 +356,11 @@ SVM: isolated_mean
 
 svm_data = @subset(iso_sum_celltype_per, :correct .== 0 .|| :correct .== 1);
 svm_data = dropmissing(svm_data[:,[:isolated_mean,:correct, :cuemem]]);
-X = MLJ.table(Matrix(svm_data[!, [:isolated_mean,]]))
+XX = MLJ.table(Matrix(svm_data[!, [:isolated_mean,]]))
 
 y = categorical(svm_data[!,:correct]);
 svc_mdl = MLJLIBSVMInterface.SVC(degree=Int32(4));
-svc = machine(svc_mdl, X, y);
+svc = machine(svc_mdl, XX, y);
 res, df = eva(cv, svc)
 xtick = (collect(values(ld)), getindex.([cmt],collect(keys(ld))))
 @df df scatter(:idxmeasure .+ 0.1 .* randn(size(:idxmeasure)), :measurement; ylim=(0,1), label="Predict correct",
@@ -319,12 +368,38 @@ xtick = (collect(values(ld)), getindex.([cmt],collect(keys(ld))))
 
 y = categorical(svm_data[!,:cuemem]);
 svc_mdl = MLJLIBSVMInterface.SVC(degree=Int32(4));
-svc = machine(svc_mdl, X, y);
+svc = machine(svc_mdl, XX, y);
 res, df = eva(cv, svc)
 xtick = (collect(values(ld)), getindex.([cmt],collect(keys(ld))))
 @df df scatter!(:idxmeasure .+ 0.1 .* randn(size(:idxmeasure)), :measurement; ylim=(0,1), label="Predict cuemem",
                xtick)
+
 Plot.save("isolation")
+
+"""
+SVM: isolated_events_per_time
+"""
+
+svm_data = @subset(iso_sum_celltype_per, :correct .== 0 .|| :correct .== 1);
+svm_data = dropmissing(svm_data[:,[:isolated_events_per_time,:correct, :cuemem]]);
+XX = MLJ.table(Matrix(svm_data[!, [:isolated_events_per_time,]]))
+
+y = categorical(svm_data[!,:correct]);
+svc_mdl = MLJLIBSVMInterface.SVC(degree=Int32(4));
+svc = machine(svc_mdl, XX, y);
+res, df = eva(cv, svc)
+xtick = (collect(values(ld)), getindex.([cmt],collect(keys(ld))))
+@df df scatter(:idxmeasure .+ 0.1 .* randn(size(:idxmeasure)), :measurement; ylim=(0,1), label="Predict correct",
+               xtick)
+
+y = categorical(svm_data[!,:cuemem]);
+svc_mdl = MLJLIBSVMInterface.SVC(degree=Int32(4));
+svc = machine(svc_mdl, XX, y);
+res, df = eva(cv, svc)
+xtick = (collect(values(ld)), getindex.([cmt],collect(keys(ld))))
+@df df scatter!(:idxmeasure .+ 0.1 .* randn(size(:idxmeasure)), :measurement; ylim=(0,1), label="Predict cuemem",
+               xtick)
+Plot.save("isolated_events_per_time")
 
 
 """

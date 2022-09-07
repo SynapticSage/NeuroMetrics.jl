@@ -101,14 +101,15 @@ end
 
 save_fields(F; overwrite=true)
 
+
+# S FROM CHECKPOINT FILE
 # Apply shuffles to mains and fields
 SIkeys = intersect(keys(I), keys(S))
-
 🔑 = collect(SIkeys)[2]
 i, s    = I[🔑], S[🔑]
 
 
-@time s = Table.to_dataframe(s)
+@time s = Table.to_dataframe(s, key_name="shift")
 
 s = unstack(s[!, hasproperty(s, :dim_1) ? Not(:dim_1) : Colon()], :metric, :value)
 i = unstack(i[!,Not(:dim_1)], :metric, :value)
@@ -121,6 +122,7 @@ dists = DimArray(
          Array{Distribution,2}(undef, length(shifts), length(units)), 
          (Dim{:shift}(shifts), Dim{:unit}(units))
         );
+
 for (shift,unit) in Iterators.product(shifts,units)
     
     ss = @subset(s, :shift .== shift, :unit .== unit)
@@ -131,5 +133,72 @@ for (shift,unit) in Iterators.product(shifts,units)
     D = Distributions.Gaussian(μ, σ)
     dists[unit=At(unit), shift=At(shift)] = D
 
+end
+
+# Get  S from  checkpoints folder
+using Utils.namedtup
+SIkeys = bestpartialmatch(keys(I), (;datacut=:all, widths=1.5f0, coactivity=nothing))
+🔑 = SIkeys
+i= I[🔑]
+
+using Serialization
+folder = datadir("checkpoints")
+@time  Q = [deserialize(joinpath(folder,file) )
+                 for file in readdir(folder)]
+push_metric!.(Q, metrics.bitsperspike)
+
+using Timeshift.types
+using Field.metrics
+S = Dict()
+@showprogress for  (s, ss) in enumerate(Q)
+    key = first(keys(ss))
+    newkey = (;shuffle=s)
+    trans = ShiftedFields(ss[key])
+    
+    push!(S, newkey=>trans.metrics)
+end
+@time s =S = Table.to_dataframe(S, key_name="shift")
+
+#s = unstack(S[!, hasproperty(S, :dim_1) ? Not(:dim_1) : Colon()], :metric, :value)
+i = unstack(i[!, hasproperty(i,:dim_1) ? Not(:dim_1) : Colon()], :metric, :value)
+Table.vec_arrayofarrays!(s)
+Table.vec_arrayofarrays!(i)
+
+# Create gaussian to sample from
+shifts, units = unique(i.shift), unique(i.unit)
+dists = DimArray(
+         Array{Distribution,2}(undef, length(shifts), length(units)), 
+         (Dim{:shift}(shifts), Dim{:unit}(units))
+        );
+
+for (shift,unit) in Iterators.product(shifts,units)
+    
+    ss = @subset(s, :shift .== shift, :unit .== unit)
+    ii = @subset(i, :shift .== shift, :unit .== unit)
+    vals = ss.bitsperspike
+    μ, σ = mean(vals), std(vals)
+    #@infiltrate μ > 0
+    D = Distributions.Gaussian(μ, σ)
+    dists[unit=At(unit), shift=At(shift)] = D
+
+end
+
+i = sort(i,[:unit,:shift])
+S = sort(unstack(s, [:unit,:shift] , :shuffle, :bitsperspike),[:unit,:shift])
+
+realN, shufN = [],[]
+sigU, sigS = [], []
+for (shift,unit) in Iterators.product(shifts,units)
+    
+    ss = @subset(s, :shift .== shift, :unit .== unit)
+    ii = @subset(i, :shift .== shift, :unit .== unit)
+    shuf=mean(ss.bitsperspike)
+    push!(shufN,shuf)
+    re =ii.information[1]
+    push!(realN,re)
+    if re > shuf
+        push!(sigU, unit)
+        push!(sigS, shift)
+    end
 end
 

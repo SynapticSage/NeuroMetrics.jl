@@ -176,8 +176,8 @@ badd +8 ~/Code/projects/goal-code/src/Load/ripples.jl
 badd +4 ~/Code/projects/goal-code/src/Load/utils.jl
 badd +216 ~/Code/projects/goal-code/src/Timeshift.jl
 badd +1 ~/Code/projects/goal-code/src/Timeshift/checkpoint.jl
-badd +87 ~/Code/projects/goal-code/src/Table/convert_types.jl
-badd +61 ~/Code/projects/goal-code/src/Table.jl
+badd +19 ~/Code/projects/goal-code/src/Table/convert_types.jl
+badd +158 ~/Code/projects/goal-code/src/Table.jl
 badd +9 ~/Code/projects/goal-code/src/Utils/dict.jl
 badd +136 ~/Code/projects/goal-code/src/Utils/namedtup.jl
 badd +1 ~/Code/projects/goal-code/src/Timeshift/Keys.jl
@@ -190,10 +190,10 @@ badd +1 ~/Code/projects/goal-code/scripts/timeshift/plot_examine_set_of_fields.j
 badd +3 ~/Code/projects/goal-code/src/Table/group.jl
 badd +191 ~/Code/projects/goal-code/src/Timeshift/operation.jl
 badd +50 ~/Code/projects/goal-code/src/Plot/timeshift.jl
-badd +30 ~/Code/projects/goal-code/src/Plot.jl
+badd +1 ~/Code/projects/goal-code/src/Plot.jl
 badd +2 ~/Code/projects/goal-code/src/Plot/raster.jl
 badd +1 ~/Code/projects/goal-code/src/Plot/table.jl
-badd +15 ~/Code/projects/goal-code/src/Munge.jl
+badd +13 ~/Code/projects/goal-code/src/Munge.jl
 badd +25 ~/Code/projects/goal-code/scripts/timeshift/notebook/Initialize_plot_experimentation_pluto.jl
 badd +3197 ~/Code/projects/goal-code/Manifest.toml
 badd +127 ~/Code/projects/goal-code/Project.toml
@@ -211,7 +211,7 @@ badd +11497 ~/.cache/nvim/lsp.log
 badd +77 ~/Code/projects/goal-code/src/Field/fixed.jl
 badd +2 ~/Code/projects/goal-code/src/Utils/plot.jl
 badd +126 ~/Code/projects/goal-code/src/Shuf.jl
-badd +14 ~/Code/projects/goal-code/src/Filt.jl
+badd +34 ~/Code/projects/goal-code/src/Filt.jl
 badd +8 ~/Code/projects/goal-code/src/Field/model.jl
 badd +1 ~/Code/projects/goal-code/src/Field/operation.jl
 badd +1 test_filt.jl
@@ -220,7 +220,7 @@ badd +1 ~/Code/projects/goal-code/plots/fields/shift.shorter/GOAL_TRAJ_LEN_heatm
 badd +1 ~/Code/projects/goal-code/src/Field/preset.jl
 badd +214 ~/Code/projects/goal-code/src/Field/legacy.jl
 badd +74 ~/Code/projects/goal-code/src/Timeshift/legacy.jl
-badd +339 ~/Code/projects/goal-code/src/Field/metrics.jl
+badd +201 ~/Code/projects/goal-code/src/Field/metrics.jl
 badd +15 ~/Code/projects/goal-code/src/Field/recon_process.jl
 badd +1 ~/Code/projects/goal-code/src/Timeshift/crossval.jl
 badd +89 ~/Code/projects/goal-code/notebooks/TimeshiftDiff.jl
@@ -233,10 +233,10 @@ badd +113 ~/Code/projects/goal-code/src/Timeshift/types.jl
 badd +118 ~/Code/projects/goal-code/notebooks/Examine_LoadMains.jl
 badd +71 ~/Code/projects/goal-code/src/Utils.jl
 badd +113 ~/Code/projects/goal-code/src/Munge/tensor.jl
-badd +278 ~/Code/projects/goal-code/src/Munge/spiking.jl
+badd +255 ~/Code/projects/goal-code/src/Munge/spiking.jl
 badd +173 ~/Code/utilities/+units/getRateMatrix.m
 badd +118 ~/Code/utilities/+units/sparseToDense.m
-badd +11 ~/Code/projects/goal-code/src/Utils/filtreg.jl
+badd +212 ~/Code/projects/goal-code/src/Utils/filtreg.jl
 badd +42 ~/Code/projects/goal-code/src/Utils/binning.jl
 badd +1 test_convexhull.jl
 badd +79 ~/Code/projects/goal-code/scripts/decode/StillRipplePlots.jl
@@ -286,7 +286,8 @@ badd +249 ~/Code/projects/goal-code/scripts/timeshift/Plot_correlate_tau_SPACE_o
 badd +7 ~/Code/projects/goal-code/scripts/decode/PreprocessLFP.jl
 badd +6 ~/Code/projects/goal-code/src/Decode/makie_observable.jl
 badd +72 ~/Code/projects/goal-code/scripts/decode/LoadData.jl
-badd +32 ~/Code/projects/goal-code/src/Munge/lfp.jl
+badd +1 ~/Code/projects/goal-code/src/Statistic.jl
+badd +43 ~/Code/projects/goal-code/src/Munge/lfp.jl
 badd +6 ~/Code/projects/goal-code/src/Load/decode.jl
 badd +40 ~/Code/projects/goal-code/src/Load/lfp.jl
 badd +17 ~/Code/projects/goal-code/scripts/decode/StillThetaSeqPlots.jl
@@ -297,11 +298,11 @@ badd +36 ~/.julia/config/startup.jl
 badd +41 ~/Code/projects/goal-code/scripts/nonlocality/test_nonlocality.jl
 badd +1 ~/Code/projects/goal-code/src/Munge/timeshift.jl
 badd +364 ~/.julia/packages/Arrow/ZlMFU/src/table.jl
-badd +1 ~/Code/projects/goal-code/scripts/nonlocality/test_isolated.jl
+badd +42 ~/Code/projects/goal-code/scripts/nonlocality/test_isolated.jl
 badd +0 ~/Code/projects/goal-code/src/Utils/statistic.jl
 badd +159 ~/Code/projects/goal-code/src/Munge/lfp_decode.jl
-badd +1 test_change_keys.jl
-badd +27 ~/Code/projects/goal-code/scripts/timeshift/ChangeKeys.jl
+badd +60 test_change_keys.jl
+badd +187 ~/Code/projects/goal-code/scripts/timeshift/ChangeKeys.jl
 badd +1 ~/Code/projects/goal-code/LocalPreferences.toml
 badd +27 ~/Code/projects/goal-code/notebooks/IsolatedSpikes.jl
 badd +550 ~/.julia/packages/MLJBase/Fl6Zc/src/resampling.jl
@@ -310,11 +311,12 @@ badd +18 ~/Code/projects/goal-code/src/Munge/nonlocal.jl
 badd +61 ~/Code/projects/goal-code/scripts/decode/CueMem_distance_decode.jl
 badd +193 ~/.julia/packages/Graphics/jN3t0/src/Graphics.jl
 badd +20 ~/Code/projects/goal-code/scripts/timeshift/Tau-relation-to-goal.jl
-badd +117 quick_shuf_cache.jl
+badd +133 quick_shuf_cache.jl
 badd +129 Script_TestAdaptive.jl
 badd +52 ~/Code/projects/goal-code/scripts/behavior/PathVariability.jl
 badd +9 ~/Code/projects/goal-code/scripts/cells/Held.jl
-badd +0 ~/Code/projects/goal-code/scripts/trajectory-of-data/TrajPlots.jl
+badd +42 ~/Code/projects/goal-code/scripts/trajectory-of-data/TrajPlots.jl
+badd +226 ~/Code/projects/goal-code/src/Munge/SpikeTrains.jl
 argglobal
 %argdel
 tabnew +setlocal\ bufhidden=wipe
@@ -387,22 +389,10 @@ normal! 0
 wincmd w
 wincmd =
 tabnext
-edit ~/Code/projects/goal-code/scripts/trajectory-of-data/TrajPlots.jl
-let s:save_splitbelow = &splitbelow
-let s:save_splitright = &splitright
-set splitbelow splitright
-let &splitbelow = s:save_splitbelow
-let &splitright = s:save_splitright
-wincmd t
-let s:save_winminheight = &winminheight
-let s:save_winminwidth = &winminwidth
-set winminheight=0
-set winheight=1
-set winminwidth=0
-set winwidth=1
+edit ~/Code/projects/goal-code/scripts/nonlocality/test_isolated.jl
 argglobal
-balt ~/Code/projects/goal-code/src/Timeshift/shuffle.jl
-let s:l = 1 - ((0 * winheight(0) + 14) / 28)
+balt ~/Code/projects/goal-code/src/Munge/lfp.jl
+let s:l = 1 - ((0 * winheight(0) + 27) / 54)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt

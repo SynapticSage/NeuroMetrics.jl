@@ -196,6 +196,12 @@ module metrics
     pop_metric!(R::ReceptiveField, name::Symbol) = pop!(R.metrics, name)
     Base.push!(R::ReceptiveField, pos...; kws...) = Base.push!(R, pos...;kws...)
 
+    function push_metric!(R::AbstractDict, pos...; kws...)
+        for (key,value) in R
+            push_metric!(value, pos...; kws...)
+        end
+    end
+
     """
         run_metrics!
 
