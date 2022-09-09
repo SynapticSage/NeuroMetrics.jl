@@ -49,6 +49,8 @@ module GoalFetchAnalysis
     export Munge
     export Plot
 
-    Utils.plot.set_theme_timebased(23)
+    #Utils.plot.set_theme_timebased(23)
+    import Plots
+    Plots.theme(:bright)
 
 end

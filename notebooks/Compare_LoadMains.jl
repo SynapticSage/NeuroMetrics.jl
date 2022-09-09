@@ -80,7 +80,7 @@ keys(Memoization.caches)
 clear_cache! = @bind clear_memoize_cache Button()
 
 # ╔═╡ fab370fc-4854-4018-92d5-f6808ffdf742
-clear_memoize_cache == "Click" ? Memoization.empty_all_caches!() : nothing
+clear_memoize_cache == "Click" ? (print("clearing"); Memoization.empty_all_caches!()) : nothing
 
 # ╔═╡ e4174f16-1628-4e7c-8d30-840690422582
 md"""
@@ -95,9 +95,15 @@ cells = Load.load_cells("RY16",36);
 
 # ╔═╡ ffa1cf80-e6c5-4d5f-b3fb-555018fc5f75
 function table_transform(x; area_filt="CA1-PFC")
-	x = transform(Table.to_dataframe( x, key_name=[:shift], explode=true), All(), :dim_1 => (x->replace(x,missing=>0)), renamecols=false)
-	x = flatten(x, [:value, :dim_1])
-	x = unstack(x, :metric, :value)
+	x = transform(Table.to_dataframe( x, key_name=[:shift], explode=true), All(), renamecols=false)
+	if :dim_1 in propertynames(x)
+		x=x[!,Not(:dim_1)]
+	end
+	flatprops = [col for col in [:value, :dim_1] if hasproperty(x,col)]
+	x = !isempty(flatprops) ? flatten(x, flatprops) : x
+	if :metric in propertynames(x)
+		x = unstack(x, :metric, :value, allowduplicates=true) # dups allowed for metrics with more than 1 dimension -- I wont be looking at thtose here
+	end
 	x = filtreg.register(cells, x, on="unit", transfer=["area"])[2]
 	if area_filt != "CA1-PFC"
 		x = subset(x, :area => xx-> xx .== area_filt)
@@ -122,13 +128,17 @@ begin
     """
 end
 
+# ╔═╡ 9c9c5ad2-e344-41f0-a16f-64a62cab415f
+controls
+
 # ╔═╡ 502701a1-9c58-48ca-b85b-b580b6fecde7
 begin
-	datacut_sel1 = @bind datacut_key1 PlutoUI.Radio(controls[:datacut], default="all")
+	datacut_sel1 = @bind datacut_key1 PlutoUI.Radio(controls[:datacut], default="cue")
 	thresh_sel1  = @bind thresh_key1 PlutoUI.Radio(controls[:thresh], default="1.5")
 	widths_sel1  = @bind widths_key1 PlutoUI.Radio(controls[:widths], default="5.0")
+	last_sel1  = @bind last_key1 PlutoUI.Radio(controls[:last], default="5.0")
 	#coact_sel1   = @bind coactive1 PlutoUI.Radio(controls[:coactivity], default="nothing")
-	console1 = (;datacut_sel1, thresh_sel1, widths_sel1)#, coact_sel1)
+	console1 = (;datacut_sel1, thresh_sel1, widths_sel1, last_sel1)#, coact_sel1)
 
 end
 
@@ -136,6 +146,7 @@ end
 key1 = Timeshift.pluto_executekey(I, actuals, :thresh=>thresh_key1, 
                                   :widths=>widths_key1, 
                                   #:coactivity=>coactive1, 
+								  :last=>last_key1,
                                   :datacut=>datacut_key1)
 
 # ╔═╡ 32ec6eae-4c2e-4222-af93-340562f26e79
@@ -148,18 +159,29 @@ md"""
 
 # ╔═╡ d600f8bf-555b-4972-94b3-fc0a07a241c0
 begin
-	datacut_sel2 = @bind datacut_key2 PlutoUI.Radio(controls[:datacut], default="all")
+	datacut_sel2 = @bind datacut_key2 PlutoUI.Radio(controls[:datacut], default="memory")
 	thresh_sel2  = @bind thresh_key2 PlutoUI.Radio(controls[:thresh], default="1.5")
+	last_sel2  = @bind last_key2 PlutoUI.Radio(controls[:last], default="3.0")
 	widths_sel2  = @bind widths_key2 PlutoUI.Radio(controls[:widths], default="5.0")
 	#coact_sel2   = @bind coactive2 PlutoUI.Radio(controls[:coactivity], default="nothing")
-	console2 = (;datacut_sel2, thresh_sel2, widths_sel2)#, coact_sel2)
+	console2 = (;datacut_sel2, thresh_sel2, last_sel2, widths_sel2)#, coact_sel2)
 end
 
 # ╔═╡ 21e1d7d4-0120-41b6-81c0-f98819e0dd13
 key2 = Timeshift.pluto_executekey(I, actuals, :thresh=>thresh_key2, 
                                   :widths=>widths_key2, 
+								  :last=>last_key2,
                                   #:coactivity=>coactive2, 
                                   :datacut=>datacut_key2)
+
+# ╔═╡ 76973046-4fd3-41bc-8aa8-54d40b4e7d97
+serialize(datadir("key2"),key2)
+
+# ╔═╡ fdbc399e-baf5-44fa-bbbc-cd7e16fbc10c
+i2= I[key2]
+
+# ╔═╡ a3eb28b5-7ed7-492b-afb8-c089f07deb63
+i2.shift
 
 # ╔═╡ 58591957-b16f-4c4a-b3e7-f6c36feca331
 md"Shortcut names for keys"
@@ -399,7 +421,7 @@ begin
 	function get_metmatrix(sfsmet; met, srt, normrange)	
 		tmpstatmat = shiftmetrics.getstatmat(sfsmet, met; filtval=(met == "coherence" ? NaN : 0), asmat=true, unitnoskip=false, sortby=[srt], (normrange ? (;rangenorm=[0,1]) : (;percentnorm=0.5))...);
 	end
-	@memoize function side_by_side_plot(sf1, sf2; met, srt, normrange, key1, key2, filt)
+	function side_by_side_plot(sf1, sf2; met, srt, normrange, key1, key2, filt)
 		metmatrix1 = get_metmatrix(sf1; met, srt, normrange)
 		metmatrix2 = get_metmatrix(sf2; met, srt, normrange)
 		plot_shift_pop_overall1, plot_shift_pop_overall2 = plot_sorted_mets(sf1, metmatrix1; met, srt, normrange=true, key=key1), plot_sorted_mets(sf2, metmatrix2; met, srt, normrange=true, key=key2)
@@ -410,20 +432,23 @@ end
 # ╔═╡ 763ce567-f5a9-4460-a554-ba0ffc557170
 md"### Unfiltered"
 
+# ╔═╡ 700da771-50d9-44ec-aef7-4130668d215f
+sf1.shift
+
 # ╔═╡ 7ce8f6db-6696-411e-8751-06dbcf1d25da
 unfilt_sbs = side_by_side_plot(sf1, sf2; met, srt, normrange, key1, key2, filt=false)
 
 # ╔═╡ 6913e35a-de73-495b-a7ff-5a1a63c6302e
 saveon ? Plot.save(sorted_cell_metric_folder, unfilt_sbs, (;savekws...,filt=false)) : nothing;
 
+# ╔═╡ 53b84249-b032-4e76-9d35-6dd7856194d9
+(;console1, console2, area_filt_sel)
+
 # ╔═╡ e7e4ef82-392c-40a4-abd0-abc32c0d6880
 md"""
 !!! info "Combinations of interest"
 	all, task/nontask, cue/memory, memory_correct/memory_error, cue_correct/cue_error, odds/evens, firsthalf/lasthalf, correct/error
 """
-
-# ╔═╡ 53b84249-b032-4e76-9d35-6dd7856194d9
-(;console1, console2, area_filt_sel)
 
 # ╔═╡ b5f732e2-369f-4d34-b070-de4352592bec
 md"""
@@ -661,21 +686,25 @@ Its possible that some of the more futury cells have fields that emphasize bound
 # ╟─79a1a60c-3c9e-430e-96d0-084f072bbb27
 # ╠═f4edf013-a616-45fa-be5f-0e2308aa3f34
 # ╠═f9a092bb-b74d-4c15-a445-2ba777629ab1
-# ╟─5f59d422-609b-4107-bdeb-a71f85cd443a
-# ╟─fab370fc-4854-4018-92d5-f6808ffdf742
+# ╠═5f59d422-609b-4107-bdeb-a71f85cd443a
+# ╠═fab370fc-4854-4018-92d5-f6808ffdf742
 # ╟─e4174f16-1628-4e7c-8d30-840690422582
 # ╠═e6605880-9bd0-43b3-81dd-643829d32cbc
 # ╠═99b0eff5-6d22-4948-91ae-5080d838580e
 # ╠═ffa1cf80-e6c5-4d5f-b3fb-555018fc5f75
 # ╠═01000490-e094-4c88-ac60-7b9fdeba3ccc
+# ╠═9c9c5ad2-e344-41f0-a16f-64a62cab415f
 # ╟─c753704b-f9bc-4824-a3ec-27b6f8ff3f8b
-# ╟─502701a1-9c58-48ca-b85b-b580b6fecde7
+# ╠═502701a1-9c58-48ca-b85b-b580b6fecde7
 # ╟─635d367d-accb-438d-b67d-3a9e5fdd7cb7
-# ╠═63772ff9-2b0c-4d30-a084-3369e3e809e0
+# ╟─63772ff9-2b0c-4d30-a084-3369e3e809e0
 # ╠═32ec6eae-4c2e-4222-af93-340562f26e79
 # ╟─4cfc656c-957c-4394-833d-93af05eff81c
-# ╟─d600f8bf-555b-4972-94b3-fc0a07a241c0
-# ╟─21e1d7d4-0120-41b6-81c0-f98819e0dd13
+# ╠═d600f8bf-555b-4972-94b3-fc0a07a241c0
+# ╠═21e1d7d4-0120-41b6-81c0-f98819e0dd13
+# ╠═76973046-4fd3-41bc-8aa8-54d40b4e7d97
+# ╠═fdbc399e-baf5-44fa-bbbc-cd7e16fbc10c
+# ╠═a3eb28b5-7ed7-492b-afb8-c089f07deb63
 # ╠═4902ca06-9f29-48c7-a3f3-8a6178ddaa4c
 # ╟─58591957-b16f-4c4a-b3e7-f6c36feca331
 # ╠═c1053cca-23a9-40cc-a2db-bbbb07c8a928
@@ -709,6 +738,7 @@ Its possible that some of the more futury cells have fields that emphasize bound
 # ╟─1afbdcbf-3c8d-45ba-9101-8f1f0db13512
 # ╠═7933787f-bd79-433f-b2d2-20f0dc72b1ef
 # ╟─763ce567-f5a9-4460-a554-ba0ffc557170
+# ╠═700da771-50d9-44ec-aef7-4130668d215f
 # ╠═7ce8f6db-6696-411e-8751-06dbcf1d25da
 # ╠═6913e35a-de73-495b-a7ff-5a1a63c6302e
 # ╠═53b84249-b032-4e76-9d35-6dd7856194d9

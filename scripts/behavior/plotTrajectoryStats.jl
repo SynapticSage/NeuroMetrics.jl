@@ -60,3 +60,16 @@ utils.savef("behavior","trajectory","histogram_by_stopWell_relative_trajectory_t
 Plots.histogram2d(beh.trajreltime, beh.traj, label="Relative trajectory time",
                   xlabel="Relative traj\n0:start 1:stop", ylabel="traj")
 utils.savef("behavior","trajectory","histogram2d_relative_trajectory_times_versus_traj")
+
+
+# Typical time length when behavior > 2cms
+histogram(trajperiod.δ .* trajperiod.frac, xlim=(0,20))
+xlims!(0,25)
+m=median(trajperiod.δ .* trajperiod.frac)
+M=mean(trajperiod.δ .* trajperiod.frac)
+vline!([median(trajperiod.δ .* trajperiod.frac)], xlim=(0,20), c=:black, linestyle=:dash, title="Traj lengths in time\nmedian=$m\nmean=$M")
+savefig(plotsdir("behavior","trajectory-timing","times,gt2cms.png"))
+savefig(plotsdir("behavior","trajectory-timing","times,gt2cms.pdf"))
+# Have to throw out the outliers if want a realistic mean. Median works.
+
+# 

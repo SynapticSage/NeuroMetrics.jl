@@ -149,7 +149,6 @@ module receptivefield
             val::Symbol=:prob, transpose::Bool=true)
         @info "tet"
         a=1
-        @infiltrate
         Z = if val==:prob
             reshape(getproperty(field, val), size(field.grid))
         else

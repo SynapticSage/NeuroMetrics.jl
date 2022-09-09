@@ -123,8 +123,8 @@ Loadup (spikes,beh) dataframes and transfer $(join(props,"-")) to spikes structu
 
 # ╔═╡ d51ce0f2-03bf-4c88-9302-9fd4bc8621eb
 grid_select = begin
-	width_select =  @bind width  Slider(0f0:0.2f0:2f0, show_value=true, default=2f0)
-	thresh_select = @bind thresh Slider(1f0:1f0:6f0, show_value=true, default=1.5f0)
+	width_select =  @bind width  Slider(0f0:0.2f0:2f0, show_value=true, default=0.4f0)
+	thresh_select = @bind thresh Slider(1f0:0.5f0:6f0, show_value=true, default=4f0)
 	(;width_select, thresh_select)
 end
 
@@ -145,8 +145,37 @@ md"""
 Let's try making a grid object
 """
 
+# ╔═╡ 6bdcf863-9946-4ca3-ab02-fa6aebe4b91d
+# ╠═╡ show_logs = false
+begin
+    boundary = prop_str == "y-x" ? nothing : Dict("currentPathLength"=>(0,100))
+    @time G = adaptive.get_grid(beh, props; widths, thresh, maxrad=prop_str == "y-x" ? 10f0 : nothing, radiusinc, boundary);
+end
+
+# ╔═╡ 9e635078-bfdb-41bf-8730-e08a968d5e71
+md"""
+Implied linear width of `maxrad[$(nanmaximum(G.radii))]` => $(nanmaximum(G.radii) * sqrt(2)) 
+"""
+
 # ╔═╡ 92b1c56a-1738-43ba-96c9-8c70c6713c39
 grid_select
+
+# ╔═╡ 03586347-83ee-429d-ab29-505754c66734
+plot(G; title="radii\nresolution=$(size(G.grid))")
+
+# ╔═╡ 5dda1153-5359-49d5-9baf-b3bebc4627a0
+if ndims(G.radii) == 2
+	heatmap([collect(x) for x in G.centers]..., (G.radii .=== NaN32)'; title="nan locations")
+end
+
+# ╔═╡ bf5ec1fc-0443-49df-b90a-164bdd4e8b1b
+G.centers
+
+# ╔═╡ 93b3a5c7-6c6f-4e80-91e7-01f83d292c9a
+G.radii
+
+# ╔═╡ 5550e97c-a33e-4ae4-b888-90f782506bc2
+unique(G.radii)
 
 # ╔═╡ 7c03a7aa-3181-4b3d-9dc6-0eb8e8689023
 md"""
@@ -154,8 +183,20 @@ md"""
 And an occupancy object
 """
 
+# ╔═╡ 890fe951-19bb-4c9a-a905-d798bb36c57e
+O = @time adaptive.get_occupancy(beh, G);
+
+# ╔═╡ 592d79b4-edf6-4a0c-af73-1d2805d6410e
+plot(O, clim=(0,0.01), ylims=ylim)
+
 # ╔═╡ 5dfeb288-08a2-4393-8eb9-978fadcf57a8
 
+
+# ╔═╡ d7175827-7528-4cfe-bf3f-d9971f682f49
+# ╠═╡ disabled = true
+#=╠═╡
+O
+  ╠═╡ =#
 
 # ╔═╡ 2c794dc4-4920-4274-ab2b-6bb60251112b
 md"""
@@ -163,13 +204,27 @@ md"""
 grab all spikes as single multiunit field
 """
 
+# ╔═╡ bef016cd-26d1-4de8-a970-182fe2b92e88
+# Test field abilities
+@time multiunit = @time adaptive.get_adaptivefield(spikes, G, O);
+# @benchmark adaptive.get_adaptivefield(spikes, G, O);
+
 # ╔═╡ fca06c75-a137-411c-9bd8-74d33ad93183
 grid_select
+
+# ╔═╡ 410128bf-2332-4aa2-91cb-441e0235cc4a
+plot(multiunit)
 
 # ╔═╡ c23ee21a-b3d4-42e5-a4f1-b703008eda1a
 md"""
 ## 🔥 Field dict of all cells
 """
+
+# ╔═╡ b88c0ec1-b150-49be-828f-6c32bb770c48
+begin
+	@time units = adaptive.yartsev(spikes, G, O; widths=width, thresh, 
+	                               filters=filts[:all]);
+end;
 
 # ╔═╡ 38cff24f-bbc1-42fd-98ae-385323c2480e
 grid_select
@@ -208,7 +263,7 @@ we're going to want codes that take a set of receptive fields and turn them into
 """
 
 # ╔═╡ d1fe3b02-34f5-46ae-8da8-4bac71c86d84
-shifts = -2.5:0.2:2.5
+shifts = 2:0.1:2
 
 # ╔═╡ 014d81aa-5441-41c1-8b71-a347dd03ac9a
 
@@ -216,16 +271,27 @@ shifts = -2.5:0.2:2.5
 # ╔═╡ 316dab79-015f-46e4-88f5-7051529484e5
 @bind timeshift Slider(shifts, default=0)
 
+# ╔═╡ 16b22203-b96b-4899-80f7-6928864f0543
+anim = @animation for sh in shifts
+	plot(SFs[unit,sh])
+end
+
+# ╔═╡ 582b1d61-b5b8-4936-bd5c-679b23ed3921
+
+
 # ╔═╡ 69d37df3-69d3-4c91-8adf-ff8ecd4c9df1
 md"## Isolated spiking"
 
 # ╔═╡ 664fba69-e498-462a-8e84-522a22f2498d
+# ╠═╡ disabled = true
+#=╠═╡
 if !hasproperty(spikes, :isolated)
 	@time lfp = Load.load_lfp("RY16",36,tet=5)
 	@time Munge.lfp.annotate_cycles(lfp)
 	lfp.time .-= Load.min_time_records[1]
 	@time Munge.spiking.isolated(spikes,lfp)
 end
+  ╠═╡ =#
 
 # ╔═╡ bf12b73f-c146-4ab2-be79-5b8097add3f3
 begin
@@ -249,11 +315,77 @@ if norm == "percent"
 # ╔═╡ fff27c22-7c2c-45d0-a670-6920b9bd6a31
 all((!).(spikes.isolated))
 
+# ╔═╡ 3c7440bf-0e77-4287-870c-3b88b0539607
+# ╠═╡ disabled = true
+#=╠═╡
+begin
+	shifted_iso = @memoize Timeshift.shifted_fields(beh, @subset(spikes,:isolated .== true), shifts, G.props;
+							   shiftbeh=false,
+							   widths, 
+							   filters=filts[datacut], 
+							   thresh);
+	
+	shifted_adj = @memoize Timeshift.shifted_fields(beh, @subset(spikes,:isolated .== false), shifts, G.props;
+							   shiftbeh=false,
+							   widths, 
+							   filters=filts[datacut], 
+							   thresh);
+end
+  ╠═╡ =#
+
+# ╔═╡ 129a57c7-aa83-41dc-8071-d6d7213d56b9
+#=╠═╡
+begin
+		is_sfs = ShiftedFields(shifted_iso);
+		f_is = types.matrixform(is_sfs);
+		push_shiftmetric!(f_is, best_tau!; metric=:bitsperspike);
+end
+  ╠═╡ =#
+
+# ╔═╡ a279c651-b6f2-46d1-a0d6-c529a64517bf
+#=╠═╡
+adj_sfs = ShiftedFields(shifted_adj);
+  ╠═╡ =#
+
+# ╔═╡ 65bed4d7-d800-4664-a152-6408a3621ab0
+#=╠═╡
+f_adj = types.matrixform(adj_sfs);
+  ╠═╡ =#
+
+# ╔═╡ 45ad932d-922f-4e54-862e-b5db0c2f3658
+#=╠═╡
+push_shiftmetric!(f_adj, best_tau!; metric=:bitsperspike);
+  ╠═╡ =#
+
+# ╔═╡ f4da9ee3-9882-4cd3-b3df-7f67e5f60ce1
+#=╠═╡
+begin
+	idx = sortperm(f_is[:bestshift_bitsperspike][:,1])
+	f_sort = f_is[idx,:]
+	M_iso=Matrix(f_sort[:bitsperspike])
+	
+	idx = sortperm(f_adj[:bestshift_bitsperspike][:,1])
+	f_sort_adj = f_adj[idx,:]
+	M_adj = Matrix(f_sort_adj[:bitsperspike])
+end
+  ╠═╡ =#
+
+# ╔═╡ 18abe083-65fd-4b6f-9bee-589c57f16b3f
+#=╠═╡
+begin
+	sh_iso,un_iso = getshifts(is_sfs),[x[1] for x in getunits(is_sfs)]
+	sh_adj,un_adj = getshifts(adj_sfs),[x[1] for x in getunits(adj_sfs)]
+end
+  ╠═╡ =#
+
 # ╔═╡ 85cf402a-eb7b-4d3c-972b-810ac1708632
 isotab = combine(groupby(spikes, :unit), :isolated=>mean=>:isofraction)
 
 # ╔═╡ ebe2194d-e79d-4a5e-bd83-a06eae95932f
 isotab.unit
+
+# ╔═╡ e1136496-d5fa-442b-85b0-a69379c0335a
+@df isotau scatter(:bestshift_bitsperspike, :isofraction)
 
 # ╔═╡ ee0d1046-02c1-4fc0-ab5e-901dc48bfd0c
 
@@ -367,185 +499,50 @@ end
 # ╔═╡ 301d385b-7879-445d-a903-772c10862750
 widths
 
-# ╔═╡ 6bdcf863-9946-4ca3-ab02-fa6aebe4b91d
-# ╠═╡ show_logs = false
-begin
-    boundary = prop_str == "y-x" ? nothing : Dict("currentPathLength"=>(0,100))
-    @time G = adaptive.get_grid(beh, props; widths, thresh, maxrad, radiusinc, boundary);
-end
-
-# ╔═╡ 9e635078-bfdb-41bf-8730-e08a968d5e71
-md"""
-Implied linear width of `maxrad[$(nanmaximum(G.radii))]` => $(nanmaximum(G.radii) * sqrt(2)) 
-"""
-
-# ╔═╡ 03586347-83ee-429d-ab29-505754c66734
-plot(G; title="radii\nresolution=$(size(G.grid))")
-
-# ╔═╡ 5dda1153-5359-49d5-9baf-b3bebc4627a0
-if ndims(G.radii) == 2
-	heatmap([collect(x) for x in G.centers]..., (G.radii .=== NaN32)'; title="nan locations")
-end
-
-# ╔═╡ bf5ec1fc-0443-49df-b90a-164bdd4e8b1b
-G.centers
-
-# ╔═╡ 93b3a5c7-6c6f-4e80-91e7-01f83d292c9a
-G.radii
-
-# ╔═╡ 5550e97c-a33e-4ae4-b888-90f782506bc2
-unique(G.radii)
-
-# ╔═╡ 890fe951-19bb-4c9a-a905-d798bb36c57e
-O = @time adaptive.get_occupancy(beh, G);
-
-# ╔═╡ 592d79b4-edf6-4a0c-af73-1d2805d6410e
-plot(O, clim=(0,0.01), ylims=ylim)
-
-# ╔═╡ d7175827-7528-4cfe-bf3f-d9971f682f49
+# ╔═╡ 62a6b931-b4ef-4431-8e7f-14db6e011d00
 # ╠═╡ disabled = true
 #=╠═╡
-O
-  ╠═╡ =#
-
-# ╔═╡ bef016cd-26d1-4de8-a970-182fe2b92e88
-# Test field abilities
-@time multiunit = @time adaptive.get_adaptivefield(spikes, G, O);
-# @benchmark adaptive.get_adaptivefield(spikes, G, O);
-
-# ╔═╡ 410128bf-2332-4aa2-91cb-441e0235cc4a
-plot(multiunit)
-
-# ╔═╡ b88c0ec1-b150-49be-828f-6c32bb770c48
-begin
-	@time units = adaptive.yartsev(spikes, G, O; widths=width, thresh, 
-	                               filters=filts[:all]);
-end;
-
-# ╔═╡ 62a6b931-b4ef-4431-8e7f-14db6e011d00
-shifted = Timeshift.shifted_fields(beh, spikes, shifts, G.props;
+@time shifted = Timeshift.shifted_fields(beh, spikes, shifts, G.props;
                                shiftbeh=false,
                                widths, 
 							   filters=filts[datacut], 
 							   thresh);
+  ╠═╡ =#
 
 # ╔═╡ d0ed9a46-00bb-4ce2-a2db-50bc060ec976
+#=╠═╡
 SFs = Timeshift.ShiftedFields(shifted);
+  ╠═╡ =#
 
 # ╔═╡ 7cb361f2-09c9-48ad-ad01-971ac273ecd3
+#=╠═╡
 begin
 	f = types.matrixform(SFs);
 	push_shiftmetric!(f, best_tau!; metric=:bitsperspike);
 end
+  ╠═╡ =#
 
 # ╔═╡ f4466cd6-9f84-4fe4-a420-e77efc0c8ff8
+#=╠═╡
 begin
 	idx_typ = sortperm(f[:bestshift_bitsperspike][:,1])
 	f_s = f[idx_typ,:]
 	M=Matrix(f_s[:bitsperspike])
 end
+  ╠═╡ =#
 
 # ╔═╡ 6c9a2819-b121-4b9a-a94d-11b3eb85fa7c
+#=╠═╡
 size(M)
+  ╠═╡ =#
 
 # ╔═╡ bc93bf68-b7ac-4926-a7fd-dfff5b657f6a
+#=╠═╡
 heatmap(hcat([Utils.norm_extrema(m) for m in  eachrow(M)]...)')
-
-# ╔═╡ 79b0a225-9019-4379-b9d0-61ff3408a690
-metrics.push_dims!(f_s)
-
-# ╔═╡ 60ba0b7b-e30d-42c8-9ff6-e17b5163ff53
-isotau = leftjoin( 
-	DataFrame([f_s[:bestshift_bitsperspike][:,1] f_s[:unit][:,1]], [:bestshift_bitsperspike, :unit]), 
-	isotab; 
-	on=:unit)
-
-# ╔═╡ e1136496-d5fa-442b-85b0-a69379c0335a
-@df isotau scatter(:bestshift_bitsperspike, :isofraction)
-
-# ╔═╡ 3c7440bf-0e77-4287-870c-3b88b0539607
-begin
-	shifted_iso = @memoize Timeshift.shifted_fields(beh, @subset(spikes,:isolated .== true), shifts, G.props;
-							   shiftbeh=false,
-							   widths, 
-							   filters=filts[datacut], 
-							   thresh);
-	
-	shifted_adj = @memoize Timeshift.shifted_fields(beh, @subset(spikes,:isolated .== false), shifts, G.props;
-							   shiftbeh=false,
-							   widths, 
-							   filters=filts[datacut], 
-							   thresh);
-end
-
-# ╔═╡ 129a57c7-aa83-41dc-8071-d6d7213d56b9
-begin
-		is_sfs = ShiftedFields(shifted_iso);
-		f_is = types.matrixform(is_sfs);
-		push_shiftmetric!(f_is, best_tau!; metric=:bitsperspike);
-end
-
-# ╔═╡ a279c651-b6f2-46d1-a0d6-c529a64517bf
-adj_sfs = ShiftedFields(shifted_adj);
-
-# ╔═╡ 65bed4d7-d800-4664-a152-6408a3621ab0
-f_adj = types.matrixform(adj_sfs);
-
-# ╔═╡ 45ad932d-922f-4e54-862e-b5db0c2f3658
-push_shiftmetric!(f_adj, best_tau!; metric=:bitsperspike);
-
-# ╔═╡ f4da9ee3-9882-4cd3-b3df-7f67e5f60ce1
-begin
-	idx = sortperm(f_is[:bestshift_bitsperspike][:,1])
-	f_sort = f_is[idx,:]
-	M_iso=Matrix(f_sort[:bitsperspike])
-	
-	idx = sortperm(f_adj[:bestshift_bitsperspike][:,1])
-	f_sort_adj = f_adj[idx,:]
-	M_adj = Matrix(f_sort_adj[:bitsperspike])
-end
-
-# ╔═╡ 444a4624-c446-4995-b4c2-c46241d3c668
-begin
-	pppp=plot()
-	labs = Dict(1=>"total", 2=>"isolated", 3=>"adjacent")
-	for (i, x) in enumerate([f_s[:,1][:bestshift_bitsperspike], vec(f_is[:,1][:bestshift_bitsperspike]), vec(f_adj[:,1][:bestshift_bitsperspike])])
-		violin!(fill(i, size(x)), x, c=:gray, label="")
-		scatter!(fill(i, size(x)) .+ 0.1 .* randn(size(x)), x, label=labs[i])
-	end
-	pppp
-end
-
-# ╔═╡ aff279a1-e837-484c-a5bd-112331cf2769
-begin
-	pppp
-	Plot.setfolder("nonlocality","isolated-shifted")
-	Plot.save((;desc="shifted sum of isolated firing (percent normed, around median)", filt=datacut, norm=norm));
-end
-
-# ╔═╡ 1bb9e911-b027-4f2b-a6d1-bdf81d0f174b
-begin
-	ppppp=plot()
-	for (i, x) in enumerate([vec(f_s[:,1][:bestshift_bitsperspike]), vec(f_is[:,1][:bestshift_bitsperspike]), vec(f_adj[:,1][:bestshift_bitsperspike])])
-		plot!(ecdf(x), label=labs[i])
-	end
-	ppppp
-end
-
-# ╔═╡ b873baf8-ceaa-47b5-b805-76f6bcfa49b2
-begin
-	ppppp
-	Plot.setfolder("nonlocality","isolated-shifted")
-	Plot.save((;desc="ecdf compare shifted sum of isolated firing (percent normed, around median)", filt=datacut, norm=norm));
-end
-
-# ╔═╡ 18abe083-65fd-4b6f-9bee-589c57f16b3f
-begin
-	sh_iso,un_iso = getshifts(is_sfs),[x[1] for x in getunits(is_sfs)]
-	sh_adj,un_adj = getshifts(adj_sfs),[x[1] for x in getunits(adj_sfs)]
-end
+  ╠═╡ =#
 
 # ╔═╡ 697ffe5f-d3e6-44a5-b8ec-57a04a84a4e4
+#=╠═╡
 begin
 
 	h_typ = heatmap(shifts,1:length(units),hcat([Utils.norm_percent(m,.5) for m in eachrow(M)]...)'; clim=(-50,50))
@@ -562,13 +559,71 @@ begin
 	hhhh=plot(b,h_typ,b, h_adj,h_iso; layout=L, size=(500,1000))
 	
 end
+  ╠═╡ =#
 
 # ╔═╡ 1167b4a7-1185-46f3-8e78-0a2bd97903ae
+#=╠═╡
 begin
 	hhhh
 	Plot.setfolder("nonlocality","isolated-shifted")
 	Plot.save((;desc="shifted heatmap of isolated firing (percent normed, around median)", filt=datacut, norm=norm));
 end
+  ╠═╡ =#
+
+# ╔═╡ 444a4624-c446-4995-b4c2-c46241d3c668
+#=╠═╡
+begin
+	pppp=plot()
+	labs = Dict(1=>"total", 2=>"isolated", 3=>"adjacent")
+	for (i, x) in enumerate([f_s[:,1][:bestshift_bitsperspike], vec(f_is[:,1][:bestshift_bitsperspike]), vec(f_adj[:,1][:bestshift_bitsperspike])])
+		violin!(fill(i, size(x)), x, c=:gray, label="")
+		scatter!(fill(i, size(x)) .+ 0.1 .* randn(size(x)), x, label=labs[i])
+	end
+	pppp
+end
+  ╠═╡ =#
+
+# ╔═╡ aff279a1-e837-484c-a5bd-112331cf2769
+#=╠═╡
+begin
+	pppp
+	Plot.setfolder("nonlocality","isolated-shifted")
+	Plot.save((;desc="shifted sum of isolated firing (percent normed, around median)", filt=datacut, norm=norm));
+end
+  ╠═╡ =#
+
+# ╔═╡ 1bb9e911-b027-4f2b-a6d1-bdf81d0f174b
+#=╠═╡
+begin
+	ppppp=plot()
+	for (i, x) in enumerate([vec(f_s[:,1][:bestshift_bitsperspike]), vec(f_is[:,1][:bestshift_bitsperspike]), vec(f_adj[:,1][:bestshift_bitsperspike])])
+		plot!(ecdf(x), label=labs[i])
+	end
+	ppppp
+end
+  ╠═╡ =#
+
+# ╔═╡ b873baf8-ceaa-47b5-b805-76f6bcfa49b2
+#=╠═╡
+begin
+	ppppp
+	Plot.setfolder("nonlocality","isolated-shifted")
+	Plot.save((;desc="ecdf compare shifted sum of isolated firing (percent normed, around median)", filt=datacut, norm=norm));
+end
+  ╠═╡ =#
+
+# ╔═╡ 79b0a225-9019-4379-b9d0-61ff3408a690
+#=╠═╡
+metrics.push_dims!(f_s)
+  ╠═╡ =#
+
+# ╔═╡ 60ba0b7b-e30d-42c8-9ff6-e17b5163ff53
+#=╠═╡
+isotau = leftjoin( 
+	DataFrame([f_s[:bestshift_bitsperspike][:,1] f_s[:unit][:,1]], [:bestshift_bitsperspike, :unit]), 
+	isotab; 
+	on=:unit)
+  ╠═╡ =#
 
 # ╔═╡ 671cb2a4-e6c0-4c23-9e15-41c861d8f383
 begin
@@ -667,14 +722,13 @@ heatmap(plot(field, title="field"), heatmap(Int8.(hullzones)', title="segments")
 
   ╠═╡ =#
 
-# ╔═╡ 16b22203-b96b-4899-80f7-6928864f0543
-plot(SFs[unit,timeshift])
-
 # ╔═╡ 39562c46-79fb-4a0c-b59e-099108258190
 keys(filts)
 
 # ╔═╡ 8fc086f1-e619-4d44-a22b-7e9b9feee7fc
+#=╠═╡
 keys(f[1])
+  ╠═╡ =#
 
 # ╔═╡ d48e9bc9-4d67-4e7b-a0f7-25b975813ccd
 #=╠═╡
@@ -823,10 +877,10 @@ element(Singleton([50,125])) ∈ HullSet(mets[:hullseg_grid])
 # ╔═╡ 719c49c0-f156-472c-ba15-26719753621f
 
 
-# ╔═╡ 42d6cb62-93a8-426f-9542-d66fb8dd4d80
+# ╔═╡ f5f1dbb9-3623-4628-8407-8809cd3fb118
 using Memoization
 
-# ╔═╡ f5f1dbb9-3623-4628-8407-8809cd3fb118
+# ╔═╡ 42d6cb62-93a8-426f-9542-d66fb8dd4d80
 using Memoization
 
 # ╔═╡ Cell order:
@@ -840,12 +894,12 @@ using Memoization
 # ╠═a1ad6173-5ead-4559-bddb-9aee6119b9d0
 # ╟─2f8ac703-417c-4360-a619-e799d8bb594f
 # ╟─31082fe7-ed61-4d37-a025-77420da3f24a
-# ╟─d51ce0f2-03bf-4c88-9302-9fd4bc8621eb
+# ╠═d51ce0f2-03bf-4c88-9302-9fd4bc8621eb
 # ╟─ff355ad4-42da-4493-ae56-3bc9f0d8627c
 # ╠═cbfbe9c9-f7c5-4219-8d81-b335fe5f5ed6
 # ╟─efcdc2f1-5e26-4534-953e-defae4bd8603
 # ╟─301d385b-7879-445d-a903-772c10862750
-# ╟─6bdcf863-9946-4ca3-ab02-fa6aebe4b91d
+# ╠═6bdcf863-9946-4ca3-ab02-fa6aebe4b91d
 # ╟─9e635078-bfdb-41bf-8730-e08a968d5e71
 # ╟─92b1c56a-1738-43ba-96c9-8c70c6713c39
 # ╠═03586347-83ee-429d-ab29-505754c66734
@@ -885,6 +939,7 @@ using Memoization
 # ╠═d0ed9a46-00bb-4ce2-a2db-50bc060ec976
 # ╠═316dab79-015f-46e4-88f5-7051529484e5
 # ╠═16b22203-b96b-4899-80f7-6928864f0543
+# ╠═582b1d61-b5b8-4936-bd5c-679b23ed3921
 # ╠═7cb361f2-09c9-48ad-ad01-971ac273ecd3
 # ╠═f4466cd6-9f84-4fe4-a420-e77efc0c8ff8
 # ╠═6c9a2819-b121-4b9a-a94d-11b3eb85fa7c

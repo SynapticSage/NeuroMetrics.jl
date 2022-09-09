@@ -29,29 +29,44 @@ I = load_mains()
 F = load_fields()
 S = load_shuffles()
 
+funcs = [metrics.bitsperspike, metrics.totalcount, metrics.maxrate,
+                        metrics.maxcount, metrics.meanrate, metrics.argmax]
 
+                                               
 # Let's change all of the main keys to one giant dataframe
 Ic = copy(I)
 
-for 🔑 ∈ keys(I)
+@showprogress for 🔑 ∈ keys(I)
     @info 🔑
     i = I[🔑]
+    @info typeof(i)
     if !(typeof(i) <: AbstractDataFrame)
-        df = DataFrame()
-        shifts, units = getshifts(i), getunits(i)
-        for (shift,unit) in Iterators.product(shifts, units)
-            if shift ∈ keys(i) .&& unit ∈ keys(i[shift])
-                dfu = i[shift][unit]
-                dfu[!,:shift] .= shift
-                dfu[!,:unit]  .= unit[1]
-                append!(df,dfu)
+        if typeof(i) <: AbstractDict
+            i = Timeshift.DictOfShiftOfUnit{keytype(i)}(i)
+            @showprogress for x in funcs
+                @info x
+                push_metric!(i, x)
             end
+            i = ShiftedFields(i)
+            #i = matrixform(i)
+            #push_dims!(i)
+            df = i.metrics
+        else
+            df = DataFrame()
+            shifts, units = getshifts(i), getunits(i)
+            for (shift,unit) in Iterators.product(shifts, units)
+                if shift ∈ keys(i) .&& unit ∈ keys(i[shift])
+                    dfu = i[shift][unit]
+                    dfu[!,:shift] .= shift
+                    dfu[!,:unit]  .= unit[1]
+                    append!(df,dfu)
+                end
+            end
+            df = hcat(df[!,[:shift, :unit]], df[!,Not([:shift,:unit])])
         end
-        df = hcat(df[!,[:shift, :unit]], df[!,Not([:shift,:unit])])
+        I[🔑] = df
     end
-    I[🔑] = df
 end
-
 save_mains(I)
 
 # Let's change all of the main keys to one giant dataframe

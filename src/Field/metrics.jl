@@ -102,6 +102,7 @@ module metrics
     """
     function unstackMetricDF(df::DataFrame)
         if all([:metric,:shift] .∈ [propertynames(df)])
+            subset!(df,  :metric => x-> x .!= Symbol("shift"))
             df = unstack(df, :shift, :metric, :value, allowduplicates=true)
             sort!(df, :shift)
             vec_arrayofarrays!(df)
@@ -194,6 +195,8 @@ module metrics
         end
     end
     pop_metric!(R::ReceptiveField, name::Symbol) = pop!(R.metrics, name)
+    pop_metric!(R::AbstractArray{ReceptiveField}, name::Symbol) = [pop!(r.metrics, name)
+                                                                    for r in R]
     Base.push!(R::ReceptiveField, pos...; kws...) = Base.push!(R, pos...;kws...)
 
     function push_metric!(R::AbstractDict, pos...; kws...)
@@ -290,12 +293,29 @@ module metrics
     information(F::Array, behProb::Probabilities; method=:spatialinformation) = eval(method)(F, behProb)
 
 
+    function bitsperspikeold(F::T where T<:ReceptiveField)
+        bitsperspikeold(F.rate, F.occ.prob)
+    end
+    function bitsperspikeold(firingrate::AbstractArray, behProb::Probabilities)
+        firingrate   = vec(firingrate)
+        FRoverMeanFR = firingrate ./ nanmean(firingrate) 
+        #FRoverMeanFR = firingrate ./ sum(behProb .* firingrate) # Changed after aug 22
+        
+        # paper r = ∑ pᵢ * rᵢ
+        # what I've written here: r = ∑ R_occᵢ / N = μ(R_occᵢ), not the actual rate, but occ norm rate
+        I = nansum( behProb .* FRoverMeanFR .* log2.(FRoverMeanFR) )
+        # what i've written here: ∑ p(state) * r(state)/r̅ * log₂( r(state) / r̅ )
+        # paper : ∑ pᵢ * ( rᵢ/r̅ ) * log₂( rᵢ / r̅ )
+        return I
+    end
+
     function bitsperspike(F::T where T<:ReceptiveField)
         bitsperspike(F.rate, F.occ.prob)
     end
     function bitsperspike(firingrate::AbstractArray, behProb::Probabilities)
-        firingrate = vec(firingrate)
-        FRoverMeanFR = firingrate ./ nanmean(firingrate)
+        firingrate   = vec(firingrate)
+        #FRoverMeanFR = firingrate ./ nanmean(firingrate) aug 9 2022
+        FRoverMeanFR = firingrate ./ nansum(behProb .* firingrate) # Changed after aug 22
         # paper r = ∑ pᵢ * rᵢ
         # what I've written here: r = ∑ R_occᵢ / N = μ(R_occᵢ), not the actual rate, but occ norm rate
         I = nansum( behProb .* FRoverMeanFR .* log2.(FRoverMeanFR) )

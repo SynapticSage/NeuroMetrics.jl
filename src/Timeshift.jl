@@ -202,7 +202,7 @@ module Timeshift
                             fieldfunc(data, grid, occ;
                                       splitby, metrics=metricfuncs,
                                       prog_fields,
-                                      filters=nothing,
+                                      filters=nothing, # already filtered
                                       thread_field, thread_fields)
                            )
             else
