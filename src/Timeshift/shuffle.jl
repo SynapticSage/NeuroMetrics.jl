@@ -182,6 +182,7 @@ module shuffle
         if precomputegridocc === nothing
             precomputegridocc = shiftbeh ? false : true
         end
+
         if precomputegridocc
             grid = adaptive.get_grid(beh, props; field_kws...) # TODO these would be different for fixed
             occ  = adaptive.get_occupancy(beh, grid)
@@ -190,17 +191,19 @@ module shuffle
 
         prevtmp = nothing
         for s in nShuffle
-            #@infiltrate skipproc && (;shuffle=s) ∈ keys(result_dict)
+
             if skipproc && (;shuffle=s) ∈ keys(result_dict)
                 continue
             end
+
             data   = shuffle_data_generator()
+            
             tmp = Timeshift.shifted_fields(beh, data, 
-                                                               shifts, props;
-                                                       overwrite_precache=true,
-                                                       thread_field,
-                                                       shiftbeh, 
-                                                       field_kws...)
+                                           shifts, props;
+                                           thread_field,
+                                           shiftbeh, 
+                                           field_kws...)
+
             result_dict[(;shuffle=s)] = tmp
             isdefined(Main, :PlutoRunner) ? @info("finished 1 shuf") : nothing
             @info "modulus" mod(s,saveAfter)
