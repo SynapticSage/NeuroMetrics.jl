@@ -291,6 +291,9 @@ shifts = -2:0.1:2
 # ╔═╡ 316dab79-015f-46e4-88f5-7051529484e5
 @bind timeshift Slider(shifts, default=0)
 
+# ╔═╡ ac5be241-a1d1-4167-8511-3b5e3c869e34
+unit_select
+
 # ╔═╡ 69d37df3-69d3-4c91-8adf-ff8ecd4c9df1
 md"## Isolated spiking"
 
@@ -419,13 +422,14 @@ end
 
 # ╔═╡ 5369cc71-1132-482c-9251-f61423f1e0f0
 begin
-	h_typ = heatmap(shifts,1:length(units),hcat([Utils.norm_percent(m,.5) for m in eachrow(M)]...)'; clim=(-50,50))
+	clim_heat = (0,1)
+	h_typ = heatmap(shifts,1:length(units),hcat([Utils.norm_extrema(m) for m in eachrow(M)]...)'; clim=clim_heat)
 	vline!([0], c=:black, linestyle=:dash, linewidth=2, legend=:none)
 	
-	h_iso = heatmap(sh_iso,1:length(un_iso),hcat([Utils.norm_percent(m,.5) for m in eachrow(M_iso)]...)'; clim=(-50,50))
+	h_iso = heatmap(sh_iso,1:length(un_iso),hcat([Utils.norm_extrema(m) for m in eachrow(M_iso)]...)'; clim= clim_heat)
 	vline!([0], c=:black, linestyle=:dash, linewidth=2, legend=:none)
 	
-	h_adj = heatmap(sh_iso,1:length(un_adj),hcat([Utils.norm_percent(m,.5) for m in eachrow(M_adj)]...)'; clim=(-50,50))
+	h_adj = heatmap(sh_iso,1:length(un_adj),hcat([Utils.norm_extrema(m) for m in eachrow(M_adj)]...)'; clim=clim_heat)
 	vline!([0], c=:black, linestyle=:dash, linewidth=2, legend=:none)
 
 	L = Plots.@layout [[ddd{0.25w} orig_h dd{0.25w}]; grid(1,2)]
@@ -483,6 +487,27 @@ isotab.unit
 
 # ╔═╡ 79b0a225-9019-4379-b9d0-61ff3408a690
 metrics.push_dims!(f_s)
+
+# ╔═╡ b473d35d-e371-4889-9b95-3731b00e15f0
+begin
+	#function get_local_and_distal_bps(f_s)
+		B = Matrix(f_s[:bitsperspike])
+		shfs = f_s[:shift]
+		shifts_local = Utils.in_range(shfs, [-.21, .61]) 
+		shifts_distal = (!).(shifts_local)
+		get_local(val)  = nanmean(val[shifts_local])
+		get_distal(val) = nanmean(val[shifts_distal])
+		loc = get_local.(collect(eachrow(B)))
+		dist = get_distal.(eachrow(B))
+		loc, dist
+	#end
+
+	#get_local_and_distal_bps(f_s)
+
+end
+
+# ╔═╡ 2edf45ce-5493-48b3-9c11-c6a5177c38e3
+
 
 # ╔═╡ 60ba0b7b-e30d-42c8-9ff6-e17b5163ff53
 isotau = leftjoin( 
@@ -558,6 +583,7 @@ end;
 # ╠═62a6b931-b4ef-4431-8e7f-14db6e011d00
 # ╠═d0ed9a46-00bb-4ce2-a2db-50bc060ec976
 # ╠═316dab79-015f-46e4-88f5-7051529484e5
+# ╠═ac5be241-a1d1-4167-8511-3b5e3c869e34
 # ╠═16b22203-b96b-4899-80f7-6928864f0543
 # ╠═7cb361f2-09c9-48ad-ad01-971ac273ecd3
 # ╠═f4466cd6-9f84-4fe4-a420-e77efc0c8ff8
@@ -586,6 +612,8 @@ end;
 # ╠═85cf402a-eb7b-4d3c-972b-810ac1708632
 # ╠═ebe2194d-e79d-4a5e-bd83-a06eae95932f
 # ╠═79b0a225-9019-4379-b9d0-61ff3408a690
+# ╠═b473d35d-e371-4889-9b95-3731b00e15f0
+# ╠═2edf45ce-5493-48b3-9c11-c6a5177c38e3
 # ╠═60ba0b7b-e30d-42c8-9ff6-e17b5163ff53
 # ╠═e1136496-d5fa-442b-85b0-a69379c0335a
 # ╠═9a2edeed-d33b-45e3-8dfc-1d03b967accc

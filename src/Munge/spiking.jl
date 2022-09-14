@@ -125,6 +125,8 @@ module spiking
     function torate(spikes::DataFrame, beh::DataFrame, dims=:unit; kws...)
         grid = copy(beh.time)
         δ = median(diff(beh.time))
+        grid .+= δ
+        grid = [[grid[1]-δ]; grid]
         grid = grid .- (1/2)δ
         epoch_periods = Table.get_periods(beh, "epoch")
         in_period = [Table.isin.(spikes.time,

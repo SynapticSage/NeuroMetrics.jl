@@ -86,20 +86,22 @@ module lfp_decode
             res = beh[Utils.searchsortednearest.([beh.time], time),col]
             res = [ComplexF64(x[1]+x[2]im) for x in eachrow(Matrix(res))]
         end
+
+        """
+        """
         function matchdxy(time::Real) 
             I =  Utils.searchsortednearest(T, time)
             D = replace(dat[:,:,I], NaN=>0)
-            @infiltrate
             xi = argmax(Utils.squeeze(maximum(D, dims=2)), dims=1)
             yi = argmax(Utils.squeeze(maximum(D, dims=1)), dims=1)
             ComplexF64(x[xi][1] + y[yi][1]im)
         end
         # Phase based decode values
-        function get_phase_range_start_stop(event, lfp, ϕ₀, ϕ₁)
+        function get_phase_range_start_stop(event, lfp, ϕ0, ϕ1)
             inds = lfp.time .>= event.start .&& lfp.time .< event.stop
             lfp  = lfp[inds,:]
-            start, stop = findfirst(lfp.phase .>= ϕ₀),
-                          findfirst(lfp.phase .< ϕ₁)
+            start, stop = findfirst(lfp.phase .>= ϕ0),
+                          findfirst(lfp.phase .< ϕ1)
             if start === nothing || stop === nothing
                 start, stop = nothing, nothing
             else
@@ -109,16 +111,16 @@ module lfp_decode
         end
         X, Y = ndgrid(x, y)
         function meandxy(start::Real, stop::Real)
-            I₁,I₂ = Utils.searchsortednearest(T, start),
+            I1,I₂ = Utils.searchsortednearest(T, start),
                     Utils.searchsortednearest(T, stop)
-            D = replace(dat[:,:,I₁:I₂], NaN=>0)
+            D = replace(dat[:,:,I1:I₂], NaN=>0)
             sD = mean(D)
             xm  = mean(X.*D)/sD
             ym  = mean(Y.*D)/sD
             ComplexF64(xm .+ (ym)im)
         end
-        function get_mean_prss(event, lfp, ϕ₁, ϕ₂)
-            start, stop = get_phase_range_start_stop(event,lfp,ϕ₁,ϕ₂)
+        function get_mean_prss(event, lfp, ϕ1, ϕ₂)
+            start, stop = get_phase_range_start_stop(event,lfp,ϕ1,ϕ₂)
             if (start,stop) == (nothing, nothing)
                 ComplexF64(NaN + (NaN)im)
             else
@@ -127,17 +129,17 @@ module lfp_decode
         end
 
         subset!(cycles, :time => x->abs.(x .- T[Utils.searchsortednearest.([T], x)]) .< 2)
-        removal_list = [:act₀, :act₁, :dec₀, :dec₁, :act₀₁, :dec₀₁]
+        removal_list = [:act0, :act1, :dec0, :dec1, :act01, :dec01]
         remove = [elem for elem in removal_list if elem in propertynames(cycles)]
         @debug remove
         cycles = cycles[!, Not(remove)]
-        cycles = transform(cycles, :start => (t->(match(t, [:x,:y]))) => :act₀,
-                                   :stop  => (t->(match(t, [:x,:y]))) => :act₁,
-                                   :start => (x->(matchdxy.(x)))   => :dec₀,
-                                   :stop  => (x->(matchdxy.(x)))   => :dec₁)
+        cycles = transform(cycles, :start => (t->(match(t, [:x,:y]))) => :act0,
+                                   :stop  => (t->(match(t, [:x,:y]))) => :act1,
+                                   :start => (x->(matchdxy.(x)))   => :dec0,
+                                   :stop  => (x->(matchdxy.(x)))   => :dec1)
 
-        cycles = transform(cycles, [:act₀,:act₁]   => ((a,b) -> b .- a) => :act₀₁,
-                                   [:dec₀, :dec₁]  => ((a,b) -> b .- a) => :dec₀₁)
+        cycles = transform(cycles, [:act0,:act1]   => ((a,b) -> b .- a) => :act01,
+                                   [:dec0, :dec1]  => ((a,b) -> b .- a) => :dec01)
 
         lfp = groupby(lfp,:cycle)
         cycles[!,:dec_ϕu]   = [ComplexF64(NaN + (NaN)im) for i in 1:size(cycles,1)]
@@ -153,20 +155,19 @@ module lfp_decode
         end
         cycles[!,:dec_ϕdu] = cycles.dec_ϕu - cycles.dec_ϕd
 
-
         subset!(ripples, :time => x->abs.(x .- T[Utils.searchsortednearest.([T], x)]) .< 2)
-        removal_list = [:act₀, :act₁, :dec₀, :dec₁, :act₀₁, :dec₀₁]
+        removal_list = [:act0, :act1, :dec0, :dec1, :act01, :dec01]
         remove = [elem for elem in removal_list if elem in propertynames(ripples)]
         @debug remove
         cylces = ripples[!, Not(remove)]
-        ripples = transform(ripples, :start => (t->(match(t, [:x,:y]))) => :act₀,
-                                     :stop  => (t->(match(t, [:x,:y]))) => :act₁)
+        ripples = transform(ripples, :start => (t->(match(t, [:x,:y]))) => :act0,
+                                     :stop  => (t->(match(t, [:x,:y]))) => :act1)
         ripples = transform(ripples, 
-                                     :start => (x->(matchdxy.(x)))   => :dec₀,
-                                     :stop  => (x->(matchdxy.(x)))   => :dec₁)
+                                     :start => (x->(matchdxy.(x)))   => :dec0,
+                                     :stop  => (x->(matchdxy.(x)))   => :dec1)
 
-        ripples = transform(ripples, [:act₀,:act₁]   => ((a,b) -> b .- a) => :act₀₁,
-                                     [:dec₀, :dec₁]  => ((a,b) -> b .- a) => :dec₀₁)
+        ripples = transform(ripples, [:act0,:act1]   => ((a,b) -> b .- a) => :act01,
+                                     [:dec0, :dec1]  => ((a,b) -> b .- a) => :dec01)
 
 
         ripples, cycles
@@ -329,9 +330,9 @@ module lfp_decode
         E.time     = E.midpoint
         _, E = Load.register(beh,E,on="time",transfer=["traj"])
 
-        #c⃗ ᵢⱼ, trajreltime, time
-        E.decᵢ        = Vector{Vector}(undef,size(E,1))
-        E.decᵢᵢ       = Vector{Vector}(undef,size(E,1))
+        #c⃗ iⱼ, trajreltime, time
+        E.deci        = Vector{Vector}(undef,size(E,1))
+        E.decii       = Vector{Vector}(undef,size(E,1))
         E.trajreltime = Vector{Vector}(undef,size(E,1))
         E.time        = Vector{Vector}(undef,size(E,1))
         E.trajtime    = Vector{Vector}(undef,size(E,1))
@@ -339,15 +340,15 @@ module lfp_decode
                      desc="Adding explodable fields to E")
         Threads.@threads for row in eachrow(E)
             if row[cycle_field] == -1
-                row.decᵢ        = []
-                row.decᵢᵢ       = []
+                row.deci        = []
+                row.decii       = []
                 row.time        = []
                 row.trajreltime = []
             end
             Tind = findall(T .>= row.start .&& T .< row.stop)
-            row.decᵢ  = imatchdxy.(Tind) # looks up vector at each time
-            row.decᵢᵢ = row.decᵢ[2:end] .- row.decᵢ[1:end-1] # looks up vector at each time
-            row.decᵢᵢ = cat(NaN + (NaN)im, row.decᵢᵢ; dims=1)
+            row.deci  = imatchdxy.(Tind) # looks up vector at each time
+            row.decii = row.deci[2:end] .- row.deci[1:end-1] # looks up vector at each time
+            row.decii = cat(NaN + (NaN)im, row.decii; dims=1)
             row.time = T[Tind]
             row.trajtime = T[Tind] .- minimum(T[Tind])
             row.trajreltime = Utils.searchsortednearest.([beh.time], T[Tind])
@@ -389,15 +390,15 @@ module lfp_decode
 
     end
 
-    explode_cols = [:decᵢ, :decᵢᵢ, :trajreltime, :time, :trajtime, :trajcycletime]
+    explode_cols = [:deci, :decii, :trajreltime, :time, :trajtime, :trajcycletime]
     reference_point = Dict(
-        :dec₀₁=>:dec₀,
-        :dec₀ᵢ=>:dec₀,
-        :decᵢᵢ=>:decᵢ)
+        :dec01=>:dec0,
+        :dec0i=>:dec0,
+        :decii=>:deci)
     reference_time = Dict(
-        :dec₀₁=>:start,
-        :dec₀ᵢ=>:start,
-        :decᵢᵢ=>:time)
+        :dec01=>:start,
+        :dec0i=>:start,
+        :decii=>:time)
 
 
     """
@@ -405,9 +406,9 @@ module lfp_decode
     an upcoming goal
     """
     # Get best goal
-    # Get angle relative to F₁, F₂, P₁
+    # Get angle relative to F1, F₂, P1
     function annotate_vector_relative_to_goal(beh::DataFrame, E::DataFrame,
-        wells::DataFrame, vector=:dec₀₁, to_which=:stopWell)
+        wells::DataFrame, vector=:dec01, to_which=:stopWell)
 
         if to_which isa Real
             to_which = to_which * ones(size(beh,1))

@@ -81,7 +81,6 @@ Munge.spiking.isolated(spikes, lfp)
 spikes[!,:isolated_area] = convert(Vector{Float16}, spikes.isolated)
 spikes[spikes.isolated_area .== 1 .&& spikes.area.=="PFC",:isolated_area] .= 0.5
 
-
 import Munge
 Munge.behavior.annotate_relative_xtime!(beh)
 cycles  = annotate_explodable_cycle_metrics(beh, cycles, dat, x, y, T)
