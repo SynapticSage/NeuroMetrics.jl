@@ -217,5 +217,61 @@ l = lm(form_isofrac, @subset(sumtab,:isofrac .!= maximum(sumtab.isofrac)), contr
 apply_schema(form_isofrac, schema(sumtab))
 c = get(ColorSchemes.vik, Utils.norm_extrema(disallowmissing(sumtab.cuemem)))
 Plots.scatter(modelmatrix(l)[:,2], response(l), alpha=0.1, c=c)
+using GoalFetchAnalysis
+using Serialization
+using Plots
+using Timeshift.shiftmetrics
+using Field.metrics
+using Timeshift
+using DimensionalData
+using Statistics, NaNStatistics, Bootstrap
+import Plot
+using StatsBase
+using ProgressMeter
+using DataFramesMeta
+
+using CausalityTools
+@time spikes, beh, ripples, cells = Load.load("RY16", 36);
+Rca1, Rpfc = (Munge.spiking.torate(@subset(spikes,:area .== ar), beh) for ar in ("CA1","PFC"))
+
+P=[]
+prog = Progress(size(Rca1,2)*size(Rpfc,2); desc="transfer ent")
+sets = collect(Iterators.product(1:size(Rca1,2), 1:size(Rpfc,2)))
+P = Matrix{Vector}(undef,size(sets))
+Q = Matrix{Vector}(undef,size(sets))
+D = falses(size(sets))
+Dq = reshape([isassigned(Q,p) for p in eachindex(Q)],size(Q))
+using Threads
+
+@showprogress for s in sets
+    i,j = s
+    if Dq[i,j] == false
+        #p = Threads.@spawn predictive_asymmetry(Rca1[:,i], Rpfc[:,j], VisitationFrequency(RectangularBinning(5)), 1:10)
+        q = predictive_asymmetry(Rpfc[:,j], Rca1[:,i], VisitationFrequency(RectangularBinning(5)), 1:10)
+        #P[i,j], Q[i,j] = fetch(p), fetch(q)
+        next!(prog)
+        Dq[i,j]=true
+    end
+end
+
+mkpath(datadir("transent"))
+serialize(datadir("transent","alltimes.serial"),(;P,Q,D))
+
+pp = P[[isassigned(P,p) for p in eachindex(P)]]
+pp = hcat(pp...)'
+qq = Q[[isassigned(Q,p) for p in eachindex(Q)]]
+qq = hcat(qq...)'
+
+p=plot();[plot!(ppp,c=:black,linestyle=:dash,alpha=0.1) for ppp in pp]; p
+p=plot();[plot!(qqq,c=:black,linestyle=:dash,alpha=0.1) for qqq in qq]; p
+
+plot(mean(pp,dims=1)', m=:circle, fillrange=0,  label="ca1->pfc")
+plot!(mean(qq,dims=1)', m=:circle, fillrange=0, label="pfc->ca1")
+hline!([0])
+
+
+plot(mean(abs.(pp),dims=1)', m=:circle)
+plot!(mean(abs.(qq), dims=1)', m=:circle)
+hline!([0])
 Plots.plot!(modelmatrix(l)[:,2], modelmatrix(l) * coef(l), xlabel="fraction isolated", ylabel="θ distance")
 @info "r²" form_isofrac adjr²(l)

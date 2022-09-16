@@ -220,21 +220,23 @@ module Utils
 
     include(srcdir("Utils", "dict.jl"))
     include(srcdir("Utils", "namedtup.jl"))
-    include(srcdir("Utils", "plot.jl"))
     include(srcdir("Utils", "macros.jl"))
     include(srcdir("Utils", "binning.jl"))
     include(srcdir("Utils", "filtreg.jl"))
     include(srcdir("Utils", "arr.jl"))
     include(srcdir("Utils", "statistic.jl"))
     include(srcdir("Utils", "mlj.jl"))
+    include(srcdir("Utils", "plotutils.jl"))
+    include(srcdir("Utils", "clean.jl"))
     @reexport using .dict
     @reexport using .namedtup
-    @reexport using .plot
     @reexport using .macros
     @reexport using .binning
     @reexport using .filtreg
     @reexport using .arr
     @reexport using .statistic
     @reexport using .mlj
+    @reexport using .plotutils
+    @reexport using .clean
 
 end
