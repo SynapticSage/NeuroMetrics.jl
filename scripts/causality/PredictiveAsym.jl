@@ -53,6 +53,7 @@ plot(mean(abs.(pp),dims=1)', m=:circle)
 plot!(mean(abs.(qq), dims=1)', m=:circle)
 hline!([0])
 
+ 
 @userplot PlotMeanCause
 @recipe function plotmeancause(plt::PlotMeanCause; transform=identity)
     P = plt.args[1]
@@ -63,6 +64,37 @@ hline!([0])
     label --> "thing a -> thing b"
     #@infiltrate
     mean(transform(pp),dims=1)'
+end
+@userplot PlotMeanCauseDiff
+@recipe function plotmeancause(plt::PlotMeanCauseDiff; transform=identity)
+    P = plt.args[1]
+    pp = P[[isassigned(P,p) for p in eachindex(P)]]
+    pp = [diff(p) for p in pp]
+    pp = hcat(pp...)'
+    m --> :circle
+    fillrange --> 0
+    label --> "thing a -> thing b"
+    #@infiltrate
+    mean(transform(pp),dims=1)'
+end
+@userplot PlotCauseDiff
+@recipe function plotcausediff(plt::PlotCauseDiff; transform=identity)
+    p = plt.args[1]
+    p = diff(p)
+    m --> :circle
+    fillrange --> 0
+    label --> "thing a -> thing b"
+    #@infiltrate
+    transform(p)
+end
+@userplot PlotCause
+@recipe function plotcause(plt::PlotCause; transform=identity)
+    p = plt.args[1]
+    m --> :circle
+    fillrange --> 0
+    label --> "thing a -> thing b"
+    #@infiltrate
+    transform(p)
 end
 
 # ==========================================
@@ -75,11 +107,12 @@ savefile = datadir("transent","condtimes.serial")
 checkpoint = 100
 for (cuemem, corr) in Iterators.product(unique(beh.cuemem), unique(beh.correct))
     done[(cuemem, corr)] = falses(size(sets))
+end
 
 # TODO create a traj 3-bin (still at well, 1st half move, 2nd half move)
 @showprogress "splits" for (cuemem, corr) in Iterators.product(unique(beh.cuemem), unique(beh.correct))
     @info (cuemem, corr)
-    if (cuemem == -1 && corr == -1) ||
+    if (cuemem == -1 || corr == -1) ||
         isnan(cuemem) || isnan(corr)
         continue
     end

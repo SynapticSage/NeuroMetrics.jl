@@ -7,6 +7,7 @@ let Tlist_Show_One_File =  0
 let NERDTreeMinimalUI =  0 
 let WebDevIconsNerdTreeGitPluginForceVAlign =  1 
 let NERDTreeRespectWildIgnore =  0 
+let NERDTreeMapHelp = "?"
 let NERDTreeMapToggleHidden = "I"
 let NERDTreeWinSize =  31 
 let UltiSnipsRemoveSelectModeMappings =  1 
@@ -15,9 +16,7 @@ let NERDTreeMapMenu = "m"
 let JuliaFormatter_sysimage_path = "/home/ryoung/.vim/plugged/JuliaFormatter.vim/scripts/juliaformatter.so"
 let NERDTreeMapJumpParent = "p"
 let WebDevIconsUnicodeDecorateFolderNodesDefaultSymbol = ""
-let NERDTreeAutoCenter =  1 
-let ScreenImpl = "Tmux"
-let NERDTreeCascadeOpenSingleChildDir =  1 
+let NERDTreeNodeDelimiter = ""
 let NERDTreeShowBookmarks =  0 
 let NERDTreeMouseMode =  1 
 let NERDTreeCreatePrefix = "silent"
@@ -25,18 +24,19 @@ let NERDTreeMapOpenSplit = "i"
 let JuliaFormatter_root = "/home/ryoung/.vim/plugged/JuliaFormatter.vim"
 let NERDTreeShowLineNumbers =  0 
 let NERDTreeHighlightCursorline =  1 
-let UltiSnipsEnableSnipMate =  1 
+let UltiSnipsExpandTrigger = "<C-j>"
 let Tlist_GainFocus_On_ToggleOpen =  0 
 let Tlist_Auto_Update =  1 
 let Lf_StlColorscheme = "one"
 let NERDTreeMapPreviewVSplit = "gs"
 let NERDTreeMapJumpRoot = "P"
 let NERDTreeGlyphReadOnly = "RO"
-let NERDTreeAutoDeleteBuffer =  0 
+let NERDTreeMapDeleteBookmark = "D"
 let NERDTreeMapRefreshRoot = "R"
+let NERDTreeAutoCenter =  1 
+let NERDTreeCascadeOpenSingleChildDir =  1 
 let NERDTreeMapOpenVSplit = "s"
 let UltiSnipsDebugHost = "localhost"
-let NERDTreeMapDeleteBookmark = "D"
 let Tlist_File_Fold_Auto_Close =  0 
 let UltiSnipsEditSplit = "vertical"
 let NERDTreeMapJumpFirstChild = "K"
@@ -54,14 +54,13 @@ let VM_Extend_hl = "Visual"
 let Tlist_Ctags_Cmd = "ctags"
 let DevIconsEnableDistro =  1 
 let LanguageClient_serverStatusMessage = ""
-let Taboo_tabs = "4	TestAdaptive Split\n"
+let Taboo_tabs = "4	UMAP\n5	Cause\n"
 let NERDTreeMapCustomOpen = "<CR>"
 let NERDTreeDirArrowExpandable = "▸"
 let WebDevIconsUnicodeDecorateFileNodes =  1 
 let UltiSnipsPMDebugBlocking =  0 
 let Tlist_Display_Tag_Scope =  1 
 let NERDTreeMapOpenInTabSilent = "T"
-let NERDTreeMapHelp = "?"
 let NERDTreeMapJumpPrevSibling = "<C-k>"
 let NERDTreeMapOpenInTab = "t"
 let NERDTreeChDirMode =  0 
@@ -71,8 +70,9 @@ let NERDTreeShowFiles =  1
 let NERDTreeHijackNetrw =  1 
 let Tlist_Max_Submenu_Items =  20 
 let NERDTreeBookmarksSort =  1 
-let WebDevIconsNerdTreeBeforeGlyphPadding = " "
+let NERDTreeNaturalSort =  0 
 let JuliaFormatter_loaded =  1 
+let NERDTreeMapToggleFilters = "f"
 let NERDTreeMinimalMenu =  0 
 let Tlist_WinWidth =  30 
 let Tlist_Close_On_Select =  0 
@@ -89,7 +89,8 @@ let Tlist_Use_SingleClick =  0
 let UltiSnipsUsePythonVersion =  3 
 let NERDTreeMapCloseDir = "x"
 let NERDTreeSortHiddenFirst =  1 
-let UltiSnipsExpandTrigger = "<C-j>"
+let UltiSnipsEnableSnipMate =  1 
+let NERDTreeAutoDeleteBuffer =  0 
 let DevIconsEnableFoldersOpenClose =  0 
 let NERDTreeUseTCD =  0 
 let JuliaFormatter_log = "/home/ryoung/.vim/plugged/JuliaFormatter.vim/scripts/juliaformatter.log"
@@ -129,15 +130,15 @@ let NERDTreeNotificationThreshold =  100
 let NERDTreeMapActivateNode = "o"
 let NERDTreeWinPos = "left"
 let NERDTreeStatusline = "%{exists('b:NERDTree')?b:NERDTree.root.path.str():''}"
-let NERDTreeMapToggleFilters = "f"
-let NERDTreeNodeDelimiter = ""
+let ScreenImpl = "Tmux"
 let VM_Mono_hl = "VMCursor"
 let LanguageClient_serverStatus =  0 
 let DevIconsArtifactFixChar = " "
+let DevIconsEnableNERDTreeRedraw =  0 
 let Tlist_WinHeight =  10 
 let Tlist_Inc_Winwidth =  1 
 let NERDTreeMapCWD = "CD"
-let NERDTreeNaturalSort =  0 
+let WebDevIconsNerdTreeBeforeGlyphPadding = " "
 let NERDTreeMenuDown = "j"
 let NERDTreeMapUpdir = "u"
 let WebDevIconsUnicodeDecorateFolderNodesSymlinkSymbol = ""
@@ -149,10 +150,9 @@ let NERDTreeMapJumpLastChild = "J"
 let NERDTreeMapJumpNextSibling = "<C-j>"
 let NERDTreeCopyCmd = "cp -r "
 let NERDTreeMapQuit = "q"
-let NERDTreeDirArrowCollapsible = "▾"
-let DevIconsEnableNERDTreeRedraw =  0 
-let NERDTreeQuitOnOpen =  0 
 let Tlist_Use_Right_Window =  0 
+let NERDTreeDirArrowCollapsible = "▾"
+let NERDTreeQuitOnOpen =  0 
 silent only
 silent tabonly
 cd ~/Code/projects/goal-code/_research
@@ -313,7 +313,7 @@ badd +9 ~/Code/projects/goal-code/scripts/cells/Held.jl
 badd +42 ~/Code/projects/goal-code/scripts/trajectory-of-data/TrajPlots.jl
 badd +3 ~/Code/projects/goal-code/src/Munge/SpikeTrains.jl
 badd +144 shortcut_cachemain.jl
-badd +1 \[/
+badd +1 \[
 badd +1 ~/Code/projects/goal-code/notebooks/TestAdaptive\ backup\ 1.jl
 badd +1 ~/Code/projects/goal-code/notebooks/ConvexHullTestbed.jl
 badd +562 ~/Code/projects/goal-code/notebooks/Isolated+Shifts.jl
@@ -323,10 +323,11 @@ badd +131 ~/Code/projects/goal-code/src/Load/video.jl
 badd +24 ~/Code/projects/goal-code/src/Utils/clean.jl
 badd +75 ~/Code/projects/goal-code/src/Munge/fieldgrad.jl
 badd +87 ~/Code/projects/goal-code/scripts/causality/PredictiveAsym.jl
-badd +146 ~/Code/projects/goal-code/scripts/manifold/Umap.jl
+badd +174 ~/Code/projects/goal-code/scripts/manifold/Umap.jl
 badd +22 ~/Code/projects/goal-code/src/Utils/plotutils.jl
 argglobal
 %argdel
+tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
@@ -354,7 +355,7 @@ tabnext
 edit ~/Code/projects/goal-code/src/Munge/lfp_decode.jl
 argglobal
 balt ~/Code/projects/goal-code/scripts/decode/CueMem_distance_decode.jl
-let s:l = 90 - ((28 * winheight(0) + 32) / 64)
+let s:l = 90 - ((26 * winheight(0) + 29) / 59)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
@@ -364,13 +365,22 @@ tabnext
 edit ~/Code/projects/goal-code/scripts/manifold/Umap.jl
 argglobal
 balt ~/Code/projects/goal-code/Manifest.toml
-let s:l = 133 - ((26 * winheight(0) + 32) / 64)
+let s:l = 131 - ((28 * winheight(0) + 32) / 64)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 133
-normal! 019|
-tabnext 4
+keepjumps 131
+normal! 024|
+tabnext
+edit ~/Code/projects/goal-code/scripts/causality/PredictiveAsym.jl
+argglobal
+let s:l = 56 - ((20 * winheight(0) + 32) / 64)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 56
+normal! 0
+tabnext 5
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
 endif
