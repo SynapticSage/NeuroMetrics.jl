@@ -11,8 +11,8 @@ import Plot
 using StatsBase
 using ProgressMeter
 using DataFramesMeta
-
 using CausalityTools
+
 @time spikes, beh, ripples, cells = Load.load("RY16", 36);
 Rca1, Rpfc = (Munge.spiking.torate(@subset(spikes,:area .== ar), beh) for ar in ("CA1","PFC"))
 
@@ -49,53 +49,10 @@ plot!(mean(qq,dims=1)', m=:circle, fillrange=0, label="pfc->ca1")
 hline!([0])
 
 
-plot(mean(abs.(pp),dims=1)', m=:circle)
+plot(mean(abs.(pp),dims=1)',  m=:circle)
 plot!(mean(abs.(qq), dims=1)', m=:circle)
 hline!([0])
-
  
-@userplot PlotMeanCause
-@recipe function plotmeancause(plt::PlotMeanCause; transform=identity)
-    P = plt.args[1]
-    pp = P[[isassigned(P,p) for p in eachindex(P)]]
-    pp = hcat(pp...)'
-    m --> :circle
-    fillrange --> 0
-    label --> "thing a -> thing b"
-    #@infiltrate
-    mean(transform(pp),dims=1)'
-end
-@userplot PlotMeanCauseDiff
-@recipe function plotmeancause(plt::PlotMeanCauseDiff; transform=identity)
-    P = plt.args[1]
-    pp = P[[isassigned(P,p) for p in eachindex(P)]]
-    pp = [diff(p) for p in pp]
-    pp = hcat(pp...)'
-    m --> :circle
-    fillrange --> 0
-    label --> "thing a -> thing b"
-    #@infiltrate
-    mean(transform(pp),dims=1)'
-end
-@userplot PlotCauseDiff
-@recipe function plotcausediff(plt::PlotCauseDiff; transform=identity)
-    p = plt.args[1]
-    p = diff(p)
-    m --> :circle
-    fillrange --> 0
-    label --> "thing a -> thing b"
-    #@infiltrate
-    transform(p)
-end
-@userplot PlotCause
-@recipe function plotcause(plt::PlotCause; transform=identity)
-    p = plt.args[1]
-    m --> :circle
-    fillrange --> 0
-    label --> "thing a -> thing b"
-    #@infiltrate
-    transform(p)
-end
 
 # ==========================================
 
