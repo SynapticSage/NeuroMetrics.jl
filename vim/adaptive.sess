@@ -7,7 +7,6 @@ let Tlist_Show_One_File =  0
 let NERDTreeMinimalUI =  0 
 let WebDevIconsNerdTreeGitPluginForceVAlign =  1 
 let NERDTreeRespectWildIgnore =  0 
-let NERDTreeMapHelp = "?"
 let NERDTreeMapToggleHidden = "I"
 let NERDTreeWinSize =  31 
 let UltiSnipsRemoveSelectModeMappings =  1 
@@ -16,7 +15,9 @@ let NERDTreeMapMenu = "m"
 let JuliaFormatter_sysimage_path = "/home/ryoung/.vim/plugged/JuliaFormatter.vim/scripts/juliaformatter.so"
 let NERDTreeMapJumpParent = "p"
 let WebDevIconsUnicodeDecorateFolderNodesDefaultSymbol = ""
-let NERDTreeNodeDelimiter = ""
+let NERDTreeAutoCenter =  1 
+let ScreenImpl = "Tmux"
+let NERDTreeCascadeOpenSingleChildDir =  1 
 let NERDTreeShowBookmarks =  0 
 let NERDTreeMouseMode =  1 
 let NERDTreeCreatePrefix = "silent"
@@ -24,19 +25,18 @@ let NERDTreeMapOpenSplit = "i"
 let JuliaFormatter_root = "/home/ryoung/.vim/plugged/JuliaFormatter.vim"
 let NERDTreeShowLineNumbers =  0 
 let NERDTreeHighlightCursorline =  1 
-let UltiSnipsExpandTrigger = "<C-j>"
+let UltiSnipsEnableSnipMate =  1 
 let Tlist_GainFocus_On_ToggleOpen =  0 
 let Tlist_Auto_Update =  1 
 let Lf_StlColorscheme = "one"
 let NERDTreeMapPreviewVSplit = "gs"
 let NERDTreeMapJumpRoot = "P"
 let NERDTreeGlyphReadOnly = "RO"
-let NERDTreeMapDeleteBookmark = "D"
+let NERDTreeAutoDeleteBuffer =  0 
 let NERDTreeMapRefreshRoot = "R"
-let NERDTreeAutoCenter =  1 
-let NERDTreeCascadeOpenSingleChildDir =  1 
 let NERDTreeMapOpenVSplit = "s"
 let UltiSnipsDebugHost = "localhost"
+let NERDTreeMapDeleteBookmark = "D"
 let Tlist_File_Fold_Auto_Close =  0 
 let UltiSnipsEditSplit = "vertical"
 let NERDTreeMapJumpFirstChild = "K"
@@ -61,6 +61,7 @@ let WebDevIconsUnicodeDecorateFileNodes =  1
 let UltiSnipsPMDebugBlocking =  0 
 let Tlist_Display_Tag_Scope =  1 
 let NERDTreeMapOpenInTabSilent = "T"
+let NERDTreeMapHelp = "?"
 let NERDTreeMapJumpPrevSibling = "<C-k>"
 let NERDTreeMapOpenInTab = "t"
 let NERDTreeChDirMode =  0 
@@ -70,9 +71,8 @@ let NERDTreeShowFiles =  1
 let NERDTreeHijackNetrw =  1 
 let Tlist_Max_Submenu_Items =  20 
 let NERDTreeBookmarksSort =  1 
-let NERDTreeNaturalSort =  0 
+let WebDevIconsNerdTreeBeforeGlyphPadding = " "
 let JuliaFormatter_loaded =  1 
-let NERDTreeMapToggleFilters = "f"
 let NERDTreeMinimalMenu =  0 
 let Tlist_WinWidth =  30 
 let Tlist_Close_On_Select =  0 
@@ -89,8 +89,7 @@ let Tlist_Use_SingleClick =  0
 let UltiSnipsUsePythonVersion =  3 
 let NERDTreeMapCloseDir = "x"
 let NERDTreeSortHiddenFirst =  1 
-let UltiSnipsEnableSnipMate =  1 
-let NERDTreeAutoDeleteBuffer =  0 
+let UltiSnipsExpandTrigger = "<C-j>"
 let DevIconsEnableFoldersOpenClose =  0 
 let NERDTreeUseTCD =  0 
 let JuliaFormatter_log = "/home/ryoung/.vim/plugged/JuliaFormatter.vim/scripts/juliaformatter.log"
@@ -130,15 +129,15 @@ let NERDTreeNotificationThreshold =  100
 let NERDTreeMapActivateNode = "o"
 let NERDTreeWinPos = "left"
 let NERDTreeStatusline = "%{exists('b:NERDTree')?b:NERDTree.root.path.str():''}"
-let ScreenImpl = "Tmux"
+let NERDTreeMapToggleFilters = "f"
+let NERDTreeNodeDelimiter = ""
 let VM_Mono_hl = "VMCursor"
 let LanguageClient_serverStatus =  0 
 let DevIconsArtifactFixChar = " "
-let DevIconsEnableNERDTreeRedraw =  0 
 let Tlist_WinHeight =  10 
 let Tlist_Inc_Winwidth =  1 
 let NERDTreeMapCWD = "CD"
-let WebDevIconsNerdTreeBeforeGlyphPadding = " "
+let NERDTreeNaturalSort =  0 
 let NERDTreeMenuDown = "j"
 let NERDTreeMapUpdir = "u"
 let WebDevIconsUnicodeDecorateFolderNodesSymlinkSymbol = ""
@@ -150,9 +149,10 @@ let NERDTreeMapJumpLastChild = "J"
 let NERDTreeMapJumpNextSibling = "<C-j>"
 let NERDTreeCopyCmd = "cp -r "
 let NERDTreeMapQuit = "q"
-let Tlist_Use_Right_Window =  0 
 let NERDTreeDirArrowCollapsible = "▾"
+let DevIconsEnableNERDTreeRedraw =  0 
 let NERDTreeQuitOnOpen =  0 
+let Tlist_Use_Right_Window =  0 
 silent only
 silent tabonly
 cd ~/Code/projects/goal-code/_research
@@ -190,7 +190,7 @@ badd +1 ~/Code/projects/goal-code/scripts/timeshift/plot_examine_set_of_fields.j
 badd +3 ~/Code/projects/goal-code/src/Table/group.jl
 badd +191 ~/Code/projects/goal-code/src/Timeshift/operation.jl
 badd +50 ~/Code/projects/goal-code/src/Plot/timeshift.jl
-badd +51 ~/Code/projects/goal-code/src/Plot.jl
+badd +86 ~/Code/projects/goal-code/src/Plot.jl
 badd +2 ~/Code/projects/goal-code/src/Plot/raster.jl
 badd +1 ~/Code/projects/goal-code/src/Plot/table.jl
 badd +31 ~/Code/projects/goal-code/src/Munge.jl
@@ -259,7 +259,7 @@ badd +105 ~/Code/projects/goal-code/src/Timeshift/shiftmetrics.jl
 badd +3 ~/.julia/packages/TensorToolbox/6LauI/src/tensor.jl
 badd +2 test_bayes.jl
 badd +15 ~/Code/projects/goal-code/src/Decode/bayes.jl
-badd +1 test_plot_bayes.jl
+badd +3 test_plot_bayes.jl
 badd +66 ~/Code/projects/goal-code/src/Plot/notebook_compareTS.jl
 badd +5 ~/Code/projects/goal-code/src/Plot/notebook_examineTS.jl
 badd +4 shortcut_cacheshuffle.jl
@@ -312,7 +312,7 @@ badd +52 ~/Code/projects/goal-code/scripts/behavior/PathVariability.jl
 badd +9 ~/Code/projects/goal-code/scripts/cells/Held.jl
 badd +42 ~/Code/projects/goal-code/scripts/trajectory-of-data/TrajPlots.jl
 badd +3 ~/Code/projects/goal-code/src/Munge/SpikeTrains.jl
-badd +144 shortcut_cachemain.jl
+badd +42 shortcut_cachemain.jl
 badd +1 \[
 badd +1 ~/Code/projects/goal-code/notebooks/TestAdaptive\ backup\ 1.jl
 badd +1 ~/Code/projects/goal-code/notebooks/ConvexHullTestbed.jl
@@ -325,7 +325,7 @@ badd +75 ~/Code/projects/goal-code/src/Munge/fieldgrad.jl
 badd +53 ~/Code/projects/goal-code/scripts/causality/PredictiveAsym.jl
 badd +174 ~/Code/projects/goal-code/scripts/manifold/Umap.jl
 badd +22 ~/Code/projects/goal-code/src/Utils/plotutils.jl
-badd +57 ~/Code/projects/goal-code/src/Plot/causal.jl
+badd +37 ~/Code/projects/goal-code/src/Plot/causal.jl
 argglobal
 %argdel
 tabnew +setlocal\ bufhidden=wipe
@@ -333,15 +333,15 @@ tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabrewind
-edit shortcut_cachemain.jl
+edit ~/Code/projects/goal-code/src/Load/video.jl
 argglobal
-balt ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl
-let s:l = 42 - ((38 * winheight(0) + 29) / 59)
+balt shortcut_cachemain.jl
+let s:l = 109 - ((42 * winheight(0) + 22) / 45)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 42
-normal! 05|
+keepjumps 109
+normal! 0
 tabnext
 edit ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl
 argglobal
@@ -374,37 +374,27 @@ keepjumps 131
 normal! 024|
 tabnext
 edit ~/Code/projects/goal-code/src/Plot/causal.jl
-wincmd t
-let s:save_winminheight = &winminheight
-let s:save_winminwidth = &winminwidth
-set winminheight=0
-set winheight=1
-set winminwidth=0
-set winwidth=1
 argglobal
-balt ~/Code/projects/goal-code/scripts/causality/PredictiveAsym.jl
-let s:l = 57 - ((50 * winheight(0) + 29) / 59)
+balt test_plot_bayes.jl
+let s:l = 32 - ((31 * winheight(0) + 22) / 45)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 57
-normal! 051|
-tabnext 5
+keepjumps 32
+normal! 023|
+tabnext 1
 if exists('s:wipebuf') && len(win_findbuf(s:wipebuf)) == 0 && getbufvar(s:wipebuf, '&buftype') isnot# 'terminal'
   silent exe 'bwipe ' . s:wipebuf
 endif
 unlet! s:wipebuf
 set winheight=1 winwidth=20
 let &shortmess = s:shortmess_save
-let &winminheight = s:save_winminheight
-let &winminwidth = s:save_winminwidth
 let s:sx = expand("<sfile>:p:r")."x.vim"
 if filereadable(s:sx)
   exe "source " . fnameescape(s:sx)
 endif
 let &g:so = s:so_save | let &g:siso = s:siso_save
 set hlsearch
-nohlsearch
 let g:this_session = v:this_session
 let g:this_obsession = v:this_session
 doautoall SessionLoadPost

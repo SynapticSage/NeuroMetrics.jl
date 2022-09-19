@@ -83,4 +83,7 @@ include(srcdir("Plot", "notebook_compareTS.jl"))
 include(srcdir("Plot", "task.jl"))
 @reexport using .task
 
+include(srcdir("Plot", "causal.jl"))
+@reexport using .causal
+
 end

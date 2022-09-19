@@ -1,6 +1,6 @@
 module cause
 
-    using PlotRecipes
+    using RecipesBase
     using Plots
     using Statistics, NaNStatistics
     
