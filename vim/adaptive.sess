@@ -319,7 +319,7 @@ badd +1 ~/Code/projects/goal-code/notebooks/ConvexHullTestbed.jl
 badd +562 ~/Code/projects/goal-code/notebooks/Isolated+Shifts.jl
 badd +294 ~/Code/projects/goal-code/scripts/timeshift/offshootfigures/new_shift_plots.jl
 badd +12 ~/.config/nvim/lua/ryoung/lsp.jl
-badd +131 ~/Code/projects/goal-code/src/Load/video.jl
+badd +122 ~/Code/projects/goal-code/src/Load/video.jl
 badd +24 ~/Code/projects/goal-code/src/Utils/clean.jl
 badd +75 ~/Code/projects/goal-code/src/Munge/fieldgrad.jl
 badd +53 ~/Code/projects/goal-code/scripts/causality/PredictiveAsym.jl
@@ -334,14 +334,47 @@ tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabrewind
 edit ~/Code/projects/goal-code/src/Load/video.jl
+let s:save_splitbelow = &splitbelow
+let s:save_splitright = &splitright
+set splitbelow splitright
+wincmd _ | wincmd |
+split
+1wincmd k
+wincmd w
+let &splitbelow = s:save_splitbelow
+let &splitright = s:save_splitright
+wincmd t
+let s:save_winminheight = &winminheight
+let s:save_winminwidth = &winminwidth
+set winminheight=0
+set winheight=1
+set winminwidth=0
+set winwidth=1
+exe '1resize ' . ((&lines * 29 + 31) / 62)
+exe '2resize ' . ((&lines * 29 + 31) / 62)
 argglobal
-balt shortcut_cachemain.jl
-let s:l = 109 - ((42 * winheight(0) + 22) / 45)
+enew | setl bt=help
+help disable-mouse@en
+balt ~/Code/projects/goal-code/src/Load/video.jl
+let s:l = 84 - ((0 * winheight(0) + 14) / 29)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 109
-normal! 0
+keepjumps 84
+normal! 065|
+wincmd w
+argglobal
+balt shortcut_cachemain.jl
+let s:l = 108 - ((11 * winheight(0) + 14) / 29)
+if s:l < 1 | let s:l = 1 | endif
+keepjumps exe s:l
+normal! zt
+keepjumps 108
+normal! 050|
+wincmd w
+2wincmd w
+exe '1resize ' . ((&lines * 29 + 31) / 62)
+exe '2resize ' . ((&lines * 29 + 31) / 62)
 tabnext
 edit ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl
 argglobal
@@ -395,6 +428,7 @@ if filereadable(s:sx)
 endif
 let &g:so = s:so_save | let &g:siso = s:siso_save
 set hlsearch
+nohlsearch
 let g:this_session = v:this_session
 let g:this_obsession = v:this_session
 doautoall SessionLoadPost
