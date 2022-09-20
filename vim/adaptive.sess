@@ -303,7 +303,7 @@ badd +1 ~/Code/projects/goal-code/LocalPreferences.toml
 badd +58 ~/Code/projects/goal-code/notebooks/IsolatedSpikes.jl
 badd +550 ~/.julia/packages/MLJBase/Fl6Zc/src/resampling.jl
 badd +1 ~/Code/projects/goal-code/src/Utils/mlj.jl
-badd +8 ~/Code/projects/goal-code/src/Munge/nonlocal.jl
+badd +44 ~/Code/projects/goal-code/src/Munge/nonlocal.jl
 badd +277 ~/Code/projects/goal-code/scripts/decode/CueMem_distance_decode.jl
 badd +193 ~/.julia/packages/Graphics/jN3t0/src/Graphics.jl
 badd +1 quick_shuf_cache.jl
@@ -319,7 +319,7 @@ badd +1 ~/Code/projects/goal-code/notebooks/ConvexHullTestbed.jl
 badd +562 ~/Code/projects/goal-code/notebooks/Isolated+Shifts.jl
 badd +294 ~/Code/projects/goal-code/scripts/timeshift/offshootfigures/new_shift_plots.jl
 badd +12 ~/.config/nvim/lua/ryoung/lsp.jl
-badd +1 ~/Code/projects/goal-code/src/Load/video.jl
+badd +252 ~/Code/projects/goal-code/src/Load/video.jl
 badd +24 ~/Code/projects/goal-code/src/Utils/clean.jl
 badd +75 ~/Code/projects/goal-code/src/Munge/fieldgrad.jl
 badd +53 ~/Code/projects/goal-code/scripts/causality/PredictiveAsym.jl
@@ -335,7 +335,7 @@ tabnew +setlocal\ bufhidden=wipe
 tabrewind
 edit ~/Code/projects/goal-code/src/Load/video.jl
 argglobal
-balt ~/Code/projects/goal-code/src/Timeshift/crossval.jl
+balt ~/Code/projects/goal-code/src/Munge/nonlocal.jl
 let s:l = 1 - ((0 * winheight(0) + 30) / 61)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l

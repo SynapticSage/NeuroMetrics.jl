@@ -8,7 +8,6 @@ module nonlocal
     #using ..Munge.timeshift: getshift
     using DataStructures: OrderedDict
     using DimensionalData
-    import DimensionalData: Between
     using ProgressMeter
     using DataFrames, DataFramesMeta
     using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
