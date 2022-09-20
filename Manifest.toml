@@ -133,6 +133,12 @@ git-tree-sha1 = "b25e88db7944f98789130d7b503276bc34bc098e"
 uuid = "bf4720bc-e11a-5d0c-854e-bdca1663c893"
 version = "0.1.0"
 
+[[deps.AutoSysimages]]
+deps = ["Dates", "LLVM_full_jll", "PackageCompiler", "Pidfile", "Pkg", "REPL", "TOML"]
+git-tree-sha1 = "5e014ebdce9a7364244a4233ac8f9b9e1bc0d8f7"
+uuid = "4eb35182-e5c8-446d-8ecc-33e714a26cef"
+version = "0.2.3"
+
 [[deps.Automa]]
 deps = ["Printf", "ScanByte", "TranscodingStreams"]
 git-tree-sha1 = "d50976f217489ce799e366d9561d56a98a30d7fe"
@@ -1710,6 +1716,12 @@ git-tree-sha1 = "ad927676766e6529a2d5152f12040620447c0c9b"
 uuid = "1d63c593-3942-5779-bab2-d838dc0a180e"
 version = "14.0.4+0"
 
+[[deps.LLVM_full_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "Zlib_jll"]
+git-tree-sha1 = "14ee6e22f8856e2b692665c7ed8e6dac7c92a776"
+uuid = "a3ccf953-465e-511d-b87f-60a6490c289d"
+version = "12.0.1+4"
+
 [[deps.LMDB_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
 git-tree-sha1 = "fe4e275790c9a6b331f7e7e10e04a0a0f1e57123"
@@ -2469,6 +2481,12 @@ deps = ["Artifacts", "JLLWrappers", "LibCURL_jll", "Libdl", "Libtiff_jll", "Pkg"
 git-tree-sha1 = "fcb3f39ae1184a056ecc415863d46d2109aa6947"
 uuid = "58948b4f-47e0-5654-a9ad-f609743f8632"
 version = "900.100.0+0"
+
+[[deps.PackageCompiler]]
+deps = ["Artifacts", "LazyArtifacts", "Libdl", "Pkg", "Printf", "RelocatableFolders", "TOML", "UUIDs"]
+git-tree-sha1 = "c497e2bb9c2127a411b74dbff56b11f258d67d12"
+uuid = "9b87118b-4619-50d2-8e1e-99f35a4d4d9d"
+version = "2.0.9"
 
 [[deps.Packing]]
 deps = ["GeometryBasics"]
