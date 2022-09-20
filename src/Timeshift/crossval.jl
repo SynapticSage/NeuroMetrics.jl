@@ -125,7 +125,7 @@ module crossval
         result
     end
 
-    using Metrics
+    using Metrics: r2_score, binary_accuracy, categorical_accuracy
 
     """
     since we don't have ground truth, we compare the distribution

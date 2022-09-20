@@ -218,9 +218,9 @@ badd +19 test_shifting_timediff.jl
 badd +31 ~/Code/projects/goal-code/src/Field/preset.jl
 badd +214 ~/Code/projects/goal-code/src/Field/legacy.jl
 badd +74 ~/Code/projects/goal-code/src/Timeshift/legacy.jl
-badd +198 ~/Code/projects/goal-code/src/Field/metrics.jl
+badd +19 ~/Code/projects/goal-code/src/Field/metrics.jl
 badd +15 ~/Code/projects/goal-code/src/Field/recon_process.jl
-badd +1 ~/Code/projects/goal-code/src/Timeshift/crossval.jl
+badd +30 ~/Code/projects/goal-code/src/Timeshift/crossval.jl
 badd +89 ~/Code/projects/goal-code/notebooks/TimeshiftDiff.jl
 badd +31 ~/Code/projects/goal-code/src/Munge/chrono.jl
 badd +11 ~/Code/projects/goal-code/src/Utils/macros.jl
@@ -319,7 +319,7 @@ badd +1 ~/Code/projects/goal-code/notebooks/ConvexHullTestbed.jl
 badd +562 ~/Code/projects/goal-code/notebooks/Isolated+Shifts.jl
 badd +294 ~/Code/projects/goal-code/scripts/timeshift/offshootfigures/new_shift_plots.jl
 badd +12 ~/.config/nvim/lua/ryoung/lsp.jl
-badd +122 ~/Code/projects/goal-code/src/Load/video.jl
+badd +1 ~/Code/projects/goal-code/src/Load/video.jl
 badd +24 ~/Code/projects/goal-code/src/Utils/clean.jl
 badd +75 ~/Code/projects/goal-code/src/Munge/fieldgrad.jl
 badd +53 ~/Code/projects/goal-code/scripts/causality/PredictiveAsym.jl
@@ -334,52 +334,19 @@ tabnew +setlocal\ bufhidden=wipe
 tabnew +setlocal\ bufhidden=wipe
 tabrewind
 edit ~/Code/projects/goal-code/src/Load/video.jl
-let s:save_splitbelow = &splitbelow
-let s:save_splitright = &splitright
-set splitbelow splitright
-wincmd _ | wincmd |
-split
-1wincmd k
-wincmd w
-let &splitbelow = s:save_splitbelow
-let &splitright = s:save_splitright
-wincmd t
-let s:save_winminheight = &winminheight
-let s:save_winminwidth = &winminwidth
-set winminheight=0
-set winheight=1
-set winminwidth=0
-set winwidth=1
-exe '1resize ' . ((&lines * 29 + 31) / 62)
-exe '2resize ' . ((&lines * 29 + 31) / 62)
 argglobal
-enew | setl bt=help
-help disable-mouse@en
-balt ~/Code/projects/goal-code/src/Load/video.jl
-let s:l = 84 - ((0 * winheight(0) + 14) / 29)
+balt ~/Code/projects/goal-code/src/Timeshift/crossval.jl
+let s:l = 1 - ((0 * winheight(0) + 30) / 61)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
-keepjumps 84
-normal! 065|
-wincmd w
-argglobal
-balt shortcut_cachemain.jl
-let s:l = 108 - ((11 * winheight(0) + 14) / 29)
-if s:l < 1 | let s:l = 1 | endif
-keepjumps exe s:l
-normal! zt
-keepjumps 108
-normal! 050|
-wincmd w
-2wincmd w
-exe '1resize ' . ((&lines * 29 + 31) / 62)
-exe '2resize ' . ((&lines * 29 + 31) / 62)
+keepjumps 1
+normal! 0
 tabnext
 edit ~/Code/projects/goal-code/scripts/decode/FullDecodeVideo.jl
 argglobal
 balt ~/Code/projects/goal-code/scripts/timeshift/offshootfigures/new_shift_plots.jl
-let s:l = 453 - ((46 * winheight(0) + 29) / 59)
+let s:l = 453 - ((48 * winheight(0) + 30) / 61)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
@@ -389,7 +356,7 @@ tabnext
 edit ~/Code/projects/goal-code/src/Munge/lfp_decode.jl
 argglobal
 balt ~/Code/projects/goal-code/scripts/decode/CueMem_distance_decode.jl
-let s:l = 90 - ((26 * winheight(0) + 29) / 59)
+let s:l = 90 - ((27 * winheight(0) + 30) / 61)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
@@ -399,7 +366,7 @@ tabnext
 edit ~/Code/projects/goal-code/scripts/manifold/Umap.jl
 argglobal
 balt ~/Code/projects/goal-code/Manifest.toml
-let s:l = 131 - ((26 * winheight(0) + 29) / 59)
+let s:l = 131 - ((27 * winheight(0) + 30) / 61)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
@@ -409,7 +376,7 @@ tabnext
 edit ~/Code/projects/goal-code/src/Plot/causal.jl
 argglobal
 balt test_plot_bayes.jl
-let s:l = 32 - ((31 * winheight(0) + 22) / 45)
+let s:l = 32 - ((31 * winheight(0) + 30) / 61)
 if s:l < 1 | let s:l = 1 | endif
 keepjumps exe s:l
 normal! zt
@@ -428,7 +395,6 @@ if filereadable(s:sx)
 endif
 let &g:so = s:so_save | let &g:siso = s:siso_save
 set hlsearch
-nohlsearch
 let g:this_session = v:this_session
 let g:this_obsession = v:this_session
 doautoall SessionLoadPost
