@@ -1,4 +1,4 @@
-module tensor
+module tensop
 
     using DataFrames
     using DataStructures: OrderedDict

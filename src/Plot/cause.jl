@@ -51,7 +51,9 @@ module cause
     @userplot PlotCause
     @recipe function plotcause(plt::PlotCause; transform=identity, rect=rect_default)
         one_cause = plt.args[1]
-        m --> :circle
+        if length(one_cause) < 30
+            m --> :circle
+        end
         fillrange --> 0
         label --> "thing a -> thing b"
         #@infiltrate

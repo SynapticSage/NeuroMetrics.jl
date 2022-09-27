@@ -16,7 +16,9 @@ module Precompile
                        "LoopVectorization", "Infiltrator",
                        "Markdown", "InteractiveUtils", "Polyester",
                        "Random", "Colors", "ColorSchemes", "ImageFiltering",
-                       "ProtoStructs", "KernelDensity"]   
+                       "ProtoStructs", "KernelDensity",
+                       "UMAP", "CausalityTools"
+                      ]   
     _GFA_data_dependencies = [_GFA_dependencies..., "Load", "SampleData"]
 
     using PackageCompiler

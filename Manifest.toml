@@ -1964,11 +1964,9 @@ version = "1.9.3+0"
 
 [[deps.MATLAB]]
 deps = ["Libdl", "SparseArrays"]
-git-tree-sha1 = "7566e213f88e2a8c23a9fb70d384e62bdddfd412"
-repo-rev = "linxu"
-repo-url = "https://github.com/JuliaInterop/MATLAB.jl.git"
+git-tree-sha1 = "e263657fe013cb02450c5d4210d2c50a354a5e08"
 uuid = "10e44e05-a98a-55b3-a45b-ba969058deb6"
-version = "0.8.2"
+version = "0.8.3"
 
 [[deps.MIMEs]]
 git-tree-sha1 = "65f28ad4b594aebe22157d6fac869786a255b7eb"

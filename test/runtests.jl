@@ -13,7 +13,9 @@ for dir in dirs
     if endswith(dir, '/')
         dir = dir[1:end-1]
     end
-    @test dir ∈ watched
+    dir_in_watched = dir ∈ watched
+    !(dir_in_watched) ? @warn("dir=$dir not in watched") : nothing
+    @test dir_in_watched
 end
 
 

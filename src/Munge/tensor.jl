@@ -21,28 +21,22 @@ module tensor
     using Interpolations
     using DynamicAxisWarping
     using TensorToolbox
+    using CategoricalArrays
     #axisnames
 
     import Utils
 
     export tensorize, tensorize_continuous
-    export quantilize, relativize
+    export quantilize, relativize, equalize, gravity, digitize
 
     SymStr          = Union{Symbol, String}
     Tensor          = DimArray{<:Union{Missing,Array,Real}}
     DataFrameTensor = DimArray{<:Union{Missing,DataFrame}}
     AllTensor       = Union{Tensor, DataFrameTensor}
 
-    """
-        tensor_pointproc
-
-    create a tensor of a point process arrayed with some set of N-dimensions
-    """
-    function tensorize_pointproc(X::DataFrame)::Array
-    end
 
     """
-        tensor_pointproc
+        tensorize
 
     create a tensor of a continuous variable from dataframe form
 
@@ -67,14 +61,17 @@ module tensor
         X = copy(X)
         X = clean(X, dims)
 
-        G = groupby(X[!, [dims..., var...]], dims)
+        group_var = union(dims, var)
+        G = groupby(X[!, group_var], dims)
         counts = combine(G, nrow)
         if !(all(counts.nrow .== 1))
             TensType = Array{TensType}
-            singular = false
+            scalar = false
         else
-            singular = true
+            scalar = true
         end
+        arraycols = any(eltype.(eachcol(X[!,var])) .<: Array) ?
+                    true : false
 
         axs = OrderedDict(dim=>sort(unique(X[!,dim])) for dim in dims)
         sz   = [length(ax) for (_,ax) in axs]
@@ -95,9 +92,26 @@ module tensor
             #    searches[i] .&= overall
             #end
             indices = findfirst.(searches)
-            T[indices...] = singular ? g[!, var][1] : Array(g[!, var])
+            val = if scalar 
+                g[!, var][1]
+            elseif arraycols
+                G = []
+                for col in eachcol(g[!,var])
+                    if eltype(col) <: Array
+                        [push!(G,c) for c in eachcol(hcat(col...)')]
+                    else
+                        push!(G,col) 
+                    end
+                end
+                hcat(G...)
+            else
+                Array(g[!,var])
+            end
+            T[indices...] = val
         end
-        DimArray(T, Tuple(Dim{name}(index) for (name,index) in axs))
+        @infiltrate
+        DimArray(T, Tuple(Dim{Symbol(name)}(index isa String ? categorical(index) : index)
+                          for (name,index) in axs))
     end
 
     """
@@ -157,16 +171,23 @@ module tensor
         return matten(x, dim, szx)
         
     end
+
+    """
+        equalize
+
+    equalizes to create an ND block of nonmissing values. this creates
+    a balanced number of samples across all axes
+    """
     function equalize(x::DimArray, dim; missval=missing, thresh=minimum)
-        axs = x.axes
+        axs = x.dims
         if !(dim isa Int)
-            dim = findfirst(dim .== axisnames(x))
+            dim = findfirst(dim .== name.(DimensionalData.dims(x)))
         end
         data = equalize(x.data, dim; missval, thresh)
         axs = Tuple(i != dim ? axs[i] : 
-                    Dim{axisname(axs[i])}(axs[i][1:size(data,dim)]) 
+                    Dim{name(DimensionalData.dims(axs[i]))}(axs[i][1:size(data,dim)]) 
                for i in 1:length(axs))
-        
+        isempty(data) ? @error("empty data") : nothing
         DimArray(data, axs)
     end
 
@@ -182,17 +203,36 @@ module tensor
         X
     end
 
-    function relativize(X::DataFrame, dims::Vector{<:SymStr},
-            var::Vector{<:SymStr}; keeporig::Bool=false)::DataFrame
+    """
+    Digitize columns
+    """
+    function digitize(X::DataFrame, dims::Vector{<:SymStr}, bins::Union{Vector{<:Int},Int})::DataFrame
+        bins = bins isa Int ? fill(bins, size(dims)) : bins
         X = clean(X, dims)
+        # Rank bin anything requested
+        for (dim,bin) in zip(dims, bins)
+            X[!,dim] = Utils.binning.digitize(X[!,dim], bin)
+        end
+        X
+    end
+
+    """
+    relativize
+    
+    makes a measurement relative to a center or  minimum within 
+    each group (dims)
+    """
+    function relativize(X::DataFrame, groupvars::Vector{<:SymStr},
+            var::Vector{<:SymStr}; keeporig::Bool=false)::DataFrame
+        X = clean(X, groupvars)
         # Rank bin anything requested
         makerelative(x) = x .- minimum(x)
         pos = keeporig ? [v => identity => Symbol("orig"*String(v)) for v in var] : []
-        combine(groupby(X, dims, sort=false), var .=> makerelative .=> var, pos...)
+        combine(groupby(X, groupvars, sort=false), var .=> makerelative .=> var, pos...)
     end
-    function relativize(X::DataFrame, dims::Vector{<:SymStr}, var::T where
+    function relativize(X::DataFrame, groupvars::Vector{<:SymStr}, var::T where
             T<:SymStr; keeporig::Bool=false)::DataFrame
-        relativize(X, dims, [var]; keeporig)
+        relativize(X, groupvars, [var]; keeporig)
     end
 
     function clean(X::DataFrame, dims::Vector{<:SymStr}=All())::DataFrame
@@ -202,6 +242,20 @@ module tensor
         notisnan = Utils.squeeze(all(notisnan, dims=2))
         X = X[notisnan, :]
     end
+
+
+    #                                          
+    #            --.--                         
+    #              |  ,---.,---.,---.,---.,---.
+    #              |  |---'|   |`---.|   ||    
+    #              `  `---'`   '`---'`---'`    
+    #                                          
+    #                                                     
+    #                           |              o          
+    #            ,---.,---.,---.|---.,---.,---..,---.,---.
+    #            |    |---'`---.|   |,---||   |||   ||   |
+    #            `    `---'`---'`   '`---^|---'``   '`---|
+    #                                     |          `---'
 
     # --- Overloading TensorToolbox.jl functions to work with array of array
     # BORROWED FROM TensorToolbox.jl

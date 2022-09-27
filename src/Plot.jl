@@ -4,6 +4,8 @@ using DrWatson
 using Reexport
 using Plots
 using Infiltrator
+using RecipesBase
+using Measures
 
 folder_args = []
 exts = ["png", "pdf"]
@@ -65,6 +67,35 @@ function create_blank_plot()
     plot(legend=false, grid=false, framestyle=:none, background_color_inside=:match)
 end
 
+
+# -----------------
+# Steroscopic plots
+# -----------------
+
+@userplot StereoPlot
+@recipe function stereoplot(plt::StereoPlot; theta=0, phi=35, offset=6)
+    x,y,z = plt.args 
+    seriestype --> :scatter
+    margin --> -6mm
+    layout := (1,2)
+    @series begin
+        projection_type := :perspective
+        subplot := 1
+        camera := (mod(theta,360+offset),phi)
+        (x,y,z)
+    end
+    projection_type := :perspective
+    subplot := 2
+    camera := (mod(theta,360),phi)
+    (x,y,z)
+end
+
+function stereoscopicgif(pos...;delta_angle=1,kws...)
+    @gif for theta in 1:delta_angle:360
+        stereoplot(pos...; theta, kws...)
+    end
+end
+
 include(srcdir("Plot", "raster.jl"))
 @reexport using .raster
 
@@ -83,7 +114,7 @@ include(srcdir("Plot", "notebook_compareTS.jl"))
 include(srcdir("Plot", "task.jl"))
 @reexport using .task
 
-include(srcdir("Plot", "causal.jl"))
-@reexport using .causal
+include(srcdir("Plot", "cause.jl"))
+@reexport using .cause
 
 end
