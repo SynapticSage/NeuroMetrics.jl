@@ -111,12 +111,24 @@ module Utils
     function not_in_range(X::Union{Real,AbstractArray}, range::Union{Tuple, Vector})
         (!).(in_range(X, range))
     end
+    function in_rangeq(X::AbstractArray, qlim::Union{Tuple,Vector})
+        range = [nanquantile(X,q) for q in qlim]
+        in_range(X, range)
+    end
+
+    function vals_in_rangeq(X::AbstractArray, qlim::Union{Tuple,Vector})
+        X[in_rangeq(X, qlim)]
+    end
 
     function squeeze(A::AbstractArray)  
         s = size(A)
         A = dropdims(A, dims = tuple(findall(size(A) .== 1)...))
         return A
     end  
+    function squeeze_zeros(A::AbstractArray, dims)
+        inds = any(i->i != 0, A, dims=dims) 
+        A[inds]
+    end
 
     function dextrema(A::AbstractArray; kws...)
         diff([nanminimum(A), nanmaximum(A)], kws...)

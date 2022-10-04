@@ -71,7 +71,7 @@ end
 # -----------------
 # Steroscopic plots
 # -----------------
-
+export stereoplot
 @userplot StereoPlot
 @recipe function stereoplot(plt::StereoPlot; theta=0, phi=35, offset=6)
     x,y,z = plt.args 

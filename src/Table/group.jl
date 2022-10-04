@@ -4,9 +4,16 @@ module group
     using DataStructures
     using Infiltrator
     using StatsBase
+    import Table
+    using DataFrames: ColumnIndex
+    using Random
+
     coords(groups) = collect(zip(sort(collect(groups.keymap),by=x->x[2])...))[1]
     pairs(groups) = (collect(zip(sort(collect(groups.keymap))))[i][1] 
                      for i in 1:length(G.keymap))
+    
+    CItype = Union{ColumnIndex, Vector{<:ColumnIndex}}
+
     function named_coords(groups)
     end
 
@@ -89,5 +96,53 @@ module group
         end
         return result
     end
+
+    export equalize
+    function equalize(X::DataFrame, group::CItype, balance::ColumnIndex; kws...)
+        equalize(groupby(X,group), balance; kws...)
+    end
+    function equalize(X::GroupedDataFrame, balance::ColumnIndex; 
+            relabel::Bool=true, thresh::Int = 1, qthresh = nothing)
+        counts= combine(X, balance => (x->length(unique(x))) => :count)
+        thresh = qthresh === nothing ? thresh : Int(round(quantile(counts.count, qthresh)))
+        m = Int(max(minimum(counts.count), thresh))
+        @info "thresh" m
+        G=[]
+        for g in X
+            
+            subg = groupby(g, balance)
+            subg = filter((x->nrow(x) > m), subg)
+            if length(subg) < m
+                continue
+            end
+
+            # Balance our sets
+            inds = collect(1:size(subg,1))
+            shuffle!(inds)
+            subg = subg[inds[1:m]]
+            #Relabel
+            if relabel
+                subg = reindex(subg, balance)
+            end
+            push!(G,combine(subg,identity))
+        end
+        vcat(G...)
+    end
+
+
+    function reindex(X::GroupedDataFrame, dims)
+        dims = dims isa Vector ? dims : [dims]
+        uDimD = Dict()
+        Xc = combine(X,identity)
+        for dim in dims
+            uDim = sort(unique(Xc[!,dim]))
+            uDimD[dim] = Dict(uDim[i]=>i for i in 1:length(uDim))
+        end
+        for (x,dim) in Iterators.product(X,dims)
+            x[!,dim] .= getindex.([uDimD[dim]], x[!,dim])
+        end
+        X
+    end
+    
 
 end

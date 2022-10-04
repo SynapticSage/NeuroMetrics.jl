@@ -109,7 +109,6 @@ module tensor
             end
             T[indices...] = val
         end
-        @infiltrate
         DimArray(T, Tuple(Dim{Symbol(name)}(index isa String ? categorical(index) : index)
                           for (name,index) in axs))
     end
@@ -138,58 +137,6 @@ module tensor
         X
     end
     
-
-    """
-        equalize
-
-    equalizes dimensions -- the block will have missing values where no samples
-    are had. this attempts to make a core dense block with no missing values by
-    throwing out values from slices, so all slices have equal samples and no
-    missing values.
-    """
-    function equalize(x::AbstractArray, dim; missval=missing, thresh=minimum)
-
-        """
-        Cause all of the non-missing values to "fall" to
-        the beginning of the sequence in their proper order
-        """
-        function gravity(y)
-            new_y = similar(y)
-            miss = y .=== missval
-            good = (!).(miss)
-            new_y[1:sum(good)] = y[good]
-            new_y[sum(good)+1:length(y)] = y[miss]
-            y
-        end
-
-        szx = [size(x)...]
-        x = tenmat(x, dim)
-        target_num = thresh([sum(s .=== missval) for s in eachslice(x; dims=2)])
-        x  = hcat(gravity.(eachcol(x))...)
-        x = x[1:target_num, :]
-        szx[dim] = target_num
-        return matten(x, dim, szx)
-        
-    end
-
-    """
-        equalize
-
-    equalizes to create an ND block of nonmissing values. this creates
-    a balanced number of samples across all axes
-    """
-    function equalize(x::DimArray, dim; missval=missing, thresh=minimum)
-        axs = x.dims
-        if !(dim isa Int)
-            dim = findfirst(dim .== name.(DimensionalData.dims(x)))
-        end
-        data = equalize(x.data, dim; missval, thresh)
-        axs = Tuple(i != dim ? axs[i] : 
-                    Dim{name(DimensionalData.dims(axs[i]))}(axs[i][1:size(data,dim)]) 
-               for i in 1:length(axs))
-        isempty(data) ? @error("empty data") : nothing
-        DimArray(data, axs)
-    end
 
     function quantilize(X::DataFrame, dims::Vector{<:SymStr},
             quantilebin::Dict{<:SymStr, <:Int},)::DataFrame
@@ -323,6 +270,58 @@ module tensor
         X = reshape(A,[dims[row];dims[col]]...)
         permutedims(X,invperm([row;col]))
     end
+
+    #"""
+    #    equalize
+
+    #equalizes dimensions -- the block will have missing values where no samples
+    #are had. this attempts to make a core dense block with no missing values by
+    #throwing out values from slices, so all slices have equal samples and no
+    #missing values.
+    #"""
+    #function equalize(x::AbstractArray, dim; missval=missing, thresh=minimum)
+
+    #    """
+    #    Cause all of the non-missing values to "fall" to
+    #    the beginning of the sequence in their proper order
+    #    """
+    #    function gravity(y)
+    #        new_y = similar(y)
+    #        miss = y .=== missval
+    #        good = (!).(miss)
+    #        new_y[1:sum(good)] = y[good]
+    #        new_y[sum(good)+1:length(y)] = y[miss]
+    #        y
+    #    end
+
+    #    szx = [size(x)...]
+    #    x = tenmat(x, dim)
+    #    target_num = thresh([sum(s .=== missval) for s in eachslice(x; dims=2)])
+    #    x  = hcat(gravity.(eachcol(x))...)
+    #    x = x[1:target_num, :]
+    #    szx[dim] = target_num
+    #    return matten(x, dim, szx)
+    #    
+    #end
+
+    #"""
+    #    equalize
+
+    #equalizes to create an ND block of nonmissing values. this creates
+    #a balanced number of samples across all axes
+    #"""
+    #function equalize(x::DimArray, dim; missval=missing, thresh=minimum)
+    #    axs = x.dims
+    #    if !(dim isa Int)
+    #        dim = findfirst(dim .== name.(DimensionalData.dims(x)))
+    #    end
+    #    data = equalize(x.data, dim; missval, thresh)
+    #    axs = Tuple(i != dim ? axs[i] : 
+    #                Dim{name(DimensionalData.dims(axs[i]))}(axs[i][1:size(data,dim)]) 
+    #           for i in 1:length(axs))
+    #    isempty(data) ? @error("empty data") : nothing
+    #    DimArray(data, axs)
+    #end
 
 
 end
