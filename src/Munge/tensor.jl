@@ -28,6 +28,7 @@ module tensor
 
     export tensorize, tensorize_continuous
     export quantilize, relativize, equalize, gravity, digitize
+    export tenmat
 
     SymStr          = Union{Symbol, String}
     Tensor          = DimArray{<:Union{Missing,Array,Real}}

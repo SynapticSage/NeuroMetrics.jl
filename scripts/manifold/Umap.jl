@@ -120,8 +120,9 @@ embedding = Dict(k=>(try; fetch(v); catch; v; end) for (k,v) in embedding);
 #display(embedding); 
 
 
+# ----------------------------------------------------
 # Get clean indices that are within quantile tolerance
-# ----------------
+# ----------------------------------------------------
 inds = Dict()
 for key in keys(inds)
     inds[key] = Utils.clean.inds_quantile_filter_dims(
