@@ -16,15 +16,19 @@ module dynamic
     using Munge.tensor
     using Statistics, Interpolations, RollingFunctions
     using DataFrames
+    using ProgressMeter
+    using SearchSortedNearest
 
+    export get_groupedexamples
     function get_groupedexamples(spikes, beh;
         dims = ["startWell","stopWell","traj"],
-        values = ["x","y", "time"],
+        values = ["x","y", "time"], thresh=12,
+        printstats = true,
         groupingdim = :traj)::Matrix
 
         X = torate(spikes, beh)
         X = rate_todataframe(X, (beh,"time",[values...,dims...],))
-        X = Table.group.equalize(X,  setdiff(dims,["traj"]), :traj, thresh=12)
+        X = Table.group.equalize(X,  setdiff(dims,["traj"]), :traj; thresh)
         
         # Tensorize our dataframe
         tens = tensorize(X, dims, values)
@@ -37,7 +41,6 @@ module dynamic
         grouped_examples = disallowmissing(grouped_examples)
         grouped_examples = [Matrix(g') for g in grouped_examples]
         
-        printstats = true
         if printstats
             nExamples, nGroups = size(grouped_examples);
             @info "stats" thresh nExamples nGroups
@@ -45,6 +48,7 @@ module dynamic
         grouped_examples
     end
 
+    export get_templates
     function get_templates(examples; method=:median)::Vector
         n,_ = size(examples[1])
         templates = []
@@ -67,10 +71,12 @@ module dynamic
         templates
     end
 
+    export get_dtwtable
     function get_dtwtable(examples, templates)::DataFrame
         n,_ = size(examples[1])
         # APPLY TEMPLATES :: DO DTW
-        for i in 1:size(examples,2)
+        warptablegroups = []
+        @showprogress "dtw table for groups" for i in 1:size(examples,2)
 
             data = examples[:,i]
             inputdata = getindex.(examples[:,i], [1:n], [:])
@@ -85,15 +91,51 @@ module dynamic
             # Get time effects
             warptable = [DataFrame([template_time[s1] d[end, s2] s1 s2],["time_template_zerod","time","s1","s2"])
                          for (s1,s2,d) in zip(seq1, seq2, data)]
-            warptable = transform!.(warptable, [:time => (x-> x .- minimum(x)) => :time_zerod])
-            warptable = transform!.(warptable, [[:time_template_zerod,:time_zerod]=>((x,y)->(x .- y))=> :delta])
-            vcat(warptable...; source=:warp)
+            transform!.(warptable, [:time => (x-> x .- minimum(x)) => :time_zerod])
+            transform!.(warptable, [[:time_template_zerod,:time_zerod]=>((x,y)->(x .- y))=> :delta])
+            warptable = vcat(warptable...; source=:warpexample)
+            push!(warptablegroups, warptable)
         end
+        W = vcat(warptablegroups...; source=:warpgroup)
+        W[:, [:warpgroup, :warpexample, :time, :s1, :s2, :time_template_zerod,
+              :time_zerod]]
     end
 
-    function apply_warps(data::DataFrame, warptable::DataFrame)::DataFrame
+    export apply_warps
+    function apply_warps(data::DataFrame, warptable::DataFrame;
+                        on=:time, only_warp=true, nan_missing=true)::DataFrame
+        if !issorted(data[!,on])
+            sort!(data,on)
+        end
+        wgs_stats = if nan_missing
+            combine(groupby(data,:warpgroup),
+            :s1 => minimum, :s1 => maximum)
+        else
+            nothing
+        end
+        # Get closest match times (first for each index of the template)
+        wgs = groupby(warptable, [:warpgroup, :warpexample])
+        results=[]
+        for wg in wgs
+            push!(results, apply_warps_wg_first(data, wg))
+        end
+        vcat(results...)
+    end
+    function apply_warps_wg_first(data::DataFrame, wg::SubDataFrame;
+                        nan_pad=nothing,
+                        on=:time)::DataFrame
+
+        wgf = combine(groupby(wg, :s1), first)
+        wgf.time
+        matches = searchsortednearest(data[!,on], wgf[!,on])
+        data = data[matches,:]
+        hcat(data, wgf[!,[:warpgroup, :warpexample, :time_template_zerod, :time_zerod]])
     end
 
+    function warped_df_to_tensor(data::DataFrame, dims, vars; on=:time)
+        # tensorize by dims and vars
+
+    end
 
 end
 

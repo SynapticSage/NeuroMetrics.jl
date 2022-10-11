@@ -4,8 +4,25 @@ module convert_types
     export to_dataframe
     using LazyGrids: ndgrid
     using DataStructures
-    import Utils
     using Infiltrator
+    using DimensionalData
+    import Utils
+
+    """
+        rate_todataframe
+
+    converts a rate dimarray (or count dimarray) to a dataframe, and populates columns labeling the
+    times from other dataframes
+    """
+    function from_dimarrary(X::DimArray, registrant::Tuple{DataFrame, String, Vector{String}}...)::DataFrame
+        dims = X.dims
+        time = collect(dims[1])
+        X = DataFrame([time, Vector.(collect(eachrow(X)))], [:time, :data])
+        for (source, on, transfer) in registrant
+            Utils.filtreg.register(source, X; on, transfer)
+        end
+        X
+    end
 
     """
     to_dataframe

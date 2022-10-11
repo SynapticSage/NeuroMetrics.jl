@@ -40,15 +40,16 @@ feature_engineer = :zscore
 
 # Filter
 if filt !== nothing
-    filtstr = "_$filt"
+    filtstr = "filt=$filt"
     filters = Filt.get_filters()[filt]
     Utils.filtreg.filterAndRegister(beh, spikes; filters)
 else
-    filtstr = ""
+    filtstr = "filt=nothing"
 end
-festr   = feature_engineer === nothing ? "" : "feature=$feature_engineer"
-diststr = distance === nothing ? "" : "distance=$feature_engineer"
-@info filtstr
+festr   = feature_engineer === nothing ? "feature=nothing" : "feature=$feature_engineer"
+diststr = distance === nothing ? "distance=euclidean" : "distance=$feature_engineer"
+savefile = datadir("manifold","ca1pfc_manifolds_$(filtstr)_$(diststr)_$(festr).serial")
+@info "run info" filtstr festr diststr savefile
 
 # Get sample runs
 # ----------------
@@ -130,9 +131,8 @@ for key in keys(inds)
 end
 
 # Store them for later
-serialize(datadir("manifold","ca1pfc_manifolds$(filtstr)$(diststr)$(festr).serial"),
-          (;embedding, inds, animal="RY16", day=36))
+@info "save info" filtstr festr diststr savefile
+serialize(savefile, (;embedding, inds, animal="RY16", day=36))
 
 using Serialization
-embedding, inds, animal, day = deserialize(datadir("manifold","ca1pfc_manifolds$(filtstr).serial"))
-
+embedding, inds, animal, day = deserialize(savefile)

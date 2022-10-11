@@ -303,13 +303,7 @@ module spiking
     times from other dataframes
     """
     function rate_todataframe(X::DimArray, registrant::Tuple{DataFrame, String, Vector{String}}...)::DataFrame
-        dims = X.dims
-        time = collect(dims[1])
-        X = DataFrame([time, Vector.(collect(eachrow(X)))], [:time, :data])
-        for (source, on, transfer) in registrant
-            Utils.filtreg.register(source, X; on, transfer)
-        end
-        X
+        Table.from_dimarrary(X, registrant...)
     end
 
 end
