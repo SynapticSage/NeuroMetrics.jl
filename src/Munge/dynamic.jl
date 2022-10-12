@@ -136,11 +136,11 @@ module dynamic
             fill_missing=true, missing_val=NaN, collapse_inner_dimension=true)
         dims = Symbol.(dims)
         D = tensorize(data, [dims...,:warpexample, :s1], vars)
-        if nan_missing
+        if fill_missing
             missing_inds = ismissing.(D)
             ind = findfirst((!).(missing_inds))
             d = deepcopy(D[ind])
-            d .= NaN 
+            d .= missing_val 
             [setindex!(D, d, i) for i in  findall(missing_inds)]
             D
         end
