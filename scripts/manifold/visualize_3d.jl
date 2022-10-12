@@ -30,6 +30,7 @@ randsamp(x) = shuffle(collect(1:size(x,1)))[1:n]
 # Stereoscopic views
 combos = Iterators.product( (:cuemem, :correct, :stopWell, :startWell), filter(x->x.dim==3, keys(inds)))
 @softscope for (bfield, key) in combos
+    @info (bfield, key)
     setfolder("manifold",string(bfield))
     title="key=$key\nbfield=$bfield"
     ia = randsamp(inds[key])

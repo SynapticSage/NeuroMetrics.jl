@@ -18,6 +18,7 @@ module dynamic
     using DataFrames
     using ProgressMeter
     using SearchSortedNearest
+    using DimensionalData
 
     export get_groupedexamples
     function get_groupedexamples(spikes, beh;
@@ -133,6 +134,7 @@ module dynamic
 
     export warped_df_to_tensor
     function warped_df_to_tensor(data::DataFrame, dims, vars; 
+            inner_dim_names=nothing,
             fill_missing=true, missing_val=NaN, collapse_inner_dimension=true)
         dims = Symbol.(dims)
         D = tensorize(data, [dims...,:warpexample, :s1], vars)
@@ -145,7 +147,17 @@ module dynamic
             D
         end
         if collapse_inner_dimension
-            D
+            println("...collapsing inner dimension")
+            element = D[1]
+            old_dims = D.dims
+            nDims = ndims(D)
+            inner_dim_names = inner_dim_names === nothing ? :inner_dim :
+                                Symbol.(inner_dim_names)
+            new_dims = (old_dims..., 
+                        Dim{inner_dim_names}(1:length(element)))
+            array_slices = [Array(getindex.(D, i)) for i in eachindex(element)]
+            DimArray(cat(array_slices...; dims=nDims+1),
+                     new_dims)
         else
             D
         end

@@ -59,7 +59,7 @@ nsamp = Int(round(size(beh,1)/splits))
 δi    = Int(round(nsamp/sampspersplit))
 #nsamp = min(99_000, size(beh,1))
 samps = []
-for (split, samp) in Iterators.product(0:splits, 1:sampspersplit)
+for (split, samp) in Iterators.product(1:splits, 1:sampspersplit)
     start = (split-1) * nsamp + (samp-1) * δi + 1
     stop  = (split)   * nsamp + (samp)   * δi + 1
     stop  = min(stop, size(beh,1))
@@ -91,9 +91,7 @@ end
 
 # Get embeddings
 # ----------------
-embedding    = Dict()
-
-dimset       = (2,3)
+embedding    = Dict() dimset       = (2,3)
 min_dists    = (0.5,0.1, 0.2,0.5)
 n_neighborss = (30,15, 200, 200)
 

@@ -22,7 +22,6 @@ module Utils
 
     export skipnan
     export itsizeof, piso
-    export squeeze
     export searchsortednext, searchsortednearest
     export remove_key_item
     export thropt
@@ -120,9 +119,10 @@ module Utils
         X[in_rangeq(X, qlim)]
     end
 
+    export squeeze
     function squeeze(A::AbstractArray)  
-        s = size(A)
-        A = dropdims(A, dims = tuple(findall(size(A) .== 1)...))
+        sz = size(A)
+        A = dropdims(A, dims = tuple(findall(sz .== 1)...))
         return A
     end  
     function squeeze_zeros(A::AbstractArray, dims)
