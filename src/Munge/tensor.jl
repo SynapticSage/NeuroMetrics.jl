@@ -22,7 +22,6 @@ module tensor
     using DynamicAxisWarping
     using TensorToolbox
     using CategoricalArrays
-    #axisnames
 
     import Utils
 
@@ -122,7 +121,7 @@ module tensor
     Interpolations.jl)
     """
     function interp(X::AbstractArray{<:Array}, interp=nothing, 
-                extrap=OnGrid())::A/bstractArray
+                extrap=OnGrid())::AbstractArray
         if interp === nothing
             interp =  ndims(X[1]) == 1 ? 
                 BSpline(Linear()) : (BSpline(Linear()), NoInterp())

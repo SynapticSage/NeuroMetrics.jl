@@ -107,12 +107,12 @@ module dynamic
         if !issorted(data[!,on])
             sort!(data,on)
         end
-        wgs_stats = if nan_missing
-            combine(groupby(data,:warpgroup),
-            :s1 => minimum, :s1 => maximum)
-        else
-            nothing
-        end
+        #wgs_stats = if nan_missing
+        #    combine(groupby(warptable,:warpgroup),
+        #    :s1 => minimum, :s1 => maximum)
+        #else
+        #    nothing
+        #end
         # Get closest match times (first for each index of the template)
         wgs = groupby(warptable, [:warpgroup, :warpexample])
         results=[]
@@ -122,19 +122,33 @@ module dynamic
         vcat(results...)
     end
     function apply_warps_wg_first(data::DataFrame, wg::SubDataFrame;
-                        nan_pad=nothing,
+                        #nan_pad=nothing,
                         on=:time)::DataFrame
-
         wgf = combine(groupby(wg, :s1), first)
         wgf.time
-        matches = searchsortednearest(data[!,on], wgf[!,on])
+        matches = Utils.searchsortednearest.([data[!,on]], wgf[!,on])
         data = data[matches,:]
-        hcat(data, wgf[!,[:warpgroup, :warpexample, :time_template_zerod, :time_zerod]])
+        hcat(data, wgf[!,[:warpgroup, :warpexample, :time_template_zerod, :time_zerod,:s1]])
     end
 
-    function warped_df_to_tensor(data::DataFrame, dims, vars; on=:time)
-        # tensorize by dims and vars
-
+    export warped_df_to_tensor
+    function warped_df_to_tensor(data::DataFrame, dims, vars; 
+            fill_missing=true, missing_val=NaN, collapse_inner_dimension=true)
+        dims = Symbol.(dims)
+        D = tensorize(data, [dims...,:warpexample, :s1], vars)
+        if nan_missing
+            missing_inds = ismissing.(D)
+            ind = findfirst((!).(missing_inds))
+            d = deepcopy(D[ind])
+            d .= NaN 
+            [setindex!(D, d, i) for i in  findall(missing_inds)]
+            D
+        end
+        if collapse_inner_dimension
+            D
+        else
+            D
+        end
     end
 
 end

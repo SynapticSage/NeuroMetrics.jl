@@ -236,3 +236,5 @@ using Munge.dynamic
 examples = get_groupedexamples(spikes, beh)
 templates = get_templates(examples)
 dtwtab = get_dtwtable(examples, templates)
+
+apply_warps(X, dtwtab)

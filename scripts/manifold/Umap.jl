@@ -33,10 +33,10 @@ using StatsBase
 
 # Basic params
 # ----------------
-filt = :all
+filt = nothing
 areas = (:ca1,:pfc)
 distance = :Mahalanobis
-feature_engineer = :zscore
+feature_engineer = nothing
 
 # Filter
 if filt !== nothing
@@ -47,19 +47,19 @@ else
     filtstr = "filt=nothing"
 end
 festr   = feature_engineer === nothing ? "feature=nothing" : "feature=$feature_engineer"
-diststr = distance === nothing ? "distance=euclidean" : "distance=$feature_engineer"
+diststr = distance === nothing ? "distance=euclidean" : lowercase("distance=$distance")
 savefile = datadir("manifold","ca1pfc_manifolds_$(filtstr)_$(diststr)_$(festr).serial")
 @info "run info" filtstr festr diststr savefile
 
 # Get sample runs
 # ----------------
-splits = 3
-sampspersplit = 3
+splits = 2
+sampspersplit = 2
 nsamp = Int(round(size(beh,1)/splits))
 δi    = Int(round(nsamp/sampspersplit))
-#nsamp = min(100_000, size(beh,1))
+#nsamp = min(99_000, size(beh,1))
 samps = []
-for (split, samp) in Iterators.product(1:splits, 1:sampspersplit)
+for (split, samp) in Iterators.product(0:splits, 1:sampspersplit)
     start = (split-1) * nsamp + (samp-1) * δi + 1
     stop  = (split)   * nsamp + (samp)   * δi + 1
     stop  = min(stop, size(beh,1))
@@ -124,15 +124,10 @@ embedding = Dict(k=>(try; fetch(v); catch; v; end) for (k,v) in embedding);
 # ----------------------------------------------------
 # Get clean indices that are within quantile tolerance
 # ----------------------------------------------------
-inds = Dict()
-for key in keys(inds)
-    inds[key] = Utils.clean.inds_quantile_filter_dims(
-                        embedding[key], [0.02, 0.96])
-end
 
 # Store them for later
 @info "save info" filtstr festr diststr savefile
-serialize(savefile, (;embedding, inds, animal="RY16", day=36))
+serialize(savefile, (;embedding, inds, samps, animal="RY16", day=36))
 
 using Serialization
 embedding, inds, animal, day = deserialize(savefile)
