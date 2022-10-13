@@ -222,7 +222,6 @@ znorm2(x) = (x = x.- mean(x,dims=2); x ./= std(x,dims=2))
         [(rows_of_slices...,) for rows_of_slices in s3]
     end
 end
-
 P = []
 @showprogress for i in 1:size(out,2)
     data = reshape.(out[:,i], 2,:)
@@ -240,7 +239,11 @@ Xwarp = apply_warps(X, dtwtab)
 Twarp = warped_df_to_tensor(Xwarp, [:startWell, :stopWell], :data;
                             inner_dim_names=:neuron);
 
-for ind in eachrow(indicesMatrixForm(Twarp)[:,:,:,1,1])
-    
+inds = unique(eachrow(Utils.indicesMatrixForm(Twarp)[:,1:3]))
+
+P=[]
+for ind in inds
+    p=Utils.squeeze(Array(Twarp[ind...,:,:]))
+    push!(P,p)
 end
 

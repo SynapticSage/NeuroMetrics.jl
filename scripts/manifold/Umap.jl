@@ -1,5 +1,4 @@
 using DataStructures: OrderedDict
-
 using DrWatson
 using  GoalFetchAnalysis
 import Utils.namedtup: ntopt_string

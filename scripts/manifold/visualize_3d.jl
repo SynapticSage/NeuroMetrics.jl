@@ -7,10 +7,13 @@ using Random
 using SoftGlobalScope
 using Serialization
 using Munge.manifold
+using ElectronDisplay
+@eval Plot exts = ["png"]
 
 desc_vars = (;feature_engineer, distance, filt)
 load_manis(Main;desc_vars...)
 desc = desc_manis(;desc_vars...)
+qlim = [0.02, 0.96]
 @info desc_vars
         for key in keys(embedding)
             inds[key] = Utils.clean.inds_quantile_filter_dims(
@@ -29,7 +32,7 @@ randsamp(x) = shuffle(collect(1:size(x,1)))[1:n]
 
 # Stereoscopic views
 combos = Iterators.product( (:cuemem, :correct, :stopWell, :startWell), filter(x->x.dim==3, keys(inds)))
-@softscope for (bfield, key) in combos
+@showprogress for (bfield, key) in combos
     @info (bfield, key)
     setfolder("manifold",string(bfield))
     title="key=$key\nbfield=$bfield"
@@ -43,8 +46,11 @@ combos = Iterators.product( (:cuemem, :correct, :stopWell, :startWell), filter(x
     stereoplot(eachcol(em)...; c, alpha, title)
     Plot.save(key)
     # MaKE a stereoplot
+    @info "Animating" bfield key
+    prog = Progress(360; desc="Animation")
     anim = @animate for i in 1:360; 
         stereoplot(eachcol(em)...; alpha, theta=i)
+        next!(prog)
     end
     gif(anim, plotsdir("manifold_$desc", string(bfield), Utils.namedtup.ntopt_string(key) * ".gif"))
 end

@@ -553,6 +553,4 @@ module adaptive
     #"""
     #function skaggs()
     #end
-
-
 end

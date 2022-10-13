@@ -1,5 +1,9 @@
 import Table
-em = embedding[key]
 nExample = 20
 groups   = [:startWell, :stopWell]
-em = Table.from_dimarray(em, (beh, "time", String.(groups)))
+
+
+
+em = Table.convert_types.from_dimarrary(em, (beh, "time", ["startWell","stopWell","traj"]))
+em = groupby(em, [:startWell,:stopWell, :traj])
+plot(eachrow(hcat(em[3].data...))...)

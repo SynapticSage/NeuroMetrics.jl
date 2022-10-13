@@ -8,6 +8,7 @@ module convert_types
     using DimensionalData
     import Utils
 
+    export from_dimarrary
     """
         rate_todataframe
 
@@ -24,15 +25,13 @@ module convert_types
         X
     end
 
+    export to_dataframe
     """
     to_dataframe
 
     #purpose
     converts a field dictionary (multiple units) into a field dataframe
     """
-    #function to_dataframe(fields::AbstractDict; kws...)
-    #    fields = Dict(key=>fields[key] for key in keys(fields))
-    #end
     function to_dataframe(fields::AbstractDict; other_labels=Dict(), 
             key_name::Union{Nothing,Symbol,String,Vector}=nothing,
             exit_hiccup::Bool=false,

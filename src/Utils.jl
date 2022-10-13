@@ -230,6 +230,11 @@ module Utils
         ans
     end
 
+    function indicesMatrixForm(A::AbstractArray)
+        @time C = collect.(getproperty.(CartesianIndices(A),:I))
+        Matrix(hcat(C...)')
+    end
+
     include(srcdir("Utils", "dict.jl"))
     include(srcdir("Utils", "namedtup.jl"))
     include(srcdir("Utils", "macros.jl"))
