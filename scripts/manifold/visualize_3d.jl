@@ -30,6 +30,10 @@ n = 20_000
 alpha=0.005*100_000/n
 randsamp(x) = shuffle(collect(1:size(x,1)))[1:n]
 
+if isempty(samps)
+    @error "Samps empty"
+end
+
 # Stereoscopic views
 combos = Iterators.product( (:cuemem, :correct, :stopWell, :startWell), filter(x->x.dim==3, keys(inds)))
 @showprogress for (bfield, key) in combos
@@ -52,5 +56,7 @@ combos = Iterators.product( (:cuemem, :correct, :stopWell, :startWell), filter(x
         stereoplot(eachcol(em)...; alpha, theta=i)
         next!(prog)
     end
-    gif(anim, plotsdir("manifold_$desc", string(bfield), Utils.namedtup.ntopt_string(key) * ".gif"))
+    giffile = plotsdir("manifold","manifold_$desc", string(bfield), Utils.namedtup.ntopt_string(key) * ".gif")
+    mkpath(dirname(giffile))
+    gif(anim, giffile)
 end

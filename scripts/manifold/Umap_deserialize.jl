@@ -37,7 +37,23 @@ filt = nothing
 areas = (:ca1,:pfc)
 distance = :Mahalanobis
 feature_engineer = nothing
+feature_engineer = :zscore
 load_manis(Main; feature_engineer, filt, distance)
+
+splits = 2
+sampspersplit = 2
+nsamp = Int(round(size(beh,1)/splits))
+δi    = Int(round(nsamp/sampspersplit))
+#nsamp = min(99_000, size(beh,1))
+samps = []
+for (split, samp) in Iterators.product(1:splits, 1:sampspersplit)
+    start = (split-1) * nsamp + (samp-1) * δi + 1
+    stop  = (split)   * nsamp + (samp)   * δi + 1
+    stop  = min(stop, size(beh,1))
+    push!(samps, start:stop)
+end
+@info "coverage" nsamp/size(beh,1)*100
+
 
 keys(embedding)
 key = (area = :ca1, dim = 3, s = 1, min_dist = 0.2, n_neighbors = 200)

@@ -35,7 +35,13 @@ using StatsBase
 filt = nothing
 areas = (:ca1,:pfc)
 distance = :Mahalanobis
-feature_engineer = nothing
+feature_engineer = :zscore
+use_cuda = true
+if use_cuda
+    ENV["PYTHON"]="/home/ryoung/miniconda3/envs/rapids-22.08/bin/python"
+    using PyCall
+    cuml = pyimport("cuml")
+end
 
 # Filter
 if filt !== nothing
@@ -52,15 +58,13 @@ savefile = datadir("manifold","ca1pfc_manifolds_$(filtstr)_$(diststr)_$(festr).s
 
 # Get sample runs
 # ----------------
-splits = 2
-sampspersplit = 2
+splits, sampspersplit = 3, 2
 nsamp = Int(round(size(beh,1)/splits))
 δi    = Int(round(nsamp/sampspersplit))
-#nsamp = min(99_000, size(beh,1))
 samps = []
 for (split, samp) in Iterators.product(1:splits, 1:sampspersplit)
     start = (split-1) * nsamp + (samp-1) * δi + 1
-    stop  = (split)   * nsamp + (samp)   * δi + 1
+    stop  = (split)   * nsamp + (samp-1) * δi + 1
     stop  = min(stop, size(beh,1))
     push!(samps, start:stop)
 end
@@ -90,9 +94,10 @@ end
 
 # Get embeddings
 # ----------------
-embedding    = Dict() dimset       = (2,3)
-min_dists    = (0.5,0.1, 0.2,0.5)
-n_neighborss = (30,15, 200, 200)
+embedding    = Dict()
+dimset       = (2,   3)
+min_dists    = (0.3, 0.3)
+n_neighborss = (150, 200)
 
 (min_dist, n_neighbors) = first(zip(min_dists, n_neighborss))
 (area,dim,s) = first(Iterators.product(areas, dimset, (1,)))
@@ -106,9 +111,14 @@ n_neighborss = (30,15, 200, 200)
         else
             @info key
         end
-        embedding[key] =
-        umap(Matrix(R[area]'[:,samps[s]]), dim; min_dist, n_neighbors, 
-                    metric=dist_func[area])'
+        input = Matrix(R[area]'[:,samps[s]])
+        em = if use_cuda
+            nothing
+        else
+            umap(input, dim; min_dist, n_neighbors, 
+                        metric=dist_func[area])
+        end
+        embedding[key] = em'
     end
 end
 
