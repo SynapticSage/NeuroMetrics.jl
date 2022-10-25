@@ -36,15 +36,16 @@ module manifold
     function save_manis(;embedding, qlim=[0.02, 0.96], filt, 
                          feature_engineer, distance, data...)
         # Filter
-        inds = :inds in data ? data.inds : Dict()
+        inds = :inds in keys(data) ? data.inds : Dict()
         for key in keys(embedding)
             inds[key] = Utils.clean.inds_quantile_filter_dims(
                                 embedding[key], qlim)
         end
         desc_vars = (;feature_engineer, distance, filt)
-        desc      = desc_manis(desc_vars...)
+        desc      = desc_manis(;desc_vars...)
         data = (;embedding, data..., feature_engineer, distance, filt, inds, desc)
         savefile = path_manis(;feature_engineer, distance, filt)
+        @infiltrate
         serialize(savefile, data)
     end
 

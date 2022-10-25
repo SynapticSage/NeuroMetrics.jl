@@ -1,7 +1,7 @@
 """
 Obtains the causality information in general for a whole ℳ(time)
 
-where ℳ is a manifold as a function of time
+where ℳ  is a manifold as a function of time
 
 # Params
 filt selects a condition

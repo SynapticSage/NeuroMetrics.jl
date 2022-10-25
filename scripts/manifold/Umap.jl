@@ -1,9 +1,6 @@
 using DataStructures: OrderedDict
 using DrWatson
-using  GoalFetchAnalysis
-import Utils.namedtup: ntopt_string
-using  DataFramesMeta
-using  Serialization
+using Serialization
 using Plots
 using ProgressMeter
 using PyCall
@@ -13,6 +10,13 @@ using ThreadSafeDicts
 using DataFramesMeta
 using Distances
 using StatsBase
+use_cuda = true
+if use_cuda
+    #ENV["PYTHON"]="/home/ryoung/miniconda3/envs/rapids-22.08/bin/python"
+    using PyCall
+    cuml = pyimport("cuml")
+    cuUMAP = cuml.manifold.umap.UMAP
+end
 
 # Disstributed computing
 #addprocs([("mingxin",1)])
@@ -23,25 +27,22 @@ using StatsBase
 @everywhere using PyCall
 @everywhere using  UMAP
 @everywhere using DataFramesMeta
-@everywhere using GoalFetchAnalysis
 @everywhere import Munge
+
 
 # Load data
 # ----------------
-@time spikes, beh, ripples, cells = Load.load("RY16", 36);
+@everywhere using GoalFetchAnalysis
+import Utils.namedtup: ntopt_string
+@time spikes, beh, ripples, cells = Load.load("RY16", 36)
 
 # Basic params
 # ----------------
 filt = nothing
 areas = (:ca1,:pfc)
-distance = :Mahalanobis
+#distance = :Mahalanobis
+distance = :CityBlock
 feature_engineer = :zscore
-use_cuda = true
-if use_cuda
-    ENV["PYTHON"]="/home/ryoung/miniconda3/envs/rapids-22.08/bin/python"
-    using PyCall
-    cuml = pyimport("cuml")
-end
 
 # Filter
 if filt !== nothing
@@ -96,8 +97,8 @@ end
 # ----------------
 embedding    = Dict()
 dimset       = (2,   3)
-min_dists    = (0.3, 0.3)
-n_neighborss = (150, 200)
+min_dists    = (0.05,0.3)
+n_neighborss = (5,150)
 
 (min_dist, n_neighbors) = first(zip(min_dists, n_neighborss))
 (area,dim,s) = first(Iterators.product(areas, dimset, (1,)))
@@ -112,9 +113,13 @@ n_neighborss = (150, 200)
             @info key
         end
         input = Matrix(R[area]'[:,samps[s]])
-        em = if use_cuda
-            nothing
-        else
+        em = if use_cuda # 1000x faster
+            fitter=cuUMAP(n_neighbors=400, min_dist=min_dist, n_components=3, 
+                          metric=lowercase(String(distance)), target_metric="euclidean")
+            trained_umap = fitter.fit(input')
+            em = trained_umap.transform(input')
+            score = cuml.metrics.trustworthiness( input', em)
+        else # julia is suprisingly slow here
             umap(input, dim; min_dist, n_neighbors, 
                         metric=dist_func[area])
         end
@@ -134,7 +139,7 @@ embedding = Dict(k=>(try; fetch(v); catch; v; end) for (k,v) in embedding);
 
 # Store them for later
 @info "save info" filtstr festr diststr savefile
-serialize(savefile, (;embedding, inds, samps, animal="RY16", day=36))
+save_manis(;embedding, filt, feature_engineer, distance, samps, use_cuda)
 
 using Serialization
 embedding, inds, animal, day = deserialize(savefile)

@@ -34,6 +34,7 @@ module Load
     include(srcdir("Load", "task.jl"))
     include(srcdir("Load", "utils.jl"))
     include(srcdir("Load", "video.jl"))
+    include(srcdir("Load", "superanimal.jl"))
     
     @reexport using .behavior
     @reexport using .celltet
@@ -45,6 +46,7 @@ module Load
     @reexport using .task
     @reexport using .utils
     @reexport using .video
+    @reexport using .superanimal
 
     load_functions = Dict(
         "cycles"   => load_cycles,
@@ -77,7 +79,19 @@ module Load
         "ripples"  => ripplespath,
     )
 
+    time_vars = Dict(
+        "cycles" => [:time, :start, :stop],
+        "spikes" => :time,
+        "behavior" => :time,
+        "lfp" => :time,
+        "cells" => [],
+        "task" => [],
+        "ripples" => ["time", "start", "stop"],
+        "cycles" =>  ["time", "start", "stop"]
+    )
+
     # Module-wide settings
+    default_args = ("super",0) # default animal to loadup
     animal_dayfactor = Dict("RY16"=>33, "RY22"=>0)
     csvkws=(; silencewarnings=true, buffer_in_memory=true, ntasks=1, 
             strict=false, missingstring=["NaN", "", "NaNNaNi"])
@@ -85,6 +99,7 @@ module Load
     pxtocm(x) = 0.1487 * x
     cmtopx(x) = x / 0.1487 
     default_set = ["spikes", "behavior", "ripples", "cells"]
+    total_set = ["spikes", "behavior", "ripples", "cells", "task"]
     min_time_records = [] # variable records minimum time of the most recent load
     function _set_mintime!(m::Real)
         push!(min_time_records, m)
@@ -160,8 +175,8 @@ module Load
         else
             return data
         end
-        
     end
+    load(;kws...) = Load.load(default_args[1], default_args[2]; kws...)
 
     function get_load_kws(type::String; load_kws...)
         if type == "csv"
@@ -221,6 +236,16 @@ module Load
             data |> CSV.write(path)
         elseif type == "arrow"
             Arrow.write(path, data; save_kws...)
+        elseif type == "arrow-append"
+            path = replace(path, "arrow-append"=>"arrow")
+            # Append does not work; Try Arrow.Writer()
+            #Arrow.append(path, data; save_kws...)
+
+            # Janky hacky fix
+            existing_data = copy(DataFrame(Arrow.Table(path)))
+            data = vcat(existing_data, data, cols=:union)
+            Arrow.write(path, data; save_kws...)
+
         end
     end
     function save_table(data::AbstractDataFrame, pos...; tablepath=nothing,
@@ -230,7 +255,7 @@ module Load
         end
         tablepath = String(tablepath)
         path = path_functions[tablepath](pos...; kws...)
-        println("Saving $(tablepath) data at $path")
+        println("Saving $(tablepath) data at $(replace(path,"arrow-append"=>"arrow"))")
         if append != ""
             path = split(path, ".")
             path[1] = path[1] * "$append"
@@ -246,6 +271,23 @@ module Load
         save_table_at_path(data, path, type)
     end
 
+    """
+        tables_to_type(animal::String, day::Int; 
+            inclusion=keys(save_functions),
+            exclusion=[:lfp], from::String="csv", to::String="arrow",
+            delete_prev::Bool=false)
+
+    Conversion program to turn one set of filetypes into another
+
+    # Params
+
+    - `animal` :: the animal's name
+    - `day` :: the day of the data files
+    - `inclusion` :: Datatypes to translate
+    - `exclusion` :: Datatypes to not translate
+    - `from` :: Type to convert from
+    - `to` :: Type to convert to
+    """
     function tables_to_type(animal::String, day::Int; 
             inclusion=keys(save_functions),
             exclusion=[:lfp], from::String="csv", to::String="arrow",
@@ -257,7 +299,7 @@ module Load
                 continue
             end
             loadfunc, savefunc = load_functions[key], save_functions[key]
-            data = loadfunc(animal, day)
+            data = loadfunc(animal, day; type=from)
             savefunc(data, animal, day; type=to)
             if delete_prev
                 pathfunc = path_functions[key]

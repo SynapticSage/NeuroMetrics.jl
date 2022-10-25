@@ -25,7 +25,6 @@ elseif esttype == :symbolic
     est = SymbolicPermutation(;params...)
     params = (;params..., horizon=1:3000)
 else
-
     @warn "not recog"
 end
 

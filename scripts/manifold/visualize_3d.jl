@@ -20,6 +20,12 @@ qlim = [0.02, 0.96]
                                 embedding[key], qlim)
         end
 
+filter_nontask = true
+if filter_nontask
+    desc = (;desc,filter_nontask=true)
+    @info "filter_nontask = true" desc
+end
+
 colorschemes = Dict(
         :cuemem => :acton,
         :correct => :PuRd_3, # for now, let's make this something clearer thoo
@@ -28,14 +34,20 @@ colorschemes = Dict(
     )
 n = 20_000
 alpha=0.005*100_000/n
-randsamp(x) = shuffle(collect(1:size(x,1)))[1:n]
+if filter_nontask
+    randsamp(x) = (s=shuffle(collect(1:size(x,1)))[1:n];
+                   s[beh[s,:cuemem] .!= -1])
+else
+    randsamp(x) = shuffle(collect(1:size(x,1)))[1:n]
+end
 
 if isempty(samps)
     @error "Samps empty"
 end
 
 # Stereoscopic views
-combos = Iterators.product( (:cuemem, :correct, :stopWell, :startWell), filter(x->x.dim==3, keys(inds)))
+combos = Iterators.product( (:cuemem, :correct, :stopWell, :startWell),
+                            filter(x->x.dim==3, keys(inds)))
 @showprogress for (bfield, key) in combos
     @info (bfield, key)
     setfolder("manifold",string(bfield))
@@ -53,7 +65,7 @@ combos = Iterators.product( (:cuemem, :correct, :stopWell, :startWell), filter(x
     @info "Animating" bfield key
     prog = Progress(360; desc="Animation")
     anim = @animate for i in 1:360; 
-        stereoplot(eachcol(em)...; alpha, theta=i)
+        stereoplot(eachcol(em)...; alpha, theta=i, c)
         next!(prog)
     end
     giffile = plotsdir("manifold","manifold_$desc", string(bfield), Utils.namedtup.ntopt_string(key) * ".gif")
