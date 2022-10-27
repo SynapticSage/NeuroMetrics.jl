@@ -122,18 +122,21 @@ module spiking
     see torate(spikes::DataFrame, dims) for doc of the rest of the 
     functionalities
     """
-    function torate(spikes::DataFrame, beh::DataFrame, dims=:unit; kws...)
+    function torate(spikes::DataFrame, beh::DataFrame, dims=:unit; 
+            binning_ratio=1, kws...)
         grid = copy(beh.time)
-        δ = median(diff(beh.time))
+        δ = median(diff(beh.time)) / binning_ratio
         grid .+= δ
         grid = [[grid[1]-δ]; grid]
         grid = grid .- (1/2)δ
+        # Constrain to epoch periods
         epoch_periods = Table.get_periods(beh, "epoch")
         in_period = [Table.isin.(spikes.time,
                                  epoch_period.start, epoch_period.stop) 
          for epoch_period in eachrow(epoch_periods)]
         in_period = sum(in_period)
         spikes = spikes[in_period .> 0, :]
+        # Make acquire spiking structure
         torate(spikes, dims; kws..., grid)
     end
 

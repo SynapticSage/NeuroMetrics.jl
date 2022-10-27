@@ -92,6 +92,7 @@ module Load
 
     # Module-wide settings
     default_args = ("super",0) # default animal to loadup
+    animal_set = (("RY22", 21), ("RY16",36))
     animal_dayfactor = Dict("RY16"=>33, "RY22"=>0)
     csvkws=(; silencewarnings=true, buffer_in_memory=true, ntasks=1, 
             strict=false, missingstring=["NaN", "", "NaNNaNi"])

@@ -287,6 +287,7 @@ module adaptive
         Threads.@threads for (index, (this_center, radius)) in collect(enumerate(G))
             #i+=1
             #@info "pre $(i)" radius G.radii
+            dt = Float32.(dt)
             newradius = method(vals, this_center, radius; dt, thresh, maxrad,
                 radiusinc, ϵ)
             #@info "post $(i)" newradius G.radii

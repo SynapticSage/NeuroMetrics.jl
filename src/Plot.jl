@@ -6,14 +6,27 @@ using Plots
 using Infiltrator
 using RecipesBase
 using Measures
+using Utils
 
+parent_folder = []
 folder_args = []
 exts = ["png", "pdf"]
+append, prepend = "", ""
 
+setappend(val)  = @eval Plot append = $val
+setprepend(val) = @eval Plot prepend = $val
+
+function setparentfolder(args::String...)
+    [pop!(parent_folder) for arg in 1:length(parent_folder)]
+    [push!(parent_folder, item) for item in args]
+    folder = plotsdir(parent_folder..., folder_args...)
+    !(isdir(folder)) ? mkpath(folder) : nothing
+    folder
+end
 function setfolder(args::String...)
     [pop!(folder_args) for arg in 1:length(folder_args)]
     [push!(folder_args, item) for item in args]
-    folder = plotsdir(folder_args...)
+    folder = plotsdir(parent_folder..., folder_args...)
     !(isdir(folder)) ? mkpath(folder) : nothing
     folder
 end
@@ -27,6 +40,7 @@ function path_to_folderargs(arg::String)
         args
     end
 end
+setparentfolder_from_path(arg::String) = setparentfolder(path_to_folderargs(arg))
 setfolder_from_path(arg::String) = setfolder(path_to_folderargs(arg))
 
 function save(desc::String; rmexist=nothing)
@@ -36,9 +50,15 @@ function save(desc::String; rmexist=nothing)
                    "String" => "",
                    "Float32" => "", "Float64" => "", "{," => "", 
                    "{"=>"", "}" => "")
-    folder = plotsdir(folder_args...)
-    core = joinpath(folder, desc)
-    names = [join([core, ext], ".") for ext in exts]
+    folder = plotsdir(parent_folder..., folder_args...)
+    append_string = append isa NamedTuple ? 
+             Utils.namedtup.ntopt_string(append) : append
+    prepend_string = prepend isa NamedTuple ? 
+             Utils.namedtup.ntopt_string(prepend) : prepend
+    names = [join([prepend_string, desc, append_string, ext], ".") for ext in exts]
+    names = [startswith(name,".") ? name[2:end] : name  for name in names]
+    names = replace.(names, ".."=>".")
+    names = joinpath.([folder], names)
     for name in names
         @info "saving" name
         savefig(name)

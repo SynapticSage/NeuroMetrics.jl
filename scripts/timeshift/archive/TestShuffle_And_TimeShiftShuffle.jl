@@ -37,7 +37,7 @@ _, spikesnew = raw.register(beh, spikesnew;
                          on="time");
 #sort!(spikesnew, :time)
 @df spikesnew[1:1000:end, :] plot(scatter(:timeold, :time, alpha=0.2, xlabel="old",ylabel="new"), histogram(:time .- :timeold, xlabel="difference"))
-@df spikesnew[1:1000:end,:] plot(
+@df spikesnew[1:1000:end,:]  plot(
                                  scatter(:trajreltime, :trajreltimeold, title="Tiny bit of jitter\nunderlying reltime", xlabel="new",ylabel="old",alpha=0.5), 
                                  scatter(:trajreltime_bin, :trajreltime_binold, title="Preserved bin", xlabel="new",ylabel="old",alpha=0.5))
 

@@ -104,7 +104,7 @@ module Field
     function get_boundary(behavior::DataFrame, props::Vector)::OrderedDict
         boundary   = OrderedDict{eltype(props),Any}()
         for prop in props
-            boundary[prop]   = extrema(Utils.skipnan(behavior[!,prop]))
+            boundary[prop]   = extrema(Utils.skipnan(collect(skipmissing(behavior[!,prop]))))
         end
         boundary
     end

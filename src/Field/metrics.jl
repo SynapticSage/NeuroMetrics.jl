@@ -221,6 +221,9 @@ module metrics
     # ---------------- SPECIAL METHODS FOR ADDING METS -----------
     function push_celltable!(r::ReceptiveField, cells::AbstractDataFrame, 
             columns...; cell=r.metrics[:unit])
+        if isempty(columns)
+            columns = propertynames(cells)
+        end
         for field in columns
             push_metric!(r, field, @subset(cells, :unit .== cell)[1,field])
         end
