@@ -35,7 +35,7 @@ module GoalFetchAnalysis
     import Table
     import Load, Filt, Shuf
     import Field
-    import Decode
+    #import Decode
     import Munge
     import Timeshift
 

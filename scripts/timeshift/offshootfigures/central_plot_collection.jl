@@ -11,6 +11,7 @@ using StatsBase
 using ProgressMeter
 using DataFramesMeta
 using SoftGlobalScope
+theme(:bright)
 
 savefile = "/home/ryoung/Projects/goal-code/data/timeshift/fixed_shifts_-2.0f0:0.05f0:2.0f0.serial"
 F,I,shifts = deserialize(savefile);
@@ -43,7 +44,6 @@ animal, day, brain_area = first(datasets)
     @eval Plot parent_folder = ["timeshift", "central_plot_collection.jl"]
     Plot.setappend((;animal,day,brain_area))
 
-    theme(:bright)
     function prep(f)    
         push_dims!(f)
         push_celltable!(f, cells)
@@ -72,6 +72,7 @@ animal, day, brain_area = first(datasets)
     """
     This tracks changes in the tau best shift
     """
+
     Plot.setfolder("tracking change in τ best_shift")
     bins = 25
     for (k1, k2) in zip((:nontask, :cue, :mem_error, :cue_error),

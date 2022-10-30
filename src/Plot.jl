@@ -7,6 +7,7 @@ using Infiltrator
 using RecipesBase
 using Measures
 using Utils
+using Infiltrator
 
 parent_folder = []
 folder_args = []
@@ -116,8 +117,8 @@ function stereoscopicgif(pos...;delta_angle=1,kws...)
     end
 end
 
-include(srcdir("Plot", "raster.jl"))
-@reexport using .raster
+#include(srcdir("Plot", "raster.jl"))
+#@reexport using .raster
 
 include(srcdir("Plot", "timeshift.jl"))
 @reexport using .timeshift
@@ -128,13 +129,16 @@ include(srcdir("Plot", "receptivefield.jl"))
 include(srcdir("Plot", "table.jl"))
 @reexport using .table
 
-include(srcdir("Plot", "notebook_compareTS.jl"))
-@reexport using .notebook_compareTS
+#include(srcdir("Plot", "notebook_compareTS.jl"))
+#@reexport using .notebook_compareTS
 
 include(srcdir("Plot", "task.jl"))
 @reexport using .task
 
 include(srcdir("Plot", "cause.jl"))
 @reexport using .cause
+
+include(srcdir("Plot", "nonlocal.jl"))
+@reexport using .nonlocal
 
 end

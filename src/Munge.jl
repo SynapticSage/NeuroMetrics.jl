@@ -15,9 +15,9 @@ module Munge
     include(srcdir("Munge","lfp_decode.jl"))
     include(srcdir("Munge","nonlocal.jl"))
     #include(srcdir("Munge","SpikeTrains.jl"))
-    include(srcdir("Munge","fieldgrad.jl"))
+    #include(srcdir("Munge","fieldgrad.jl"))
     include(srcdir("Munge","manifold.jl"))
-    include(srcdir("Munge","dynamic.jl"))
+    #include(srcdir("Munge","dynamic.jl"))
     @reexport using .chrono
     @reexport using .behavior
     @reexport using .lfp
@@ -29,9 +29,9 @@ module Munge
     @reexport using .lfp_decode
     @reexport using .nonlocal
     #@reexport using .SpikeTrains
-    @reexport using .fieldgrad
+    #@reexport using .fieldgrad
     @reexport using .manifold
-    @reexport using .dynamic
+    #@reexport using .dynamic
 
 end
 

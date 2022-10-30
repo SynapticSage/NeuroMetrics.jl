@@ -1,3 +1,4 @@
+quickactivate(expanduser("~/Projects/goal-code"))
 using DataStructures: OrderedDict
 using DrWatson
 using Serialization
@@ -27,13 +28,12 @@ end
 @everywhere using PyCall
 @everywhere using  UMAP
 @everywhere using DataFramesMeta
+@everywhere using GoalFetchAnalysis
 @everywhere import Munge
-
+import Utils.namedtup: ntopt_string
 
 # Load data
 # ----------------
-@everywhere using GoalFetchAnalysis
-import Utils.namedtup: ntopt_string
 @time spikes, beh, ripples, cells = Load.load("RY16", 36)
 
 # Basic params

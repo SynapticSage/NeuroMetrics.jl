@@ -11,6 +11,7 @@ using Utils.statistic: pfunc
 import Plot
 using Munge.spiking
 using Filt
+using Infiltrator
 
 using DataStructures: OrderedDict
 using DimensionalData
@@ -120,20 +121,6 @@ gs, gl, gc = groupby(isospikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cyc
     c[:cycLen]     = size(l,1)
 end
 
-function plot_cycle_example(gs, gl, gc, cycle; cycle_horizon=(-8,8))
-    before, after = cycle_horizon
-    s, l, c = gs[(;cycle.cycle)], gl[(;cycle.cycle)]
-    S = vcat([gs[(;cycle)] 
-              for cycle in UnitRange((cycle.cycle .+ cycle_horizon)...)]...)
-    xlabel="time"
-    xlim = minimum(l.time), maximum(l.time)
-    ss = @df s scatter(:time, :unit;xlim, c=:black, markersize=8, markershape=:vline, xticks=[],ylabel="unit",label="");
-    ll = @df l plot(:time, :raw, label = "theta filt";xlim,xlabel,ylabel="theta");
-    @df l plot!(:time, :broadraw, label = "broadband";xlim,xlabel,ylabel="theta",c="black");
-    hline!([0],c=:darkgray,linestyle=:dash,label="")
-    lay = @layout [a; b{0.7h}];
-    plot(ss,ll, layout=lay, size=(1000,400))
-end
 
 Plot.setfolder("examples, isolated cycles")
 gs, gl, gc = groupby(spikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cycle)
