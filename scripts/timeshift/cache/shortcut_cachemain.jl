@@ -83,7 +83,7 @@ shifts = shifts .* 2f0
 I = OrderedDict{NamedTuple, Any}()
 F = OrderedDict{NamedTuple, Any}()
 
-@showprogress "animal" for (animal, day) in ("super",0)#Load.animal_set
+@showprogress "animal" for (animal, day) in (("super",0),) #Load.animal_set
     #animal, day = "RY16", 36
     @time spikes, beh, ripples, cells = Load.load(animal, day);
     _, spikes = Load.register(beh, spikes; transfer=["velVec"], on="time")
@@ -115,15 +115,18 @@ F = OrderedDict{NamedTuple, Any}()
     key=(;)
     result_dict = OrderedDict{Real, Any}()
     spikes = dropmissing(spikes, :trajreltime)
-
-
     @showprogress "widths" for widths ∈ [5f0]
-        @showprogress "Datacut iteration" for datacut ∈ [:all, :cue, :memory, :task, :nontask, :cue_correct,:cue_error,:mem_correct,:mem_error, :correct,:error]
+        @showprogress "Datacut iteration" for datacut ∈ [:all, :cue, :memory,
+                                                         :task, :nontask,
+                                                         :cue_correct,:cue_error,
+                                                         :mem_correct,:mem_error,
+                                                         :correct,:error]
             #[:all, :cue, :memory, :task, :nontask]
             finished_batch = false
             @showprogress "Props" for props ∈ prop_set
                     marginal = get_shortcutnames(props)
-                    key  = get_key(;marginal, datacut, shifts, widths, thresh, animal, day)
+                    key  = get_key(;marginal, datacut, shifts, widths, thresh,
+                                   animal, day)
                     filt = filts[datacut]
                     @info filt filts[datacut]
                     #if keymessage(I, key); continue; end
@@ -144,4 +147,8 @@ end
 
 savefile = datadir("timeshift","fixed_shifts_$shifts.serial")
 serialize(savefile, (;F,I,shifts))
+(F,I,shifts) = deserialize(savefile);
+overwrite = false
+save_fields(F; overwrite);
+save_mains(I;  overwrite);
 

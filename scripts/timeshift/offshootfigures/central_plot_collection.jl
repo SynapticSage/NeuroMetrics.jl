@@ -10,6 +10,7 @@ import Plot
 using StatsBase
 using ProgressMeter
 using DataFramesMeta
+using SoftGlobalScope
 
 savefile = "/home/ryoung/Projects/goal-code/data/timeshift/fixed_shifts_-2.0f0:0.05f0:2.0f0.serial"
 F,I,shifts = deserialize(savefile);
@@ -22,20 +23,31 @@ datasets =
 ("RY16", 36, nothing),
 ("RY22", 21, nothing))
 
-for (animal,day,area) in datasets
+datasets = 
+(("super", 0, "CA1"),
+ ("super", 0, "PFC"),
+ ("super", 0, nothing),
+)
+
+# If this doesn't work subfunctions may not be scoped right and may need SoftGlobalScope
+animal, day, brain_area = first(datasets)
+
+@softscope for (i,(animal,day,brain_area)) in enumerate(datasets)
+
+    @info "loop" i animal day brain_area
+    cells = Load.load_cells(animal, day)
 
     keyz = Dict(key.datacut=>key for key in filter(k->k.animal==animal && 
-                                                   k.day == day, keys(F))
-               )
-    @eval Plot parent_folder = ["timeshift", "central_plot_collection.jl"]
-    Plot.setappend((;animal,day,area))
+                                                   k.day == day, keys(F)))
 
+    @eval Plot parent_folder = ["timeshift", "central_plot_collection.jl"]
+    Plot.setappend((;animal,day,brain_area))
 
     theme(:bright)
     function prep(f)    
         push_dims!(f)
+        push_celltable!(f, cells)
         pop_metric!(f, :unit)
-        push_celltable!(f, cells, :area)
         push_metric!(f, metrics.bitsperspike)
         push_metric!(f, metrics.totalcount)
         push_metric!(f, metrics.maxrate)
@@ -44,8 +56,8 @@ for (animal,day,area) in datasets
         push_shiftmetric!(f, best_tau!; metric=:bitsperspikeold)
         f = f[vec(all(f[:totalcount] .> 50, dims=2) .&&
                   any(f[:bitsperspike] .> 0.5, dims=2)) ,:]
-        if area !== nothing
-            f = f[vec(all(f[:area] .== area, dims=2)), :]
+        if brain_area !== nothing
+            f = f[vec(all(f[:area] .== brain_area, dims=2)), :]
         end
     end
       
@@ -62,7 +74,8 @@ for (animal,day,area) in datasets
     """
     Plot.setfolder("tracking change in τ best_shift")
     bins = 25
-    for (k1, k2) in zip((:nontask, :cue, :mem_error, :cue_error), (:task,:memory, :mem_correct, :cue_correct))
+    for (k1, k2) in zip((:nontask, :cue, :mem_error, :cue_error),
+                        (:task,:memory, :mem_correct, :cue_correct))
     @info "keys" k1 k2
         key1,key2 = keyz[k1],keyz[k2]
         k1s, k2s = replace.(string.([k1,k2]),"_" => "\\;")
@@ -72,14 +85,17 @@ for (animal,day,area) in datasets
         vals = f1[unit=At(u)][:bestshift_bitsperspike],
                f2[unit=At(u)][:bestshift_bitsperspike]
                
-          edges = LinRange(minimum(f1[:shift]), maximum(f1[:shift]), bins+1)
+         edges = LinRange(minimum(f1[:shift]), maximum(f1[:shift]), bins+1)
          xlim = (edges[begin], edges[end])
          
          shiftdist = (vals[2] - vals[1])[:,1]
+
          # HISTOGRAM ("PDF")
          plot_histdist = 
-             histogram(shiftdist; bins=edges,  xlim, normalize=:probability, 
-                       alpha=0.5, label="", xlabel="shift\$_{$k2s}\$-shift\$_{$k1s}\$", ylabel="pdf", title="$k2 - $k1")
+             histogram(shiftdist; bins=edges,  xlim, normalize=:probability,
+                       alpha=0.5, label="",
+                       xlabel="shift\$_{$k2s}\$-shift\$_{$k1s}\$",
+                       ylabel="pdf", title="$k2 - $k1")
          vline!([0], c=:black, linestyle=:dash, linewidth=2,label="")
              
          # HISTOGRAM ("CDF")
@@ -91,29 +107,29 @@ for (animal,day,area) in datasets
              vline!([0], c=:black, linestyle=:dash, linewidth=2,label="")
              
          future = sum(shiftdist .> 0 .&& abs.(shiftdist) .< 1.5)
-         past = sum(shiftdist .< 0 .&& abs.(shiftdist) .< 1.5)
-         b_fp=bar(["past","future"],[past,future]./(past+future), legend=:none)
+         past   = sum(shiftdist .< 0 .&& abs.(shiftdist) .< 1.5)
+         b_fp =   bar(["past","future"],[past,future]./(past+future),
+                      legend=:none)
          locality_thresh = 0.1;
          locl     = sum(abs.(shiftdist) .<= locality_thresh)
          nonlocal = sum(abs.(shiftdist) .> locality_thresh)
          b_lc = bar(["proximal","distal"], [locl, nonlocal])
 
-         b_ratios = bar(["future/past", "shift/remain"], [future/past, nonlocal/locl]);
-
+         b_ratios = bar(["future/past", "shift/remain"],
+                        [future/past, nonlocal/locl]);
                          
          plot(plot_histdist, plot_histdist_cdf,
               b_fp,b_lc,
                layout=[grid(2,1) grid(2,1)])
                
-       #scatter(vec.(vals)...)
-       #plot!(-2:2,-2:2,c=:white)
-       Plot.save((;k1,k2))
+         Plot.save((;k1,k2))
     end
 
     statfunc = mean
     Plot.setfolder("comparison of bps via statfunc=$statfunc")
     P=[]
-    for (k1, k2) in zip((:nontask, :cue, :mem_error, :cue_error, :error), (:task,:memory, :mem_correct, :cue_correct, :correct))
+    for (k1, k2) in zip((:nontask, :cue, :mem_error, :cue_error, :error),
+                        (:task,:memory, :mem_correct, :cue_correct, :correct))
         @info "keys" k1 k2
         key1,key2 = keyz[k1],keyz[k2]
         f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
@@ -144,10 +160,14 @@ for (animal,day,area) in datasets
                      for i in 1:size(M,1)]
         plot(hcat([[y for y in x] for x in ci21]...)')
         
-        p=plot(shifts, V2-V1, title="$k2 - $k1", size=0.75 .* (800,1200), fillrange=0,
-              xlabel="shift", ylabel="percent bits per spike")
+        p=plot(shifts, V2-V1, title="$k2 - $k1", size=0.75 .* (800,1200),
+               fillrange=0, xlabel="shift", ylabel="percent bits per spike")
         vline!([0],c=:black,linestyle=:dash, linewidth=2)
-        plot!(shifts,hcat([vec(m) for m in jacknives]...),c=:black,legend=:none, linestyle=:dot, alpha=0.4,title="Jacknifed $(string(Symbol(statfunc))) difference in\n bits per spike, $k2-$k1");
+        plot!(shifts,hcat([vec(m) for m in
+                           jacknives]...),c=:black,legend=:none,
+              linestyle=:dot, alpha=0.4,title="Jacknifed
+              $(string(Symbol(statfunc))) difference in\n bits per spike,
+              $k2-$k1");
         hline!([0],c=:red,linestyle=:dash)
         
         if (k1,k2) == (:cue, :memory)
@@ -183,7 +203,8 @@ for (animal,day,area) in datasets
     statfunc = mean
     Plot.setfolder("comparison of norm_bps via statfunc=$statfunc")
     P=[]
-    for (k1, k2) in zip((:nontask, :cue, :mem_error, :cue_error, :error), (:task,:memory, :mem_correct, :cue_correct, :correct))
+    for (k1, k2) in zip((:nontask, :cue, :mem_error, :cue_error, :error),
+                        (:task,:memory, :mem_correct, :cue_correct, :correct))
         @info "keys" k1 k2
         key1,key2 = keyz[k1],keyz[k2]
         f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
@@ -222,7 +243,11 @@ for (animal,day,area) in datasets
         p=plot(shifts, V2-V1, title="$k2 - $k1", size=0.75 .* (800,1200), fillrange=0,
               xlabel="shift", ylabel="Δ percent bits per spike")
         vline!([0],c=:black,linestyle=:dash, linewidth=2)
-        plot!(shifts,hcat([vec(m) for m in jacknives]...),c=:black,legend=:none, linestyle=:dot, alpha=0.4,title="Jacknifed $(string(Symbol(statfunc))) difference in\n bits per spike, $k2-$k1");
+        plot!(shifts,hcat([vec(m) for m in
+                           jacknives]...),c=:black,legend=:none,
+              linestyle=:dot, alpha=0.4,title="Jacknifed
+              $(string(Symbol(statfunc))) difference in\n bits per spike,
+              $k2-$k1");
         hline!([0],c=:red,linestyle=:dash)
         
         if (k1,k2) == (:cue, :memory)
@@ -259,7 +284,8 @@ for (animal,day,area) in datasets
     Obtain delta heatmaps
     """
     Plot.setfolder("delta in bps heatmap - difference index")
-    for (k1, k2) in zip((:nontask, :cue, :correct, :memory_correct), (:task,:memory, :error, :memory_error),)
+    for (k1, k2) in zip((:nontask, :cue, :correct, :mem_correct),
+                        (:task,:memory, :error, :mem_error),)
         key1,key2 = keyz[k1],keyz[k2]
         f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
         D = intersect(f1.dims[1],f2.dims[1])
@@ -273,7 +299,8 @@ for (animal,day,area) in datasets
          ind = sortperm(L)
          R = hcat(R...)'
          lay = @layout [a; b{0.2h}]
-         plot( heatmap(R[ind,:], clim=(-0.5,0.5)), plot(mean(R,dims=1)'), layout=lay)
+         plot(heatmap(R[ind,:], clim=(-0.5,0.5)), plot(mean(R,dims=1)'),
+              layout=lay)
          Plot.save((;k1,k2))
     end
 
@@ -281,22 +308,25 @@ for (animal,day,area) in datasets
     -------------------------------------------------------------------
     """
     Plot.setfolder("delta in bps heatmap - difference index - norm01")
-    for (k1, k2) in zip((:task,:memory, :error, :mem_error), (:nontask, :cue, :correct, :mem_correct),)
+    for (k1, k2) in zip((:task,:memory, :error, :mem_error), (:nontask, :cue,
+                                                              :correct,
+                                                              :mem_correct),)
         key1,key2 = keyz[k1],keyz[k2]
         f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
         D = intersect(f1.dims[1],f2.dims[1])
         R, L = [], []
         for d in D
             val = (f2[unit=At(d)][:bitsperspike]-f1[unit=At(d)][:bitsperspike])./
-                      (f2[unit=At(d)][:bitsperspike]+f1[unit=At(d)][:bitsperspike])
-          val = Utils.norm_extrema(val,[0,1])
+                (f2[unit=At(d)][:bitsperspike]+f1[unit=At(d)][:bitsperspike])
+            val = Utils.norm_extrema(val,[0,1])
             push!(R,val)
             push!(L, argmax(val))
         end
          ind = sortperm(L)
          R = hcat(R...)'
          lay = @layout [a; b{0.2h}]
-         plot( heatmap(R[ind,:], clim=(0,1),c=:vik), plot(mean(R,dims=1)'), layout=lay)
+         plot(heatmap(R[ind,:], clim=(0,1),c=:vik), plot(mean(R,dims=1)'),
+              layout=lay)
          Plot.save((;k1,k2))
     end
 
@@ -440,6 +470,4 @@ function viz_gradient(nabla, scale=1, ck=false, scalek=false)
     end
 
 end
-
-
 =#

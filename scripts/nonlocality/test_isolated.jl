@@ -1,4 +1,3 @@
-using DrWatson
 using Timeshift
 using Timeshift.types
 using Timeshift.shiftmetrics
@@ -6,20 +5,23 @@ using Field.metrics
 using Plot
 using Plot.receptivefield
 using Utils.namedtup
+using Munge.timeshift: getshift
+using Munge.nonlocal
+using Utils.statistic: pfunc
+import Plot
+using Munge.spiking
+using Filt
+
 using DataStructures: OrderedDict
 using DimensionalData
 import DimensionalData: Between
 using ProgressMeter
-import Plot
-using Munge.spiking
-using Filt
 using DataFrames, DataFramesMeta
 using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
 using Plots
-#using ElectronDisplay
 using LazySets
-using Munge.timeshift: getshift
-using Utils.stats: pfunc
+
+
 clab = OrderedDict(-1 => "nontask", 0 => "cue", 1=> "mem", missing=>"sleep")
 isonames =  OrderedDict(false => :adjacent, true=>:isolated)
 filt_desc = OrderedDict(:all => "> 2cm/s")
@@ -27,49 +29,44 @@ save_kws = (;pfc_rate_analy=true)
 filt = Filt.get_filters()
 datacut = :all
 
+animal, day = "RY16",36
+Plot.setappend((;animal,day))
+Plot.setparentfolder("nonlocality")
+
 # ===================
 # ACQUIRE DATA
 # ===================
 # Acquire data
-@time spikes, beh, cells = Load.load("RY16", 36, data_source=["spikes","behavior", "cells"])
+@time spikes, beh, cells = Load.load(animal, day, data_source=["spikes","behavior", "cells"])
 beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes, on="time", transfer=["x","y","cuemem"], filters=filt[datacut], filter_skipmissingcols=true)
 allspikes = copy(spikes)
-beh2 = Load.load_behavior("RY16",36)
+beh2 = Load.load_behavior(animal,day)
 
 # Acquire LFP and isolated spikes
-lfp = Load.load_lfp("RY16", 36, tet=5);
+lfp = Load.load_lfp(animal, day, tet=5);
 lfp.time = lfp.time .- Load.min_time_records[1]
 lfp = Munge.lfp.annotate_cycles(lfp)
 #sp = @subset(spikes, :tetrode .== 6);
 
 F = load_fields()
-@time f = F[bestpartialmatch(keys(F), (;datacut, widths=5,coactivity=nothing), nothing_means_removekey=true)];
+kz = collect(filter(k->k.animal == animal && k.day == day, keys(F)))
+@time f = F[bestpartialmatch(kz, 
+                             (;datacut, widths=5,coactivity=nothing), 
+                             nothing_means_removekey=true)];
 f = ShiftedFields(deepcopy(f))
 unitshift = Timeshift.types.matrixform(f)
-annotate_nonlocal_spikes!(spikes, unitshift, 0)
 
 # ===================
 # OUT OF FIELD SPIKES
 # ===================
 # Setup a  shift-getting convenience method, the shifts, and a few metrics
 shifts = collect(unitshift.dims[2])
-push_celltable!( unitshift, cells, :unit, :area)
 push_dims!(unitshift)
+push_celltable!( unitshift, cells, :unit, :area)
+push_metric!( unitshift, Field.metrics.bitsperspike)
+push_metric!( unitshift, Field.metrics.totalcount)
 push_shiftmetric!(unitshift, best_tau!; metric=:bitsperspike)
-
-# Which cells pass our criteria?
-#region = :CA1
-#metricfilter = metricfilters[region]
-#
-## Get filtered shift=0 fields
-#shift0 = filter(metricfilter, getshift(unitshift,0))
-#shift0 = shift0[sortperm(shift0[:unit])]
-
-# Subset spikes by our filtration schema
-#spikes = subset(spikes, :unit=>x->Utils.squeeze(any(x .∈ shift0[:unit]',dims=2)))
-#spikes = Utils.filtreg.filterAndRegister(beh,spikes; filters=filt[datacut], on="time",  transfer=["velVec"], filter_skipmissingcols=true)[2]
-#sort(unique(spikes.unit))
-
+annotate_nonlocal_spikes!(spikes, cells, unitshift, 0)
 
 # ===================
 # ISOLATED SPIKING
@@ -78,42 +75,76 @@ push_shiftmetric!(unitshift, best_tau!; metric=:bitsperspike)
 Munge.spiking.isolated(spikes, lfp, include_samples=false)
 
 
-# Split by isolated spikes and discover the fraction of isolated spikes
-function get_isolation_summary(spikes,split=[:cuemem])
-    iso_sum = combine(groupby(dropmissing(spikes,:isolated), [:area, split...]), [:isolated,:nearestcyc,:meancyc] .=> mean, (x->nrow(x)))
-    if :period ∈ split
-        # Calculate time animal spends in each cuemem segment
-        task_pers = Table.get_periods(beh2, [:period, :cuemem], 
-                                      timefract=:velVec => x->abs(x) > 2)
-        # Total that time and register that column to the isolation summary
-        task_pers = combine(groupby(task_pers, [:period, :cuemem]),
-                            [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
-        Utils.filtreg.register(task_pers, iso_sum, on="period", transfer=["timespent"])
-    elseif :traj ∈ split
-        # Calculate time animal spends in each cuemem segment
-        task_pers = Table.get_periods(beh2, [:traj, :cuemem], 
-                                      timefract=:velVec => x->abs(x) > 2)
-        # Total that time and register that column to the isolation summary
-        task_pers = combine(groupby(task_pers, [:period, :cuemem]),
-                            [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
-        Utils.filtreg.register(task_pers, iso_sum, on="traj", transfer=["timespent"])
-    else
-        # Calculate time animal spends in each cuemem segment
-        task_pers = Table.get_periods(beh2, [:period, :cuemem], 
-                                      timefract=:velVec => x->abs(x) > 2)
-        # Total that time and register that column to the isolation summary
-        task_pers = combine(groupby(task_pers, [:cuemem]), [:δ,:frac] =>
-                            ((x,y)->sum(x.*y)) => :timespent)
-        Utils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
-    end
-    # Acqruire events per time as events  / time spent
-    iso_sum.events_per_time = iso_sum.x1 ./ (iso_sum.timespent)
-    iso_sum.cuearea = iso_sum.area .* "\n" .* getindex.([clab], iso_sum.cuemem)
-    iso_sum.cmlab = getindex.([clab], iso_sum.cuemem)
-    iso_sum.isolated_events_per_time = iso_sum.isolated_mean .* iso_sum.events_per_time
-    ord = Dict("nontask"=>1,"cue"=>2,"mem"=>3)
-    iso_sum = sort(iso_sum, [DataFrames.order(:cmlab, by=x->ord[x]),:cuearea])
+# Which cells pass our criteria?
+#region = :CA1
+#metricfilter = metricfilters[region]
+
+
+"""
+# ==========================================
+# Visualize isolated spiking events per cell
+# ==========================================
+# """
+# In this section, I'm visualizing events to make sure nothing is insance
+#
+# Ideal algo
+#
+# capture theta cycle stats
+# - number of isolated spikes
+# - distance to nearest cycles ahead and behind
+#
+# Visualize
+# - theta
+# - cycle cuts
+# - spike raster
+cycles = Munge.lfp.get_cycle_table(lfp)
+Munge.lfp.annotate_cycles!(spikes, cycles)
+
+isospikes = @subset(spikes, :isolated, (!).(ismissing.(:isolated)),
+                    (!).(ismissing.(:cycle)))
+cycles.isounits   = Vector{Union{Missing,Vector}}(missing, size(cycles,1));
+cycles.isotime    = Vector{Union{Missing,Vector}}(missing, size(cycles,1));
+cycles.isoN       = Vector{Union{Missing,Int16}}(missing, size(cycles,1));
+cycles.nearestcyc = Vector{Union{Missing,Vector}}(missing, size(cycles,1));
+cycles.meancyc    = Vector{Union{Missing,Vector}}(missing, size(cycles,1));
+cycles.cycLen     = Vector{Union{Missing, Int16}}(missing, size(cycles,1)); 
+gs, gl, gc = groupby(isospikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cycle)
+@showprogress for cycle in unique(disallowmissing(isospikes.cycle))
+    s, l, c = gs[(;cycle)], gl[(;cycle)], gc[(;cycle)]
+    c = view(c, 1, :)
+    c[:isounits]   = s.unit
+    c[:isotime]   = s.time
+    c[:isoN]   = size(s,1)
+    c[:nearestcyc] = disallowmissing(s.nearestcyc)
+    c[:meancyc]    = disallowmissing(s.meancyc)
+    c[:cycLen]     = size(l,1)
 end
+
+function plot_cycle_example(gs, gl, gc, cycle; cycle_horizon=(-8,8))
+    before, after = cycle_horizon
+    s, l, c = gs[(;cycle.cycle)], gl[(;cycle.cycle)]
+    S = vcat([gs[(;cycle)] 
+              for cycle in UnitRange((cycle.cycle .+ cycle_horizon)...)]...)
+    xlabel="time"
+    xlim = minimum(l.time), maximum(l.time)
+    ss = @df s scatter(:time, :unit;xlim, c=:black, markersize=8, markershape=:vline, xticks=[],ylabel="unit",label="");
+    ll = @df l plot(:time, :raw, label = "theta filt";xlim,xlabel,ylabel="theta");
+    @df l plot!(:time, :broadraw, label = "broadband";xlim,xlabel,ylabel="theta",c="black");
+    hline!([0],c=:darkgray,linestyle=:dash,label="")
+    lay = @layout [a; b{0.7h}];
+    plot(ss,ll, layout=lay, size=(1000,400))
+end
+
+Plot.setfolder("examples, isolated cycles")
+gs, gl, gc = groupby(spikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cycle)
+cycfilt = subset(dropmissing(cycles, :isounits),
+                 :cycLen => l->l.>10)
+cycle = first(eachrow(cycfilt))
+for cycle in eachrow(cycfilt)
+    for unit in unique(cycle.isounits)
+    end
+end
+
 
 """
 Title: Sheer diffferent rate of events (adjacent/isolated) over cue, mem, nontask
@@ -130,7 +161,7 @@ isolated = last(groupby(subset(spikes, :isolated=>x->(!).(isnan.(x))) ,
 @assert all(isolated.isolated .== true)
 
 # =========PLOTS =======================================
-Plot.setfolder("nonlocality","MUA and isolated MUA")
+Plot.setfolder("MUA and isolated MUA")
 kws=(;legend_position=Symbol("outerbottomright"))
 @df @subset(iso_sum,:area.=="CA1") bar(:cmlab, :timespent, ylabel="Time spent", group=:cuemem; kws...)
 Plot.save((;desc="time spent"))
@@ -171,7 +202,7 @@ sort!(iso_sum_celltype_per, [:area, :interneuron, :cuemem, :period])
 
 # =========PLOTS =======================================
 # -------- mua per second ------------------------------
-Plot.setfolder("nonlocality","MUA and isolated MUA", "period-wise")
+Plot.setfolder("MUA and isolated MUA", "period-wise")
 @df @subset(iso_sum_celltype_per, :interneuron .== false) scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), :events_per_time, group=:correct, xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA events/time", xlabel="task", ylabel="events × time\$^{-1}\$, pyr cells", legend_title="correct/error", legend_position=:outerbottomright)
 @df @subset(iso_sum_celltype_per, :interneuron .== true) scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), :events_per_time, group=:correct, xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA events/time", xlabel="task", ylabel="events × time\$^{-1}\$, pyr cells", legend_title="correct/error", legend_position=:outerbottomright)
 Plot.save((;desc="mua-per-time",group=:correct,pyr=true))
@@ -275,7 +306,7 @@ Plot.save((;desc="fract vs mua-per-sec, CA1"))
 """
 summary of period iso_mean
 """
-Plot.setfolder("nonlocality","MUA and isolated MUA", "period-wise-summary")
+Plot.setfolder("MUA and isolated MUA", "period-wise-summary")
 XX = combine(groupby(@subset(iso_sum_celltype_per, :interneuron .== false, :area .== "CA1"),
                      :cuemem), :isolated_mean => median, :isolated_mean => x->std(x)/sqrt(length(x))
             )
@@ -361,7 +392,7 @@ Plot.save(kws)
 """
 Mean cycle dist
 """
-Plot.setfolder("nonlocality","isolation-basic_column_plots")
+Plot.setfolder("isolation-basic_column_plots")
 histogram(filter(x->!ismissing(x) && x<100, @subset(spikes,:area.=="CA1", :interneuron .!= true).meancyc), bins=40, yscale=:log10)
 Plot.save((;desc="Mean cycle, all cells"))
 histogram(filter(x->!ismissing(x) && x<100, @subset(spikes,:area.=="CA1", :interneuron .!= true).nearestcyc), bins=40, yscale=:log10)
@@ -370,7 +401,7 @@ Plot.save((;desc="Nearest cycle, all cells"))
 """
 SVM: All three variables
 """
-Plot.setfolder("nonlocality", "svm")
+Plot.setfolder( "svm")
 using MLJ
 @load SVC pkg=LIBSVM
 cv = StratifiedCV(nfolds=2, shuffle=true)
@@ -519,7 +550,7 @@ isoin_sum_celltype = combine(groupby(spikes, [:unit, :isolated, :interneuron]),:
 isoin_sum_celltype[!,:infield] = replace(isoin_sum_celltype.infield, NaN=>missing)
 dropmissing!(isoin_sum_celltype)
 
-Plot.setfolder("nonlocality","isolation-infield")
+Plot.setfolder("isolation-infield")
 @df @subset(isoin_sum_celltype,:interneuron .!= true) boxplot(:isolated, :infield, xticks=([0,1],["adj","iso"]))
 @df @subset(isoin_sum_celltype,:interneuron .!= true) scatter!(:isolated + randn(size(:isolated)).*0.1, :infield, xticks=([0,1],["adj","iso"]))
 Plot.save((;desc="Not much difference adjacent-iso in percent infield spikes",hullmax=1,thresh=0.8))
@@ -533,7 +564,7 @@ perc = round(mean(spikes.neard .> .4)*100,sigdigits=2)
 
 
 # =========PLOTS =======================================
-Plot.setfolder("nonlocality", "isolated_ca1_rate_pfc")
+Plot.setfolder( "isolated_ca1_rate_pfc")
 histogram(log10.(spikes.neard),label="nearest spike")
 vline!([log10(.400)], label="thresh", title="$perc % isolated")
 Plot.save("nearest spike isolation")
@@ -644,7 +675,7 @@ srt = UnequalVarianceTTest(@subset(pfc_rate_isoAdjacent_meanOfTimes,:isolated.==
 
 
 # =========PLOTS =======================================
-Plot.setfolder("nonlocality", "isolated_ca1_rate_pfc")
+Plot.setfolder( "isolated_ca1_rate_pfc")
 @df pfc_rate_isoAdjacent_meanOfTimes boxplot(:isolated, :rate, title="TTest=$(round(pvalue(srt),sigdigits=2)), with N=$(srt.df) PFC cells",
                          xticks=([0,1], collect(values(isonames))))
 @df pfc_rate_isoAdjacent_meanOfTimes scatter!(:isolated, :rate, group=:isolated)
@@ -664,7 +695,7 @@ srt = UnequalVarianceTTest(@subset(D,:isolated.==0).rate,
 
 
 # =========PLOTS =======================================
-Plot.setfolder("nonlocality", "isolated_ca1_rate_pfc")
+Plot.setfolder( "isolated_ca1_rate_pfc")
 @df isoadj_cellandtime boxplot(:isolated, :rate, title="Firing rate samples per spike\nTTest=$(round(pvalue(srt),sigdigits=2)) difference of individual cells",
                          xticks=([0,1], collect(values(isonames))), outliers=false)
 Plot.save((;save_kws...,desc="firing rate samples per spike"))
@@ -689,7 +720,7 @@ diffs = OrderedDict()
 end
 
 # =========PLOTS =======================================
-Plot.setfolder("nonlocality", "isolated_ca1_rate_pfc")
+Plot.setfolder( "isolated_ca1_rate_pfc")
 pv_higheradjacent = pvalue.(values(srt)) .< 0.05/length(srt) .&& values(diffs) .> 0
 pv_higherisolated  = pvalue.(values(srt)) .< 0.05/length(srt) .&& values(diffs) .< 0
 pv_nonsig    = pvalue.(values(srt)) .> 0.05/length(srt)
@@ -743,7 +774,7 @@ Plot.save((;save_kws..., desc="cellcounts sig"))
 """
 # PFC firign rates norm by 0-1
 """
-Plot.setfolder("nonlocality", "isolated_ca1_pfc_rates")
+Plot.setfolder( "isolated_ca1_pfc_rates")
 Rpfc =  Munge.spiking.torate(@subset(allspikes, :area .== "PFC"), beh)
 Dpfc = DataFrame([0;Rpfc], :auto)
 Dpfc.cuemem = beh.cuemem
@@ -761,7 +792,7 @@ Plot.save("Average of PFC cell firing, mean(rate)")
 """
 # PFC firing rates norm by zscore
 """
-Plot.setfolder("nonlocality", "isolated_ca1_pfc_rates")
+Plot.setfolder( "isolated_ca1_pfc_rates")
 Rpfc =  Munge.spiking.torate(@subset(allspikes, :area .== "PFC"), beh)
 Rpfc =  (Rpfc.-Matrix(mean(Rpfc,dims=1)))./Matrix(std(Rpfc,dims=1))
 Dpfc = DataFrame([0;Rpfc], :auto)

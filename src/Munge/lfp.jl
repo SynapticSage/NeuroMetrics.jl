@@ -44,7 +44,9 @@ module lfp
 
     annotates lfp dataframe with cycle numbers
     """
-    function annotate_cycles(lfp::DataFrame; phase_col="phase", method="peak-to-peak")
+    function annotate_cycles(lfp::DataFrame; phase_col="phase", 
+            method="peak-to-peak")
+
         phase = lfp[!, phase_col]
         lfp.phase = phase_to_radians(lfp[:,"phase"])
         println("Method=$method")
@@ -70,8 +72,15 @@ module lfp
             throw(ArgumentError("Unrecognized method=$method"))
         end
         lfp[!,"cycle"] = cycle_labels
+
         return lfp
     end
+    annotate_cycles!(lfp::DataFrame;kws...) = annotate_cycles(lfp;kws...)
+
+    export annotate_cycles!
+    annotate_cycles!(data::DataFrame, cycles::DataFrame)::DataFrame = 
+            Table.group.annotate_periods!(data, cycles)
+    
 
     """
         mean_lfp

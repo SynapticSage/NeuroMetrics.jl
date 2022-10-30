@@ -225,7 +225,11 @@ module metrics
             columns = propertynames(cells)
         end
         for field in columns
-            push_metric!(r, field, @subset(cells, :unit .== cell)[1,field])
+            try
+                push_metric!(r, field, @subset(cells, :unit .== cell)[1,field])
+            catch
+                @infiltrate
+            end
         end
     end
     function push_celltable!(R::Array{ReceptiveField}, cells::AbstractDataFrame,

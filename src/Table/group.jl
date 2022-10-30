@@ -1,18 +1,38 @@
 module group
 
+    import ..Table
+    import Utils
     using DataFrames
     using DataStructures
     using Infiltrator
     using StatsBase
-    import Table
     using DataFrames: ColumnIndex
     using Random
+    using ProgressMeter
 
     coords(groups) = collect(zip(sort(collect(groups.keymap),by=x->x[2])...))[1]
     pairs(groups) = (collect(zip(sort(collect(groups.keymap))))[i][1] 
                      for i in 1:length(G.keymap))
     
     CItype = Union{ColumnIndex, Vector{<:ColumnIndex}}
+
+    export annotate_periods!
+    """
+        annotate_periods!
+
+    annotate dataframe with period data (see Table.get_period)
+    """
+    function annotate_periods!(data::DataFrame, periods::DataFrame;
+                name=nothing,period_col=nothing,type=Int32)::DataFrame
+        name = name === nothing ? periods[1,:prop] : name
+        period_col = period_col === nothing ? name : period_col
+        data[!,period_col] = Vector{Union{type,Missing}}(missing, size(data,1))
+        period_start = allowmissing(Utils.searchsortedprevious.([periods.start], data.time))
+        period_stop  = Utils.searchsortednext.([periods.stop],  data.time)
+        period_start[period_start .!= period_stop] .= missing
+        data[!,period_col] = period_start
+        data
+    end
 
     function named_coords(groups)
     end
@@ -44,7 +64,7 @@ module group
         end
         # Now that all of the orderings match, I can read out the matrix of
         # group numbers per matching key
-        result = [hashmaps[i][superset[j]] for j ∈ 1:length(superset), i ∈ 1:length(args)]
+        [hashmaps[i][superset[j]] for j ∈ 1:length(superset), i ∈ 1:length(args)]
     end
 
     function mtg_via_commonmap(groups::Union{Vector, Symbol, String},

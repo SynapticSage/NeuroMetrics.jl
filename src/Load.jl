@@ -193,7 +193,7 @@ module Load
         if type == "csv"
             data = CSV.read(path, DataFrame; load_kws...)
         elseif type == "arrow"
-            data = copy(DataFrame(Arrow.Table(path)))
+            data = fix_complex(copy(DataFrame(Arrow.Table(path))))
         end
     end
 
@@ -243,7 +243,7 @@ module Load
             #Arrow.append(path, data; save_kws...)
 
             # Janky hacky fix
-            existing_data = copy(DataFrame(Arrow.Table(path)))
+            existing_data = fix_complex(copy(DataFrame(Arrow.Table(path))))
             data = vcat(existing_data, data, cols=:union)
             Arrow.write(path, data; save_kws...)
 
@@ -299,7 +299,13 @@ module Load
             if key ∈ exclusion
                 continue
             end
-            loadfunc, savefunc = load_functions[key], save_functions[key]
+            loadfunc, savefunc, pathfunc = load_functions[key], 
+                                           save_functions[key],
+                                           path_functions[key]
+            if !isfile(pathfunc(animal, day; type=from))
+               @warn "source not exist" animal day key
+               continue
+            end
             data = loadfunc(animal, day; type=from)
             savefunc(data, animal, day; type=to)
             if delete_prev
@@ -420,14 +426,20 @@ module Load
 
     function fix_complex(df::DataFrame)
         for (i, col) in enumerate(eachcol(df))
-            if typeof(col) <: Arrow.Struct || 
-                eltype(col) <: NamedTuple
-                try
-                    df[!,i] = fix_complex(df[!,i])
-                catch
-                    #@infiltrate
-                    @warn "exception caught in fix_complex"
-                end
+            if nonmissingtype(typeof(col)) <: Arrow.Struct || 
+                nonmissingtype(eltype(col)) <: NamedTuple
+                    if nonmissingtype(eltype(df[!,i])) == eltype(df[!,i])
+                        df[!,i] = fix_complex(df[!,i])
+                    else
+                        tmp = df[:,i]
+                        inds = (!).(ismissing.(tmp))
+                        df[!,i] = Vector{Union{Missing,Complex}}(missing, size(df,1))
+                        df[inds,i] = fix_complex(tmp[inds])
+                    end
+                #catch
+                #    #@infiltrate
+                #    @warn "exception caught in fix_complex"
+                #end
             end
         end
         return df

@@ -5,7 +5,7 @@ module nonlocal
     using Timeshift.shiftmetrics
     using Field.metrics
     using Utils.namedtup
-    #using ..Munge.timeshift: getshift
+    import Utils
     using DataStructures: OrderedDict
     using DimensionalData
     using ProgressMeter
@@ -13,8 +13,10 @@ module nonlocal
     using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
     using Plots
     using LazySets
+    import Random
 
-    function annotate_nonlocal_spikes!(spikes::DataFrame, unitshift::DimArray, shift::Union{<:Real, Symbol}=0;
+    export annotate_nonlocal_spikes!
+    function annotate_nonlocal_spikes!(spikes::DataFrame, cells::DataFrame, unitshift::DimArray, shift::Union{<:Real, Symbol}=0;
                                         thresh=0.8, hullmax=1,
                                         n_examples=20, shuf=true)
         # Push details about fields and best shift
@@ -69,6 +71,58 @@ module nonlocal
         end
         Plots.plot(P[1:n_examples]...; 
         colorbar=false, titlefontsize=6, tickfontsize=6, framestyle=:none, size=(800,800))
+    end
+
+    export get_isolation_summary
+    """
+        get_isolation_summary
+
+    acquires an isolation summary table for a spikes DataFrame
+
+    # Input
+    spikes  <- spikes dataframe
+    split   <- group/split in groupby to create the summary table
+
+    # Requires
+    You already added a column specifying if each spike is isolated
+
+    # Returns
+    A summary table
+    """
+    function get_isolation_summary(spikes,split=[:cuemem])
+        iso_sum = combine(groupby(dropmissing(spikes,:isolated), [:area, split...]), [:isolated,:nearestcyc,:meancyc] .=> mean, (x->nrow(x)))
+        if :period ∈ split
+            # Calculate time animal spends in each cuemem segment
+            task_pers = Table.get_periods(beh2, [:period, :cuemem], 
+                                          timefract=:velVec => x->abs(x) > 2)
+            # Total that time and register that column to the isolation summary
+            task_pers = combine(groupby(task_pers, [:period, :cuemem]),
+                                [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
+            Utils.filtreg.register(task_pers, iso_sum, on="period", transfer=["timespent"])
+        elseif :traj ∈ split
+            # Calculate time animal spends in each cuemem segment
+            task_pers = Table.get_periods(beh2, [:traj, :cuemem], 
+                                          timefract=:velVec => x->abs(x) > 2)
+            # Total that time and register that column to the isolation summary
+            task_pers = combine(groupby(task_pers, [:period, :cuemem]),
+                                [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
+            Utils.filtreg.register(task_pers, iso_sum, on="traj", transfer=["timespent"])
+        else
+            # Calculate time animal spends in each cuemem segment
+            task_pers = Table.get_periods(beh2, [:period, :cuemem], 
+                                          timefract=:velVec => x->abs(x) > 2)
+            # Total that time and register that column to the isolation summary
+            task_pers = combine(groupby(task_pers, [:cuemem]), [:δ,:frac] =>
+                                ((x,y)->sum(x.*y)) => :timespent)
+            Utils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
+        end
+        # Acqruire events per time as events  / time spent
+        iso_sum.events_per_time = iso_sum.x1 ./ (iso_sum.timespent)
+        iso_sum.cuearea = iso_sum.area .* "\n" .* getindex.([clab], iso_sum.cuemem)
+        iso_sum.cmlab = getindex.([clab], iso_sum.cuemem)
+        iso_sum.isolated_events_per_time = iso_sum.isolated_mean .* iso_sum.events_per_time
+        ord = Dict("nontask"=>1,"cue"=>2,"mem"=>3)
+        sort(iso_sum, [DataFrames.order(:cmlab, by=x->ord[x]),:cuearea])
     end
 
 end
