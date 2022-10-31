@@ -10,7 +10,8 @@ using Utils
 using Infiltrator
 
 parent_folder = []
-folder_args = []
+folder_args   = []
+complete_folder_args = []
 exts = ["png", "pdf"]
 append, prepend = "", ""
 
@@ -18,15 +19,17 @@ setappend(val)  = @eval Plot append = $val
 setprepend(val) = @eval Plot prepend = $val
 
 function setparentfolder(args::String...)
-    [pop!(parent_folder) for arg in 1:length(parent_folder)]
-    [push!(parent_folder, item) for item in args]
+    @eval Plot parent_folder = $args
+    @eval Plot complete_folder_args = [parent_folder...,folder_args...]
+
     folder = plotsdir(parent_folder..., folder_args...)
     !(isdir(folder)) ? mkpath(folder) : nothing
     folder
 end
 function setfolder(args::String...)
-    [pop!(folder_args) for arg in 1:length(folder_args)]
-    [push!(folder_args, item) for item in args]
+    @eval Plot folder_args = $args
+    @eval Plot complete_folder_args = [parent_folder...,folder_args...]
+
     folder = plotsdir(parent_folder..., folder_args...)
     !(isdir(folder)) ? mkpath(folder) : nothing
     folder

@@ -13,29 +13,37 @@ using DataFramesMeta
 using SoftGlobalScope
 theme(:bright)
 
-savefile = "/home/ryoung/Projects/goal-code/data/timeshift/fixed_shifts_-2.0f0:0.05f0:2.0f0.serial"
-F,I,shifts = deserialize(savefile);
+shifts=-2.0f0:0.05f0:2.0f0
+savefile = "/home/ryoung/Projects/goal-code/data/timeshift/fixed_shifts_$shifts.serial"
+F = load_fields()
+#F,I,shifts = deserialize(savefile);
+
 
 datasets = 
-(("RY16", 36, "CA1"),
-("RY22", 21, "CA1"),
-("RY16", 36, "PFC"),
-("RY22", 21, "PFC"),
-("RY16", 36, nothing),
-("RY22", 21, nothing))
-
-datasets = 
-(("super", 0, "CA1"),
+(
+ ("RY16", 36, "CA1"),
+ ("RY22", 21, "CA1"),
+ ("RY16", 36, "PFC"),
+ ("RY22", 21, "PFC"),
+ ("RY16", 36, nothing),
+ ("RY22", 21, nothing),
+ ("super", 0, "CA1"),
  ("super", 0, "PFC"),
  ("super", 0, nothing),
 )
 
 # If this doesn't work subfunctions may not be scoped right and may need SoftGlobalScope
 animal, day, brain_area = first(datasets)
+#include(expanduser("~/tmp2.jl"))
 
-@softscope for (i,(animal,day,brain_area)) in enumerate(datasets)
+@softscope for (i,(animal,day,brain_area)) in collect(enumerate(datasets))
 
     @info "loop" i animal day brain_area
+    if brain_area !== nothing
+        @info "skip"
+        continue
+    end
+
     cells = Load.load_cells(animal, day)
 
     keyz = Dict(key.datacut=>key for key in filter(k->k.animal==animal && 
@@ -59,6 +67,7 @@ animal, day, brain_area = first(datasets)
         if brain_area !== nothing
             f = f[vec(all(f[:area] .== brain_area, dims=2)), :]
         end
+        f
     end
       
     function doheat(f,key)

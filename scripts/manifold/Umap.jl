@@ -38,10 +38,10 @@ import Utils.namedtup: ntopt_string
 
 # Basic params
 # ----------------
-filt = nothing
-areas = (:ca1,:pfc)
-#distance = :Mahalanobis
-distance = :CityBlock
+filt             = nothing
+areas            = (:ca1,:pfc)
+#distance        = :Mahalanobis
+distance         = :CityBlock
 feature_engineer = :zscore
 
 # Filter
@@ -95,16 +95,17 @@ end
 
 # Get embeddings
 # ----------------
-embedding    = Dict()
+embedding,scores    = Dict(),Dict()
 dimset       = (2,   3)
-min_dists    = (0.05,0.3)
-n_neighborss = (5,150)
+min_dists    = (0.05,0.15,0.3)
+n_neighborss = (5,50,150,400)
 
 (min_dist, n_neighbors) = first(zip(min_dists, n_neighborss))
 (area,dim,s) = first(Iterators.product(areas, dimset, (1,)))
 
-@showprogress "params" for (min_dist, n_neighbors) in zip(min_dists, n_neighborss)
-    @showprogress "datasets" for (area,dim,s) in Iterators.product(areas, dimset, (1,))
+@showprogress "params" for (min_dist, n_neighbors) in Iterators.product(min_dists, n_neighborss)
+    @showprogress "datasets" for (area,dim,s) in Iterators.product(areas, dimset, 
+                                                                   1:length(samps))
         key = (;area,dim,s,min_dist,n_neighbors)
         if key ∈ keys(embedding) && !(embedding[key] isa Future)
             @info "skipping" key
@@ -113,23 +114,35 @@ n_neighborss = (5,150)
             @info key
         end
         input = Matrix(R[area]'[:,samps[s]])
-        em = if use_cuda # 1000x faster
-            fitter=cuUMAP(n_neighbors=400, min_dist=min_dist, n_components=3, 
-                          metric=lowercase(String(distance)), target_metric="euclidean")
+        @time em, score = if use_cuda # 1000x faster
+            metric = lowercase(String(distance))
+            fitter=cuUMAP(n_neighbors=n_neighbors, min_dist=min_dist, 
+                          n_components=3, metric=metric, 
+                          target_metric="euclidean")
             trained_umap = fitter.fit(input')
             em = trained_umap.transform(input')
-            score = cuml.metrics.trustworthiness( input', em)
+            score = cuml.metrics.trustworthiness(input', em, 
+                                                 n_neighbors=n_neighbors)
+            em, score
         else # julia is suprisingly slow here
-            umap(input, dim; min_dist, n_neighbors, 
+            em = umap(input, dim; min_dist, n_neighbors, 
                         metric=dist_func[area])
+            skmani = pyimport("sklearn.manifold")
+            @time score = skmani.trustworthiness(input', em, 
+                                           n_neighbors=n_neighbors, 
+                                           metric=lowercase(string(distance)))
+            em, score
+
         end
         embedding[key] = em'
+        scores[key] = score
     end
 end
 
 using SoftGlobalScope
-#embedding = Dict(k=>(if isready(v); fetch(v); else; v; end) for (k,v) in embedding); 
 embedding = Dict(k=>(try; fetch(v); catch; v; end) for (k,v) in embedding);
+
+#embedding = Dict(k=>(if isready(v); fetch(v); else; v; end) for (k,v) in embedding); 
 #display(embedding); 
 
 

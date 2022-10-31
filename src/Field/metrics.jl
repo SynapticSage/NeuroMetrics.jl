@@ -228,7 +228,8 @@ module metrics
             try
                 push_metric!(r, field, @subset(cells, :unit .== cell)[1,field])
             catch
-                @infiltrate
+                @warn "metric error in push_celltable" size(cells) field
+                #@infiltrate
             end
         end
     end

@@ -6,6 +6,7 @@ module nonlocal
     using Field.metrics
     using Utils.namedtup
     import Utils
+    import Table
     using DataStructures: OrderedDict
     using DimensionalData
     using ProgressMeter
@@ -14,6 +15,11 @@ module nonlocal
     using Plots
     using LazySets
     import Random
+
+    beh2 = nothing
+    setunfilteredbeh(beh) = @eval nonlocal beh2 = $beh
+    clab = nothing
+    setclab(clabval) = @eval nonlocal clab = $clabval
 
     export annotate_nonlocal_spikes!
     function annotate_nonlocal_spikes!(spikes::DataFrame, cells::DataFrame, unitshift::DimArray, shift::Union{<:Real, Symbol}=0;
