@@ -1,4 +1,6 @@
+quickactivate(expanduser("~/Projects/goal-code"))
 using DataStructures: OrderedDict
+using DrWatson
 using Serialization
 using Plots
 using ProgressMeter
@@ -9,7 +11,15 @@ using ThreadSafeDicts
 using DataFramesMeta
 using Distances
 using StatsBase
-using  DimensionalData
+using SoftGlobalScope
+use_cuda = true
+#if use_cuda
+#    #ENV["PYTHON"]="/home/ryoung/miniconda3/envs/rapids-22.08/bin/python"
+#    using PyCall
+#    cuml = pyimport("cuml")
+#    cuUMAP = cuml.manifold.umap.UMAP
+#end
+using DimensionalData
 
 # Disstributed computing
 #addprocs([("mingxin",1)])
@@ -23,11 +33,10 @@ using  DimensionalData
 @everywhere using GoalFetchAnalysis
 @everywhere import Munge
 import Utils.namedtup: ntopt_string
-using Munge.manifold
 
 # Load data
 # ----------------
-@time spikes, beh, ripples, cells = Load.load("RY16", 36);
+@time spikes, beh, ripples, cells = Load.load("RY16", 36)
 Rca1, Rpfc = (Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
                 for ar in ("CA1","PFC"))
 
@@ -35,28 +44,24 @@ Rca1, Rpfc = (Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
 # ----------------
 filt = nothing
 areas = (:ca1,:pfc)
-distance = :Mahalanobis
+distance = :many
 feature_engineer = nothing
 feature_engineer = :zscore
-load_manis(Main; feature_engineer, filt, distance)
+using Munge.manifold
+load_manis(Main; feature_engineer, filt, distance, tag="RY1636.9segs")
 
-splits = 2
-sampspersplit = 2
-nsamp = Int(round(size(beh,1)/splits))
-δi    = Int(round(nsamp/sampspersplit))
-#nsamp = min(99_000, size(beh,1))
-samps = []
-for (split, samp) in Iterators.product(1:splits, 1:sampspersplit)
-    start = (split-1) * nsamp + (samp-1) * δi + 1
-    stop  = (split)   * nsamp + (samp)   * δi + 1
-    stop  = min(stop, size(beh,1))
-    push!(samps, start:stop)
+
+trans = :Matrix
+transform(em) = if trans == :DimArray
+    (em=em';DimArray(em, (Dim{:time}(beh.time[1:size(em,1)]), Dim{:comp}(1:size(em,2)))))
+elseif trans == :Dataset
+    (em=em';Dataset(eachcol(em)...))
+else
+    em'
 end
-@info "coverage" nsamp/size(beh,1)*100
 
 
-keys(embedding)
-key = (area = :ca1, dim = 3, s = 1, min_dist = 0.2, n_neighbors = 200)
-em = embedding[key]
-em = DimArray(em, (Dim{:time}(beh.time[1:size(em,1)]), Dim{:comp}(1:size(em,2))))
-
+# Which core would you like to work on?
+min_dist, n_neighbors, metric, dim = [0.3], [5,150], [:CityBlock], 3
+K = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors && k.metric ∈ metric && k.dim == dim, keys(embedding))
+embedding = Dict(k=>transform(embedding[k]) for k in K)

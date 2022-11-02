@@ -33,17 +33,18 @@ datasets =
 )
 
 # If this doesn't work subfunctions may not be scoped right and may need SoftGlobalScope
-animal, day, brain_area = first(datasets)
+animal, day, brain_area = datasets[end]
 #include(expanduser("~/tmp2.jl"))
 
 @softscope for (i,(animal,day,brain_area)) in collect(enumerate(datasets))
 
     @info "loop" i animal day brain_area
-    if brain_area !== nothing
+    if brain_area === nothing
         @info "skip"
         continue
     end
 
+    # = PREPLOT ACTIONS =#
     cells = Load.load_cells(animal, day)
 
     keyz = Dict(key.datacut=>key for key in filter(k->k.animal==animal && 
@@ -76,6 +77,7 @@ animal, day, brain_area = first(datasets)
         XX = hcat([Utils.norm_extrema(b) for b in eachrow(bps)]...)'
         heatmap(shifts, collect(1:size(XX,1)), XX, title="$(key.datacut)", size=2 .* (600,800))
     end
+    # = --------------------------------------------------------------- =#
 
 
     """
@@ -317,6 +319,7 @@ animal, day, brain_area = first(datasets)
     """
     -------------------------------------------------------------------
     """
+
     Plot.setfolder("delta in bps heatmap - difference index - norm01")
     for (k1, k2) in zip((:task,:memory, :error, :mem_error), (:nontask, :cue,
                                                               :correct,
@@ -340,6 +343,131 @@ animal, day, brain_area = first(datasets)
          Plot.save((;k1,k2))
     end
 
+    Plot.setfolder("delta in bps heatmap -- raw")
+    for (k1, k2) in zip((:task,:memory, :error, :mem_error), (:nontask, :cue,
+                                                              :correct,
+                                                              :mem_correct),)
+        key1,key2 = keyz[k1],keyz[k2]
+        f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
+        D = intersect(f1.dims[1],f2.dims[1])
+        R, L = [], []
+        for d in D
+            val = f2[unit=At(d)][:bitsperspike]-f1[unit=At(d)][:bitsperspike]
+            val = Utils.norm_extrema(val,[0,1])
+            push!(R,val)
+            push!(L, argmax(val))
+        end
+         ind = sortperm(L)
+         R = hcat(R...)'
+         lay = @layout [a; b{0.2h}]
+         plot(heatmap(R[ind,:], clim=(0,1),c=:vik), plot(mean(R,dims=1)'),
+              layout=lay)
+         Plot.save((;k1,k2))
+    end
+
+    Plot.setfolder("delta in bps heatmap - difference index - norm01")
+    for (k1, k2) in zip((:task,:memory, :error, :mem_error), (:nontask, :cue,
+                                                              :correct,
+                                                              :mem_correct),)
+        key1,key2 = keyz[k1],keyz[k2]
+        f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
+        D = intersect(f1.dims[1],f2.dims[1])
+        R, L = [], []
+        for d in D
+            val = (f2[unit=At(d)][:bitsperspike]-f1[unit=At(d)][:bitsperspike])./
+                (f2[unit=At(d)][:bitsperspike]+f1[unit=At(d)][:bitsperspike])
+            val = Utils.norm_extrema(val,[0,1])
+            push!(R,val)
+            push!(L, argmax(val))
+        end
+         ind = sortperm(L)
+         R = hcat(R...)'
+         lay = @layout [a; b{0.2h}]
+         plot(heatmap(R[ind,:], clim=(0,1),c=:vik), plot(mean(R,dims=1)'),
+              layout=lay)
+         Plot.save((;k1,k2))
+    end
+
+    Plot.setfolder("delta in bps heatmap - norm01 => diff => norm01")
+    for (k1, k2) in zip((:task,:memory, :error, :mem_error), (:nontask, :cue,
+                                                              :correct,
+                                                              :mem_correct),)
+        key1,key2 = keyz[k1],keyz[k2]
+        f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
+        D = intersect(f1.dims[1],f2.dims[1])
+        R, L = [], []
+        for d in D
+            b1, b2 = f1[unit=At(d)][:bitsperspike], f2[unit=At(d)][:bitsperspike]
+            b1, b2 = Utils.norm_extrema(b1,[0,1]), Utils.norm_extrema(b2,[0,1])
+            val = Utils.norm_extrema(b2-b1,[0,1])
+            push!(R,val)
+            push!(L, argmax(val))
+        end
+         ind = sortperm(L)
+         R = hcat(R...)'
+         lay = @layout [a; b{0.2h}]
+         plot(heatmap(R[ind,:], clim=(0,1),c=:vik), plot(mean(R,dims=1)'),
+              layout=lay)
+         Plot.save((;k1,k2))
+    end
+
+
+    Plot.setfolder("heatmap of individual groups norm01")
+    k = first(keys(keyz))
+    H=[]
+    for k in keys(keyz)
+        key = keyz[k]
+        f   = prep(matrixform(F[key]))
+        shifts = vec(f.dims[2].val.data)
+        inds = sortperm(f[:bestshift_bitsperspike][:,1])
+        bps  = f[:bitsperspike][inds, :]
+        XX = hcat([Utils.norm_extrema(b) for b in eachrow(bps)]...)'
+        h=heatmap(shifts, collect(1:size(XX,1)), XX; label="",
+        title="$(key.datacut)", size=(600,1200), c=:hot, clim=(0.3,1))
+        vline!([0],c=:pink,linestyle=:dash, linewidth=3,label="")
+        Plot.save((;k))
+        push!(H,h)
+    end
+    plot(H...,size=(3000,3000)) 
+    Plot.save("together")
+
+    Plot.setfolder("heatmap of individual groups normP")
+    k = first(keys(keyz))
+    H=[]
+    for k in keys(keyz)
+        key = keyz[k]
+        f   = prep(matrixform(F[key]))
+        shifts = vec(f.dims[2].val.data)
+        inds = sortperm(f[:bestshift_bitsperspike][:,1])
+        bps  = f[:bitsperspike][inds, :]
+        XX = hcat([Utils.norm_percent(b,0.5) for b in eachrow(bps)]...)'
+        h=heatmap(shifts, collect(1:size(XX,1)), XX; label="",
+        title="$(key.datacut)", size=(600,1200), c=:hot, clim=(0.3,1))
+        vline!([0],c=:pink,linestyle=:dash, linewidth=3,label="")
+        Plot.save((;k))
+        push!(H,h)
+    end
+    plot(H...,size=(3000,3000)) 
+    Plot.save("together")
+
+    Plot.setfolder("heatmap of individual groups")
+    k = first(keys(keyz))
+    H=[]
+    for k in keys(keyz)
+        key = keyz[k]
+        f   = prep(matrixform(F[key]))
+        shifts = vec(f.dims[2].val.data)
+        inds = sortperm(f[:bestshift_bitsperspike][:,1])
+        bps  = f[:bitsperspike][inds, :]
+        XX = hcat([b for b in eachrow(bps)]...)'
+        h=heatmap(shifts, collect(1:size(XX,1)), XX; label="",
+        title="$(key.datacut)", size=(600,1200), c=:hot, clim=(0.3,1))
+        vline!([0],c=:pink,linestyle=:dash, linewidth=3,label="")
+        Plot.save((;k))
+        push!(H,h)
+    end
+    plot(H...,size=(3000,3000)) 
+    Plot.save("together")
 
 end # dataset
 

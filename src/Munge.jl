@@ -17,6 +17,7 @@ module Munge
     #include(srcdir("Munge","SpikeTrains.jl"))
     #include(srcdir("Munge","fieldgrad.jl"))
     include(srcdir("Munge","manifold.jl"))
+    include(srcdir("Munge","causal.jl"))
     #include(srcdir("Munge","dynamic.jl"))
     @reexport using .chrono
     @reexport using .behavior
@@ -31,6 +32,7 @@ module Munge
     #@reexport using .SpikeTrains
     #@reexport using .fieldgrad
     @reexport using .manifold
+    @reexport using .causal
     #@reexport using .dynamic
 
 end

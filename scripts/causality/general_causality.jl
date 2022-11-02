@@ -1,44 +1,40 @@
+using DrWatson
+#include(scriptsdir("manifold","Umap_deserialize.jl"))
+
 #  ================
 # CAUSALITY AND MANFIOLD
 #  ================
 
-using DrWatson
 using Serialization
 using Utils.namedtup: ntopt_string
 using CausalityTools
 using Entropies
-
+using Munge.causal
 if !hasproperty(Main, :esttype)
 @info "prop missinG"
-    esttype = :binned
+    esttype = :symbolic
 end
+est, params = get_est_preset(esttype)
 
-embedding_rows = Dict(k=>Dataset(v) for (k,v) in embedding);
-@info esttype
-if esttype == :binned
-    params = (;bins = 9, horizon=1:3000)
-    est = VisitationFrequency(RectangularBinning(params.bins))
-    @info "Starting binned estimator, "
-elseif esttype == :symbolic
-    params = (m = 15, τ = 1)
-    #params = (m = 100, τ = 4)
-    est = SymbolicPermutation(;params...)
-    params = (;params..., horizon=1:3000)
-else
-    @warn "not recog"
-end
+CA1PFC = Munge.causal.get_paired_embeddings(embedding, :ca1, :pfc)
+PFCCA1 = Munge.causal.get_paired_embeddings(embedding, :pfc, :ca1)
 
+# Test works
+#embeddingX,embeddingY = first(values(CA1PFC))
+#CausalityTools.predictive_asymmetry(
+#                                    eachrow(Dataset(embeddingX)), 
+#                                    eachrow(Dataset(embeddingY)), 
+#                                    est,
+#                                    params[:horizon])
 
-cp_manifold_pa = Threads.@spawn CausalityTools.predictive_asymmetry(embedding_rows[:ca1],
-                                                     embedding_rows[:pfc], est,
-                                                     params.horizon);
-pc_manifold_pa = Threads.@spawn CausalityTools.predictive_asymmetry(embedding_rows[:pfc],
-                                                     embedding_rows[:ca1], est,
-                                                     params.horizon);
+Threads.nthreads() = 2
+Threads.nthreads()
+G_ca1pfc = global_predictive_asymmetry(CA1PFC, est; params...)
+G_pfcca1 = global_predictive_asymmetry(PFCCA1, est; params...)
 
-cp_manifold_pa = fetch(cp_manifold_pa)
-pc_manifold_pa = fetch(pc_manifold_pa)
-serialize(datadir("manifold","manifold_pa_cause$(ntopt_string((;params...)))"),
-                  (;params..., est, cp_manifold_pa, pc_manifold_pa)
-                 )
+paramstr = Utils.namedtup.tostring(params)
+savefile = datadir("manifol","causal","pa_cause_$(paramstr).serial")
 
+#serialize(datadir("manifold","manifold_pa_cause$(ntopt_string((;params...)))"),
+#                  (;params..., est, cp_manifold_pa, pc_manifold_pa))
+#

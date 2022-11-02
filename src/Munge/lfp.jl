@@ -5,6 +5,7 @@ module lfp
     using DirectionalStatistics
     using ImageFiltering
     using Table
+    using Infiltrator
 
     """
         bandpass
@@ -58,7 +59,8 @@ module lfp
             step_size = median(diff(phase))
             Δₚ = [0; diff(phase)]
             #falling_zero_point = [(phase[1:end-1] .>=0) .& (phase[2:end] .<0) ; false]
-            rising_zero_point = [(phase[2:end] .>=0) .& (phase[1:end-1] .<0) ; false]
+            p = phase .- median(extrema(phase))
+            rising_zero_point = [(p[2:end] .>=0) .& (p[1:end-1] .<0) ; false]
             cycle_labels = accumulate(+, rising_zero_point)
             lfp[!,"phase"] = mod2pi.(lfp[!,"phase"])
         elseif method == "trough-to-trough"

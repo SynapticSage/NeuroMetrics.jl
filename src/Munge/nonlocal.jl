@@ -15,6 +15,7 @@ module nonlocal
     using Plots
     using LazySets
     import Random
+    using Infiltrator
 
     beh2 = nothing
     setunfilteredbeh(beh) = @eval nonlocal beh2 = $beh
@@ -49,8 +50,10 @@ module nonlocal
             end
             spu = view(spikes, inds, :)
             histogram2d(spu.x, spu.y)
-            cellspace = OrderedDict(r.time => Float32.(element(Singleton(r.x,r.y)))
-                            for r in eachrow(spu))
+            #epsilon = eps(Float64)*2
+            #r.time .+= ones(size(r.time))
+            cellspace = [Float32.(element(Singleton(r.x,r.y)))
+                         for r in eachrow(spu)] # the transform not guarenteeed same size
             U = shift0[unit=At(unit)]
             hull = [VPolygon(U[:hullseg_grid][i])
                     for i in 1:length(U[:hullseg_grid])][Utils.na, :]
@@ -62,14 +65,15 @@ module nonlocal
             else
                 #@infiltrate
             end
-            V = collect(values(cellspace))
-            infield = V .∈ hull[:,1:hullmax]
+            V = collect(cellspace)
+            #@infiltrate unit == 92
+            infield = V .∈ hull[:,1:min(size(hull,2),hullmax)]
             #infieldT = V .∈ hullT
             spu.infield = vec(any(infield,dims=2))
             title="unit=$unit,\nmean infield=$(round(mean(infield), sigdigits=2))"
             push!(P, Plots.plot(U; transpose=true))
             for h in 1:hullmax
-            Plots.plot!(hull[h]; title)
+                Plots.plot!(hull[h]; title)
             end
         end
         if shuf == true 
@@ -96,7 +100,7 @@ module nonlocal
     A summary table
     """
     function get_isolation_summary(spikes,split=[:cuemem])
-        iso_sum = combine(groupby(dropmissing(spikes,:isolated), [:area, split...]), [:isolated,:nearestcyc,:meancyc] .=> mean, (x->nrow(x)))
+        iso_sum = combine(groupby(dropmissing(spikes,[:isolated,:nearestcyc, :meancyc]), [:area, split...]), [:isolated,:nearestcyc,:meancyc] .=> mean, (x->nrow(x)))
         if :period ∈ split
             # Calculate time animal spends in each cuemem segment
             task_pers = Table.get_periods(beh2, [:period, :cuemem], 
@@ -116,14 +120,16 @@ module nonlocal
         else
             # Calculate time animal spends in each cuemem segment
             task_pers = Table.get_periods(beh2, [:period, :cuemem], 
-                                          timefract=:velVec => x->abs(x) > 2)
+                              timefract=:velVec => x->abs(x) > 2)
+            dropmissing!(task_pers, :cuemem)
             # Total that time and register that column to the isolation summary
             task_pers = combine(groupby(task_pers, [:cuemem]), [:δ,:frac] =>
                                 ((x,y)->sum(x.*y)) => :timespent)
             Utils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
         end
         # Acqruire events per time as events  / time spent
-        iso_sum.events_per_time = iso_sum.x1 ./ (iso_sum.timespent)
+        iso_sum = transform(iso_sum, :x1 => :events)[:,Not(:x1)]
+        iso_sum.events_per_time = iso_sum.events ./ (iso_sum.timespent)
         iso_sum.cuearea = iso_sum.area .* "\n" .* getindex.([clab], iso_sum.cuemem)
         iso_sum.cmlab = getindex.([clab], iso_sum.cuemem)
         iso_sum.isolated_events_per_time = iso_sum.isolated_mean .* iso_sum.events_per_time
