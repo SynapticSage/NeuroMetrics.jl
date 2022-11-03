@@ -39,7 +39,7 @@ import Utils.namedtup: ntopt_string
 try
 animals = (("RY22", 21), ("RY16", 36))
 #for (animal, day) in datasets 
-(animal,day) = animals[1]
+(animal,day) = animals[2]
 
     @time spikes, beh, ripples, cells = Load.load(animal, day)
     R = Dict(Symbol(lowercase(ar))=>Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
@@ -176,6 +176,7 @@ animals = (("RY22", 21), ("RY16", 36))
     #                  label="",xlabel="neighbors",ylabel="mindist",xscale=:log10)
     #scsum = sort(combine(groupby(sc, [:n_neighbors, :min_dist]),
     #                     :value=>median),:value_median)
+    #
 
 finally
     # Store them for later

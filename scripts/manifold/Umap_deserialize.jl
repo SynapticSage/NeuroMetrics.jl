@@ -36,19 +36,28 @@ import Utils.namedtup: ntopt_string
 
 # Load data
 # ----------------
-@time spikes, beh, ripples, cells = Load.load("RY16", 36)
-Rca1, Rpfc = (Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
-                for ar in ("CA1","PFC"))
-
-# Basic params
-# ----------------
+datasets = ( ("RY16", 36),)
 filt = nothing
 areas = (:ca1,:pfc)
 distance = :many
 feature_engineer = nothing
 feature_engineer = :zscore
-using Munge.manifold
-load_manis(Main; feature_engineer, filt, distance, tag="RY1636.9segs")
+N = 50
+@softscope for (animal,day) in datasets
+    
+    #@time spikes, beh, ripples, cells = Load.load(animal,day)
+    #Rca1, Rpfc = (Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
+    #                for ar in ("CA1","PFC"))
+
+    # Basic params
+    # ----------------
+    global embedding_overall
+    using Munge.manifold
+    load_manis(Main; feature_engineer, filt, distance, tag="$(animal)$(day).$(N)seg")
+    embedding_overall = merge(embedding_overall, embedding)
+end
+
+embedding = embedding_overall
 
 
 trans = :Matrix
@@ -62,6 +71,6 @@ end
 
 
 # Which core would you like to work on?
-min_dist, n_neighbors, metric, dim = [0.3], [5,150], [:CityBlock], 3
+min_dist, n_neighbors, metric, dim = [0.3], [5,150], [:CityBlock, :Euclidean], 3
 K = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors && k.metric ∈ metric && k.dim == dim, keys(embedding))
 embedding = Dict(k=>transform(embedding[k]) for k in K)
