@@ -43,6 +43,7 @@ task_vars = replace([beh.cuemem beh.correct],NaN=>-1)[1:nsamp, :]
 groupinds = Utils.findgroups(task_vars)
 groups    = OrderedDict(k=>task_vars[groupinds.==k,:][1,:]
                       for k in unique(groupinds))
+groups    = [[1,1],[0,1],[1,0],[0,0]]
 
 cp_cond = OrderedDict()
 pc_cond = OrderedDict()
@@ -66,3 +67,16 @@ serialize(datadir("manifold",
                   (;params..., est, cp_cond, pc_cond)
                  )
 
+
+
+plotcause(cp_cond[[1,  1]]; xlim=(0, 15), marker='.', alpha=0.2, label="c->p", rect=false)
+plotcause!(pc_cond[[1, 1]], xlim=(0, 15), marker='.', alpha=0.2, label="p->c", rect=false)
+
+plotcause(cp_cond[[0,  1]], xlim=(0, 15), marker='.', alpha=0.2, label="c->p")
+plotcause!(pc_cond[[0, 1]], xlim=(0, 15), marker='.', alpha=0.2, label="p->c")
+
+plotcause(cp_cond[[1,  0]], xlim=(0, 15), marker='.', alpha=0.2, label="c->p")
+plotcause!(pc_cond[[1, 0]], xlim=(0, 15), marker='.', alpha=0.2, label="p->c")
+
+plotcause(cp_cond[[0,  0]], xlim=(0, 15), marker='.', alpha=0.2, label="c->p")
+plotcause!(pc_cond[[0, 0]], xlim=(0, 15), marker='.', alpha=0.2, label="p->c")

@@ -4,10 +4,11 @@ module cause
     using Plots
     using Statistics, NaNStatistics
     
-    rect_default=false
+    rect_default=true
 
     @userplot PlotMeanCause
-    @recipe function plotmeancause(plt::PlotMeanCause; transform=identity, rect=rect_default)
+    @recipe function plotmeancause(plt::PlotMeanCause; transform=identity, 
+            rect=rect_default)
         set_cause = plt.args[1]
         set_cause = set_cause[[isassigned(set_cause,p) 
                                for p in eachindex(set_cause)]]
@@ -57,11 +58,12 @@ module cause
         fillrange --> 0
         label --> "thing a -> thing b"
         #@infiltrate
-        rect ? transform(one_cause) : rectify(transform(one_cause))
+        rect ? rectify(transform(one_cause)) : transform(one_cause) 
     end
 
     function rectify(a::AbstractArray)
-        a[a .< 0] .= 0
+        @info "rectify"
+        #a[a .< 0] .= 0
         a
     end
 
