@@ -67,9 +67,16 @@ module causal
     end
     function global_predictive_asymmetry(pairedembeddings::Dict, est; 
             params...)
-        Dict(
-             k=> global_predictive_asymmetry(v[1],v[2],est;params...)
+        Dict(k=> global_predictive_asymmetry(v[1],v[2],est;params...)
                  for (k,v) in pairedembeddings)
+    end
+    function global_predictive_asymmetry(checkpoint::AbstractDict, pairedembeddings::Dict, est; 
+            params...)
+        for (k,v) in pairedembeddings
+            if k ∉ keys(checkpoint)
+                push!(checkpoint, k=>global_predictive_asymmetry(v[1],v[2],est;params...))
+            end
+        end
     end
     #function global_predictive_asymmetry(embeddingX::AbstractDict,
     #                                    embeddingY::AbstractDict, est;
