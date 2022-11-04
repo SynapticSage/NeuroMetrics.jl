@@ -12,9 +12,10 @@ using Entropies
 using Munge.causal
 if !hasproperty(Main, :esttype)
 @info "prop missinG"
-    esttype = :symbolic
+    esttype = :binned
 end
 est, params = get_est_preset(esttype)
+params = (;params...,binning=4)
 
 CA1PFC = Munge.causal.get_paired_embeddings(embedding, :ca1, :pfc)
 PFCCA1 = Munge.causal.get_paired_embeddings(embedding, :pfc, :ca1)
@@ -29,8 +30,8 @@ PFCCA1 = Munge.causal.get_paired_embeddings(embedding, :pfc, :ca1)
 
 Threads.nthreads() = 3
 Threads.nthreads()
-G_ca1pfc = global_predictive_asymmetry(CA1PFC, est; params...)
-G_pfcca1 = global_predictive_asymmetry(PFCCA1, est; params...)
+G_ca1pfc = global_predictive_asymmetry(CA1PFC; params...)
+G_pfcca1 = global_predictive_asymmetry(PFCCA1; params...)
 
 paramstr = Utils.namedtup.tostring(params)
 tagstr   = tag == "" ? tag : "_$tag"

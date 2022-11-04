@@ -1,16 +1,33 @@
 using Serialization
 using ProgressMeter
 import Plot
+using DataStructures: OrderedDict
 using Plots
 using HypothesisTests
 using SoftGlobalScope
+using DataFrames
+using Timeshift
+using Timeshift.shiftmetrics
+import Field.metrics
+using Statistics, NaNStatistics
+using DimensionalData
+filts = Filt.get_filters_precache()
+thresh = 3f0
+shifts = -2f0:0.05f0:2f0
+
+#animal,day="RY16",36
+#@time spikes, beh, ripples, cells = Load.load(animal, day)
+#Plot.setappend("$animal-$day")
 
 @softscope for  w in [8]
     Plot.setfolder("timeshift","xyG-xywidth=$w")
 
-    widths["stopWell"] = 0.50
+    props = ["x","y","stopWell"]
+    widths = OrderedDict(k=>v for (k,v) in zip(props, Field.getwidths(props)))
+    widths["stopWell"] = 0.50f0
     widths["x"] = w
     widths["y"] = w
+    widths = collect(values(widths))
     Utils.filtreg.register(beh,spikes,on="time",transfer=["stopWell"])
 
     # NOTE :
@@ -18,10 +35,10 @@ using SoftGlobalScope
     # determined. This means using state-transition history to determine
     # the best fiting route @ a given time
 
-
     #@showprogress for datacut in [:all, :task, :cue, :memory]
     @showprogress for datacut in [:all, :task, :cue, :memory, :correct, :error]
-        shifted = Timeshift.shifted_fields(dropmissing(beh,:stopWell),
+        @info datacut
+        global shifted = Timeshift.shifted_fields(dropmissing(beh,:stopWell),
                                        dropmissing(spikes, :stopWell), 
                                        shifts, ["x","y"];
                                        shiftbeh=false,
@@ -30,7 +47,8 @@ using SoftGlobalScope
                                        metricfuncs=[metrics.bitsperspike,metrics.totalcount,metrics.maxrate,metrics.meanrate],
                                        filters=filts[datacut], 
                                        thresh);
-        shifted_wg = Timeshift.shifted_fields(dropmissing(beh,:stopWell),
+
+        global shifted_wg = Timeshift.shifted_fields(dropmissing(beh,:stopWell),
                                        dropmissing(spikes, :stopWell), 
                                        shifts, ["x","y","stopWell"];
                                        shiftbeh=false,
