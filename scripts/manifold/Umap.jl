@@ -13,6 +13,7 @@ using DataFramesMeta
 using Distances
 using StatsBase
 using SoftGlobalScope, Infiltrator
+using DimensionalData
 use_cuda = true
 if use_cuda
     using PyCall
@@ -92,14 +93,13 @@ animals = (("RY22", 21), ("RY16", 36))
     #dimset       = (2,   3)
     #min_dists    = (0.05,0.15,0.3)
     #n_neighborss = (5,50,150,400)
-    min_dists, n_neighborss, metrics, dimset, features = [0.3], [5,150], [:CityBlock], [2,3],
-                                                           [:raw,:zscore]
+    min_dists, n_neighborss, metrics, dimset, features = [0.3], [5,150], [:CityBlock], 
+                                                         [2,3], [:raw,:zscore]
     #embedding,scores = Dict(), Dict()
     global embedding, scores = if isfile(path_manis(;filt,feature_engineer,tag))
         @info "loading prev data"
         data=load_manis(Main;filt,feature_engineer,tag);
         embedding, scores = data.embedding, data.scores
-        @infiltrate
     else
         embedding, scores = Dict(), Dict()
     end
