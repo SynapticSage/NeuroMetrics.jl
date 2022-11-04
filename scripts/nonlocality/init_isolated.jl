@@ -50,11 +50,17 @@ beh2 = Load.load_behavior(animal,day)
 Munge.nonlocal.setunfilteredbeh(beh2)
 
 # Acquire LFP and isolated spikes
-lfp = Load.load_lfp(animal, day, tet=:default);
+lfp = Load.load_lfp(animal, day, tet=7);
 lfp.time = lfp.time .- Load.min_time_records[1]
-lfp = Munge.lfp.annotate_cycles(lfp)
+lfp = Munge.lfp.annotate_cycles(lfp, method="peak-to-peak") # TODO potential bug, 1st time runs, cuts trough-to-trough, second peak-to-peak
 @assert length(unique(lfp.cycle)) > 1
 #sp = @subset(spikes, :tetrode .== 6);
+@df lfp[1:2500,:] begin
+    Plots.plot(:time, :raw, label="raw")
+    Plots.plot!(:time, mod2pi.(:phase) .+100,label="phase")
+    Plots.plot!(:time, 10*:cycle)
+end
+
 
 F = load_fields()
 kz = collect(filter(k->k.animal == animal && k.day == day, keys(F)))
@@ -98,8 +104,14 @@ tsk = DataFrame(unique(eachrow(tsk[:,[:start,:end,:task]])))
 tsk = subset(tsk, :task=>t->t .!= "sleep")
 ismissing.(spikes.velVec)
 
-
 using JLD2
 filename = datadir("isolated","iso_animal=$(animal)_day=$(day)")
 !isdir(dirname(filename)) ? mkpath(dirname(filename)) : nothing
 @save "$filename"
+
+# Testing isolation
+Munge.spiking.isolated(spikes, lfp, include_samples=false, N=3, thresh=8)
+spikes = spikes[!,Not(:phase)];
+Utils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
+sp = dropmissing(spikes,:isolated)
+histogram(sp.phase,group=sp.isolated, normalize=:pdf, alpha=0.5)

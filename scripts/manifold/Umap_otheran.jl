@@ -1,4 +1,5 @@
 quickactivate(expanduser("~/Projects/goal-code"))
+using Infiltrator
 using DataStructures: OrderedDict
 using DrWatson
 using Serialization
@@ -93,11 +94,16 @@ animals = (("RY22", 21), ("RY16", 36))
     min_dists, n_neighborss, metrics, dimset = [0.3], [5,150], [:CityBlock], [2,3]
     tag = "$(animal)$(day).$(N)seg"
     #embedding,scores = Dict(), Dict()
-    if isfile(path_manis(;filt,feature_engineer,tag))
-        load_manis(Main;filt,feature_engineer,tag);
+    embedding, scores = if isfile(path_manis(;filt,feature_engineer,tag))
+        @info "loading prev data"
+        data=load_manis(Main;filt,feature_engineer,tag);
+        @infiltrate
+        embedding, scores = data.embedding, data.scores
     else
         embedding, scores = Dict(), Dict()
     end
+    @info "length of dicts" length(embedding) length(scores)
+    @infiltrate
 
     params   = collect(Iterators.product(metrics,min_dists, n_neighborss))
     datasets = collect(Iterators.product(areas, dimset, 1:length(inds_of_t)))
