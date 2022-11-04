@@ -50,7 +50,7 @@ beh2 = Load.load_behavior(animal,day)
 Munge.nonlocal.setunfilteredbeh(beh2)
 
 # Acquire LFP and isolated spikes
-lfp = Load.load_lfp(animal, day, tet=7);
+lfp = Load.load_lfp(animal, day, tet=18);
 lfp.time = lfp.time .- Load.min_time_records[1]
 lfp = Munge.lfp.annotate_cycles(lfp, method="peak-to-peak") # TODO potential bug, 1st time runs, cuts trough-to-trough, second peak-to-peak
 @assert length(unique(lfp.cycle)) > 1
@@ -113,5 +113,5 @@ filename = datadir("isolated","iso_animal=$(animal)_day=$(day)")
 Munge.spiking.isolated(spikes, lfp, include_samples=false, N=3, thresh=8)
 spikes = spikes[!,Not(:phase)];
 Utils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
-sp = dropmissing(spikes,:isolated)
+sp = subset(dropmissing(spikes,:isolated),:velVec => v->abs.(v) .> 4, :area => a->a .== "CA1")
 histogram(sp.phase,group=sp.isolated, normalize=:pdf, alpha=0.5)
