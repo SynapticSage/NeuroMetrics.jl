@@ -1,11 +1,14 @@
 module causal
 
+            using Infiltrator
     import Utils
 
     using CausalityTools
     using Entropies
     using CausalityTools: Dataset
     using Infiltrator
+    using DataFrames
+    import Table
 
     export get_est_preset
     function get_est_preset(esttype::Symbol)
@@ -78,6 +81,33 @@ module causal
             end
         end
     end
+
+    export make_embedding_df
+    function make_embedding_df(embedding::Dict, inds_of_t::Vector, 
+            score::Dict, beh::DataFrame; vars=[])::DataFrame
+
+        em = Table.to_dataframe(embedding, explode=false)
+        sc = Table.to_dataframe(score)
+
+        alignkeys = [k for k in (:animal, :day, :n_neighbors, :feature, :metric, :filt, :s, :area, :dim)
+                     if k ∈ propertynames(em) && k ∈ propertynames(sc)]
+        E, S = groupby(em, alignkeys), 
+                 groupby(sc, alignkeys)
+        for key in keys(E)
+            key = NamedTuple(key)
+            e, s = E[key], S[key]
+            e.score = s.value
+        end
+
+        em[!, :inds_of_t] = inds_of_t[em[!,:s]]
+        em[!, :time] = getindex.([beh], em[!,:inds_of_t],[:time])
+        for var in vars
+            em[!, var] = getindex.([beh], em[!,:inds_of_t], [var])
+        end
+
+        em
+    end
+
     #function global_predictive_asymmetry(embeddingX::AbstractDict,
     #                                    embeddingY::AbstractDict, est;
     #                                    results=Dict(),

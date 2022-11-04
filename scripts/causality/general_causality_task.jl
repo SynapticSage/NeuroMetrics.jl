@@ -24,13 +24,6 @@ embedding_rows = Dict(k=>Dataset(v)
 if esttype == :binned
     params = (;bins = 9, horizon=1:3000)
     est = VisitationFrequency(RectangularBinning(params.bins))
-    @info "Starting binned estimator, "
-elseif esttype == :symbolic
-    params = (m = 15, τ = 1)
-    #params = (m = 100, τ = 4)
-    est = SymbolicPermutation(;params...)
-    params = (;params..., horizon=1:3000)
-else
 
     @warn "not recog"
 end
