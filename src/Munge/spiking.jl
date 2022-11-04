@@ -278,10 +278,21 @@ module spiking
             explore_cycles = unique(max.(min.(c .+ explore, [size(cycles,1)]),[1]))
             if length(explore_cycles) < length(explore)
                 cycle.isolated .= false
+
+                center_times = [abs(mean(c.time)-mean(cycle.time)) for c in cycles[explore_cycles]]
+                order = sortperm(center_times)
+                nearest = explore_cycles[order] # TODO
+                cycle_prox = [abs(cycle[1,cycle_prop] - other_cyc[1,cycle_prop])
+                              for other_cyc in cycles[nearest]]
+                nearestcyc = minimum(cycle_prox)
+                meancyc    = mean(cycle_prox)
+                cycle.meancyc    .= meancyc
+                cycle.nearestcyc .= nearestcyc
+
             else
                 center_times = [abs(mean(c.time)-mean(cycle.time)) for c in cycles[explore_cycles]]
                 order = sortperm(center_times)
-                nearest = explore_cycles[order[1:N]]
+                nearest = explore_cycles[order[1:N]] # TODO make this match TODO above
                 cycle_prox = [abs(cycle[1,cycle_prop] - other_cyc[1,cycle_prop])
                               for other_cyc in cycles[nearest]]
                 nearestcyc = minimum(cycle_prox)
@@ -310,4 +321,6 @@ module spiking
     end
 
 end
+
+
 

@@ -69,7 +69,8 @@ Plot.save((;desc="isolated spikes per second"))
 
 
 Load.register(cells, spikes, on="unit", transfer=["meanrate"])
-spikes.interneuron = spikes.meanrate .> 6
+spikes.interneuron = spikes.meanrate .> 5
+histogram(spikes.meanrate)
 iso_sum_celltype = get_isolation_summary(spikes,[:cuemem, :interneuron])
 sort!(iso_sum_celltype, [:area, :interneuron, :cuemem])
 
@@ -92,10 +93,11 @@ Load.register(beh, spikes, on="time", transfer=["period","correct"])
 @assert :period ∈ propertynames(spikes)
 iso_sum_celltype_per = get_isolation_summary(spikes, [:cuemem, :interneuron,
                                                       :period, :correct])
+
 sort!(iso_sum_celltype_per, [:area, :interneuron, :cuemem, :period])
 @subset!(iso_sum_celltype_per, (:cuemem .== -1 .&& :correct .== -1) .||
-                                (:cuemem .== 0 .&& :correct .!= -1) .||
-                                (:cuemem .== 1 .&& :correct .!= -1))
+                               (:cuemem .== 0 .&& :correct .!= -1)  .||
+                               (:cuemem .== 1 .&& :correct .!= -1))
 
 
 # =========PLOTS =======================================

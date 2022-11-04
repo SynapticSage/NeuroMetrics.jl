@@ -57,8 +57,9 @@ module lfp
             cycle_labels = accumulate(+, reset_points)
         elseif method == "peak-to-peak"
             step_size = median(diff(phase))
-            Δₚ = [0; diff(phase)]
+            Δₚ        = [0; diff(phase)]
             #falling_zero_point = [(phase[1:end-1] .>=0) .& (phase[2:end] .<0) ; false]
+            @infiltrate
             p = phase .- median(extrema(phase))
             rising_zero_point = [(p[2:end] .>=0) .& (p[1:end-1] .<0) ; false]
             cycle_labels = accumulate(+, rising_zero_point)
