@@ -8,6 +8,7 @@ module causal
     using CausalityTools: Dataset
     using Infiltrator
     using DataFrames
+    using ShiftedArrays
     import Table
 
     export get_est_preset
@@ -106,6 +107,21 @@ module causal
         end
 
         em
+    end
+
+    function predictive_asymmetry_pyif(x, y, horizon; embedding, knearest, 
+            estargs::Tuple, gpu=true)
+        
+        # Discretize x and y
+
+        @pyimport PyIF
+        for h in horizon
+            yy = replace(ShiftedArray(y, (h)), missing=>0)
+            push!(PA,
+                  PyIF.te_compute(x,y,embedding=embedding,k=knearest,gpu=gpu)
+                 )
+        end
+        PA
     end
 
     #function global_predictive_asymmetry(embeddingX::AbstractDict,

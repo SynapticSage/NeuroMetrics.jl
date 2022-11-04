@@ -74,3 +74,5 @@ end
 min_dist, n_neighbors, metric, dim = [0.3], [5,150], [:CityBlock, :Euclidean], 3
 K = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors && k.metric ∈ metric && k.dim == dim, keys(embedding))
 embedding = Dict(k=>transform(embedding[k]) for k in K)
+
+embedding = 
