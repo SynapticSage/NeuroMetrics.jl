@@ -1,3 +1,16 @@
+"""
+    manifold
+
+module for munging my manifold related analyses
+
+# Major exports
+
+load_manis :: loads manifold data
+save_manis :: saves manifold data
+path_manis :: gets path to manifold file
+desc_manis :: describes manifold data with hyperparmaeter string
+
+"""
 module manifold
 
     using Serialization
@@ -15,14 +28,15 @@ module manifold
     end
 
     export desc_manis
-    function desc_manis(;filt, feature_engineer, distance=:many, delim="_", tag="")
+    function desc_manis(;filt=nothing, 
+            feature_engineer=:many, distance=:many, delim="_", tag="")
         if filt !== nothing
             filtstr = "filt=$filt"
         else
             filtstr = "filt=nothing"
         end
         tag = tag == "" ? tag : "$(delim)$tag"
-        festr   = feature_engineer === nothing ? "feature=nothing" : "feature=$feature_engineer"
+        festr  = feature_engineer === nothing ? "feature=nothing" : "feature=$feature_engineer"
         diststr = distance === nothing ? "distance=euclidean" : lowercase("distance=$distance")
         "$(filtstr)$(delim)$(diststr)$(delim)$(festr)$(tag)"
     end
@@ -44,7 +58,8 @@ module manifold
         end
         desc_vars = (;feature_engineer, distance, filt)
         desc      = desc_manis(;desc_vars...)
-        data = (;embedding, data..., feature_engineer, distance, filt, inds, desc)
+        data = (;embedding, data..., feature_engineer, 
+                distance, filt, inds, desc)
         savefile = path_manis(;feature_engineer, distance, filt, tag)
         serialize(savefile, data)
     end
@@ -67,4 +82,3 @@ module manifold
 
 
 end
-

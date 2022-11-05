@@ -1,6 +1,7 @@
 module causal
 
-            using Infiltrator
+            using Base: test_success
+using Infiltrator
     import Utils
 
     using CausalityTools
@@ -123,7 +124,7 @@ module causal
                  for (k,v) in pairedembeddings)
     end
     export global_predictive_asymmetry!
-    function global_predictive_asymmetry!(checkpoint::Dict,
+    function global_predictive_asymmetry!(checkpoint::AbstractDict,
             pairedembeddings::Dict; params...)
         for (k,v) in pairedembeddings
             if k ∉ keys(checkpoint)
@@ -132,6 +133,14 @@ module causal
         end
     end
 
+    ## ---------- CONDITIONAL WITHOUT AN ESTIMATOR ------------------
+    export conditional_pred_asym
+    function conditional_pred_asym(checkpoint::AbstractDict, 
+            pairedembeddings::Dict; params...)
+
+        checkpoint[]
+
+    end
 
     ##-------------------------------------------------------------
     ## STOLEN FROM ENTROPIES.JL  --- Missing these off develop ---
