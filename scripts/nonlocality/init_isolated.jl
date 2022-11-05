@@ -1,4 +1,4 @@
-(animal, day) = first((("RY22",21), ("super", 0)))
+(animal, day) = first((("RY22",21),("RY16",36), ("super", 0)))
 
 quickactivate(expanduser("~/Projects/goal-code/"));
 using GoalFetchAnalysis
@@ -26,7 +26,6 @@ using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
 using Plots
 using LazySets
 
-
 clab = OrderedDict(-1 => "nontask", 0 => "cue", 1=> "mem", missing=>"sleep")
 Munge.nonlocal.setclab(clab)
 isonames =  OrderedDict(false => :adjacent, true=>:isolated)
@@ -50,8 +49,8 @@ beh2 = Load.load_behavior(animal,day)
 Munge.nonlocal.setunfilteredbeh(beh2)
 
 # Acquire LFP and isolated spikes
-lfp = Load.load_lfp(animal, day, tet=7);
-lfp.time = lfp.time .- Load.min_time_records[1]
+lfp = Load.load_lfp(animal, day, tet=18);
+lfp.time = lfp.time .- Load.min_time_records[end]
 lfp = Munge.lfp.annotate_cycles(lfp, method="peak-to-peak") # TODO potential bug, 1st time runs, cuts trough-to-trough, second peak-to-peak
 @assert length(unique(lfp.cycle)) > 1
 #sp = @subset(spikes, :tetrode .== 6);
@@ -60,6 +59,8 @@ lfp = Munge.lfp.annotate_cycles(lfp, method="peak-to-peak") # TODO potential bug
     Plots.plot!(:time, mod2pi.(:phase) .+100,label="phase")
     Plots.plot!(:time, 10*:cycle)
 end
+Utils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
+@assert !all(ismissing.(spikes.phase))
 
 
 F = load_fields()
@@ -110,8 +111,22 @@ filename = datadir("isolated","iso_animal=$(animal)_day=$(day)")
 @save "$filename"
 
 # Testing isolation
-Munge.spiking.isolated(spikes, lfp, include_samples=false, N=3, thresh=8)
-spikes = spikes[!,Not(:phase)];
+#Munge.spiking.isolated(spikes, lfp, include_samples=false, N=3, thresh=8)
+spikes = :phase ∈ propertynames(spikes) ? spikes[!,Not(:phase)] : spikes
 Utils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
-sp = dropmissing(spikes,:isolated)
-histogram(sp.phase,group=sp.isolated, normalize=:pdf, alpha=0.5)
+sp = subset(dropmissing(spikes,:isolated),:velVec => v->abs.(v) .> 4, :area => a->a .== "CA1")
+sp.pyrint = replace(sp.meanrate .> 5, 0=>"pyr",1=>"int")
+s = subset(sp, :pyrint => s->s.=="pyr")
+histogram(sp.phase,group=sp.isolated, normalize=:pdf, alpha=0.5, legend_title=:isolated, xlabel="phase",ylabel="fraction")
+Plot.setfolder("phase_locking")
+Plot.setappend("$animal-$day")
+Plot.save("all_cells")
+
+
+Plot.setfolder("phase_locking", "cells_$animal-$day")
+@showprogress for s in groupby(sp,:unit)
+    histogram(s.phase,group=s.isolated, normalize=:pdf, 
+              alpha=0.5, legend_title=:isolated, xlabel="phase",
+              ylabel="fraction",xlim=(0,2*pi))
+    Plot.save((;pyrint=s.pyrint[1],area=s.area[1],cell=s.unit[1]))
+end

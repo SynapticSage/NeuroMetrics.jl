@@ -41,8 +41,9 @@ filt = nothing
 areas = (:ca1,:pfc)
 distance = :many
 feature_engineer = nothing
-feature_engineer = :zscore
-N = 50
+feature_engineer = :many
+N = 100
+embedding_overall = Dict()
 @softscope for (animal,day) in datasets
     
     #@time spikes, beh, ripples, cells = Load.load(animal,day)
@@ -71,6 +72,9 @@ end
 
 
 # Which core would you like to work on?
-min_dist, n_neighbors, metric, dim = [0.3], [5,150], [:CityBlock, :Euclidean], 3
+#min_dist, n_neighbors, metric, dim = [0.3], [5,150], [:CityBlock, :Euclidean], 3
+min_dist, n_neighbors, metric, dim = [0.3], [150], [:CityBlock], 3
 K = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors && k.metric ∈ metric && k.dim == dim, keys(embedding))
 embedding = Dict(k=>transform(embedding[k]) for k in K)
+
+#embedding = 

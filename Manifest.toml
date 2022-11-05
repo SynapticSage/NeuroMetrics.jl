@@ -1713,9 +1713,9 @@ version = "0.0.16+0"
 
 [[deps.LLVMOpenMP_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
-git-tree-sha1 = "ad927676766e6529a2d5152f12040620447c0c9b"
+git-tree-sha1 = "f689897ccbe049adb19a065c495e75f372ecd42b"
 uuid = "1d63c593-3942-5779-bab2-d838dc0a180e"
-version = "14.0.4+0"
+version = "15.0.4+0"
 
 [[deps.LLVM_full_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg", "Zlib_jll"]
@@ -2516,10 +2516,10 @@ uuid = "d96e819e-fc66-5662-9728-84c9c7592b0a"
 version = "0.12.3"
 
 [[deps.Parsers]]
-deps = ["Dates"]
-git-tree-sha1 = "6c01a9b494f6d2a9fc180a08b182fcb06f0958a0"
+deps = ["Dates", "SnoopPrecompile"]
+git-tree-sha1 = "cceb0257b662528ecdf0b4b4302eb00e767b38e7"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.4.2"
+version = "2.5.0"
 
 [[deps.PersistentCollections]]
 deps = ["LMDB_jll"]
@@ -3363,9 +3363,9 @@ version = "0.4.74"
 
 [[deps.TransferEntropy]]
 deps = ["DSP", "DelayEmbeddings", "Distances", "Entropies", "Neighborhood", "Reexport", "SpecialFunctions", "StaticArrays", "Statistics", "TimeseriesSurrogates"]
-git-tree-sha1 = "20f0506fba59bf54885524720ed1d7291b76a3a3"
+git-tree-sha1 = "c95db1ba6cf5df885955b0c0e2f89efc52307869"
 uuid = "ea221983-52f3-5440-99c7-13ea201cd633"
-version = "1.9.0"
+version = "1.10.0"
 
 [[deps.TriangularSolve]]
 deps = ["CloseOpenIntervals", "IfElse", "LayoutPointers", "LinearAlgebra", "LoopVectorization", "Polyester", "SnoopPrecompile", "Static", "VectorizationBase"]

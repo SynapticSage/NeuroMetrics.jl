@@ -1,16 +1,33 @@
 using Serialization
 using ProgressMeter
 import Plot
+using DataStructures: OrderedDict
 using Plots
 using HypothesisTests
 using SoftGlobalScope
+using DataFrames
+using Timeshift
+using Timeshift.shiftmetrics
+import Field.metrics
+using Statistics, NaNStatistics, HypothesisTests
+using DimensionalData
+filts = Filt.get_filters_precache()
+thresh = 3f0
+shifts = -2f0:0.05f0:2f0
+
+animal,day="RY22",21
+@time spikes, beh, ripples, cells = Load.load(animal, day)
+Plot.setappend("$animal-$day")
 
 @softscope for  w in [8]
     Plot.setfolder("timeshift","xyG-xywidth=$w")
 
-    widths["stopWell"] = 0.50
+    props = ["x","y","stopWell"]
+    widths = OrderedDict(k=>v for (k,v) in zip(props, Field.getwidths(props)))
+    widths["stopWell"] = 0.50f0
     widths["x"] = w
     widths["y"] = w
+    widths = collect(values(widths))
     Utils.filtreg.register(beh,spikes,on="time",transfer=["stopWell"])
 
     # NOTE :
@@ -18,19 +35,23 @@ using SoftGlobalScope
     # determined. This means using state-transition history to determine
     # the best fiting route @ a given time
 
-
     #@showprogress for datacut in [:all, :task, :cue, :memory]
     @showprogress for datacut in [:all, :task, :cue, :memory, :correct, :error]
-        shifted = Timeshift.shifted_fields(dropmissing(beh,:stopWell),
+        @info datacut
+        global shifted = Timeshift.shifted_fields(dropmissing(beh,:stopWell),
                                        dropmissing(spikes, :stopWell), 
                                        shifts, ["x","y"];
                                        shiftbeh=false,
                                        widths, 
                                        adaptive=false,
-                                       metricfuncs=[metrics.bitsperspike,metrics.totalcount,metrics.maxrate,metrics.meanrate],
+                                       metricfuncs=[metrics.bitsperspike,
+                                                    metrics.totalcount,
+                                                    metrics.maxrate,
+                                                    metrics.meanrate],
                                        filters=filts[datacut], 
                                        thresh);
-        shifted_wg = Timeshift.shifted_fields(dropmissing(beh,:stopWell),
+
+        global shifted_wg = Timeshift.shifted_fields(dropmissing(beh,:stopWell),
                                        dropmissing(spikes, :stopWell), 
                                        shifts, ["x","y","stopWell"];
                                        shiftbeh=false,
@@ -39,7 +60,9 @@ using SoftGlobalScope
                                        metricfuncs=[metrics.bitsperspike,metrics.totalcount,metrics.maxrate,metrics.meanrate],
                                        filters=filts[datacut], 
                                        thresh);
+
         fwg, f = matrixform(ShiftedFields(shifted_wg)), matrixform(ShiftedFields(shifted))
+
         serialize(datadir("exp_pro", "xyG-$datacut-$w-fmat"), (;f, fwg))
 
         sh = collect(shifts)
@@ -89,16 +112,16 @@ using SoftGlobalScope
         Plot.save("summary, <1, datacut=$datacut, w=$w, pval=$(pvalue(t))")
         ##scatter(vec(fwg[:bestshift_bitsperspike]), vec(gm), title="$datacut")
  
-        #scatter(vec(B[:,1]), vec(B[:,2]), title="$datacut")
-        #Plot.save((;desc="scatter goal_index versus bestshift_bitsperspike",
-        #           datacut))
+        scatter(vec(B[:,1]), vec(B[:,2]), title="$datacut")
+        Plot.save((;desc="scatter goal_index versus bestshift_bitsperspike",
+                   datacut))
 
-        #histogram2d(vec(fwg[:bestshift_bitsperspike]), vec(gm), title="$datacut")
-        #Plot.save((;desc="histogram2d goal_index versus bestshift_bitsperspike",
-        #           datacut))
+        histogram2d(vec(fwg[:bestshift_bitsperspike]), vec(gm), title="$datacut")
+        Plot.save((;desc="histogram2d goal_index versus bestshift_bitsperspike",
+                   datacut))
 
-        #histogram(vec(fwg[:bestshift_bitsperspike]), title="$datacut")
-        #Plot.save((;desc="histogram bestshift_bitsperspike", datacut))
+        histogram(vec(fwg[:bestshift_bitsperspike]), title="$datacut")
+        Plot.save((;desc="histogram bestshift_bitsperspike", datacut))
         inds = sortperm(fwg[:bestshift_bitsperspike][:,1])
         bps  = fwg[:bitsperspike][inds, :]
 

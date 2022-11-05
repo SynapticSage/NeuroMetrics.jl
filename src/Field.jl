@@ -26,6 +26,14 @@ module Field
     rateConversion = 30
     export rateConversion
 
+	WIDTHS = OrderedDict(
+	    "x"=>5f0, "y"=>5f0, "currentPathLength"=>4f0,
+        "currentAngle"=>Float32(2pi/40),
+        "stopWell"=>0.5f0
+	)
+    getwidths(props::Vector{String};scale=1)::Vector{Float32} = [Field.WIDTHS[prop]*scale for prop in props]
+    getwidthsdict(props::Vector{String};scale=1)= Dict(prop=>Field.WIDTHS[prop]*scale for prop in props )
+
 
     # Our basic RECEPTIVE-FIELD type components
     abstract type Grid end

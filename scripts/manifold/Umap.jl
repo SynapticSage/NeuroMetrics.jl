@@ -13,6 +13,7 @@ using DataFramesMeta
 using Distances
 using StatsBase
 using SoftGlobalScope, Infiltrator
+using DimensionalData
 use_cuda = true
 if use_cuda
     using PyCall
@@ -43,6 +44,7 @@ animals = (("RY22", 21), ("RY16", 36))
 (animal,day) = animals[1]
 
     @time spikes, beh, ripples, cells = Load.load(animal, day)
+
     R = Dict(Symbol(lowercase(ar))=>Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
                     for ar in ("CA1","PFC"))
     zscoredimarray(x) = DimArray(hcat(zscore.(eachcol(x))...), x.dims)
@@ -51,7 +53,7 @@ animals = (("RY22", 21), ("RY16", 36))
 
     # Basic params
     # ----------------
-    global filt             = nothing
+    global filt             = :all
     global areas            = (:ca1,:pfc)
     #distance        = :Mahalanobis
     global distance         = :many
@@ -61,7 +63,7 @@ animals = (("RY22", 21), ("RY16", 36))
     if filt !== nothing
         filtstr = "filt=$filt"
         filters = Filt.get_filters()[filt]
-        Utils.filtreg.filterAndRegister(beh, spikes; filters)
+        Utils.filtreg.filterAndRegister(beh, spikes; filters, filter_skipmissingcols=true)
     else
         filtstr = "filt=nothing"
     end
@@ -92,14 +94,13 @@ animals = (("RY22", 21), ("RY16", 36))
     #dimset       = (2,   3)
     #min_dists    = (0.05,0.15,0.3)
     #n_neighborss = (5,50,150,400)
-    min_dists, n_neighborss, metrics, dimset, features = [0.3], [5,150], [:CityBlock], [2,3],
-                                                           [:raw,:zscore]
+    min_dists, n_neighborss, metrics, dimset, features = [0.3], [5,150], [:CityBlock], 
+                                                         [2,3], [:raw,:zscore]
     #embedding,scores = Dict(), Dict()
     global embedding, scores = if isfile(path_manis(;filt,feature_engineer,tag))
         @info "loading prev data"
         data=load_manis(Main;filt,feature_engineer,tag);
         embedding, scores = data.embedding, data.scores
-        @infiltrate
     else
         embedding, scores = Dict(), Dict()
     end
