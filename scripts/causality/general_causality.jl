@@ -10,12 +10,11 @@ using Utils.namedtup: ntopt_string
 using CausalityTools
 using Entropies
 using Munge.causal
-if !hasproperty(Main, :esttype)
+
 @info "prop missinG"
-    esttype = :binned
-end
+esttype = :binned
 est, params = get_est_preset(esttype)
-params = (;params...,binning=4)
+params = (;params...,binning=5)
 
 CA1PFC = Munge.causal.get_paired_embeddings(embedding, :ca1, :pfc)
 PFCCA1 = Munge.causal.get_paired_embeddings(embedding, :pfc, :ca1)
@@ -28,10 +27,15 @@ PFCCA1 = Munge.causal.get_paired_embeddings(embedding, :pfc, :ca1)
 #                                    est,
 #                                    params[:horizon])
 
-Threads.nthreads() = 3
+Threads.nthreads() = 16
 Threads.nthreads()
-G_ca1pfc = global_predictive_asymmetry(CA1PFC; params...)
-G_pfcca1 = global_predictive_asymmetry(PFCCA1; params...)
+
+G_ca1pfc = G_pfcca1 = nothing
+G_ca1pfc, G_pfcca1 = Dict(), Dict()
+GC.gc()
+
+global_predictive_asymmetry!(G_ca1pfc, CA1PFC; params...)
+global_predictive_asymmetry!(G_pfcca1, PFCCA1; params...)
 
 paramstr = Utils.namedtup.tostring(params)
 tagstr   = tag == "" ? tag : "_$tag"

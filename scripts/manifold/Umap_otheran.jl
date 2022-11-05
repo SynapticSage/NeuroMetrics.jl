@@ -52,7 +52,7 @@ animals = (("RY22", 21), ("RY16", 36))
 
     # Basic params
     # ----------------
-    global filt             = nothing
+    global filt             = :all
     global areas            = (:ca1,:pfc)
     #distance        = :Mahalanobis
     global distance         = :many
@@ -62,7 +62,8 @@ animals = (("RY22", 21), ("RY16", 36))
     if filt !== nothing
         filtstr = "filt=$filt"
         filters = Filt.get_filters()[filt]
-        Utils.filtreg.filterAndRegister(beh, spikes; filters)
+        Utils.filtreg.filterAndRegister(beh, spikes; filters, 
+        filter_skipmissingcols=true)
     else
         filtstr = "filt=nothing"
     end

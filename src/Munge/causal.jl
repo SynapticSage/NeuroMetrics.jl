@@ -16,16 +16,16 @@ module causal
     #@pyimport PyIF
 
     export get_est_preset
-    function get_est_preset(esttype::Symbol)
+    function get_est_preset(esttype::Symbol, horizon=1500)
         if esttype == :binned
-            params = (;bins = [0.25,0.25,0.25], horizon=1:2500)
+            params = (;bins = [0.25,0.25,0.25], horizon=1:horizon)
             est = VisitationFrequency(RectangularBinning(params.bins))
             @info "Starting binned estimator, "
         elseif esttype == :symbolic
             params = (m = 15, τ = 1)
             #params = (m = 100, τ = 4)
             est = SymbolicPermutation(;params...)
-            params = (;params..., horizon=1:2500)
+            params = (;params..., horizon=1:horizon)
         else
             @warn "not recog"
         end
@@ -73,13 +73,14 @@ module causal
         global_predictive_asymmetry(
              Dataset(embeddingX), Dataset(embeddingY), est; params...)
     end
-    function global_predictive_asymmetry(pairedembeddings::Dict, est; 
+    function global_predictive_asymmetry(pairedembeddings::Dict, 
+            est::ProbabilitiesEstimator; 
             params...)
         Dict(k=> global_predictive_asymmetry(v[1],v[2],est;params...)
                  for (k,v) in pairedembeddings)
     end
-    function global_predictive_asymmetry(checkpoint::AbstractDict, pairedembeddings::Dict, est; 
-            params...)
+    function global_predictive_asymmetry!(checkpoint::AbstractDict, 
+            pairedembeddings::Dict, est; params...)
         for (k,v) in pairedembeddings
             if k ∉ keys(checkpoint)
                 push!(checkpoint, k=>global_predictive_asymmetry(v[1],v[2],est;params...))
@@ -99,7 +100,7 @@ module causal
         @info est
 
         if thread
-            @async @time CausalityTools.predictive_asymmetry(
+            Threads.@spawn @time CausalityTools.predictive_asymmetry(
                                                 uniX, 
                                                 uniY, 
                                                 est,
@@ -121,8 +122,9 @@ module causal
         Dict(k=> global_predictive_asymmetry(v[1],v[2];params...)
                  for (k,v) in pairedembeddings)
     end
-    function global_predictive_asymmetry(checkpoint::AbstractDict, pairedembeddings::Dict; 
-            params...)
+    export global_predictive_asymmetry!
+    function global_predictive_asymmetry!(checkpoint::Dict,
+            pairedembeddings::Dict; params...)
         for (k,v) in pairedembeddings
             if k ∉ keys(checkpoint)
                 push!(checkpoint, k=>global_predictive_asymmetry(v[1],v[2];params...))
@@ -204,7 +206,7 @@ module causal
     export encode_dataset
     function encode_dataset(x::Dataset, ϵ::RectangularBinning)
         enc =  RectangularBinEncoding(x, ϵ)
-        out = outcomes(x, enc)
+        outcomes(x, enc)
     end
     export encode_dataset_univar
     function encode_dataset_univar(x::Dataset, ϵ::RectangularBinning)
@@ -243,19 +245,23 @@ module causal
         em
     end
 
-    function predictive_asymmetry_pyif(x, y, horizon, pyif::Module; embedding, knearest, 
-            estargs::Tuple, gpu=false)
-        
-        # Discretize x and y
+    export predictive_asymmetry_pyif
+    function predictive_asymmetry_pyif(x, y, horizon, pyif::Module; 
+            embedding=1, knearest=1, gpu=false)
 
+        PA,AP=[],[]
         for h in horizon
             yy = replace(ShiftedArray(y, (h)), missing=>0)
             push!(PA,
-                  PyIF.te_compute.te_compute(x,y,
-                    embedding=embedding,k=knearest,gpu=gpu)
+                  pyif.te_compute.te_compute(x,y,
+                    embedding=embedding,k=knearest,GPU=gpu)
+                 )
+            push!(AP,
+                  pyif.te_compute.te_compute(y,x,
+                        embedding=embedding,k=knearest,GPU=gpu)
                  )
         end
-        PA
+        cumsum(PA) - cumsum(AP)
     end
 
     #function global_predictive_asymmetry(embeddingX::AbstractDict,
