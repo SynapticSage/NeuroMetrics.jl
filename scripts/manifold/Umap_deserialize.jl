@@ -37,6 +37,7 @@ import Utils.namedtup: ntopt_string
 # Load data
 # ----------------
 datasets = ( ("RY16", 36),)
+animal, day = datasets[1]
 filt = nothing
 areas = (:ca1,:pfc)
 distance = :many
@@ -44,18 +45,20 @@ feature_engineer = nothing
 feature_engineer = :many
 N = 100
 embedding_overall = Dict()
-@softscope for (animal,day) in datasets
-    
-    #@time spikes, beh, ripples, cells = Load.load(animal,day)
-    #Rca1, Rpfc = (Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
-    #                for ar in ("CA1","PFC"))
 
-    # Basic params
-    # ----------------
-    global embedding_overall
-    using Munge.manifold
-    load_manis(Main; feature_engineer, filt, distance, tag="$(animal)$(day).$(N)seg")
-    embedding_overall = merge(embedding_overall, embedding)
+#Rca1, Rpfc = (Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
+#                for ar in ("CA1","PFC"))
+
+# Basic params
+# ----------------
+global embedding_overall
+using Munge.manifold
+load_manis(Main; feature_engineer, filt, distance, tag="$(animal)$(day).$(N)seg")
+embedding_overall = merge(embedding_overall, embedding)
+filters = Filt.get_filters()
+@time global spikes, beh, ripples, cells = Load.load(animal,day)
+if Symbol(filt) in keys(filters)
+    global beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes; filter_skipmissingcols=true, filters=filters[Symbol(filt)])
 end
 
 embedding = embedding_overall

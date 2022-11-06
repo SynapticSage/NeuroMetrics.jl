@@ -43,7 +43,7 @@ animals = (("RY22", 21), ("RY16", 36))
 #for (animal, day) in datasets 
 (animal,day) = animals[2]
 
-    @time global spikes, beh, ripples, cells = Load.load(animal, day)
+    @time spikes, beh, ripples, cells = Load.load(animal, day)
     R = Dict(Symbol(lowercase(ar))=>Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
                     for ar in ("CA1","PFC"))
     zscoredimarray(x) = DimArray(hcat(zscore.(eachcol(x))...), x.dims)
@@ -52,7 +52,7 @@ animals = (("RY22", 21), ("RY16", 36))
 
     # Basic params
     # ----------------
-    global filt             = :all
+    global filt             = nothing
     global areas            = (:ca1,:pfc)
     #distance        = :Mahalanobis
     global distance         = :many
@@ -62,7 +62,7 @@ animals = (("RY22", 21), ("RY16", 36))
     if filt !== nothing
         filtstr = "filt=$filt"
         filters = Filt.get_filters()[filt]
-        global beh,spikes = Utils.filtreg.filterAndRegister(beh, spikes; filters, 
+        Utils.filtreg.filterAndRegister(beh, spikes; filters, 
         filter_skipmissingcols=true)
     else
         filtstr = "filt=nothing"
