@@ -1,7 +1,6 @@
 module causal
 
-            using Base: test_success
-using Infiltrator
+    using Infiltrator
     import Utils
 
     using CausalityTools
@@ -10,6 +9,7 @@ using Infiltrator
     using Infiltrator
     using DataFrames
     using ShiftedArrays
+    using DataStructures: OrderedDict
     using StaticArrays
     import Table
     import DelayEmbeddings
@@ -53,8 +53,8 @@ using Infiltrator
 
     
     ## ---------- GLOBAL WITH AN ESTIMATOR ------------------
-    export global_predictive_asymmetry
-    function global_predictive_asymmetry(embeddingX::Dataset,
+    export predictive_asymmetry
+    function predictive_asymmetry(embeddingX::Dataset,
             embeddingY::Dataset, est; thread=true, params...)
         if thread
             Threads.@spawn CausalityTools.predictive_asymmetry(
@@ -69,38 +69,54 @@ using Infiltrator
                                                 params[:horizon])
         end
     end
-    function global_predictive_asymmetry(embeddingX::AbstractArray,
+    function predictive_asymmetry(embeddingX::AbstractArray,
                 embeddingY::AbstractArray, est; params...)
-        global_predictive_asymmetry(
+        predictive_asymmetry(
              Dataset(embeddingX), Dataset(embeddingY), est; params...)
     end
-    function global_predictive_asymmetry(pairedembeddings::Dict, 
+    function predictive_asymmetry(pairedembeddings::Dict, 
             est::ProbabilitiesEstimator; 
             params...)
-        Dict(k=> global_predictive_asymmetry(v[1],v[2],est;params...)
+        Dict(k=> predictive_asymmetry(v[1],v[2],est;params...)
                  for (k,v) in pairedembeddings)
     end
-    function global_predictive_asymmetry!(checkpoint::AbstractDict, 
+    function predictive_asymmetry!(checkpoint::AbstractDict, 
             pairedembeddings::Dict, est; params...)
         for (k,v) in pairedembeddings
             if k ∉ keys(checkpoint)
-                push!(checkpoint, k=>global_predictive_asymmetry(v[1],v[2],est;params...))
+                push!(checkpoint, k=>predictive_asymmetry(v[1],v[2],est;params...))
             end
         end
     end
 
     ## ---------- GLOBAL WITHOUT AN ESTIMATOR ------------------
-    function global_predictive_asymmetry(embeddingX::Dataset,
+    function predictive_asymmetry(embeddingX::Dataset,
             embeddingY::Dataset; thread=true, params...)
-        
-        est  = RectangularBinning(params[:binning])
-        uniX = encode_dataset_univar(embeddingX, est)
-        uniY = encode_dataset_univar(embeddingY, est)
-        M = Int64(max(maximum(uniX),maximum(uniY)))
-        est = VisitationFrequency(RectangularBinning(M))
-        @info est
 
-        if thread
+        # Subset by a condition?
+        if :condition_inds ∈ keys(params) && 
+            :s ∈ keys(params) && 
+            :inds_of_t ∈ keys(params)
+            @info "indexing" params[:s]
+            subset = params[:condition_inds][collect(params[:inds_of_t][params[:s]])]
+            embeddingX, embeddingY = embeddingX[subset], embeddingY[subset]
+        else
+            @info "not indexing"
+        end
+        
+        # Embed into univariate space
+        if !isempty(embeddingX)
+            est  = RectangularBinning(params[:binning])
+            uniX = encode_dataset_univar(embeddingX, est)
+            uniY = encode_dataset_univar(embeddingY, est)
+            M = Int64(max(maximum(uniX),maximum(uniY)))
+            est = VisitationFrequency(RectangularBinning(M))
+            @info est
+        end
+
+        if isempty(embeddingX)
+            missing
+        elseif thread
             Threads.@spawn @time CausalityTools.predictive_asymmetry(
                                                 uniX, 
                                                 uniY, 
@@ -113,22 +129,22 @@ using Infiltrator
                                                 params[:horizon])
         end
     end
-    function global_predictive_asymmetry(embeddingX::AbstractArray,
+    function predictive_asymmetry(embeddingX::AbstractArray,
                 embeddingY::AbstractArray; params...)
-        global_predictive_asymmetry(
+        predictive_asymmetry(
              Dataset(embeddingX), Dataset(embeddingY); params...)
     end
-    function global_predictive_asymmetry(pairedembeddings::Dict; 
+    function predictive_asymmetry(pairedembeddings::Dict; 
             params...)
-        Dict(k=> global_predictive_asymmetry(v[1],v[2];params...)
+        Dict(k=> predictive_asymmetry(v[1],v[2];k...,params...)
                  for (k,v) in pairedembeddings)
     end
-    export global_predictive_asymmetry!
-    function global_predictive_asymmetry!(checkpoint::AbstractDict,
+    export predictive_asymmetry!
+    function predictive_asymmetry!(checkpoint::AbstractDict,
             pairedembeddings::Dict; params...)
         for (k,v) in pairedembeddings
             if k ∉ keys(checkpoint)
-                push!(checkpoint, k=>global_predictive_asymmetry(v[1],v[2];params...))
+                push!(checkpoint, k=>predictive_asymmetry(v[1],v[2];k...,params...))
             end
         end
     end
@@ -136,9 +152,26 @@ using Infiltrator
     ## ---------- CONDITIONAL WITHOUT AN ESTIMATOR ------------------
     export conditional_pred_asym
     function conditional_pred_asym(checkpoint::AbstractDict, 
-            pairedembeddings::Dict; params...)
+            pairedembeddings::Dict, data::DataFrame, data_vars=[:cuemem, :correct]; 
+            groups=nothing, params...)
 
-        checkpoint[]
+        data_vars = replace(hcat([data[!,var] for var in data_vars]...),NaN=>-1)
+        groupinds = Utils.findgroups(data_vars)
+        groupsfulllist    = OrderedDict(data_vars[findfirst(groupinds.==k),:]=>k
+                          for k in unique(groupinds))
+        if groups === nothing
+            groups = groupsfulllist
+        end
+        #groups    = [[1,1],[0,1],[1,0],[0,0]]
+
+        for group in groups
+            @info group
+            condition_inds = groupsfulllist[group] .== groupinds
+            if group ∉ keys(checkpoint)
+                checkpoint[group] = Dict()
+            end
+            predictive_asymmetry!(checkpoint[group], pairedembeddings; condition_inds, params...)
+        end
 
     end
 

@@ -289,6 +289,11 @@ git-tree-sha1 = "49549e2c28ffb9cc77b3689dc10e46e6271e9452"
 uuid = "052768ef-5323-5732-b1bb-66c8b64840ba"
 version = "3.12.0"
 
+[[deps.CachedDicts]]
+git-tree-sha1 = "4a3c76b223e745b24ea1c33ab45945874494bb48"
+uuid = "e69b5797-b9f7-4a92-bcfe-7d0cb35ca5b6"
+version = "0.1.0"
+
 [[deps.Cairo]]
 deps = ["Cairo_jll", "Colors", "Glib_jll", "Graphics", "Libdl", "Pango_jll"]
 git-tree-sha1 = "d0b3f8b4ad16cb0a2988c6788646a5e6a17b6b1b"
@@ -710,6 +715,14 @@ deps = ["OffsetArrays"]
 git-tree-sha1 = "bd0543363fc8ceac0c9fb24d38783ffffd95c20c"
 uuid = "3c3547ce-8d99-4f5e-a174-61eb10b00ae3"
 version = "0.3.7"
+
+[[deps.DiskBackedDicts]]
+deps = ["ArgCheck", "CachedDicts", "JLD2"]
+git-tree-sha1 = "2d2b0cf2d87562c8f63f6ec5316ea048b45a8cc7"
+repo-rev = "master"
+repo-url = "https://github.com/jw3126/DiskBackedDicts.jl"
+uuid = "a606033f-14ee-4438-ae87-3b404a2b735d"
+version = "0.1.0"
 
 [[deps.Distances]]
 deps = ["LinearAlgebra", "SparseArrays", "Statistics", "StatsAPI"]

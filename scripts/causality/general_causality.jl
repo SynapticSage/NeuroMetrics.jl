@@ -14,6 +14,7 @@ using Munge.causal
 @info "prop missinG"
 esttype = :binned
 est, params = get_est_preset(esttype)
+params = (;params..., horizon=1:250, thread=true)
 params = (;params...,binning=5)
 
 CA1PFC = Munge.causal.get_paired_embeddings(embedding, :ca1, :pfc)
@@ -29,18 +30,39 @@ PFCCA1 = Munge.causal.get_paired_embeddings(embedding, :pfc, :ca1)
 
 Threads.nthreads() = 16
 Threads.nthreads()
-
-G_ca1pfc = G_pfcca1 = nothing
-G_ca1pfc, G_pfcca1 = Dict(), Dict()
+using DiskBackedDicts, ThreadSafeDicts
+global G_ca1pfc = G_pfcca1 = C_ca1pfc = C_pfcca1 = nothing
+if params[:thread]
+    Dtype = ThreadSafeDict
+    G_ca1pfc, G_pfcca1 = ThreadSafeDict(), ThreadSafeDict()
+    C_ca1pfc, C_pfcca1 = ThreadSafeDict(), ThreadSafeDict()
+else
+    Dtype = DiskBackedDict
+    G_ca1pfc, G_pfcca1 = DiskBackedDict("G_ca1pfc.jld2"), DiskBackedDict("G_pfcca1.jld2")
+    C_ca1pfc, C_pfcca1 = DiskBackedDict("C_ca1pfc.jld2"), DiskBackedDict("C_pfcca1.jld2")
+end
 GC.gc()
 
-global_predictive_asymmetry!(G_ca1pfc, CA1PFC; params...)
-global_predictive_asymmetry!(G_pfcca1, PFCCA1; params...)
+conditional_pred_asym(C_ca1pfc, CA1PFC, beh, [:cuemem,:correct]; 
+                      groups=[[1,1],[1,0],[0,1],[0,0]], 
+                      inds_of_t, params...)
+conditional_pred_asym(C_pfcca1, CA1PFC, beh, [:cuemem,:correct]; 
+                      groups=[[1,1],[1,0],[0,1],[0,0]], 
+                      inds_of_t, params...)
+
+predictive_asymmetry!(G_ca1pfc, CA1PFC; params...)
+predictive_asymmetry!(G_pfcca1, PFCCA1; params...)
+
 
 paramstr = Utils.namedtup.tostring(params)
-tagstr   = tag == "" ? tag : "_$tag"
-savefile = datadir("manifold","causal","pa_cause_$(paramstr)$tagstr.serial")
-serialize(savefile, (;params..., est, G_ca1pfc, G_pfcca1))
+tagstr = if "tag" in propertynames(Main)
+    "_$tag"
+else
+    "$animal$day.$(N)seg"
+end
+savefile = datadir("manifold","causal","pa_cause_$(paramstr)$tagstr.jld2")
+using JLD2
+JLD2.@save(savefile, params, est, G_ca1pfc, G_pfcca1, C_ca1pfc, C_pfcca1)
 
 #serialize(datadir("manifold","manifold_pa_cause$(ntopt_string((;params...)))"),
 #                  (;params..., est, cp_manifold_pa, pc_manifold_pa))
