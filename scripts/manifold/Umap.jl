@@ -1,4 +1,5 @@
 quickactivate(expanduser("~/Projects/goal-code"))
+
 using Infiltrator
 using DataStructures: OrderedDict
 using DrWatson
@@ -41,7 +42,7 @@ import Utils.namedtup: ntopt_string
 try
 animals = (("RY22", 21), ("RY16", 36))
 #for (animal, day) in datasets 
-(animal,day) = animals[1]
+(animal,day) = animals[2]
 
     @time global spikes, beh, ripples, cells = Load.load(animal, day)
 
@@ -53,7 +54,7 @@ animals = (("RY22", 21), ("RY16", 36))
 
     # Basic params
     # ----------------
-    global filt             = :all
+    global filt             = nothing
     global areas            = (:ca1,:pfc)
     #distance        = :Mahalanobis
     global distance         = :many
@@ -61,11 +62,12 @@ animals = (("RY22", 21), ("RY16", 36))
 
     # Filter
     if filt !== nothing
-        filtstr = "filt=$filt"
+        global filtstr = "filt=$filt"
         filters = Filt.get_filters()[filt]
-        global beh,spikes =Utils.filtreg.filterAndRegister(beh, spikes; filters, filter_skipmissingcols=true)
+        global beh,spikes = Utils.filtreg.filterAndRegister(beh, spikes; filters, 
+        filter_skipmissingcols=true)
     else
-        filtstr = "filt=nothing"
+        global filtstr = "filt=nothing"
     end
     global festr   = feature_engineer === nothing ? "feature=nothing" : "feature=$feature_engineer"
     global diststr = distance === nothing ? "distance=euclidean" : lowercase("distance=$distance")
@@ -95,7 +97,7 @@ animals = (("RY22", 21), ("RY16", 36))
     #min_dists    = (0.05,0.15,0.3)
     #n_neighborss = (5,50,150,400)
     min_dists, n_neighborss, metrics, dimset, features = [0.3], [5,150], [:CityBlock], 
-                                                         [2,3], [:raw,:zscore]
+                                                         [2,3], [:zscore]
     #embedding,scores = Dict(), Dict()
     global embedding, scores = if isfile(path_manis(;filt,feature_engineer,tag))
         @info "loading prev data"
@@ -180,7 +182,7 @@ finally
     # Store them for later
     using Munge.manifold
     savefile = path_manis(;filt,feature_engineer,tag)
-    @info "save info" filtstr festr diststr savefile
+    @info "save info" filt festr diststr savefile
     save_manis(;embedding, scores, inds_of_t, filt, feature_engineer, use_cuda, tag, splits, sampspersplit, N)
 
     #exit()

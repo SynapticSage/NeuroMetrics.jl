@@ -25,6 +25,9 @@ using LazySets
 
 
 
+cycles.time = (cycles.stop - cycles.start)/2 + cycles.start
+Utils.filtreg.register(cycles, spikes; on="time", transfer=["cycle"])
+
 
 """
 # ==========================================
@@ -44,7 +47,9 @@ using LazySets
 # - cycle cuts
 # - spike raster
 
-isospikes = @subset(spikes, :isolated, (!).(ismissing.(:isolated)),
+isospikes = @subset(spikes, 
+                    :isolated, 
+                    (!).(ismissing.(:isolated)),
                     (!).(ismissing.(:cycle)))
 cycles.isounits   = Vector{Union{Missing,Vector}}(missing, size(cycles,1));
 cycles.isotime    = Vector{Union{Missing,Vector}}(missing, size(cycles,1));
@@ -57,23 +62,57 @@ gs, gl, gc = groupby(isospikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cyc
     s, l, c = gs[(;cycle)], gl[(;cycle)], gc[(;cycle)]
     c = view(c, 1, :)
     c[:isounits]   = s.unit
-    c[:isotime]   = s.time
-    c[:isoN]   = size(s,1)
+    c[:isotime]    = s.time
+    c[:isoN]       = size(s,1)
+    c[:nearestcyc] = disallowmissing(s.nearestcyc)
+    c[:meancyc]    = disallowmissing(s.meancyc)
+    c[:cycLen]     = size(l,1)
+end
+dropmissing(cycles, :isounits)
+
+function plot_cycle()
+end
+
+Plot.setfolder("examples, isolated cycles")
+gs, gl, gc, gS = groupby(isospikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cycle), groupby(spikes,:cycle)
+
+cycfilt = subset(dropmissing(cycles, :isounits),
+                 :cycLen => l->l.>10)
+@assert !isempty(cycfilt)
+
+cycle = first(eachrow(cycfilt))
+cycleit = Iterators.take(Random.shuffle(eachrow(cycfilt)), 100)
+@showprogress "plotting cycles" for cycle in cycleit
+    stats = Plot.nonlocal.plot_cycle_example(gs,gl,cycle;return_stats=true, gS)
+    Plot.save((;cycle=stats.cycle, units=stats.unit))
+end
+
+# --------------------------------------
+
+Plot.setfolder("examples, adjacent cycles")
+adjspikes = @subset(spikes, (!).(:isolated), (!).(ismissing.(:isolated)),
+                    (!).(ismissing.(:cycle)))
+cycles.adjunits   = Vector{Union{Missing,Vector}}(missing, size(cycles,1));
+cycles.adjtime    = Vector{Union{Missing,Vector}}(missing, size(cycles,1));
+cycles.adjN       = Vector{Union{Missing,Int16}}(missing, size(cycles,1));
+gs, gl, gc = groupby(adjspikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cycle)
+@showprogress for cycle in unique(disallowmissing(adjspikes.cycle))
+    s, l, c = gs[(;cycle)], gl[(;cycle)], gc[(;cycle)]
+    c = view(c, 1, :)
+    c[:adjunits]   = s.unit
+    c[:adjtime]   = s.time
+    c[:adjN]   = size(s,1)
     c[:nearestcyc] = disallowmissing(s.nearestcyc)
     c[:meancyc]    = disallowmissing(s.meancyc)
     c[:cycLen]     = size(l,1)
 end
 
-
-Plot.setfolder("examples, isolated cycles")
-gs, gl, gc = groupby(isospikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cycle)
-cycfilt = subset(dropmissing(cycles, :isounits),
-                 :cycLen => l->l.>10)
-cycle = first(eachrow(cycfilt))
-cycleit = Iterators.take(Random.shuffle(eachrow(cycfilt)), 1_000)
+gs, gl, gc = groupby(adjspikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cycle)
+cycfilt = subset(dropmissing(cycles, :adjunits))
+cycle   = first(eachrow(cycfilt))
+cycleit = Iterators.take(Random.shuffle(eachrow(cycfilt)), 100)
 @showprogress "plotting cycles" for cycle in cycleit
-    stats = Plot.nonlocal.plot_cycle_example(gs,gl,cycle;return_stats=true)
-    stats.plot
+    stats = Plot.nonlocal.plot_cycle_example(gs,gl,cycle;return_stats=true, gS)
     Plot.save((;cycle=stats.cycle, units=stats.unit))
 end
 

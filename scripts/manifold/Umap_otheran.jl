@@ -41,7 +41,7 @@ import Utils.namedtup: ntopt_string
 try
 animals = (("RY22", 21), ("RY16", 36))
 #for (animal, day) in datasets 
-(animal,day) = animals[2]
+(animal,day) = animals[1]
 
     @time global spikes, beh, ripples, cells = Load.load(animal, day)
     R = Dict(Symbol(lowercase(ar))=>Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
@@ -180,7 +180,7 @@ finally
     # Store them for later
     using Munge.manifold
     savefile = path_manis(;filt,feature_engineer,tag)
-    @info "save info" filtstr festr diststr savefile
+    @info "save info" filt festr diststr savefile
     save_manis(;embedding, scores, inds_of_t, filt, feature_engineer, use_cuda, tag, splits, sampspersplit, N)
 
     #exit()

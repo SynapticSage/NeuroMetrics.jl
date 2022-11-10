@@ -155,7 +155,7 @@ module causal
             pairedembeddings::Dict, data::DataFrame, data_vars=[:cuemem, :correct]; 
             groups=nothing, params...)
 
-        data_vars = replace(hcat([data[!,var] for var in data_vars]...),NaN=>-1)
+        data_vars = replace(hcat([data[!,var] for var in data_vars]...),NaN=>-1,missing=>-1)
         groupinds = Utils.findgroups(data_vars)
         groupsfulllist    = OrderedDict(data_vars[findfirst(groupinds.==k),:]=>k
                           for k in unique(groupinds))
