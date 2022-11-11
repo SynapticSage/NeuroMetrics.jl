@@ -46,7 +46,6 @@ module cause
         m --> :circle
         fillrange --> 0
         label --> "thing a -> thing b"
-        #@infiltrate
         set_cause = median(transform(set_cause),dims=1)'
         set_cause = rect ? rectify(set_cause) : set_cause
         if length(plt.args) == 1

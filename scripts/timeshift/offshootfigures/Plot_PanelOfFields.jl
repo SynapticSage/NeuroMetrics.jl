@@ -16,6 +16,7 @@
     end
     
     animal, day = "RY16", 36
+    #animal, day = "RY22", 21
     #D=JLD2.load("/home/ryoung/tmp.jld2")
     #Utils.dict.load_dict_to_module!(Main,D)
 
@@ -24,7 +25,6 @@
     Plot.setappend("$animal-$day")
 
 @time begin
-    Plot.setfolder("timeshift","population","panel_of_fields")
     Plot.setappend("$animal-$day")
 
     @time F = load_fields();
@@ -39,7 +39,7 @@
 end
 
 # Setup basic metrics, like the area and dimensions of the dimarray
-push_metric!.([M], [Field.metrics.meanrate, Field.metrics.maxrate, Field.metrics.bitsperspike, Field.metrics.coherence])
+push_metric!.([M], [Field.metrics.meanrate, Field.metrics.maxrate, Field.metrics.bitsperspike, Field.metrics.coherence, Field.metrics.centroid])
 push_celltable!( M, cells, :unit, :area)
 push_shiftmetric!(M, best_tau!; metric=:bitsperspike)
 push_dims!(M)
@@ -89,15 +89,30 @@ push_shiftmetric!(Msub0, best_tau!; metric=:bitsperspike)
 
 # Display the fields at a zero shift
 # TODO CAUTION can and will crash from field size!
-Pfieldsplay = fieldsplay(Msub0[1:100]; colorbar=false, 
+    Pfieldsplay = fieldsplay(Msub0[1:60]; colorbar=false, 
+                    metricdisp=[:unit, :area, :meanrate, :maxrate],
+                    scale_spg=2, metricfilter, totalarea_aspect=1,
+                    totalcount=100,
+                    srt=[:area, :coherence], transpose=false,
+                    title_width=20,area_conditional_c)
+#serialize(expanduser("~/tmp.jld2"), (;Pfieldsplay, Msub0, metricfilter, area_conditional_c))
+Plot.save("fields_at_zero_shift_srt=coherence")
+
+Plot.setfolder("timeshifts", "field x shift", "$animal-$day")
+for (u, shift) in Iterators.product(1:size(M,1),1:size(M,2))
+    area = M[u, shift][:area]
+    unit = M[u, shift][:unit]
+    if area == "CA1"
+        continue
+    end
+    @info "cell" area
+
+    c =  area_conditional_c[area]
+    plot(M[u,shift]; colorbar=false, 
                 metricdisp=[:unit, :area, :meanrate, :maxrate],
-                scale_spg=2, metricfilter, totalarea_aspect=1,
-                totalcount=100,
-                srt=[:area, :coherence], transpose=false,
-                title_width=20,area_conditional_c)
-
-Plot.save("fields_at_zero_shift_srt=coherence_$animal-$day")
-
+                transpose=false, c)
+    Plot.save((;unit,shift))
+end
 
 # GET A GIF OF ACTIVITY
 prog = Progress(length(shifts);
@@ -118,6 +133,21 @@ anim = @animate for shift in shifts
 end
 gif(anim)
 
+push_metric!(Msub0, Field.metrics.convexhull)
+
+function plothull(U)
+    U = U[:convexhull]
+    hull = [VPolygon(U[:hullseg_grid][i])
+        for i in 1:length(U[:hullseg_grid])][Utils.na, :]
+    if lenth(hull)>=1
+    plot!(hull[1])
+    else
+    plot!()
+    end
+end
+for m in Msub0
+    plothull(Msub0)
+end
 
 # GET FRAME AT BEST
 push_shiftmetric!(Msub, best_tauind!; metric=:bitsperspike)

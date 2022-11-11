@@ -100,7 +100,9 @@ module nonlocal
     A summary table
     """
     function get_isolation_summary(spikes,split=[:cuemem])
-        iso_sum = combine(groupby(dropmissing(spikes,[:isolated,:nearestcyc, :meancyc]), [:area, split...]), [:isolated,:nearestcyc,:meancyc] .=> mean, (x->nrow(x)))
+        iso_sum = combine(groupby(dropmissing(spikes,[:isolated,:nearestcyc, :meancyc]), [:area, split...]), 
+                          [:isolated,:nearestcyc,:meancyc,:velVec] .=> mean, (x->nrow(x)))
+        @infiltrate
         if :period ∈ split
             # Calculate time animal spends in each cuemem segment
             task_pers = Table.get_periods(beh2, [:period, :cuemem], 
@@ -123,7 +125,8 @@ module nonlocal
                               timefract=:velVec => x->abs(x) > 2)
             dropmissing!(task_pers, :cuemem)
             # Total that time and register that column to the isolation summary
-            task_pers = combine(groupby(task_pers, [:cuemem]), [:δ,:frac] =>
+            task_pers = combine(groupby(task_pers, [:cuemem]), 
+                                [:δ,:frac] =>
                                 ((x,y)->sum(x.*y)) => :timespent)
             Utils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
         end
@@ -134,6 +137,7 @@ module nonlocal
         iso_sum.cmlab = getindex.([clab], iso_sum.cuemem)
         iso_sum.isolated_events_per_time = iso_sum.isolated_mean .* iso_sum.events_per_time
         ord = Dict("nontask"=>1,"cue"=>2,"mem"=>3)
+        @infiltrate
         sort(iso_sum, [DataFrames.order(:cmlab, by=x->ord[x]),:cuearea])
     end
 

@@ -142,6 +142,21 @@ function plotcausedistovertime(C::Dict;ch=:black,cmc=:black,labelmc="",histalpha
            xlabel="time (s)", ylabel="ℙ_asymmetry", label="")
 end
 
+function getmedian(set_cause)
+    set_cause = collect(values(set_cause))
+    inds = [isassigned(set_cause,p) && !ismissing(p) for p in eachindex(set_cause)]
+    set_cause = skipmissing(set_cause[inds])
+    set_cause = hcat(set_cause...)'
+    vec(median(transform(set_cause),dims=2))
+end
+function getmean(set_cause)
+    set_cause = collect(values(set_cause))
+    inds = [isassigned(set_cause,p) && !ismissing(p) for p in eachindex(set_cause)]
+    set_cause = skipmissing(set_cause[inds])
+    set_cause = hcat(set_cause...)'
+    vec(mean(transform(set_cause),dims=2))
+end
+
 # --------------------------------------------------
 
 Plot.setfolder("manifold","GEN_CAUSAL")
@@ -162,7 +177,7 @@ plot(plotcausedistovertime(G_ca1pfc; cmc=:red, labelmc="ca1 → pfc",caukws...,h
      size=(1200,600)
    )
 
-Plot.save("GEN_CAUSAL-$tagstr")
+Plot.save("GEN_CAUSAL-$tagstr-opaque")
 
 # --------------------------------------------------
 
@@ -209,3 +224,9 @@ P2= plot(
 )
 
 Plot.save("CUE-$tagstr-opaque")
+
+
+lab = Dict([0,1]=>"CUE correct", [0,0]=>"CUE error", [1,1]=>"MEM correct", [1,0]=>"MEM error")
+Cm_ca1pfc=Dict("CA1→PFC "*lab[k] => getmean(v) for (k,v) in C_ca1pfc)
+Cm_pfcca1=Dict("CA1→PFC "*lab[k] => getmean(v) for (k,v) in C_pfcca1)
+

@@ -88,8 +88,7 @@ cycleit = Iterators.take(Random.shuffle(eachrow(cycfilt)), 100)
 end
 
 # --------------------------------------
-
-Plot.setfolder("examples, adjacent cycles")
+Plot.setfolder("examples, adjacent cycles, indiv")
 adjspikes = @subset(spikes, (!).(:isolated), (!).(ismissing.(:isolated)),
                     (!).(ismissing.(:cycle)))
 cycles.adjunits   = Vector{Union{Missing,Vector}}(missing, size(cycles,1));
@@ -112,7 +111,7 @@ cycfilt = subset(dropmissing(cycles, :adjunits))
 cycle   = first(eachrow(cycfilt))
 cycleit = Iterators.take(Random.shuffle(eachrow(cycfilt)), 100)
 @showprogress "plotting cycles" for cycle in cycleit
-    stats = Plot.nonlocal.plot_cycle_example(gs,gl,cycle;return_stats=true, gS)
+    stats = Plot.nonlocal.plot_cycle_example(gs,gl,cycle;return_stats=true, gS, )
     Plot.save((;cycle=stats.cycle, units=stats.unit))
 end
 
