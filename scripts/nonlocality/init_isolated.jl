@@ -1,4 +1,4 @@
-(animal, day) = first((("RY22",21),("RY16",36), ("super", 0)))
+(animal, day) = first((("RY16",36),("RY22",21), ("super", 0)))
 
 quickactivate(expanduser("~/Projects/goal-code/"));
 using GoalFetchAnalysis
@@ -43,7 +43,8 @@ Plot.setparentfolder("nonlocality")
 # Acquire data
 @time spikes, beh, cells = Load.load(animal, day, data_source=["spikes","behavior", "cells"])
 GC.gc()
-beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes, on="time", transfer=["x","y","cuemem"], filters=filt[datacut], filter_skipmissingcols=true)
+beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes, on="time", transfer=["x","y","cuemem"], 
+filters=filt[datacut], filter_skipmissingcols=true)
 allspikes = copy(spikes)
 beh2 = Load.load_behavior(animal,day)
 Munge.nonlocal.setunfilteredbeh(beh2)

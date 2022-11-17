@@ -20,6 +20,7 @@ module receptivefield
     using Measures
     using Colors
 
+    import Random
     using Memoization
     function clear_memoize_receptivefield!() 
         Memoization.empty_cache!(upsample)
@@ -50,9 +51,10 @@ module receptivefield
         X = xlims()
     end
 
-    @recipe function plot_adaptiverf(field::ReceptiveField, val::Symbol=:rate;
+    @recipe function plot_adaptiverf(field::ReceptiveField, val::Symbol=:rate,
+            transpose::Bool=true;
             ztransform::Bool=false, mfunc::Function=nanmean,
-            sfunc::Function=nanstd, title_width=40, transpose::Bool=true,
+            sfunc::Function=nanstd, title_width=40, 
             upsamp::Int=2, gauss::Real=nothing, 
             bardisp=nothing,
             interpmode=(BSpline(Constant()), BSpline(Constant())))
@@ -215,8 +217,9 @@ module receptivefield
     @recipe function fieldsplay(plt::FieldSplay, val::Symbol=:rate; 
             srt=nothing, vectorize=true, veccolwidth=nothing,
             area_conditional_c::Union{Nothing, AbstractDict}=nothing,
-            scale_spg=1,
+            scale_spg=1, randsamp=nothing, totalsamp=nothing,
             change_on_metric=nothing,
+            transpose=true,
             sizepergraph=(150,150), totalarea_aspect=1, metricfilter=nothing,
             metricdisp=nothing
         )
@@ -236,6 +239,11 @@ module receptivefield
                        by=x->Tuple(x[i] for i in 1:size(metvals,2)), rev=true)
             fields = fields[Int.(metvals[:,end])]
         end
+
+        fields = totalsamp === nothing ? fields : fields[1:totalsamp]
+        fields = randsamp === nothing ? fields : Random.shuffle(fields)[1:randsamp]
+
+
         blanks, usefieldsize, undefined = [], true, 0
         veccolwidth = veccolwidth === nothing ?
         round(ceil(sqrt(length(fields))) * totalarea_aspect) :
@@ -266,6 +274,7 @@ module receptivefield
         #background_color_outside := ;match
         aspect_ratio --> 1
 
+
         for f in 1:length(fields)
             @series begin
                 margin --> 0.2mm
@@ -290,7 +299,7 @@ module receptivefield
                     if area_conditional_c !== nothing
                         c --> area_conditional_c[fields[f].metrics[:area]]
                     end
-                    (fields[f], val)
+                    (fields[f], val, transpose)
                 end
             end
         end

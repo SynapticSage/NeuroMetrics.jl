@@ -389,7 +389,8 @@ module metrics
     end
     function centroid(X::ReceptiveField)::Vector{Float32}
         filled = (!).(isnan.(X.rate))
-        sum(X.grid.grid[filled] .* X.rate[filled]) ./ sum(X.rate[filled])
+        rate = X.count[filled]./X.occ.count[filled]
+        sum(X.grid.grid[filled] .* rate) ./ sum(rate)
     end
     array_of_tuples(X::Vector{<:CartesianIndex}) = [x.I for x in X]
     array_of_arrays(X::Vector{<:CartesianIndex}) = [collect(x.I) for x in X]

@@ -24,6 +24,8 @@ using Plots
 using LazySets
 using ElectronDisplay # to potentially defeat the GKS error
 
+Utils.filtreg.register(beh,spikes;on="time",transfer=["velVec"])
+
 """
 TODOS
 
@@ -54,6 +56,24 @@ isolated = last(groupby(subset(spikes, :isolated=>x->(!).(isnan.(x))) ,
                                         :isolated))
 @assert all(isolated.isolated .== true)
 
+
+Load.register(cells, spikes, on="unit", transfer=["meanrate"])
+spikes.interneuron = spikes.meanrate .> 5
+histogram(cells.meanrate)
+iso_sum_celltype = get_isolation_summary(spikes,[:cuemem, :interneuron])
+sort!(iso_sum_celltype, [:area, :interneuron, :cuemem])
+
+Load.register(beh, spikes, on="time", transfer=["period","correct","velVec"])
+@assert :period ∈ propertynames(spikes)
+iso_sum_celltype_per = get_isolation_summary(spikes, [:cuemem, :interneuron,
+                                                      :period, :correct])
+sort!(iso_sum_celltype_per, [:area, :interneuron, :cuemem, :period])
+@subset!(iso_sum_celltype_per, (:cuemem .== -1 .&& :correct .== -1) .||
+                               (:cuemem .== 0 .&& :correct .!= -1)  .||
+                               (:cuemem .== 1 .&& :correct .!= -1))
+subset!(iso_sum_celltype_per, :events_per_time => x-> (!).(isinf.(x)))
+iso_sum_celltype_per
+
 # =========PLOTS =======================================
 Plot.setfolder("MUA and isolated MUA")
 kws=(;legend_position=Symbol("outerbottomright"))
@@ -68,11 +88,6 @@ Plot.save((;desc="isolated spikes per second"))
 # ======================================================
 
 
-Load.register(cells, spikes, on="unit", transfer=["meanrate"])
-spikes.interneuron = spikes.meanrate .> 5
-histogram(spikes.meanrate)
-iso_sum_celltype = get_isolation_summary(spikes,[:cuemem, :interneuron])
-sort!(iso_sum_celltype, [:area, :interneuron, :cuemem])
 
 # =========PLOTS =======================================
 @df iso_sum_celltype bar(:cuearea, :events_per_time, ylabel="MUA events per second\n$(filt_desc[:all])", group=:interneuron; kws...)
@@ -88,17 +103,6 @@ Plot.save((;desc="isolated spikes per second, celltype"))
 Period-wise calculations
 ===========================
 """
-
-Load.register(beh, spikes, on="time", transfer=["period","correct"])
-@assert :period ∈ propertynames(spikes)
-iso_sum_celltype_per = get_isolation_summary(spikes, [:cuemem, :interneuron,
-                                                      :period, :correct])
-
-sort!(iso_sum_celltype_per, [:area, :interneuron, :cuemem, :period])
-@subset!(iso_sum_celltype_per, (:cuemem .== -1 .&& :correct .== -1) .||
-                               (:cuemem .== 0 .&& :correct .!= -1)  .||
-                               (:cuemem .== 1 .&& :correct .!= -1))
-
 
 # =========PLOTS =======================================
 # -------- mua per second ------------------------------
@@ -208,8 +212,9 @@ Plot.save((;desc="fract vs mua-per-sec, CA1"))
 summary of period iso_mean
 ===========================
 """
-
 Plot.setfolder("MUA and isolated MUA", "period-wise-summary")
+
+
 XX = combine(groupby(@subset(iso_sum_celltype_per, :interneuron .== false, :area .== "CA1"),
                      :cuemem), :isolated_mean => median, :isolated_mean => x->std(x)/sqrt(length(x))
             )
@@ -238,20 +243,36 @@ Plot.save(kws)
 """
 summary of period mua
 """
-
-XX = combine(groupby(@subset(iso_sum_celltype_per, :interneuron .== false, :area .== "CA1"),
-                     :cuemem), :events_per_time => median, :events_per_time => x->std(x)/sqrt(length(x))
+XXg = groupby(@subset(iso_sum_celltype_per, :area .== "CA1"), :cuemem)
+XX = combine(XXg, :events_per_time => median, 
+             :events_per_time => x->nanstd(x)./sqrt(length(x))
             )
 # TODO median, not mean, and bootstrap the median
-kws=(;xlabel="cuemem", ylabel="MUA per sec", title="CA1 pyr")
-@df XX bar(:cuemem, :events_per_time_median, yerror=:events_per_time_function;
+kws=(;xlabel="cuemem", ylabel="MUA per sec", title="CA1 MUA per second")
+@df XX bar(:cuemem, :events_per_time_median, yerr=:events_per_time_function;
+          linewidth=2, 
           kws...)
+@df XX plot!(:cuemem, :events_per_time_median, yerr=:events_per_time_function, linestyle=Symbol("none"))
+Plot.save(kws)
+
+XXg = groupby(@subset(iso_sum_celltype_per, :interneuron .== false, :area .== "CA1"), :cuemem)
+XX = combine(XXg, :events_per_time => median, 
+             :events_per_time => x->nanstd(x)./sqrt(length(x))
+            )
+# TODO median, not mean, and bootstrap the median
+kws=(;xlabel="cuemem", ylabel="MUA per sec", title="CA1 pyr MUA")
+@df XX bar(:cuemem, :events_per_time_median, yerr=:events_per_time_function;
+          linewidth=2, 
+          kws...)
+@df XX plot!(:cuemem, :events_per_time_median, yerr=:events_per_time_function, linestyle=:none)
 Plot.save(kws)
 
 XX = combine(groupby(@subset(iso_sum_celltype_per, :interneuron .== true, :area .== "CA1"),
-                     :cuemem), :events_per_time => median, :events_per_time => x->std(x)/sqrt(length(x))
+                     :cuemem), 
+             :events_per_time => median, 
+             :events_per_time => x->std(x)/sqrt(length(x))
             )
-kws=(;xlabel="cuemem", ylabel="MUA per sec", title="CA1 int")
+kws=(;xlabel="cuemem", ylabel="MUA per sec", title="CA1 int MUA")
 @df XX bar(:cuemem, :events_per_time_median, yerror=:events_per_time_function;
           kws...)
 Plot.save(kws)

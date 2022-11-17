@@ -15,11 +15,13 @@ filts = Filt.get_filters_precache()
 thresh = 3f0
 shifts = -2f0:0.05f0:2f0
 
-animal,day="RY22",21
-@time spikes, beh, ripples, cells = Load.load(animal, day)
-Plot.setappend("$animal-$day")
+#animal,day="RY22",21
+@softscope for (animal,day) in (("super",0),) # ("RY16", 36))
+    @info "dataset" animal day
+    @time spikes, beh, ripples, cells = Load.load(animal, day)
+    Plot.setappend("$animal-$day")
 
-@softscope for  w in [8]
+    w = 8
     Plot.setfolder("timeshift","xyG-xywidth=$w")
 
     props = ["x","y","stopWell"]
@@ -63,11 +65,19 @@ Plot.setappend("$animal-$day")
 
         fwg, f = matrixform(ShiftedFields(shifted_wg)), matrixform(ShiftedFields(shifted))
 
-        serialize(datadir("exp_pro", "xyG-$datacut-$w-fmat"), (;f, fwg))
+        serialize(datadir("exp_pro", "$animal-$day-xyG-$datacut-$w-fmat"), (;f, fwg, animal, day, shifts, thresh, w))
 
+        # Get shifts
         sh = collect(shifts)
-        #f, fwg = deserialize(datadir("exp_pro", "xyG-$datacut-$w-fmat"))
+
+        # Add metrics
         push_shiftmetric!(fwg, best_tau!; metric=:bitsperspike)
+
+        # -------------
+        # GOAL INDEXING
+        # -------------
+        # Grab the goalindex as the mean response to goal-pursuit across the
+        # different XY positions 
         gd = [Utils.squeeze(nanmean(nanmean(f.rate; dims=1), dims=2))
               for f in fwg]
         gm = [nanmaximum(g)-nanminimum(g) for g in gd]
@@ -78,7 +88,10 @@ Plot.setappend("$animal-$day")
         gc = [nanmaximum(c./o)-nanminimum(c./o)
               for (c,o) in zip(g_count, g_occ_count)]
 
+        # CLEAN :  Throw away responses with best BPS less than 0.5 (papers throw out these neurons)
         fwg[:bestshift_bitsperspike][fwg[:bestshift_bitsperspike] .< 0.5] .= NaN
+
+        # Obtain a dimarray representation
         gm = DimArray(gm, fwg.dims)
 
         B = []

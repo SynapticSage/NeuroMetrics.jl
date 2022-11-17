@@ -37,6 +37,7 @@ import Utils.namedtup: ntopt_string
 # Load data
 # ----------------
 datasets = ( ("RY16", 36),)
+#datasets = ( ("RY22", 21),)
 animal, day = datasets[1]
 filt = nothing
 areas = (:ca1,:pfc)
@@ -76,8 +77,9 @@ end
 
 # Which core would you like to work on?
 #min_dist, n_neighbors, metric, dim = [0.3], [5,150], [:CityBlock, :Euclidean], 3
-min_dist, n_neighbors, metric, dim = [0.3], [150], [:CityBlock], 3
-K = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors && k.metric ∈ metric && k.dim == dim, keys(embedding))
+min_dist, n_neighbors, metric, dim, feature = [0.3], [150], [:CityBlock], 3, :zscore
+K = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors && k.metric ∈ metric && k.dim == dim && k.feature == feature, keys(embedding))
 embedding = Dict(k=>transform(embedding[k]) for k in K)
+K
+em = make_embedding_df(embedding, inds_of_t, scores, beh)
 
-#embedding = 

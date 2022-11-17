@@ -8,12 +8,13 @@ module causal
     using CausalityTools: Dataset
     using Infiltrator
     using DataFrames
-    import Table
     using ShiftedArrays
     using DataStructures: OrderedDict
     using StaticArrays
     import Table
     import DelayEmbeddings
+    #using PyCall
+    #@pyimport PyIF
 
     export get_est_preset
     function get_est_preset(esttype::Symbol, horizon=1500)
@@ -154,7 +155,7 @@ module causal
             pairedembeddings::Dict, data::DataFrame, data_vars=[:cuemem, :correct]; 
             groups=nothing, params...)
 
-        data_vars = replace(hcat([data[!,var] for var in data_vars]...),NaN=>-1)
+        data_vars = replace(hcat([data[!,var] for var in data_vars]...),NaN=>-1,missing=>-1)
         groupinds = Utils.findgroups(data_vars)
         groupsfulllist    = OrderedDict(data_vars[findfirst(groupinds.==k),:]=>k
                           for k in unique(groupinds))
@@ -304,7 +305,8 @@ module causal
         end
         cumsum(PA) - cumsum(AP)
     end
-#function global_predictive_asymmetry(embeddingX::AbstractDict,
+
+    #function global_predictive_asymmetry(embeddingX::AbstractDict,
     #                                    embeddingY::AbstractDict, est;
     #                                    results=Dict(),
     #                                    params...)
