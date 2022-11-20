@@ -12,16 +12,14 @@ module fixed
     using Statistics
 
     using ..Field
-    import ..Field: Grid, ReceptiveField, Occupancy
+    import ..Field: ReceptiveField
     import ..Field: get_boundary, resolution_to_width, return_vals
     import ..Field.metrics: MetricSet
     import Utils
     import Table
     import Table: CItype, CItype_plusNull
     import Utils.filtreg: filterAndRegister
-
-    
-                                                   
+    using Utils.binning
 
     struct GridFixed <: Field.Grid
         props::Array{String}

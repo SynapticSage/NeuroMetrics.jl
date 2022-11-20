@@ -1,21 +1,22 @@
 module preset
 
-    import Field: adaptive, fixed, metrics
+    import Field: adaptive, metrics#, fixed 
+    import Utils: binning
 
     export field_presets, return_preset_funcs
 
     field_presets = Dict(
 
-        :fixed=>
-        (;fullname="fixed",
-         desc=s"""classic fixed receptive field sampling""",
-         fieldfunc   = fixed.RFs,
-         gridfunc    = fixed.get_grid,
-         occfunc     = fixed.get_occupancy,
-         metricfuncs = metrics.information,
-         postfunc    = nothing,
-         grid_kws    = (;width=4)
-        ),
+        #:fixed=>
+        #(;fullname="fixed",
+        # desc=s"""classic fixed receptive field sampling""",
+        # fieldfunc   = fixed.RFs,
+        # gridfunc    = fixed.get_grid,
+        # occfunc     = fixed.get_occupancy,
+        # metricfuncs = metrics.information,
+        # postfunc    = nothing,
+        # grid_kws    = (;width=4)
+        #),
         
 
         :legacy =>
@@ -26,8 +27,8 @@ module preset
         (;fullname="adaptive-sampling-yartsev",
          desc=s"""adaptive sampling, yartsev 3d place field paper""",
          fieldfunc   = adaptive.yartsev,
-         gridfunc    = adaptive.get_grid,
-         occfunc     = adaptive.get_occupancy,
+         gridfunc    = binning.get_grid,
+         occfunc     = binning.get_occupancy,
          metricfuncs = adaptive.metric_def,
          postfunc    = nothing,
          grid_kws    = (;width=4)

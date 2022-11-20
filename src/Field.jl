@@ -3,7 +3,6 @@ module Field
     export get_fields
     export ReceptiveField, Grid, Occupancy
 
-
     # Julia Packages
     using DataFrames
     using ImageFiltering
@@ -36,9 +35,7 @@ module Field
 
 
     # Our basic RECEPTIVE-FIELD type components
-    abstract type Grid end
     abstract type ReceptiveField end
-    abstract type Occupancy end
     ReceptiveFields = AbstractArray{<:ReceptiveField}
 
     function Base.push!(R::ReceptiveField, measurement_name::Symbol, measurement_value)
@@ -168,8 +165,8 @@ module Field
     #import .recon_process
     include(srcdir("Field","adaptive.jl"))
     @reexport using .adaptive
-    include(srcdir("Field","fixed.jl"))
-    @reexport using .fixed
+    #include(srcdir("Field","fixed.jl"))
+    #@reexport using .fixed
     include(srcdir("Field","preset.jl"))
     @reexport using .preset
     include(srcdir("Field","coactivity.jl"))

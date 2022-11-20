@@ -1,18 +1,20 @@
 module metrics
 
+    import ..Field
+    import ..Field: ReceptiveField
+    import Table
+    import Table: vec_arrayofarrays!
+    import Utils
+    using Utils.binning
+    import Load.utils: register
+    import Load: keep_overlapping_times
+
     using StatsBase
     using Entropies: Probabilities
     using NaNStatistics
     using DataFrames, DataFramesMeta
     import DataStructures: OrderedDict
     using DimensionalData
-    import ..Field
-    import ..Field: ReceptiveField, Grid
-    import Table
-    import Table: vec_arrayofarrays!
-    import Utils
-    import Load.utils: register
-    import Load: keep_overlapping_times
     using Images, ImageSegmentation, LazySets
     import TextWrap
     using Infiltrator

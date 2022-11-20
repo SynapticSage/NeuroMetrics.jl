@@ -1,0 +1,15 @@
+  src/Plot/receptive<commandt>f</commandt><commandt>i</commandt><commandt>e</commandt><commandt>l</commandt><commandt>d</commandt><commandt>.</commandt><commandt>j</commandt><commandt>l</commandt>
+  src/<commandt>F</commandt><commandt>i</commandt><commandt>e</commandt><commandt>l</commandt><commandt>d</commandt>/coactivity<commandt>.</commandt><commandt>j</commandt><commandt>l</commandt>
+  src/<commandt>F</commandt><commandt>i</commandt><commandt>e</commandt><commandt>l</commandt><commandt>d</commandt>/operation<commandt>.</commandt><commandt>j</commandt><commandt>l</commandt>
+  scripts/<commandt>f</commandt><commandt>i</commandt><commandt>e</commandt><commandt>l</commandt><commandt>d</commandt>s/SplitBy_GoalField<commandt>.</commandt><commandt>j</commandt><commandt>l</commandt>
+  src/Munge/<commandt>f</commandt><commandt>i</commandt><commandt>e</commandt><commandt>l</commandt><commandt>d</commandt>grad<commandt>.</commandt><commandt>j</commandt><commandt>l</commandt>
+  scripts/<commandt>f</commandt><commandt>i</commandt><commandt>e</commandt><commandt>l</commandt><commandt>d</commandt>s/App<commandt>.</commandt><commandt>j</commandt><commandt>l</commandt>
+  src/<commandt>F</commandt><commandt>i</commandt><commandt>e</commandt><commandt>l</commandt><commandt>d</commandt>/metrics<commandt>.</commandt><commandt>j</commandt><commandt>l</commandt>
+  src/<commandt>F</commandt><commandt>i</commandt><commandt>e</commandt><commandt>l</commandt><commandt>d</commandt>/preset<commandt>.</commandt><commandt>j</commandt><commandt>l</commandt>
+  src/<commandt>F</commandt><commandt>i</commandt><commandt>e</commandt><commandt>l</commandt><commandt>d</commandt>/legacy<commandt>.</commandt><commandt>j</commandt><commandt>l</commandt>
+  scripts/<commandt>f</commandt><commandt>i</commandt><commandt>e</commandt><commandt>l</commandt><commandt>d</commandt>s/PlaceField<commandt>.</commandt><commandt>j</commandt><commandt>l</commandt>
+  scripts/<commandt>f</commandt><commandt>i</commandt><commandt>e</commandt><commandt>l</commandt><commandt>d</commandt>s/GoalField<commandt>.</commandt><commandt>j</commandt><commandt>l</commandt>
+  src/<commandt>F</commandt><commandt>i</commandt><commandt>e</commandt><commandt>l</commandt><commandt>d</commandt>/recon<commandt>.</commandt><commandt>j</commandt><commandt>l</commandt>
+  src/<commandt>F</commandt><commandt>i</commandt><commandt>e</commandt><commandt>l</commandt><commandt>d</commandt>/fixed<commandt>.</commandt><commandt>j</commandt><commandt>l</commandt>
+  src/<commandt>F</commandt><commandt>i</commandt><commandt>e</commandt><commandt>l</commandt><commandt>d</commandt>/fit<commandt>.</commandt><commandt>j</commandt><commandt>l</commandt>
+> src/Field.jl                                                                                                                         
