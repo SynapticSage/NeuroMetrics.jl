@@ -5,6 +5,9 @@ module binning
     using Entropies
     import DataStructures: OrderedDict
     using DataFrames
+    using LazyGrids: ndgrid
+    using ProgressMeter
+    using Missings
 
     # Radius measurements
     #function vector_dist(vals::Array, center::Array)::Vector{Float32}
@@ -81,9 +84,9 @@ module binning
             end
             centers = centers isa Array ? Tuple(centers) : centers
             centers = Tuple(Float32.(c) for c in centers)
-            grid = Field.sparse_to_full(centers)
+            grid = sparse_to_full(centers)
             radii = fill(radii, size(grid))
-            edges = Field.center_to_edge.([[c...] for c in centers])
+            edges = center_to_edge.([[c...] for c in centers])
             edges = Tuple((e...,) for e in edges)
             new(props, centers, edges, grid, radii)
         end
@@ -92,7 +95,7 @@ module binning
                 props = String.(props)
             end
             @assert(size(grid) == size(radii))
-            edges = Field.center_to_edge.([[c...] for c in centers])
+            edges = center_to_edge.([[c...] for c in centers])
             edges = Tuple((e...,) for e in edges)
             new(props, centers, edges, grid, radii)
         end
@@ -137,12 +140,12 @@ module binning
         info::Bool=false,
         kws...)::GridAdaptive
 
-        Field.ensureTimescale!(behavior)
+        #ensureTimescale!(behavior)
         dt = dt === nothing ?
              median(diff(behavior.time)) : dt
         widths = OrderedDict(prop => widths[prop] for prop in props)
         maxrad = maxrad === nothing ? 3 * maximum(values(widths)) : maxrad
-        vals = Field.return_vals(behavior, props)
+        vals = return_vals(behavior, props)
         cv(x) = collect(values(x))
         G = GridAdaptive(props; width=cv(widths), boundary=cv(boundary))
         radiusinc = ((valtype(G.radii) <: Vector) && !(typeof(radiusinc) <: Vector)) ?
@@ -159,13 +162,15 @@ module binning
             @info widths
             prog = P = Progress(length(G); desc="Grid")
         end
-        Threads.@threads for (index, (this_center, radius)) in collect(enumerate(G))
+        @debug "Beginning threaded get_grid_bounded loop"
+        #Threads.@threads for (index, (this_center, radius)) in collect(enumerate(G))
+        for (index, (this_center, radius)) in collect(enumerate(G))
             #i+=1
-            #@info "pre $(i)" radius G.radii
+            @debug "pre $(i)" radius G.radii
             dt = Float32.(dt)
             newradius = method(vals, this_center, radius; dt, thresh, maxrad,
                 radiusinc, ϵ)
-            #@info "post $(i)" newradius G.radii
+            @debug "post $(i)" newradius G.radii
             #@infiltrate
             R[index] = newradius
             if !(isdefined(Main, :PlutoRunner))
@@ -187,7 +192,7 @@ module binning
         else
             @assert(widths isa OrderedDict)
         end
-        bd = Field.get_boundary(behavior, props)
+        bd = get_boundary(behavior, props)
         boundary = boundary === nothing ? bd :
                    fill_missing_boundary(boundary, bd)
         get_grid_bounded(behavior, props; widths=widths, boundary, other_kws...)
@@ -235,7 +240,7 @@ module binning
         #push!(list, radius)
         #radius = copy(radius)
         @inbounds while get_samptime(vals, center, radius; dt) < thresh
-            #@info radius
+            @debug radius
             @fastmath radius = radius .* radiusinc
             #push!(list, radius)
             if any(radius .> maxrad) || any(radius .=== NaN32)
@@ -303,7 +308,7 @@ module binning
                 break
             end
         end
-        #@info "tolernace acheived = $tolerance_acheived"
+        @debug "tolernace acheived = $tolerance_acheived"
         if radius > maxrad
             radius = NaN
         end
@@ -364,13 +369,16 @@ module binning
     Base.iterate(g::IndexedAdaptiveOcc) = Base.iterate(V) do V
         zip(g.grid.grid, inds)
     end
+    export get_occupancy_indexed
     function get_occupancy_indexed(data::DataFrame, 
-                           grid::GridAdaptive)::LabAdaptiveOcc
-        vals = Field.return_vals(data, grid.props)
+                           grid::GridAdaptive)::IndexedAdaptiveOcc
+        vals = return_vals(data, grid.props)
         count = zeros(Int32, size(grid))
-        Threads.@threads for (index, (center, radius)) in collect(enumerate(grid))
-            @inbounds labels[index] = findall(inside(vals, center, radius))
-            @inbounds count[index] = sum(labels[index])
+        inds = Array{Union{Missing,Vector{Int}}}(missing, size(grid)...)
+        for (index, (center, radius)) in collect(enumerate(grid))
+            binary_locs = inside(vals, center, radius)
+            @inbounds inds[index] = findall(binary_locs)
+            @inbounds count[index] = sum(binary_locs)
         end
         count = reshape(count, size(grid))
         inds  = reshape(inds, size(grid))
@@ -395,7 +403,7 @@ module binning
     end
     function get_occupancy(data::DataFrame, 
                            grid::GridAdaptive)::AdaptiveOcc
-        vals = Field.return_vals(data, grid.props)
+        vals = return_vals(data, grid.props)
         count = zeros(Int32, size(grid))
         Threads.@threads for (index, (center, radius)) in collect(enumerate(grid))
             @inbounds count[index] = sum(inside(vals, center, radius))
@@ -442,4 +450,70 @@ module binning
         @fastmath sum(inside(vals, center, radius)) * dt
     end
 
+
+    """
+        get_boundary
+
+    gets the boundary of each property
+    """
+    function get_boundary(behavior::DataFrame, props::Vector)::OrderedDict
+        boundary   = OrderedDict{eltype(props),Any}()
+        for prop in props
+            boundary[prop]   = extrema(Utils.skipnan(collect(skipmissing(behavior[!,prop]))))
+        end
+        boundary
+    end
+
+    """
+        resolution_to_width
+
+    converts resolution to width, ie the number of points spread over a
+    range of points into the inter-sample width
+    """
+    function resolution_to_width(resolution::OrderedDict,
+            boundary::OrderedDict)::OrderedDict
+        width = OrderedDict{String,Any}()
+        for prop in keys(resolution)
+            width[prop] = boundary[prop] / resolution[prop]
+        end
+        width
+    end
+
+    """
+        return_vals
+
+    return a value matrix/dataframe for the requested
+    properties in the DataFrame X
+    """
+    function return_vals(X::DataFrame, props::Vector)::Union{Vector{Float32},
+                                                             Matrix{Float32}}
+        Y = dropmissing(X[!, props])
+        Float32.(hcat([Y[!,prop] for prop in props]...))
+    end
+
+    sparse_to_full(G::Vector...) = [g for g in zip(ndgrid(G...)...)]
+    sparse_to_full(G::Tuple{Vector}) = [g for g in zip(ndgrid(G...)...)]
+    function sparse_to_full(sparse::Tuple...)::Array{Tuple}
+        C = [[c...] for c in sparse]
+        C = [c for c in zip(ndgrid(C...)...)]
+        [collect(c) for c in C]
+    end
+    function sparse_to_full(sparse::Tuple)::Array{Array}
+        C = [[c...] for c in sparse]
+        C = [c for c in zip(ndgrid(C...)...)]
+        [collect(x) for x in C]
+    end
+    function full_to_sparse(full::Array)::Array{Array}
+        accessor = Vector{Union{Colon,<:Int}}(undef,ndims(full))
+        accessor .= 1
+        sparse = []
+        for i in 1:ndims(full)
+            access = copy(accessor)
+            access[i] = Colon()
+            g = full[access...]
+            g = Tuple(g[i] for g in g)
+            push!(sparse,g)
+        end
+        sparse
+    end
 end

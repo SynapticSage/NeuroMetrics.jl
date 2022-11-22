@@ -6,8 +6,10 @@ This module allows for taking samples when data crosses into a radii of measurem
 """
 module triggering
 
-    using Utils.binning
     using DataFrames
+    using Utils.binning
+    using Table: CItype
+    using Infiltrator
 
     WindowType = Union{Real, Tuple{<:Real,<:Real}}
     mutable struct TriggerGenerator
@@ -15,7 +17,6 @@ module triggering
         grid::GridAdaptive
         occ::IndexedAdaptiveOcc
         win::WindowType
-        i::Int # Current state
     end
     Base.length(g::TriggerGenerator) = length(g.grid)
     Base.size(g::TriggerGenerator)   = size(g.grid)
@@ -23,28 +24,31 @@ module triggering
     iterators that loops through the trigger generator and outputs
     (grid, data) points
     """
-    function Base.iterate(g::TriggerGenerator)
-        DF_chunks = (g.X[occ.inds[i]] for i in 1:length(occ.inds))
-        Base.iterate(zip(g.grid.grid,DF_chunks))
-    end
-    
-    
+    Base.getindex(g::TriggerGenerator, state) = (g.grid.grid[state], g.X[g.occ.inds[state],:])
+    Base.iterate(g::TriggerGenerator) = g[1], 1
+    Base.iterate(g::TriggerGenerator, state) = state >= length(g) ? 
+                                        nothing : (g[state+1], state+1)
+    Base.peek(g::TriggerGenerator)  = g[1]
+    Base.peek(g::TriggerGenerator, state) = g[state]
+    #Base.popfirst!(g::TriggerGenerator)   = nothing
 
     export get_triggergen
-    function get_triggergen(X::DataFrame, props, window::WindowType, grid_kws...)
+    function get_triggergen(X::DataFrame, props::CItype, window::WindowType;
+            grid_kws...)
+        @debug "get_triggergen :: getting grid"
         grid = get_grid(X, props ;grid_kws...)
+        @debug "get_triggergen :: getting occ"
         occ  = get_occupancy_indexed(X, grid)
-        TriggerGenerator(X, grid, occ, win, i) 
+        fields = union(string.(props), ["time"])
+        TriggerGenerator(X[!,fields], grid, occ, window) 
     end
-    function get_triggergen(X::DataFrame, props, window::WindowType, grid::Grid)
+    function get_triggergen(X::DataFrame, props::CItype, window::WindowType,
+            grid::Grid)
         occ = get_occupancy_indexed(X, grid)
-        TriggerGenerator(X, grid, occ, win, i) 
+        TriggerGenerator(X, grid, occ, win) 
     end
-    function get_triggergen(X::DataFrame, props, window::WindowType, grid::Grid, occ::Occupancy)
-        TriggerGenerator(X, grid, occ, win, i) 
+    function get_triggergen(X::DataFrame, props::CItype, window::WindowType,
+            grid::Grid, occ::Occupancy)
+        TriggerGenerator(X, grid, occ, win) 
     end
-
-
-
-
 end
