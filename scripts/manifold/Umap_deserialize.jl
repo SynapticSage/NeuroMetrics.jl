@@ -1,24 +1,13 @@
 quickactivate(expanduser("~/Projects/goal-code"))
 using DataStructures: OrderedDict
 using DrWatson
-using Serialization
-using Plots
-using ProgressMeter
-using PyCall
-using Distributed
-using ProgressMeter
-using ThreadSafeDicts
-using DataFramesMeta
-using Distances
-using StatsBase
+using Serialization, Plots, ProgressMeter, PyCall
+using Distributed, ProgressMeter, ThreadSafeDicts
+using DataFramesMeta, Distances, StatsBase
 using SoftGlobalScope
+using Munge.causal
+using Table
 use_cuda = true
-#if use_cuda
-#    #ENV["PYTHON"]="/home/ryoung/miniconda3/envs/rapids-22.08/bin/python"
-#    using PyCall
-#    cuml = pyimport("cuml")
-#    cuUMAP = cuml.manifold.umap.UMAP
-#end
 using DimensionalData
 
 # Disstributed computing
@@ -82,4 +71,3 @@ K = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors && k.metr
 embedding = Dict(k=>transform(embedding[k]) for k in K)
 K
 em = make_embedding_df(embedding, inds_of_t, scores, beh)
-

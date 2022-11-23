@@ -96,8 +96,13 @@ module checkpoint
     load_fields(;kws...)        = load_store("fields"; kws...)
     load_shufflefields(;kws...) = load_store("shufflefields"; kws...)
 
-    function change_store(store, λ::Function; filt::Function=x->true,
-            stoponfirst::Bool=true)
+    export change_store
+    """
+        change_store(store, λk::Function=identity, λv::Function=identity; filt::Function=x->true, stoponfirst::Bool=true)
+    
+    change a store contents easily
+    """
+    function change_store(store, λk::Function=identity, λv::Function=identity; filt::Function=x->true, stoponfirst::Bool=true)
         store = load_store(store; dataframe=false)
         store = filter(filt, store)
         for (i,(key,value)) in enumerate(store)
@@ -105,12 +110,18 @@ module checkpoint
                 println("Before")
                 @infiltrate
             end
-            store[key] = λ[value]
+            oldkey, newkey = key, λk(key)
+            newval = λv(value)
+            store[newkey] = newval
+            if oldkey != newkey
+                pop!(store,oldkey)
+            end
             if stoponfirst && i == 1
                 println("After")
                 @infiltrate
             end
         end
+        store
     end
 
 
@@ -303,18 +314,18 @@ module checkpoint
 
     end
     
-    function match(store::String, search::NamedTuple)
+    function Base.match(store::String, search::NamedTuple)
         loadfunc = eval(Symbol("load_" * store))
         I = loadfunc()
         match(I, search)
     end
     match(dict_w_ntkeys::AbstractDict, search::NamedTuple) =
                                         match(keys(dict_w_ntkeys), search)
-    function match(ntkeys::Union{Base.KeySet, Vector}, search::NamedTuple)
+    function Base.match(ntkeys::Union{Base.KeySet, Vector}, search::NamedTuple)
         ntkeys = ntkeys isa Base.KeySet ? collect(ntkeys) : ntkeys
         [ntkey for ntkey in ntkeys if match(ntkey, search)]
     end
-    function match(ntkey::NamedTuple, search::NamedTuple)
+    function Base.match(ntkey::NamedTuple, search::NamedTuple)
         onekey_keys = keys(ntkey)
         answer = true
         for key in keys(search)

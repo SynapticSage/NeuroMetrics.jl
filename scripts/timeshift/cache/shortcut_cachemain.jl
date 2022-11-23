@@ -83,8 +83,8 @@ shifts = shifts .* 2f0
 I = OrderedDict{NamedTuple, Any}()
 F = OrderedDict{NamedTuple, Any}()
 
-@showprogress "animal" for (animal, day) in (("super",0),) #Load.animal_set
-    #animal, day = "RY16", 36
+@showprogress "animal" for (animal, day, frac) in (("RY16",36, :iso),) #Load.animal_set
+    #animal, day = "RY16", 36, 
     @time spikes, beh, ripples, cells = Load.load(animal, day);
     _, spikes = Load.register(beh, spikes; transfer=["velVec"], on="time")
 

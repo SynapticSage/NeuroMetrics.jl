@@ -55,4 +55,10 @@ module GoalFetchAnalysis
     import Plots
     Plots.theme(:bright)
 
+    function import_timeshift()
+        @eval Main using Timeshift
+        @eval Main using Timeshift.checkpoint
+    end
+
+
 end
