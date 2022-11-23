@@ -169,6 +169,7 @@ module manifold
     end
     Base.length(em::EmbeddingFrameFetch) = length(em.df)
     Base.iterate(em::EmbeddingFrameFetch) = em[1], 1
-    Base.iterate(em::EmbeddingFrameFetch, state) = count == length(em) ? (em[count+1], count+1) : nothing
+    Base.iterate(em::EmbeddingFrameFetch, state) = count == length(em) ? 
+                                            (em[count+1], count+1) : nothing
 
 end

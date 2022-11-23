@@ -48,6 +48,6 @@ Utils.dict.load_dict_to_module!(Main, D)
 @assert !isempty(embedding)
 area_embeddings = groupby(em, :area)
 
-EFF = EmbeddingFrameFetch(CA1PFC, beh, ["x","y"])
-trig = triggering.get_triggergen(, ["x","y"], 0.5; widths=[5f0,5f0])
+EFF = EmbeddingFrameFetch(em, :area, beh, ["x","y"])
+trig = triggering.get_triggergen(["x","y"], 0.5, EFF[3]...; widths=[5f0,5f0])
 

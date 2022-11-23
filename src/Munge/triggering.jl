@@ -22,10 +22,13 @@ module triggering
         X::Vector{DataFrame} # Data triggering on
         grid::GridAdaptive
         occ::IndexedAdaptiveOcc
-        win::WindowType
+        win::T where T<:WindowType
     end
     Base.length(g::TriggerGenerator) = length(g.grid)
     Base.size(g::TriggerGenerator)   = size(g.grid)
+    #function TriggerGenerator(X::Vector, grid::GridAdaptive, occ::IndexedAdaptiveOcc, win::T where T<:WindowType)
+    #    TriggerGenerator(X,grid,occ,win)
+    #end
     """
     iterators that loops through the trigger generator and outputs
     (grid, data) points
@@ -54,18 +57,18 @@ module triggering
     """
     function get_triggergen(props::CItype, window::WindowType, X::DataFrame...; grid_kws...)
         @debug "get_triggergen :: getting grid"
-        grid = get_grid(X, props ;grid_kws...)
+        grid = get_grid(X[1], props ;grid_kws...)
         @debug "get_triggergen :: getting occ"
-        occ  = get_occupancy_indexed(X, grid)
+        occ  = get_occupancy_indexed(X[1], grid)
         #fields = union(string.(props), ["time"])
-        TriggerGenerator(X, grid, occ, window) 
+        TriggerGenerator(collect(X), grid, occ, window) 
     end
     function get_triggergen(props::CItype, window::WindowType, grid::Grid, X::DataFrame...)
-        occ = get_occupancy_indexed(X, grid)
-        TriggerGenerator(X, grid, occ, win) 
+        occ = get_occupancy_indexed(X[1], grid)
+        TriggerGenerator(collect(X), grid, occ, win) 
     end
     function get_triggergen(props::CItype, window::WindowType, grid::Grid, occ::Occupancy, X::DataFrame...)
-        TriggerGenerator(X, grid, occ, win) 
+        TriggerGenerator(collect(X), grid, occ, win) 
     end
 
 end
