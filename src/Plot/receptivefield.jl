@@ -3,11 +3,6 @@
 """
 module receptivefield
 
-    import ..Plot
-    using Field
-    using Field: ReceptiveField, ReceptiveFields, Grid, Occupancy
-    using Field.adaptive: GridAdaptive
-    import Utils
     using Plots, LaTeXStrings, Measures
     using DataFramesMeta
     using Statistics
@@ -19,6 +14,12 @@ module receptivefield
     using ImageFiltering
     using Measures
     using Colors
+
+    import ..Plot
+    using Field
+    using Field: ReceptiveField, ReceptiveFields
+    using Utils.binning
+    import Utils
 
     import Random
     using Memoization

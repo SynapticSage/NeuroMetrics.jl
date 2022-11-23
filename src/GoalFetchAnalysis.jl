@@ -49,8 +49,16 @@ module GoalFetchAnalysis
     export Munge
     export Plot
 
+    filtreg = Utils.filtreg
+
     #Utils.plot.set_theme_timebased(23)
     import Plots
     Plots.theme(:bright)
+
+    function import_timeshift()
+        @eval Main using Timeshift
+        @eval Main using Timeshift.checkpoint
+    end
+
 
 end

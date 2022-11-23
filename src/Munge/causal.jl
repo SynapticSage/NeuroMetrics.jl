@@ -16,6 +16,8 @@ module causal
     #using PyCall
     #@pyimport PyIF
 
+    import Munge.manifold: make_embedding_df, EmbeddingFrameFetch
+
     export get_est_preset
     function get_est_preset(esttype::Symbol, horizon=1500)
         if esttype == :binned
@@ -261,31 +263,6 @@ module causal
     end
 
 
-    export make_embedding_df
-    function make_embedding_df(embedding::Dict, inds_of_t::Vector, 
-            score::Dict, beh::DataFrame; vars=[])::DataFrame
-
-        em = Table.to_dataframe(embedding, explode=false)
-        sc = Table.to_dataframe(score)
-
-        alignkeys = [k for k in (:animal, :day, :n_neighbors, :feature, :metric, :filt, :s, :area, :dim)
-                     if k ∈ propertynames(em) && k ∈ propertynames(sc)]
-        E, S = groupby(em, alignkeys), 
-                 groupby(sc, alignkeys)
-        for key in keys(E)
-            key = NamedTuple(key)
-            e, s = E[key], S[key]
-            e.score = s.value
-        end
-
-        em[!, :inds_of_t] = inds_of_t[em[!,:s]]
-        em[!, :time] = getindex.([beh], em[!,:inds_of_t],[:time])
-        for var in vars
-            em[!, var] = getindex.([beh], em[!,:inds_of_t], [var])
-        end
-
-        em
-    end
 
     export predictive_asymmetry_pyif
     function predictive_asymmetry_pyif(x, y, horizon, pyif::Module; 
