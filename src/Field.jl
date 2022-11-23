@@ -1,7 +1,7 @@
 module Field
 
     export get_fields
-    export ReceptiveField, Grid, Occupancy
+    export ReceptiveField
 
     # Julia Packages
     using DataFrames
