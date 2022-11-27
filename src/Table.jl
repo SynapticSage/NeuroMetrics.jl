@@ -27,7 +27,7 @@ module Table
     __revise_mode__ = :evalassign
     ∞ = Inf
 
-    CItype = Union{ColumnIndex, Vector{<:ColumnIndex}}
+    CItype = Union{ColumnIndex, Vector{<:ColumnIndex}, InvertedIndex}
     CItype_plusNull = Union{ColumnIndex, Vector{<:ColumnIndex}, Nothing}
     ColumnSelector = Union{Nothing,Vector{String},InvertedIndex,Cols,All,Between}
     DFColVars = Union{DataFrames.ColumnIndex, DataFrames.MultiColumnIndex}

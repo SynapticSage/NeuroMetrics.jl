@@ -119,15 +119,39 @@ module manifold
     """
         EmbeddingFrameFetch(df::DataFrame, pairing::CItype,
             augment::DataFrame=DataFrame(), props::CItype=[];
-            concat::CItype=[])
+            concat::CItype=[],
+            ordering::AbstractDict=Dict())
 
     Simplifies the process of exploring matched/paired dataframes
     of embeddings annotated/augmented with some other data source
+
+    # Inputs
+    
+    `df` -- embedding dataframe (each embedding is a sample, in the value column,
+                    properties of the embedding are metadata about the embedding)
+    `pairing` -- column to include multiple frame snippets based on
+    `augment` -- dataframe to augment ie pull columns from into the manifold embedding
+    `props` -- which properties to pull from augment
+
+    # Optional
+    `concat` --- (optional; default=[]) this tells the object to concat over
+                 the metadata column `concat` in df
+     `ordering` -- (option; default=Dict()) this can instruct the system to first
+                    order the grouping keys in the pairing step
     """
-    function EmbeddingFrameFetch(df::DataFrame, pairing::CItype,
-            augment::DataFrame=DataFrame(), props::CItype=[];
-            concat::CItype=[])
+    function EmbeddingFrameFetch(df::DataFrame, 
+            pairing::CItype, 
+            augment::DataFrame=DataFrame(), 
+            props::CItype=Not(:); 
+            concat::CItype=Not(:), ordering::AbstractDict=Dict())
         pairing = pairing isa Vector ? pairing : [pairing]
+        if !isempty(ordering)
+            for (sortprop,sortorder) in ordering
+                sortprop ∈ propertynames(df) ? 
+                sort!(df, sortprop, by=x-> findfirst(x .== sortorder)) : 
+                nothing
+            end
+        end
         if concat != []
             concat = _remainderdims(df, concat)
             @info "concat" concat
@@ -148,11 +172,17 @@ module manifold
         groupings = _remainderdims(df, pairing)
         unique!(groupings)
         @info groupings pairing
-        EmbeddingFrameFetch(groupby(df, groupings), pairing, augment, props)
+        EmbeddingFrameFetch(groupby(df, groupings), pairing, augment, 
+                            props isa Vector ? union([:time], Symbol.(props)) :
+                            props
+                           )
     end
-    function Base.getindex(em::EmbeddingFrameFetch, state)
+    function Base.getindex(em::EmbeddingFrameFetch, state::Int64)
         dfs = em.df[state] 
         [_data(df, em) for df in eachrow(dfs)]
+    end
+    function Base.getindex(em::EmbeddingFrameFetch, states::UnitRange)
+        [em[state] for state in states]
     end
     function _remainderdims(df, pairing)
         pairing = pairing isa Vector ? pairing : [pairing]
@@ -168,6 +198,7 @@ module manifold
         data
     end
     Base.length(em::EmbeddingFrameFetch) = length(em.df)
+    Base.lastindex(em::EmbeddingFrameFetch) = em[length(em.df)]
     Base.iterate(em::EmbeddingFrameFetch) = em[1], 1
     Base.iterate(em::EmbeddingFrameFetch, state) = count == length(em) ? 
                                             (em[count+1], count+1) : nothing
