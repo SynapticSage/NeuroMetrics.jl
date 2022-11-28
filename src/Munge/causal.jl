@@ -55,8 +55,8 @@ module causal
 
     
     ## ---------- GLOBAL WITH AN ESTIMATOR ------------------
-    export predictive_asymmetry
-    function predictive_asymmetry(embeddingX::Dataset,
+    export predictiveasymmetry
+    function predictiveasymmetry(embeddingX::Dataset,
             embeddingY::Dataset, est; thread=true, params...)
         if thread
             Threads.@spawn CausalityTools.predictive_asymmetry(
@@ -71,28 +71,28 @@ module causal
                                                 params[:horizon])
         end
     end
-    function predictive_asymmetry(embeddingX::AbstractArray,
+    function predictiveasymmetry(embeddingX::AbstractArray,
                 embeddingY::AbstractArray, est; params...)
-        predictive_asymmetry(
+        causal.predictiveasymmetry(
              Dataset(embeddingX), Dataset(embeddingY), est; params...)
     end
-    function predictive_asymmetry(pairedembeddings::Dict, 
+    function predictiveasymmetry(pairedembeddings::Dict, 
             est::ProbabilitiesEstimator; 
             params...)
-        Dict(k=> predictive_asymmetry(v[1],v[2],est;params...)
+        Dict(k=> predictiveasymmetry(v[1],v[2],est;params...)
                  for (k,v) in pairedembeddings)
     end
-    function predictive_asymmetry!(checkpoint::AbstractDict, 
+    function predictiveasymmetry!(checkpoint::AbstractDict, 
             pairedembeddings::Dict, est; params...)
         for (k,v) in pairedembeddings
             if k ∉ keys(checkpoint)
-                push!(checkpoint, k=>predictive_asymmetry(v[1],v[2],est;params...))
+                push!(checkpoint, k=>predictiveasymmetry(v[1],v[2],est;params...))
             end
         end
     end
 
     ## ---------- GLOBAL WITHOUT AN ESTIMATOR ------------------
-    function predictive_asymmetry(embeddingX::Dataset,
+    function predictiveasymmetry(embeddingX::Dataset,
             embeddingY::Dataset; thread=true, params...)
 
         # Subset by a condition?
@@ -103,7 +103,7 @@ module causal
             subset = params[:condition_inds][collect(params[:inds_of_t][params[:s]])]
             embeddingX, embeddingY = embeddingX[subset], embeddingY[subset]
         else
-            @info "not indexing"
+            #@info "not indexing"
         end
         
         # Embed into univariate space
@@ -113,7 +113,11 @@ module causal
             uniY = encode_dataset_univar(embeddingY, est)
             M = Int64(max(maximum(uniX),maximum(uniY)))
             est = VisitationFrequency(RectangularBinning(M))
-            @info est
+            #@info est
+        end
+
+        if maximum(params[:horizon]) > length(uniX)
+            @error "Horizon too long"
         end
 
         if isempty(embeddingX)
@@ -125,28 +129,28 @@ module causal
                                                 est,
                                                 params[:horizon])
         else
-            @time CausalityTools.predictive_asymmetry(uniX, 
+            CausalityTools.predictive_asymmetry(uniX, 
                                                 uniY, 
                                                 est,
                                                 params[:horizon])
         end
     end
-    function predictive_asymmetry(embeddingX::AbstractArray,
+    function predictiveasymmetry(embeddingX::AbstractArray,
                 embeddingY::AbstractArray; params...)
-        predictive_asymmetry(
+        predictiveasymmetry(
              Dataset(embeddingX), Dataset(embeddingY); params...)
     end
-    function predictive_asymmetry(pairedembeddings::Dict; 
+    function predictiveasymmetry(pairedembeddings::Dict; 
             params...)
-        Dict(k=> predictive_asymmetry(v[1],v[2];k...,params...)
+        Dict(k=> predictiveasymmetry(v[1],v[2];k...,params...)
                  for (k,v) in pairedembeddings)
     end
-    export predictive_asymmetry!
-    function predictive_asymmetry!(checkpoint::AbstractDict,
+    export predictiveasymmetry!
+    function predictiveasymmetry!(checkpoint::AbstractDict,
             pairedembeddings::Dict; params...)
         for (k,v) in pairedembeddings
             if k ∉ keys(checkpoint)
-                push!(checkpoint, k=>predictive_asymmetry(v[1],v[2];k...,params...))
+                push!(checkpoint, k=>predictiveasymmetry(v[1],v[2];k...,params...))
             end
         end
     end
@@ -172,7 +176,7 @@ module causal
             if group ∉ keys(checkpoint)
                 checkpoint[group] = Dict()
             end
-            predictive_asymmetry!(checkpoint[group], pairedembeddings; condition_inds, params...)
+            predictiveasymmetry!(checkpoint[group], pairedembeddings; condition_inds, params...)
         end
 
     end

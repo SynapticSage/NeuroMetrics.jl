@@ -242,7 +242,7 @@ nd
        @info "keys" k1 k2
        key1,key2 = keyz[k1],keyz[k2]
        f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
-       u = intersect(f1.dims[1], f2.dims[1])
+        = intersect(f1.dims[1], f2.dims[1])
        f1,f2 = f1[unit=At(u)], f2[unit=At(u)]
 
        sort_bs = sortperm(f1[:bestshift_bitsperspike][:,1])
