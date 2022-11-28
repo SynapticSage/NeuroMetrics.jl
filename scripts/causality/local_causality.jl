@@ -28,7 +28,7 @@ animal, day = "RY16", 36
 @info "prop missinG"
 esttype = :binned
 est, params = get_est_preset(esttype)
-params = (;params..., horizon=1:10, thread=false)
+params = (;params..., horizon=1:20, thread=false)
 params = (;params..., binning=5)
 
 # Obtain savefile
@@ -53,7 +53,8 @@ grid_kws=(;widths=[5f0,5f0])
 props = ["x","y"]
 propstime = ["time",props...]
 
-EFF = EmbeddingFrameFetch(em, :area, beh, props; ordering=Dict(:area=>[:ca1,:pfc]))
+EFF = EmbeddingFrameFetch(em, :area, beh, props; 
+                          ordering=Dict(:area=>[:ca1,:pfc]))
 grid = get_grid(beh, props; grid_kws...)
 #trig = triggering.get_triggergen(0.5, grid, EFF[4]...)
 
@@ -61,28 +62,49 @@ ca1pfc = fill(NaN,size(grid)..., length(EFF), params[:horizon].stop)
 pfcca1 = fill(NaN,size(grid)..., length(EFF), params[:horizon].stop)
 
 #(e,eff) = first(enumerate(EFF))
-@showprogress for (e,eff) in enumerate(EFF)
-    zones = triggering.get_triggergen(0.5, grid, eff...)
+@showprogress "frames" for (e,eff) in enumerate(EFF[2:length(EFF)])
+    @info e
+    zones = triggering.get_triggergen(1, grid, eff...)
     #(idx,(ca1,pfc)) = first(trig)
-    for (idx,data) in zones
+    @showprogress "zones" for (idx,data) in zones
         if isempty(data); continue; end
         count = 0
+        cpv = view(ca1pfc, idx..., e, :)
+        pcv = view(pfcca1, idx..., e, :)
         for D in data
             if isempty(D); continue; end
             ca1,pfc = map(d->transpose(hcat(d.data...)), D)
             try
-            ca1pfc[idx..., e, :] .+= 
-                     causal.predictiveasymmetry(ca1, pfc; params...)
-            pfcca1[idx..., e, :] .+= 
-                     causal.predictiveasymmetry(pfc, ca1; params...)
-            catch
+                cpt = causal.predictiveasymmetry(ca1, pfc; params...)
+                pct = causal.predictiveasymmetry(pfc, ca1; params...)
+                if all(isnan.(cpv)) && all(isnan.(pcv))
+                    cpv .= 0
+                    pcv .= 0
+                end
+                cpv .+= cpt
+                pcv .+= pct
+            catch err
+                showerror(stdout, err)
+                @info "sizes" size(ca1) size(pfc)
+                @infiltrate
             end
             count += 1
         end
+        @infiltrate
         ca1pfc[idx..., e, :] ./= count
         pfcca1[idx..., e, :] ./= count
     end
 end
 
+# How many unsampled?
+heatmap((sum(isnan.(ca1pfc), dims=(3,4))./size(ca1pfc,4))[:,:])
+
 # getting trigger sample info
-scatter([x for x in vec.(trig.occ.inds) if !isempty(x)]; markersize=2, markerstrokewidth=0, markerstrokealpha=0.001, markerstrokestyle=:dot, legend=:none)
+#scatter([x for x in vec.(trig.occ.inds) if !isempty(x)]; markersize=2, markerstrokewidth=0, markerstrokealpha=0.001, markerstrokestyle=:dot, legend=:none)
+C = [collect(Float64.(c)) for c in grid.centers]
+h1=heatmap(C[1], C[2], nanmean(pfcca1, dims=(3,4))[:,:]', c=:vik, clims=(-0.006,0.006))
+plotboundary!(tsk,transpose=true)
+h2=heatmap(C[1], C[2], nanmean(ca1pfc, dims=(3,4))[:,:]', c=:vik, clims=(-0.006,0.006))
+plotboundary!(tsk,transpose=true)
+plot(h1,h2, size=(800,400))
+
