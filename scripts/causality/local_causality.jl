@@ -19,7 +19,8 @@ using Utils.binning
 
 cor = Dict(0=>"correct", 1=>"error")
 tsk = Dict(0=>"cue", 1=>"mem")
-lab = OrderedDict([0,1]=>"CUE correct", [1,1]=>"MEM correct", [0,0]=>"CUE error", [1,0]=>"MEM error")
+lab = OrderedDict([0,1]=>"CUE correct", [1,1]=>"MEM correct",
+                  [0,0]=>"CUE error", [1,0]=>"MEM error")
 conditionals = [:cuemem,:correct]
 animal, day = "RY16", 36
 
@@ -40,11 +41,12 @@ tagstr = if "tag" in propertynames(Main)
 else
     "$animal$day.$(N)seg"
 end
-savefile = datadir("manifold","causal","pa_cause_$(paramstr)_$tagstr.jld2")
 
-
-D=JLD2.load(savefile)
-Utils.dict.load_dict_to_module!(Main, D)
+savefile = datadir("manifold","causal","local_grid_cause_props=$(join(props,","))_$(paramstr)_$tagstr.jld2")
+if isfile(savefile)
+    D=JLD2.load(savefile)
+    Utils.dict.load_dict_to_module!(Main, D)
+end
 
 @assert !isempty(embedding)
 area_embeddings = groupby(em, :area)
@@ -95,6 +97,9 @@ pfcca1 = fill(NaN,size(grid)..., length(EFF), params[:horizon].stop)
         pfcca1[idx..., e, :] ./= count
     end
 end
+
+JLD2.jldsave(savefile; params, est, grid, grid_kws, 
+             props, propstime, ca1pfc, pfcca1)
 
 # How many unsampled?
 heatmap((sum(isnan.(ca1pfc), dims=(3,4))./size(ca1pfc,4))[:,:])
