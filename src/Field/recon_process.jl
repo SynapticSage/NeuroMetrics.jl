@@ -10,8 +10,33 @@ module recon_process
     using ..Field
     import Table
 
-    si = Field.operation.selectind
-    sk = Field.operation.selectkey
+    function selectind(D::Dict, ind::Int=1)
+        K = Tuple(keys(D))
+        D[K[ind]]
+    end
+    const si = selectind
+    function selectkey(D::AbstractDict, P::Pair...)
+        T = typeof(D)
+        K = keys(D)
+        for (tupfield, command) in P
+            if tupfield isa String
+                tupfield = Symbol(tupfield)
+            end
+            if command isa Function
+               if tupfield isa Symbol
+                    func = command
+                    K = filter(k->func(k[tupfield]), K)
+               elseif tupfield == All()
+                   K = filter(func, K)
+               end
+            else
+                obj = command
+                K = filter(k->k[tupfield] == obj, K)
+            end
+        end
+        T(k=>D[k] for k in K)
+    end
+    const sk = selectkey
 
     export get_recon_name
     export get_recon_req

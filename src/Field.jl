@@ -97,8 +97,8 @@ module Field
     import .metrics
     #include(srcdir("Field","recon.jl"))
     #import .recon
-    #include(srcdir("Field","recon_process.jl"))
-    #import .recon_process
+    include(srcdir("Field","recon_process.jl"))
+    import .recon_process
     include(srcdir("Field","adaptive.jl"))
     @reexport using .adaptive
     #include(srcdir("Field","fixed.jl"))
