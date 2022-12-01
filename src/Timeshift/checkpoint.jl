@@ -184,11 +184,14 @@ module checkpoint
         R
     end
 
-    function save_fields(M::AbstractDict; overwrite::Bool=false)
+    """
+    """
+    function save_fields(M::AbstractDict; overwrite::Bool=false, 
+                                          archive::String="")
         if any(x->x === nothing, values(M))
             M = typeof(M)(k=>v for (k,v) in M if v !== nothing)
         end
-        name = fieldspath()
+        name = fieldspath(;archive)
         if isfile(name) && !(overwrite)
             @info "Preloading existing $name"
             D = deserialize(name)
