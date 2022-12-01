@@ -24,6 +24,9 @@ module adaptive
     using ThreadSafeDicts
     using Infiltrator
 
+    export GridAdaptive
+    export AdaptiveOcc
+
     metric_def = [metrics.bitsperspike, metrics.totalcount, metrics.maxrate,
         metrics.maxcount, metrics.meanrate, metrics.coherence,
         metrics.argmax]
