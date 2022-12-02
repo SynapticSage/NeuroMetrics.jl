@@ -57,6 +57,8 @@ module triggering
                                         nothing : (g[state+1], state+1)
     Base.peek(g::TriggerGenerator)  = g[1]
     Base.peek(g::TriggerGenerator, state) = g[state]
+    Base.firstindex(g::TriggerGenerator) = 1
+    Base.lastindex(g::TriggerGenerator) = Base.length(g)
     #Base.popfirst!(g::TriggerGenerator)   = nothing
 
     export get_triggergen

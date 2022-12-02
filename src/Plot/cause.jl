@@ -40,7 +40,7 @@ module cause
         else
             time, set_cause = plt.args
         end
-        set_cause = set_cause[[isassigned(set_cause,p) 
+       set_cause = set_cause[[isassigned(set_cause,p) 
                                for p in eachindex(set_cause)]]
         set_cause = hcat(set_cause...)'
         m --> :circle

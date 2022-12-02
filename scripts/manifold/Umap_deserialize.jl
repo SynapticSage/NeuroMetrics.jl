@@ -1,13 +1,24 @@
 quickactivate(expanduser("~/Projects/goal-code"))
 using DataStructures: OrderedDict
 using DrWatson
-using Serialization, Plots, ProgressMeter, PyCall
-using Distributed, ProgressMeter, ThreadSafeDicts
-using DataFramesMeta, Distances, StatsBase
+using Serialization
+using Plots
+using ProgressMeter
+using PyCall
+using Distributed
+using ProgressMeter
+using ThreadSafeDicts
+using DataFramesMeta
+using Distances
+using StatsBase
 using SoftGlobalScope
-using Munge.causal
-using Table
 use_cuda = true
+#if use_cuda
+#    #ENV["PYTHON"]="/home/ryoung/miniconda3/envs/rapids-22.08/bin/python"
+#    using PyCall
+#    cuml = pyimport("cuml")
+#    cuUMAP = cuml.manifold.umap.UMAP
+#end
 using DimensionalData
 
 # Disstributed computing

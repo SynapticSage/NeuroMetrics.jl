@@ -6,6 +6,50 @@ module lfp
     using ImageFiltering
     using Table
     using Infiltrator
+    using MATLAB
+    using LazyGrids
+    using ProgressMeter
+
+    mat"addpath(genpath('/usr/local/chronux_2_12/'))"
+
+    export coherence
+    function coherence(lf1::DataFrame, lf2::DataFrame; average=false, 
+            returndf=false)
+        lf1 = groupby(lf1,:tetrode)
+        lf2 = groupby(lf2,:tetrode)
+
+        T=F=t=f=nothing
+        C,phi,S12,S1,S2,tet1,tet2 = [],[],[],[],[],[],[]
+        @showprogress for (l1,l2) in Iterators.product(lf1,lf2)
+            t1,t2 = l1.tetrode, l2.tetrode
+            X1,X2 = l1.broadraw, l2.broadraw
+            X1,X2 = X1[:,:], X2[:,:]
+            mat"[$c,$p,$s12,$s1,$s2,$t,$f] =cohgramc($X1, $X2, [1, 0.1], struct('tapers',[2 3],'padding',-1, 'Fs', 1500, 'fpass', [1,300]))"
+            @infiltrate
+            push!.([tet1,tet2,phi,S1,S2,S12,C], [tet1,tet2,p,s1,s2,s12,c])
+            T,F = t,f
+        end
+        if average
+            tet1 = tet2 = [:average]
+            S1,S2,S12,C,phi = mean.([S1,S2,S12,C,phi])
+        end
+        if returndf
+            T, F = ndgrid(t,f)
+            if !average
+                T   = repeat(T, outer=(length(C),1))
+                F   = repeat(F, outer=(length(C),1))
+                S1  = vcat(S1...)
+                S2  = vcat(S2...)
+                S12 = vcat(S12...)
+                phi = vcat(phi...)
+                C   = vcat(C...)
+            end
+            DataFrame([T,F,tet1,tet2,phi,S1,S2,S12,C],
+                      [:time,:freq,:tet1,:tet2,:phi,:S1,:S2,:S12,:C])
+        else
+            (;T,F,tet1,tet2,phi,S1,S2,S12,C)
+        end
+    end
 
     """
         bandpass
@@ -45,8 +89,7 @@ module lfp
 
     annotates lfp dataframe with cycle numbers
     """
-    function annotate_cycles(lfp::DataFrame; phase_col="phase", 
-            method="peak-to-peak")
+    function annotate_cycles(lfp::DataFrame; phase_col="phase", method="peak-to-peak")
 
         phase = lfp[!, phase_col]
         lfp.phase = phase_to_radians(lfp[:,"phase"])
@@ -59,7 +102,7 @@ module lfp
             step_size = median(diff(phase))
             Δₚ        = [0; diff(phase)]
             #falling_zero_point = [(phase[1:end-1] .>=0) .& (phase[2:end] .<0) ; false]
-            @infiltrate
+            #@infiltrate
             p = phase .- median(extrema(phase))
             rising_zero_point = [(p[2:end] .>=0) .& (p[1:end-1] .<0) ; false]
             cycle_labels = accumulate(+, rising_zero_point)

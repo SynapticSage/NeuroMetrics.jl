@@ -123,6 +123,8 @@ end
 #include(srcdir("Plot", "raster.jl"))
 #@reexport using .raster
 
+
+
 include(srcdir("Plot", "timeshift.jl"))
 @reexport using .timeshift
 
@@ -143,5 +145,8 @@ include(srcdir("Plot", "cause.jl"))
 
 include(srcdir("Plot", "nonlocal.jl"))
 @reexport using .nonlocal
+
+include(srcdir("Plot", "lfplot.jl"))
+@reexport using .lfplot
 
 end

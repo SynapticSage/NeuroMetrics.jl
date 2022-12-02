@@ -1,4 +1,14 @@
 quickactivate(expanduser("~/Projects/goal-code/")); using GoalFetchAnalysis
+using Infiltrator
+using DataStructures: OrderedDict
+using DimensionalData
+import DimensionalData: Between
+using ProgressMeter
+using DataFrames, DataFramesMeta
+using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
+using Plots
+using LazySets
+
 using Timeshift
 using Timeshift.types
 using Timeshift.shiftmetrics
@@ -12,17 +22,6 @@ using Utils.statistic: pfunc
 import Plot
 using Munge.spiking
 using Filt
-using Infiltrator
-
-using DataStructures: OrderedDict
-using DimensionalData
-import DimensionalData: Between
-using ProgressMeter
-using DataFrames, DataFramesMeta
-using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
-using Plots
-using LazySets
-
 
 
 cycles.time = (cycles.stop - cycles.start)/2 + cycles.start
