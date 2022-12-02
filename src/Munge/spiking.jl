@@ -245,8 +245,8 @@ module spiking
     find isolated spikes in the manneer of Jai/Frank 2021
     """
     function isolated(spikes::DataFrame,  theta::Union{DataFrame,Nothing}; 
-                      cycle=:cycle, kws...)
-        if !hasproperty(spikes, Symbol(cycle))
+                      cycle=:cycle, refreshcyc=false, kws...)
+        if refreshcyc || !hasproperty(spikes, Symbol(cycle)) 
             Utils.filtreg.register(theta, spikes; on="time", transfer=[String(cycle)])
         end
         prog = Progress(length(unique(spikes.unit)); desc="Adding isolation stats")
@@ -269,6 +269,9 @@ module spiking
             spikes[!,:meancyc] = Vector{Union{Missing,Vector}}(missing, size(spikes,1))
         end
         cycles = groupby(spikes, cycle_prop)
+        if all(ismissing.(spikes[!,cycle_prop]))
+            @warn "All cycles are missing" spikes.unit[1]
+        end
         #if length(cycles) > 1
             #@warn  "You only have 1 cycle"
         #end
