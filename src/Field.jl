@@ -14,6 +14,7 @@ module Field
     using GeometricalPredicates: inpolygon
     using LazySets
     using Statistics
+    using Utils.binning: return_vals
 
     # Goal Vector Libraries
     using DrWatson

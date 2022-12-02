@@ -19,7 +19,7 @@ using TimerOutputs
 using Serialization
 
 using GoalFetchAnalysis 
-import Timeshift
+using Timeshift
 using Timeshift.dataframe: info_to_dataframe
 using Field.recon_process: get_shortcutnames, inv_shortcutnames
 import Load
@@ -85,14 +85,16 @@ shifts = shifts .* 2f0
 I = OrderedDict{NamedTuple, Any}()
 F = OrderedDict{NamedTuple, Any}()
 
-(animal, day, frac) = first((("RY16",36, :iso),))
-@showprogress "animal" for (animal, day, frac) in (("RY16",36, :iso),) #Load.animal_set
+datasets = (("RY16",36, :adj),)
+
+(animal, day, frac) = first(datasets)
+@showprogress "animal" for (animal, day, frac) in datasets #Load.animal_set
     #animal, day = "RY16", 36, 
     @time spikes, beh, ripples, cells = Load.load(animal, day);
     _, spikes = Load.register(beh, spikes; transfer=["velVec"], on="time")
     lfp = Load.load_lfp(animal, day, tet=:default, subtract_earlytime=true)
 
-    if frac == :iso
+    if frac == :iso || frac == :adj
         Munge.lfp.annotate_cycles(lfp::DataFrame; 
                                   phase_col="phase", 
                                   method="peak-to-peak")
@@ -105,6 +107,8 @@ F = OrderedDict{NamedTuple, Any}()
         histogram(spikes.phase, group=spikes.isolated, normalize=:pdf, alpha=0.33)
         histogram(spikes.phase, group=spikes.isolated, normalize=:probability, alpha=0.33)
         dropmissing!(spikes, :isolated)
+        spikes = frac == :iso ? (println("selecting iso"); spikes[spikes.isolated, :]) : 
+                                (println("selecting adj"); spikes[(!).(spikes.isolated), :])
     end
 
     shuffle_type = :dotson
@@ -165,6 +169,8 @@ savefile = datadir("timeshift","fixed_shifts_$shifts.serial")
 serialize(savefile, (;F,I,shifts))
 (F,I,shifts) = deserialize(savefile);
 overwrite = false
-save_fields(F; overwrite);
-save_mains(I;  overwrite);
+archive = unique([d[3] for d in datasets]) == [:iso] ? "iso" : ""
+checkpoint.save_fields(F; overwrite, archive);
+checkpoint.save_mains(I;  overwrite, archive);
+
 
