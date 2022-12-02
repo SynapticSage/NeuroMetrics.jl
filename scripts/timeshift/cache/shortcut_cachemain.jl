@@ -85,8 +85,7 @@ shifts = shifts .* 2f0
 I = OrderedDict{NamedTuple, Any}()
 F = OrderedDict{NamedTuple, Any}()
 
-datasets = (("RY16",36, :adj),)
-
+datasets = (("RY16",36, :adj),("RY16",36, :iso),)
 (animal, day, frac) = first(datasets)
 @showprogress "animal" for (animal, day, frac) in datasets #Load.animal_set
     #animal, day = "RY16", 36, 
@@ -146,7 +145,7 @@ datasets = (("RY16",36, :adj),)
             @showprogress "Props" for props ∈ prop_set
                     marginal = get_shortcutnames(props)
                     key      = get_key(;marginal, datacut, shifts, widths, thresh,
-                                        animal, day)
+                                        animal, day, frac)
                     @info filt filts[datacut]
                     #if keymessage(I, key); continue; end
                     filt = filts[datacut]
@@ -162,14 +161,13 @@ datasets = (("RY16",36, :adj),)
         #Timeshift.save_mains(I)
         #Timeshift.save_mains(F)
     end
-
 end
 
 savefile = datadir("timeshift","fixed_shifts_$shifts.serial")
 serialize(savefile, (;F,I,shifts))
 (F,I,shifts) = deserialize(savefile);
 overwrite = false
-archive = unique([d[3] for d in datasets]) == [:iso] ? "iso" : ""
+archive = (unique([d[3] for d in datasets]), [:adj,:iso]) ? "iso" : ""
 checkpoint.save_fields(F; overwrite, archive);
 checkpoint.save_mains(I;  overwrite, archive);
 

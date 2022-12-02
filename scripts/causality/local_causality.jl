@@ -2,6 +2,12 @@ using DrWatson
 using GoalFetchAnalysis
 using Infiltrator
 import Plot
+include(scriptsdir("manifold","Umap_deserialize.jl"))
+
+#  ================
+# CAUSALITY AND MANFIOLD
+#  ================
+
 using Serialization, CausalityTools, Entropies
 using Plots, DataFrames
 using Statistics, NaNStatistics, HypothesisTests
@@ -124,13 +130,11 @@ checkpoint = ThreadSafeDict{NamedTuple, Bool}()
     storage["pfcca1"] = pfcca1
     delete!(storage,"checkpoint")
     storage["checkpoint"] = checkpoint
-    @infiltrate
     close(storage)
 end
 
 JLD2.jldsave(savefile; params, est, grd, grid_kws, 
              props, propstime, ca1pfc, pfcca1, checkpoint)
-
 
 # Better weighting
 weighting_trig = zeros(size(grd)..., length(EFF))
@@ -145,7 +149,6 @@ for (e,eff) in enumerate(EFF)
     end
     # @infiltrate all(weighting_trig[:,:,e] .== 0)
 end
-
 
 #                    
 #,---.|         |    
@@ -165,7 +168,7 @@ nanfrac = (sum(isnan.(ca1pfc), dims=(3,4))./size(ca1pfc,4))[:,:]'./size(ca1pfc,3
 S=heatmap(C..., nanfrac, title="unsampled fraction")
 plotboundary!(tsk,transpose=true, c=:black)
 
-weightstyle=:sampcount
+weightstyle=:nanfrac
 if weightstyle == :nanfrac
     weighting = (1 .- nanfrac)'
 elseif weightstyle == :sampcount

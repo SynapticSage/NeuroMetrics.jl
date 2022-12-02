@@ -198,9 +198,10 @@ module manifold
         data
     end
     Base.length(em::EmbeddingFrameFetch) = length(em.df)
-    Base.lastindex(em::EmbeddingFrameFetch) = em[length(em.df)]
+    Base.lastindex(em::EmbeddingFrameFetch) = length(em.df)
+    Base.firstindex(em::EmbeddingFrameFetch) = 1
     Base.iterate(em::EmbeddingFrameFetch) = em[1], 1
-    Base.iterate(em::EmbeddingFrameFetch, state) = count == length(em) ? 
+    Base.iterate(em::EmbeddingFrameFetch, count) = count != length(em) ? 
                                             (em[count+1], count+1) : nothing
 
 end

@@ -512,8 +512,7 @@ results = []
     measures2 = dict2[[task2, correct2]]
     @softscope for (i,j) in Iterators.product(1:length(bins), 1:length(bins))
         @info "inner" i j
-        unvarttest = HypothesisTests.UnequalVarianceTTest(measures1[:,i],
-                                                          measures2[:,j])
+        unvarttest = HypothesisTests.UnequalVarianceTTest( measures1[:,i], measures2[:,j] )
         pval_ttest = pvalue(unvarttest)
         row = (;task1, task2, correct1, correct2, 
                dir1,dir2, dir="$dir1 vs $dir2",
