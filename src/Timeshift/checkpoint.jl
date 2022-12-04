@@ -82,12 +82,14 @@ module checkpoint
         end
     end
 
-    function load_store(store; dataframe::Bool=false; archive="")
+    function load_store(store; dataframe::Bool=false, archive="")
         if dataframe
             name = path(store;archive) * "_dataframe.arrow"
+            println("Loading $name")
             DataFrame(Arrow.Table(name))
         else
             name = path(store;archive)
+            println("Loading $name")
             D = deserialize(name)
         end
     end

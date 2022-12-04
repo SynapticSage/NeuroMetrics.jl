@@ -21,12 +21,11 @@ module lfp
         T=F=t=f=nothing
         C,phi,S12,S1,S2,tet1,tet2 = [],[],[],[],[],[],[]
         @showprogress for (l1,l2) in Iterators.product(lf1,lf2)
-            t1,t2 = l1.tetrode, l2.tetrode
+            t1,t2 = l1.tetrode[1], l2.tetrode[1]
             X1,X2 = l1.broadraw, l2.broadraw
             X1,X2 = X1[:,:], X2[:,:]
             mat"[$c,$p,$s12,$s1,$s2,$t,$f] =cohgramc($X1, $X2, [1, 0.1], struct('tapers',[2 3],'padding',-1, 'Fs', 1500, 'fpass', [1,300]))"
-            @infiltrate
-            push!.([tet1,tet2,phi,S1,S2,S12,C], [tet1,tet2,p,s1,s2,s12,c])
+            push!.([tet1,tet2,phi,S1,S2,S12,C], [t1,t2,p,s1,s2,s12,c])
             T,F = t,f
         end
         if average
@@ -34,10 +33,12 @@ module lfp
             S1,S2,S12,C,phi = mean.([S1,S2,S12,C,phi])
         end
         if returndf
-            T, F = ndgrid(t,f)
+            T, F = ndgrid(vec(T),vec(F))
             if !average
-                T   = repeat(T, outer=(length(C),1))
-                F   = repeat(F, outer=(length(C),1))
+                T = vcat((T for _ in 1:length(C))...);
+                F = vcat((F for _ in 1:length(C))...);
+                tet1 = vcat([t * ones(T) for T in tet1]...);
+                tet2 = vcat([t * ones(T) for T in tet2]...);
                 S1  = vcat(S1...)
                 S2  = vcat(S2...)
                 S12 = vcat(S12...)
