@@ -58,8 +58,8 @@ end
 ## PARAMETERS
 ## ----------
 
-
-function obtain_local_binned_measure(em, beh, props; grid_kws, savefile,
+function obtain_local_binned_measure(em, beh, props; grid_kws=nothing, savefile,
+        grd=(println("default binning compute");binning.get_grid(beh, props; grid_kws...)),
         checkpoint=ThreadSafeDict{NamedTuple, Bool}())
     if isfile(savefile)
         D=JLD2.load(savefile)
@@ -71,8 +71,6 @@ function obtain_local_binned_measure(em, beh, props; grid_kws, savefile,
     propstime = ["time",props...]
     EFF = EmbeddingFrameFetch(em, :area, beh, props; 
                               ordering=Dict(:area=>[:ca1,:pfc]))
-    grd = binning.get_grid(beh, props; grid_kws...)
-    #trig = triggering.get_triggergen(0.5, grid, EFF[4]...)
 
     ## ------------------------
     ## Setup stores for results
@@ -85,6 +83,8 @@ function obtain_local_binned_measure(em, beh, props; grid_kws, savefile,
     ## Compute
     ## ------------------------
     #(e,eff) = first(enumerate(EFF))
+
+    @info "How much ground to cover" length(EFF) length(first(EFF))
 
     @showprogress "frames" for (e,eff) in enumerate(EFF[1:length(EFF)])
         @info e
@@ -167,9 +167,10 @@ JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
 # ========================
 props = ["x", "y", "cuemem", "correct"]
 grid_kws=(;widths=[5f0,5f0,1f0,1f0], radiusinc=[1.2f0,1.2f0,1f0,1f0])
+grd = Utils.binning.get_grid(beh, props; grid_kws...)
 savefile = get_savefile(props)
 ca1pfc, pfcca1, weighting_trig, checkpoint = 
-        obtain_local_binned_measure(em, beh, props; grid_kws, savefile)
+        obtain_local_binned_measure(em, beh, props; grd, savefile)
 
 # ========================
 # X - Y - START - STOP
