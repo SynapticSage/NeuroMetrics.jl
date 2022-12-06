@@ -146,9 +146,9 @@ datasets = (("RY16",36, :adj),("RY16",36, :iso),)
                     marginal = get_shortcutnames(props)
                     key      = get_key(;marginal, datacut, shifts, widths, thresh,
                                         animal, day, frac)
+                    filt = filts[datacut]
                     @info filt filts[datacut]
                     #if keymessage(I, key); continue; end
-                    filt = filts[datacut]
                     @time tmp = Timeshift.shifted_fields(beh, spikes,
                                 shifts, props; fieldpreset=:yartsev,
                                                shiftbeh=false,
@@ -163,12 +163,11 @@ datasets = (("RY16",36, :adj),("RY16",36, :iso),)
     end
 end
 
-savefile = datadir("timeshift","fixed_shifts_$shifts.serial")
-serialize(savefile, (;F,I,shifts))
-(F,I,shifts) = deserialize(savefile);
-overwrite = false
-archive = (unique([d[3] for d in datasets]), [:adj,:iso]) ? "iso" : ""
-checkpoint.save_fields(F; overwrite, archive);
-checkpoint.save_mains(I;  overwrite, archive);
+#savefile = datadir("timeshift","fixed_shifts_$shifts.serial")
+#serialize(savefile, (;F,I,shifts))
+#(F,I,shifts) = deserialize(savefile);
 
+overwrite = false
+archive = isempty(setdiff(unique([d[3] for d in datasets]), [:adj,:iso])) ? "iso" : ""
+checkpoint.save_fields(F; overwrite, archive);
 

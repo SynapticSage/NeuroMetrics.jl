@@ -14,24 +14,26 @@ using SoftGlobalScope
 theme(:bright)
 
 shifts=-2.0f0:0.05f0:2.0f0
-savefile = "/home/ryoung/Projects/goal-code/data/timeshift/fixed_shifts_$shifts.serial"
+
+#3savefile = "/home/ryoung/Projects/goal-code/data/timeshift/fixed_shifts_$shifts.serial"
+
 F = load_fields()
 #F,I,shifts = deserialize(savefile);
 
 
 datasets = 
 (
+ ("RY16", 36, nothing),
  ("RY16", 36, "CA1"),
  ("RY22", 21, "CA1"),
  ("RY16", 36, "PFC"),
  ("RY22", 21, "PFC"),
- ("RY16", 36, nothing),
  ("RY22", 21, nothing),
  ("super", 0, "CA1"),
  ("super", 0, "PFC"),
  ("super", 0, nothing),
 )
-datasets = (datasets[1],)
+datasets = [dataset for dataset in datasets if dataset[1] == "RY16"]
 datasets= [(d..., frac) for d in datasets for frac in [ :iso, :adj]]
 
 # If this doesn't work subfunctions may not be scoped right and may need SoftGlobalScope
@@ -39,8 +41,12 @@ animal, day, brain_area, frac = datasets[end]
 #include(expanduser("~/tmp2.jl"))
 
 @softscope for (i,(animal,day,brain_area)) in collect(enumerate(datasets))
+    
+    if frac != :adj
+        continue
+    end
 
-    @info "loop" i animal day brain_area
+    @info "loop" i animal day brain_area frac
     #if brain_area === nothing
     #    @info "skip"
     #    continue
@@ -52,9 +58,13 @@ animal, day, brain_area, frac = datasets[end]
     keyz = Dict(key.datacut=>key for key in filter(k->k.animal==animal && 
                                                    k.day == day, keys(F)))
 
-    @eval Plot parent_folder = ["timeshift", "central_plot_collection.jl"]
-    Plot.setappend(frac == :iso ?
-                   (;animal,day,brain_area, frac) : (;animal,day,brain_area))
+    if frac == :iso || frac == :adj
+        @eval Plot parent_folder = ["timeshift", "central_plot_collection.jl","isoadj"]
+    else
+        @eval Plot parent_folder = ["timeshift", "central_plot_collection.jl"]
+    end
+    Plot.setappend(frac == :iso || frac == :adj ?
+                   (;frac,animal,day, brain_area) : (;animal,day,brain_area))
 
     function prep(f)    
         push_dims!(f)
@@ -93,7 +103,7 @@ animal, day, brain_area, frac = datasets[end]
         key = keyz[k]
         k  = string(k)
         f   = prep(matrixform(F[key]))
-        @info "$key" length(unique(f[:unit]))
+        @info "$key" #length(unique(f[:unit]))
 
         vals = f[shift=At(0)][:bestshift_bitsperspike]
         edges = LinRange(minimum(f[:shift]), maximum(f[:shift]), bins+1)
