@@ -57,7 +57,9 @@ module Load
         "tetrode"  => load_tetrode,
         "decode"   => load_decode,
         "task"     => load_task,
-        "ripples"  => load_ripples
+        "ripples"  => load_ripples,
+        "coh"   => load_coh,
+        "avgcoh"   => load_avgcoh,
        )
 
     save_functions = Dict(
@@ -77,6 +79,8 @@ module Load
         "cells"    => cellpath,
         "task"     => taskpath,
         "ripples"  => ripplespath,
+        "coh"      => cohpath,
+        "avgcoh"   => avgcohpath,
     )
 
     time_vars = Dict(
@@ -84,6 +88,8 @@ module Load
         "spikes" => :time,
         "behavior" => :time,
         "lfp" => :time,
+        "coh" => :time,
+        "avg" => :time,
         "cells" => [],
         "task" => [],
         "ripples" => ["time", "start", "stop"],
@@ -269,8 +275,7 @@ module Load
         else
             type = "csv"
         end
-        save_table_at_path(data, path, type)
-    end
+        save_table_at_path(data, path, type) end
 
     """
         tables_to_type(animal::String, day::Int; 
