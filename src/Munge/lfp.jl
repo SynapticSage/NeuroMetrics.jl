@@ -28,27 +28,49 @@ module lfp
             push!.([tet1,tet2,phi,S1,S2,S12,C], [t1,t2,p,s1,s2,s12,c])
             T,F = t,f
         end
+        cohtup = (;T,F,tet1,tet2,phi,S1,S2,S12,C)
         if average
-            tet1 = tet2 = [:average]
-            S1,S2,S12,C,phi = mean.([S1,S2,S12,C,phi])
+            cohtup = _getavgcoh(;cohtup...)
         end
         if returndf
-            T, F = ndgrid(vec(T),vec(F))
-            if !average
-                T = vcat((T for _ in 1:length(C))...);
-                F = vcat((F for _ in 1:length(C))...);
-                tet1 = vcat([t * ones(T) for T in tet1]...);
-                tet2 = vcat([t * ones(T) for T in tet2]...);
-                S1  = vcat(S1...)
-                S2  = vcat(S2...)
-                S12 = vcat(S12...)
-                phi = vcat(phi...)
-                C   = vcat(C...)
-            end
-            DataFrame([T,F,tet1,tet2,phi,S1,S2,S12,C],
-                      [:time,:freq,:tet1,:tet2,:phi,:S1,:S2,:S12,:C])
+            _getdfcoh(cohtup)
         else
-            (;T,F,tet1,tet2,phi,S1,S2,S12,C)
+           cohtup 
+        end
+    end
+    function _getavgcoh(;S1,S2,S12,C,phi,T,kws...)
+        S1,S2,S12,C,phi = mean.([S1,S2,S12,C,phi])
+        kws = NamedTuple(k=>v for (k,v) in zip(keys(kws),values(kws))
+                   if k ∉ [:tet1, :tet2])
+        (;S1,S2,S12,C,phi,T,kws...)
+    end
+    function _getdfcoh(;T,F,S1,S2,S12,C,phi,average=false,
+            tet1=nothing,tet2=nothing,kws...)
+        T, F = ndgrid(vec(T),vec(F))
+        if !average
+            tet1 = vcat([fill(t,size(T)) for t in tet1]...);
+            tet2 = vcat([fill(t,size(T)) for t in tet2]...);
+            T = vcat((T for _ in 1:length(C))...);
+            F = vcat((F for _ in 1:length(C))...);
+            S1  = vcat(S1...)
+            S2  = vcat(S2...)
+            S12 = vcat(S12...)
+            phi = vcat(phi...)
+            C   = vcat(C...)
+            D= DataFrame(vec.([T,F,tet1,tet2]), [:time,:freq,:tet1,:tet2])
+            T = F = tet1 = tet2 = nothing
+            D[!,:phi] = vec(phi)
+            phi = nothing
+            D[!,:S1] =  vec(S1)
+            S1 = nothing
+            D[!,:S2] =  vec(S2)
+            S2 = nothing
+            S12  = nothing
+            D[!,:C] =  vec(C)
+            D
+        else
+            DataFrame(vec.([T,F,phi,S1,S2,S12,C]),
+                      [:time,:freq,:tet1,:tet2,:phi,:S1,:S2,:S12,:C])
         end
     end
 
