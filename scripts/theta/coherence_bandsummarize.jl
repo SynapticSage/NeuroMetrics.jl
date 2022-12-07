@@ -1,7 +1,7 @@
-using Statistics, NaNStatistics, Bootstrap
-using StatsPlots
 using GoalFetchAnalysis
 using DataFrames, DataFramesMeta
+using ProgressMeter
+using Infiltrator
 
 animal,day = "RY16", 36
 dfa = Load.load_avgcoh(animal,day)
@@ -35,8 +35,10 @@ nottheta = get_effects(dfa, :freq=>f-> Utils.not_in_range(f, [4,15]))
 #not_in_theta_harmons = TODO
 overall = get_effects(dfa)
 
+@time spikes, beh, ripples, cells = Load.load(animal, day);
 lfp_ca1 = Load.load_lfp(animal,day,tet=:default, subtract_earlytime=true)
 lfp_ca1 = Munge.lfp.annotate_cycles(lfp_ca1)
+
 spikes = Munge.spiking.isolated(spikes, lfp_ca1, refreshcyc=true)
 dfa_theta  = combine(groupby(subset(dfa,:freq=>f->Utils.in_range(f,[6,12])), :time),
                      :C=>mean=>:Ctheta,renamecols=false)
@@ -73,3 +75,56 @@ clean_cuecorr(iso)
         renamecols=false 
        )
 clean_cuecorr(isocc)
+
+sort!(dfa, [:time, :freq])
+
+# Spike triggered average
+
+get_matrix(df::DataFrame, col) = 
+     Matrix(unstack(df[!,:], :time, :freq, col)[:,Not(:time)])
+get_unstack(df::DataFrame, col) = unstack(df[!,:], :time, :freq, col)
+unstack_dict = Dict(col=>get_unstack(dfa, col) for col in [:C,:S1,:S2,:phi])
+
+function spike_triggered_average(spikes::DataFrame, dfa::DataFrame)
+    inds = Utils.searchsortednearest.([dfa.time], spikes.time)
+    inds = inds[ abs.(dfa.time[inds] .- spikes.time) .< 0.05 ]
+    times = dfa.time[inds]
+    #dfg  = groupby(dfa,:time)
+    #kT   = keys(dfg)
+    #kTv  = [v[1] for v in kT]
+    #freqs = unique(dfa.freq)
+    #nF = length(freqs)
+
+    xvals,yvals = Vector{Union{Missing,Vector}}(missing,length(times)),
+                 Vector{Union{Missing,Matrix}}(missing,length(times))
+    prog = Progress(length(inds);desc="triggering")
+    Threads.@threads for (i,time) in collect(enumerate(times))
+        
+        #@infiltrate
+
+        #keyloc = findfirst( time .== kTv )
+        #I = UnitRange(clamp.(100 .* (-1,1) .+ keyloc, [1], [size(dfg,1)])...)
+        #M = get_unstack(combine(dfg[kT[I]],identity), prop)
+        
+        df = subset(dfa, :time=>t->Utils.in_range(t, time .+ [-1, 1]))
+
+        xvals[i] = df.time
+        yvals[i] =  Matrix(df[!,Not(:time)])
+        next!(prog)
+    end
+    (;times=xvals, yvals)
+end
+
+# Spectral averaging
+Cta = Dict()
+for (iso, area, field) in Iterators.product((true,),("CA1","PFC"),(:C,:S1,:S2,:phi))
+    key = (;iso, area, field)
+    if key ∉ keys(Cta)
+        Cta[key] = spike_triggered_average(
+                                @subset(spikes,:isolated .== iso .&& :area .== area),
+                                        unstack_dict[field])
+        serialize(datadir("checkpoint"),Cta)
+    end
+end
+
+serialize(datadir("checkpoint"),(;Cta,freq))
