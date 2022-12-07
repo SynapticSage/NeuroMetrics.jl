@@ -116,15 +116,34 @@ function spike_triggered_average(spikes::DataFrame, dfa::DataFrame)
 end
 
 # Spectral averaging
+using Serialization
 Cta = Dict()
-for (iso, area, field) in Iterators.product((true,),("CA1","PFC"),(:C,:S1,:S2,:phi))
+freq=unique(dfa.freq);
+
+for (iso, area, field) in Iterators.product((true,),("CA1","PFC"),(:C))
     key = (;iso, area, field)
     if key ∉ keys(Cta)
         Cta[key] = spike_triggered_average(
                                 @subset(spikes,:isolated .== iso .&& :area .== area),
                                         unstack_dict[field])
-        serialize(datadir("checkpoint"),Cta)
+        #serialize(datadir("checkpoint"),(;Cta, freq))
     end
 end
 
 serialize(datadir("checkpoint"),(;Cta,freq))
+
+cta = Cta[(iso = true, area = "CA1", field = :C)]
+sel = length.(cta.times) .== median(length.(cta.times))
+times = mean(cta.times[sel])
+times = times .- minimum(times)
+vals  = mean(cta.yvals[sel])
+h1 = heatmap(times,freq,vals',c=:vik,size=(800,2000))
+
+cta = Cta[(iso = true, area = "PFC", field = :C)]
+sel = length.(cta.times) .== median(length.(cta.times))
+times = mean(cta.times[sel])
+times = times .- minimum(times)
+vals  = mean(cta.yvals[sel])
+h2 = heatmap(times,freq,vals',c=:vik,size=(800,2000))
+
+plot(h1,h2, size=(1600,2000))
