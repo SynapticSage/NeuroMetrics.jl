@@ -149,7 +149,8 @@ function obtain_local_binned_measure(em, beh, props; grid_kws=nothing, savefile,
     end
     (;ca1pfc, pfcca1, weighting_trig, checkpoint)
 end
-get_savefile(props) = datadir("manifold","causal","local_grid_cause_props=$(join(props,","))_$(paramstr)_$tagstr.jld2")
+get_savefile(props) = 
+ datadir("manifold","causal","local_grid_cause_props=$(join(props,","))_$(paramstr)_$tagstr.jld2")
 
 # =====
 # X - Y
@@ -188,30 +189,62 @@ func = nanmean
 using Plot.task
 tsk = Load.load_task(animal, day)
 
-C = [collect(Float64.(c)) for c in grd.centers]
-# How many unsampled?
-nanfrac = (sum(isnan.(ca1pfc), dims=(3,4))./size(ca1pfc,4))[:,:]'./size(ca1pfc,3)
-S=heatmap(C..., nanfrac, title="unsampled fraction")
-plotboundary!(tsk,transpose=true, c=:black)
-
-weightstyle=:nanfrac
-if weightstyle == :nanfrac
-    weighting = (1 .- nanfrac)'
-elseif weightstyle == :sampcount
-    weighting = weighting_trig
-elseif weightstyle == :nanfrac_sq
-    weighting = ((1 .- nanfrac) .^ 2)'
+function getnanfrac(X)
+    horizonAndSamp = Tuple(collect(1:ndims(X))[end-1:end])
+    total_who_could_be_present = size(X,horizonAndSamp[1]) .* 
+                                 size(X,horizonAndSamp[2])
+    sum(isnan.(X); dims=horizonAndSamp) ./
+                        total_who_could_be_present
 end
+"""
+    plottrackcause(ca1pfc,pfcca1, 
+                     slice=[Colon() for _ in 1:ndims(ca1pfc)], 
+                          plotdims=1:2; weightstyle=:nanfrac)
 
-function plot_track_cause(ind=Colon())
-    # getting trigger sample info
-    #scatter([x for x in vec.(trig.occ.inds) if !isempty(x)]; markersize=2, markerstrokewidth=0, markerstrokealpha=0.001, markerstrokestyle=:dot, legend=:none)
-    #heatmap(nanmean(pfcca1 - ca1pfc, dims=(3,4))[:,:])
-    ind = ind isa Real ? [ind] : ind
-    X=func(pfcca1[:,:,:,ind] .* weighting, dims=(3,4))[:,:]' 
+Plot the causal data in ca1pfc and pfcca1 matrices, indexed by `slice`, and
+along the plotdimensions `plotdims`
+"""
+function plottrackcause(ca1pfc,pfcca1, 
+                          slice=[Colon() for _ in 1:ndims(ca1pfc)], 
+                          plotdims=1:2; weightstyle=:nanfrac)
+
+    C = [collect(Float64.(c)) for c in grd.centers]
+
+    # How many unsampled?
+    nanfrac = getnanfrac(ca1pfc)
+
+    # Perform slicing
+    ca1pfc = ca1pfc[slice...]
+    pfcca1 = pfcca1[slice...]
+    nanfrac = nanfrac[slice...]
+
+    squishdims = setdiff(1:ndims(ca1pfc), collect(plotdims))
+    ca1pfc  = nanmean(ca1pfc;dims=squishdims)
+    pfcca1  = nanmean(pfcca1;dims=squishdims)
+    nanfrac = nanmean(nanfrac;dims=squishdims)
+
+    # Make sure the final product is XD
+    ca1pfc  = Utils.squeeze(ca1pfc)
+    pfcca1  = Utils.squeeze(pfcca1)
+    nanfrac = Utils.squeeze(nanfrac)
+    @assert ndims(ca1pfc)<=2 "Dafuq. Dims need to be no more than 2."
+    
+    S=heatmap(C..., nanfrac, title="unsampled fraction")
+    plotboundary!(tsk,transpose=true, c=:black)
+
+    if weightstyle == :nanfrac
+        weighting = (1 .- nanfrac)
+    elseif weightstyle == :sampcount
+        weighting = weighting_trig'
+    elseif weightstyle == :nanfrac_sq
+        weighting = ((1 .- nanfrac) .^ 2)
+    end
+    
+    #ind = ind isa Real ? [ind] : ind
+    X=func(pfcca1 .* weighting, dims=(3,4))[:,:]' 
     h1=heatmap(C[1], C[2], X, title="pfc-ca1", c=:vik, clims=nanmaximum(abs.(X)).*(-1,1))
     plotboundary!(tsk,transpose=true, c=:black)
-    X=func(ca1pfc[:,:,:,ind] .* weighting, dims=(3,4))[:,:]' 
+    X=func(ca1pfc .* weighting, dims=(3,4))[:,:]' 
     h2=heatmap(C[1], C[2], X, title="ca1-pfc", c=:vik, clims=nanmaximum(abs.(X)).*(-1,1))
     plotboundary!(tsk,transpose=true, c=:black)
     plot(h1,h2, size=(800,400))
@@ -219,15 +252,15 @@ function plot_track_cause(ind=Colon())
     plot(h1,h2,S, size=(800,800))
 
     dif = pfcca1 .- ca1pfc
-    dif = func(dif[:,:,:,ind] .* weighting, dims=(3,4))[:,:]' .* (2)
+    dif = func(dif .* weighting, dims=(3,4))[:,:]' .* (2)
     hD = heatmap(C..., dif; title="pfcca1 .- ca1pfc", c=:vik, clims=nanmaximum(abs.(dif)).*(-1,1))
     plotboundary!(tsk,transpose=true,c=:black,linestyle=:solid,label="")
 
     plot(h1,h2,S,hD, size=(800,400))
 end
-@time plot_track_cause()
+@time plottrackcause()
 
 anim = @animate for i in params[:horizon]
-    plot_track_cause(i)
+    plottrackcause(i)
 end
 gif(anim, fps=5)
