@@ -120,7 +120,7 @@ using Serialization
 Cta = Dict()
 freq=unique(dfa.freq);
 
-for (iso, area, field) in Iterators.product((true,),("CA1","PFC"),(:C))
+for (iso, area, field) in Iterators.product((true,false),("CA1","PFC"),(:C,))
     key = (;iso, area, field)
     if key ∉ keys(Cta)
         Cta[key] = spike_triggered_average(
@@ -132,18 +132,18 @@ end
 
 serialize(datadir("checkpoint"),(;Cta,freq))
 
-cta = Cta[(iso = true, area = "CA1", field = :C)]
-sel = length.(cta.times) .== median(length.(cta.times))
-times = mean(cta.times[sel])
-times = times .- minimum(times)
-vals  = mean(cta.yvals[sel])
-h1 = heatmap(times,freq,vals',c=:vik,size=(800,2000))
-
-cta = Cta[(iso = true, area = "PFC", field = :C)]
-sel = length.(cta.times) .== median(length.(cta.times))
-times = mean(cta.times[sel])
-times = times .- minimum(times)
-vals  = mean(cta.yvals[sel])
-h2 = heatmap(times,freq,vals',c=:vik,size=(800,2000))
-
-plot(h1,h2, size=(1600,2000))
+using Statistics, NaNStatistics
+using Plots
+function get_plot(key)
+    cta = Cta[key]
+    sel = length.(cta.times) .== median(length.(cta.times))
+    times = mean(cta.times[sel])
+    times = times .- minimum(times)
+    vals  = mean(cta.yvals[sel])
+    h1 = heatmap(times,freq,vals',c=:vik,size=1/2 .*(800,2000))
+end
+h1 = get_plot((iso=true,  area = "CA1", field = :C))
+h2 = get_plot((iso=true,  area = "PFC", field = :C))
+h3 = get_plot((iso=false, area = "CA1", field = :C))
+h4 = get_plot((iso=false, area = "PFC", field = :C))
+plot(h1,h2, h3, h4, size=(1600,2000))
