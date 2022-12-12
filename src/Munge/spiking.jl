@@ -254,18 +254,18 @@ module spiking
                      x->(i=isolated(x; kws...);next!(prog);i)
                      )
     end
-    function isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle, include_samples::Bool=false)
+    function isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle, include_samples::Bool=false, overwrite=false)
         explore = setdiff(-N:N,0)
-        if !hasproperty(spikes, :isolated)
+        if overwrite || !hasproperty(spikes, :isolated)
             spikes[!,:isolated] = Vector{Union{Missing,Bool}}(missing, size(spikes,1))
         end
-        if !hasproperty(spikes, :nearestcyc)
+        if overwrite || !hasproperty(spikes, :nearestcyc)
             spikes[!,:nearestcyc] = Vector{Union{Missing,Int32}}(missing, size(spikes,1))
         end
-        if !hasproperty(spikes, :meancyc)
+        if overwrite || !hasproperty(spikes, :meancyc)
             spikes[!,:meancyc] = Vector{Union{Missing,Float32}}(missing, size(spikes,1))
         end
-        if include_samples && !hasproperty(spikes, :isosamples)
+        if overwrite || (include_samples && !hasproperty(spikes, :isosamples))
             spikes[!,:meancyc] = Vector{Union{Missing,Vector}}(missing, size(spikes,1))
         end
         cycles = groupby(spikes, cycle_prop)

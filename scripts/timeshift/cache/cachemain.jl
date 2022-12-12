@@ -87,10 +87,14 @@ F = OrderedDict{NamedTuple, Any}()
 
 datasets = (("RY16",36, :adj),("RY16",36, :iso),)
 (animal, day, frac) = first(datasets)
+
 @showprogress "animal" for (animal, day, frac) in datasets #Load.animal_set
-    #animal, day = "RY16", 36, 
+
+    @info "loop" animal day frac
+
     @time spikes, beh, ripples, cells = Load.load(animal, day);
     _, spikes = Load.register(beh, spikes; transfer=["velVec"], on="time")
+
     lfp = Load.load_lfp(animal, day, tet=:default, subtract_earlytime=true)
 
     if frac == :iso || frac == :adj
@@ -108,6 +112,7 @@ datasets = (("RY16",36, :adj),("RY16",36, :iso),)
         dropmissing!(spikes, :isolated)
         spikes = frac == :iso ? (println("selecting iso"); spikes[spikes.isolated, :]) : 
                                 (println("selecting adj"); spikes[(!).(spikes.isolated), :])
+        @info "unique iso" unique(spikes.isolated)
     end
 
     shuffle_type = :dotson

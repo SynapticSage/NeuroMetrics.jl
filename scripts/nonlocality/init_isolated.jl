@@ -64,6 +64,15 @@ Utils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
 @assert !all(ismissing.(spikes.phase))
 
 
+# ===================
+# ISOLATED SPIKING
+# ===================
+#Munge.spiking.isolated(sp, lfp, include_samples=true)
+Munge.spiking.isolated(spikes, lfp, include_samples=false)
+
+# ===================
+# FIelds
+# ===================
 F = load_fields()
 kz = collect(filter(k->k.animal == animal && k.day == day, keys(F)))
 @time f = F[bestpartialmatch(kz, 
@@ -83,12 +92,6 @@ push_metric!(unitshift, Field.metrics.bitsperspike)
 push_metric!(unitshift, Field.metrics.totalcount)
 push_shiftmetric!(unitshift, best_tau!; metric=:bitsperspike)
 annotate_nonlocal_spikes!(spikes, cells, unitshift, 0)
-
-# ===================
-# ISOLATED SPIKING
-# ===================
-#Munge.spiking.isolated(sp, lfp, include_samples=true)
-Munge.spiking.isolated(spikes, lfp, include_samples=false)
 
 
 # Which cells pass our criteria?
