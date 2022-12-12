@@ -149,14 +149,19 @@ module receptivefield
     end
 
     @recipe function plot_adaptiveocc(field::T where T<:Occupancy,
-            val::Symbol=:prob, transpose::Bool=true)
+            val::Symbol=:prob, transpose::Bool=true; slice=nothing)
         @info "tet"
         a=1
         Z = if val==:prob
             reshape(getproperty(field, val), size(field.grid))
         else
-            getproperty(grid, val)
+            getproperty(field, val)
         end
+        Z = slice !== nothing ? Z[slice...] : Z
+        centers = field.grid.centers
+        non_singleton_dims = findall(size(Z) .!= 1)
+        #@infiltrate
+        centers = collect(centers)[non_singleton_dims]
         z := Z
         if ndims(Z) == 2
             seriestype --> :heatmap 
@@ -166,10 +171,10 @@ module receptivefield
             seriestype --> :volume
         end
         colorbar_title --> String(val)
-        X = [field.grid.centers[1]...]
+        X = [centers[1]...]
         x --> X
         if length(field.grid.centers) > 1
-            Y = [field.grid.centers[2]...]
+            Y = [centers[2]...]
             y --> Y
             transpose ? (X,Y,Z') : _transpose(X,Y,Z')
         else
@@ -180,12 +185,39 @@ module receptivefield
         end
     end
 
-    @recipe function plot_adaptivegrid(grid::GridAdaptive, val::Symbol=:radii,
-        transpose::Bool=true)
+    @recipe function plot_adaptivegrid(grid::GridAdaptive, 
+            val::Symbol=:radii, transpose::Bool=true; slice=nothing,
+            valfunc=identity, slice_lab_join="\n")
 
         Z = getproperty(grid, val)
         Z = Z[1] isa AbstractVector ? sqrt.(prod.(Z)) : Z
 
+        # Handle slice
+        Z = slice !== nothing ? Z[slice...] : Z
+        Z = valfunc(Z)
+        centers = grid.centers
+        non_singleton_dims = findall(size(Z) .!= 1)
+        singleton_sliced_dims = setdiff(1:length(grid.props), 
+                                        non_singleton_dims);
+        centers = collect(centers)[non_singleton_dims]
+
+        # Get labels of slicing
+        slice_label = ""
+        if slice !== nothing
+            props, values = grid.props[singleton_sliced_dims], 
+                             collect(grid.centers)[singleton_sliced_dims]
+            values = [v[s] for (v,s) in zip(values, slice[singleton_sliced_dims])]
+            slice_label = ["$p=$v" for (p,v) in zip(props, values)]
+            slice_label = join(slice_label, slice_lab_join)
+            if :title ∈ keys(plotattributes)
+                title = plotattributes[:title]
+                title := join([title, slice_label],"\n")
+            else
+                title := slice_label
+            end
+        end
+
+        #Series type and colorbar
         colorbar_title --> String(val)
         if ndims(Z) == 2
             seriestype --> :heatmap 
@@ -195,10 +227,12 @@ module receptivefield
             seriestype --> :volume
         end
         c --> :thermal
-        X = [grid.centers[1]...]
+
+        # Get X Y for the Z
+        X = [centers[1]...]
         x --> X
         if length(grid.centers) > 1
-            Y = [grid.centers[2]...]
+            Y = [centers[2]...]
             y --> Y
             transpose ? (X,Y,Z') : _transpose(X,Y,Z')
         else
@@ -306,5 +340,9 @@ module receptivefield
         end
         ()
     end
-
 end
+
+# Example of getting a set of slice of radii of adaptivegrid
+# pl=[(plot(grd, :radii; valfunc=f, slice=[:,:,i,j]); 
+# plotboundary!(tsk; transpose=true,label="")) for (i,j) in Iterators.product(1:3,1:3)]
+#
