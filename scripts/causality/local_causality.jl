@@ -167,7 +167,8 @@ JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
 # X - Y - CUEMEM - CORRERR
 # ========================
 props = ["x", "y", "cuemem", "correct"]
-grid_kws=(;widths=[5f0,5f0,1f0,1f0], radiusinc=[1.2f0,1.2f0,1f0,1f0])
+grid_kws=(;widths=[5f0,5f0,1f0,1f0], radiusinc=[0.2f0,0.2f0,0f0,0f0], 
+           maxrad=[7.5f0,7.5f0,0.5f0,0.5f0])
 grd = Utils.binning.get_grid(beh, props; grid_kws...)
 savefile = get_savefile(props)
 ca1pfc, pfcca1, weighting_trig, checkpoint = 
@@ -208,7 +209,7 @@ function plottrackcause(ca1pfc,pfcca1,
                           slice=[Colon() for _ in 1:ndims(ca1pfc)], 
                           plotdims=1:2; weightstyle=:nanfrac)
 
-    C = [collect(Float64.(c)) for c in grd.centers]
+    axes = [collect(Float64.(c)) for c in grd.centers][plotdims]
 
     # How many unsampled?
     nanfrac = getnanfrac(ca1pfc)
@@ -218,19 +219,15 @@ function plottrackcause(ca1pfc,pfcca1,
     pfcca1 = pfcca1[slice...]
     nanfrac = nanfrac[slice...]
 
-    squishdims = setdiff(1:ndims(ca1pfc), collect(plotdims))
-    ca1pfc  = nanmean(ca1pfc;dims=squishdims)
+    squishdims = (setdiff(1:ndims(ca1pfc), collect(plotdims))...,)
+    ca1pfc  = nanmean(ca1pfc,dims=squishdims)
     pfcca1  = nanmean(pfcca1;dims=squishdims)
-    nanfrac = nanmean(nanfrac;dims=squishdims)
+    nanfrac = nansum(nanfrac;dims=squishdims)
 
     # Make sure the final product is XD
     ca1pfc  = Utils.squeeze(ca1pfc)
     pfcca1  = Utils.squeeze(pfcca1)
     nanfrac = Utils.squeeze(nanfrac)
-    @assert ndims(ca1pfc)<=2 "Dafuq. Dims need to be no more than 2."
-    
-    S=heatmap(C..., nanfrac, title="unsampled fraction")
-    plotboundary!(tsk,transpose=true, c=:black)
 
     if weightstyle == :nanfrac
         weighting = (1 .- nanfrac)
@@ -239,24 +236,35 @@ function plottrackcause(ca1pfc,pfcca1,
     elseif weightstyle == :nanfrac_sq
         weighting = ((1 .- nanfrac) .^ 2)
     end
-    
-    #ind = ind isa Real ? [ind] : ind
-    X=func(pfcca1 .* weighting, dims=(3,4))[:,:]' 
-    h1=heatmap(C[1], C[2], X, title="pfc-ca1", c=:vik, clims=nanmaximum(abs.(X)).*(-1,1))
-    plotboundary!(tsk,transpose=true, c=:black)
-    X=func(ca1pfc .* weighting, dims=(3,4))[:,:]' 
-    h2=heatmap(C[1], C[2], X, title="ca1-pfc", c=:vik, clims=nanmaximum(abs.(X)).*(-1,1))
-    plotboundary!(tsk,transpose=true, c=:black)
-    plot(h1,h2, size=(800,400))
+    weigthing = replace(weighting, 0.0 => NaN)
 
-    plot(h1,h2,S, size=(800,800))
+    pfcca1  = (pfcca1 .* weighting)[:,:]'
+    ca1pfc  = (ca1pfc .* weighting)[:,:]'
+    nanfrac = nanfrac'
+
+    @assert ndims(ca1pfc)<=2 "Dafuq. Dims need to be no more than 2."
+    
+    p_unsamp=heatmap(axes..., nanfrac, title="unsampled fraction")
+    plotboundary!(tsk,transpose=true, c=:black)
+
+    
+    h_pfcca1 = heatmap(axes[1], axes[2], pfcca1, title="pfc-ca1", 
+                     c=:vik, clims=nanmaximum(abs.(pfcca1)).*(-1,1))
+    plotboundary!(tsk,transpose=true, c=:black)
+
+    h_ca1pfc=heatmap(axes[1], axes[2], ca1pfc, title="ca1-pfc", 
+                     c=:vik, clims=nanmaximum(abs.(ca1pfc)).*(-1,1))
+    plotboundary!(tsk,transpose=true, c=:black)
+
+    plot(h_pfcca1,h_ca1pfc, size=(800,400))
+    plot(h_pfcca1,h_ca1pfc,p_unsamp, size=(800,800))
 
     dif = pfcca1 .- ca1pfc
     dif = func(dif .* weighting, dims=(3,4))[:,:]' .* (2)
-    hD = heatmap(C..., dif; title="pfcca1 .- ca1pfc", c=:vik, clims=nanmaximum(abs.(dif)).*(-1,1))
+    hD = heatmap(axes..., dif; title="pfcca1 .- ca1pfc", c=:vik, clims=nanmaximum(abs.(dif)).*(-1,1))
     plotboundary!(tsk,transpose=true,c=:black,linestyle=:solid,label="")
 
-    plot(h1,h2,S,hD, size=(800,400))
+    plot(h_pfcca1,h_ca1pfc,p_unsamp,hD, size=(800,400))
 end
 @time plottrackcause()
 

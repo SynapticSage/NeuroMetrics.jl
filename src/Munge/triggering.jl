@@ -35,7 +35,7 @@ module triggering
     (grid, data) points
     """
     function Base.getindex(g::TriggerGenerator, state)
-        window_centroids = g.X[1][g.occ.inds[state],"time"]
+        window_centroids = g.X[1][g.occ.inds[state],"time"] # grabs all of the precomputed times the dataset crossed into the state
         windows_of_data = Vector{Vector{DataFrame}}(undef, size(window_centroids,1))
         for (t,trig) in enumerate(eachrow(window_centroids))
             times = Utils.in_range(g.X[1].time, g.win .* (-1,1) .+ trig)
@@ -52,13 +52,13 @@ module triggering
     #    end
     #    windows_of_data
     #end
-    Base.iterate(g::TriggerGenerator) = g[1], 1
-    Base.iterate(g::TriggerGenerator, state) = state >= length(g) ? 
+    Base.iterate(g::TriggerGenerator)        = g[1], 1
+    Base.iterate(g::TriggerGenerator, state) = state >= length(g) ?
                                         nothing : (g[state+1], state+1)
-    Base.peek(g::TriggerGenerator)  = g[1]
-    Base.peek(g::TriggerGenerator, state) = g[state]
-    Base.firstindex(g::TriggerGenerator) = 1
-    Base.lastindex(g::TriggerGenerator) = Base.length(g)
+    Base.peek(g::TriggerGenerator)           = g[1]
+    Base.peek(g::TriggerGenerator, state)    = g[state]
+    Base.firstindex(g::TriggerGenerator)     = 1
+    Base.lastindex(g::TriggerGenerator)      = Base.length(g)
     #Base.popfirst!(g::TriggerGenerator)   = nothing
 
     export get_triggergen
@@ -75,7 +75,7 @@ module triggering
     end
     function get_triggergen(window::WindowType, grid::Grid, X::DataFrame...)
         @debug "get_triggergen :: getting occ"
-        occ  = get_occupancy_indexed(X[1], grid)
+        occ  = get_occupancy_indexed(X[1], grid) # get occupancy of the dataframe (which are the triggers)
         get_triggergen(window, grid, occ, X...) 
     end
     function get_triggergen(window::WindowType, grid::Grid, occ::Occupancy, X::DataFrame...)
