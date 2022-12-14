@@ -68,7 +68,7 @@ function obtain_local_binned_measure(em, beh, props; grid_kws=nothing, savefile,
     ## ------------------------------
     ## Setup frames and zone triggers
     ## ------------------------------
-    propstime = ["time",props...]
+    #propstime = ["time",props...]
     EFF = EmbeddingFrameFetch(em, :area, beh, props; 
                               ordering=Dict(:area=>[:ca1,:pfc]))
 
@@ -115,7 +115,6 @@ function obtain_local_binned_measure(em, beh, props; grid_kws=nothing, savefile,
                     pcv .+= pct
                 catch err
                     showerror(stdout, err)
-                    #@infiltrate
                 end
                 count += 1
             end
@@ -139,7 +138,6 @@ function obtain_local_binned_measure(em, beh, props; grid_kws=nothing, savefile,
     times = []
     for (e,eff) in enumerate(EFF)
         zones = triggering.get_triggergen(1, grd, eff...)
-        #@infiltrate length(zones) == 0
         for (idx,data) in zones
             weighting_trig[idx..., e] += length(data)
             [append!(times, d[1].time) for d in data]
@@ -160,19 +158,43 @@ props = ["x","y"]
 savefile = get_savefile(props)
 ca1pfc, pfcca1, weighting_trig, checkpoint = 
         obtain_local_binned_measure(em, beh, props; grid_kws, savefile)
+
 JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
              props, ca1pfc, pfcca1, checkpoint)
-
-# ========================
-# X - Y - CUEMEM - CORRERR
-# ========================
-props = ["x", "y", "cuemem", "correct"]
-grid_kws=(;widths=[5f0,5f0,1f0,1f0], radiusinc=[0.2f0,0.2f0,0f0,0f0], 
-           maxrad=[7.5f0,7.5f0,0.5f0,0.5f0])
+# ==========================
+# CUEMEM - CORRECT - HA_TRAJ
+# ==========================
+props = ["cuemem", "correct", "hatrajnum"]
+grid_kws=(;widths=[1f0,1f0,1f0], 
+           radiusinc=[0f0,0f0,0f0], 
+           maxrad=[0.5f0,0.5f0, 0.5f0],
+           radiidefault=[0.4f0,0.4f0,0.4f0],
+           steplimit=1,
+          )
 grd = Utils.binning.get_grid(beh, props; grid_kws...)
 savefile = get_savefile(props)
 ca1pfc, pfcca1, weighting_trig, checkpoint = 
         obtain_local_binned_measure(em, beh, props; grd, savefile)
+
+JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
+             props, ca1pfc, pfcca1, checkpoint)
+
+
+# ========================
+# X - Y - CUEMEM - CORRERR
+# ========================
+props = ["x", "y", "cuemem", "correct", "hatraj"]
+grid_kws =
+        (;widths    = [4f0,4f0,1f0,1f0,1f0],
+          radiusinc = [0.2f0,0.2f0,0f0,0f0,0f0],
+          maxrad    = [6f0,6f0,0.5f0,0.5f0])
+grd = Utils.binning.get_grid(beh, props; grid_kws...)
+savefile = get_savefile(props)
+ca1pfc, pfcca1, weighting_trig, checkpoint = 
+        obtain_local_binned_measure(em, beh, props; grd, savefile)
+
+JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
+             props, ca1pfc, pfcca1, checkpoint)
 
 # ========================
 # X - Y - START - STOP
