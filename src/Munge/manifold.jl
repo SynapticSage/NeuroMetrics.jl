@@ -154,7 +154,7 @@ module manifold
         end
         if concat != []
             concat = _remainderdims(df, concat)
-            @info "concat" concat
+            @info "EmbeddingFrameFetch" concat
             G = groupby(df, concat)
             K, G′  = keys(G), []
             for k in K
@@ -171,7 +171,7 @@ module manifold
         end
         groupings = _remainderdims(df, pairing)
         unique!(groupings)
-        @info groupings pairing
+        @info "EmbeddingFrameFetch" groupings pairing
         EmbeddingFrameFetch(groupby(df, groupings), pairing, augment, 
                             props isa Vector ? union([:time], Symbol.(props)) :
                             props

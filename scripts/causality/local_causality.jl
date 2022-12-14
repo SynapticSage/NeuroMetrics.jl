@@ -40,8 +40,8 @@ animal, day = "RY16", 36
 @info "prop missinG"
 esttype = :binned
 est, params = get_est_preset(esttype)
-params = (;params..., horizon=1:20, thread=false)
-params = (;params..., binning=5)
+params = (;params..., horizon=1:30, thread=false)
+params = (;params..., binning=5, window=1.25)
 
 # Obtain savefile
 # ---------------
@@ -65,6 +65,7 @@ function obtain_local_binned_measure(em, beh, props; grid_kws=nothing, savefile,
         D=JLD2.load(savefile)
         Utils.dict.load_dict_to_module!(Main, D)
     end
+    @info "obtain_local_binned_measure()" props savefile params params.window
     ## ------------------------------
     ## Setup frames and zone triggers
     ## ------------------------------
@@ -87,8 +88,8 @@ function obtain_local_binned_measure(em, beh, props; grid_kws=nothing, savefile,
     @info "How much ground to cover" length(EFF) length(first(EFF))
 
     @showprogress "frames" for (e,eff) in enumerate(EFF[1:length(EFF)])
-        @info e
-        zones = triggering.get_triggergen(1, grd, eff...)
+        @info e 
+        zones = triggering.get_triggergen(params.window, grd, eff...)
         #(idx,data) = zones[50]
         Threads.@threads for (idx,data) in zones
             if isempty(data); continue; end
@@ -147,8 +148,9 @@ function obtain_local_binned_measure(em, beh, props; grid_kws=nothing, savefile,
     end
     (;ca1pfc, pfcca1, weighting_trig, checkpoint)
 end
-get_savefile(props) = 
- datadir("manifold","causal","local_grid_cause_props=$(join(props,","))_$(paramstr)_$tagstr.jld2")
+get_savefile(props;params=params) = 
+    datadir("manifold","causal",
+            "local_grid_cause_props=$(join(props,","))_$(Utils.namedtup.tostring(pop!(params,:thread)))_$tagstr.jld2")
 
 # =====
 # X - Y
@@ -173,6 +175,7 @@ grid_kws=(;widths=[1f0,1f0,1f0],
           )
 grd = Utils.binning.get_grid(beh, props; grid_kws...)
 savefile = get_savefile(props)
+
 ca1pfc, pfcca1, weighting_trig, checkpoint = 
         obtain_local_binned_measure(em, beh, props; grd, savefile)
 
@@ -183,11 +186,12 @@ JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
 # ========================
 # X - Y - CUEMEM - CORRERR
 # ========================
-props = ["x", "y", "cuemem", "correct", "hatraj"]
+props = ["x", "y", "cuemem", "correct", "hatrajnum"]
 grid_kws =
         (;widths    = [4f0,4f0,1f0,1f0,1f0],
           radiusinc = [0.2f0,0.2f0,0f0,0f0,0f0],
-          maxrad    = [6f0,6f0,0.5f0,0.5f0])
+          maxrad    = [6f0,6f0,0.5f0,0.5f0],
+         )
 grd = Utils.binning.get_grid(beh, props; grid_kws...)
 savefile = get_savefile(props)
 ca1pfc, pfcca1, weighting_trig, checkpoint = 

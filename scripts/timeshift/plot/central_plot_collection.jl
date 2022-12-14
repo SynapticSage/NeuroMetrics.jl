@@ -23,8 +23,8 @@ F = load_fields()
 
 datasets = 
 (
- ("RY16", 36, nothing),
  ("RY16", 36, "CA1"),
+ ("RY16", 36, nothing),
  ("RY22", 21, "CA1"),
  ("RY16", 36, "PFC"),
  ("RY22", 21, "PFC"),
@@ -40,13 +40,14 @@ datasets= [(d..., frac) for d in datasets for frac in [ :iso, :adj]]
 animal, day, brain_area, frac = datasets[end]
 #include(expanduser("~/tmp2.jl"))
 
-@softscope for (i,(animal,day,brain_area)) in collect(enumerate(datasets))
+@softscope for (i,(animal,day,brain_area,frac)) in collect(enumerate(datasets))
     
+    @info "loop" i animal day brain_area frac
     if frac != :adj
         continue
     end
 
-    @info "loop" i animal day brain_area frac
+    @info "loop_engage" i animal day brain_area frac
     #if brain_area === nothing
     #    @info "skip"
     #    continue
