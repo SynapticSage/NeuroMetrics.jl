@@ -1,4 +1,4 @@
-(animal, day) = ("RY22",21)
+(animal, day) = ("RY16",36)
 
 quickactivate(expanduser("~/Projects/goal-code/"));
 using GoalFetchAnalysis
@@ -61,7 +61,9 @@ GC.gc()
 using SoftGlobalScope
 
 iso, phase = [], []
-@softscope for tet in 1:32
+@softscope for tet in ca1
+
+    @info "loop start" tet length(iso) length(phase)
 
     lfp = copy(@subset(LFP, :tetrode .== tet))
     lfp.time = lfp.time .- Load.min_time_records[end]
@@ -82,7 +84,6 @@ iso, phase = [], []
     Utils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
     @assert !all(ismissing.(spikes.phase))
 
-
     # ===================
     # ISOLATED SPIKING
     # ===================
@@ -93,4 +94,16 @@ iso, phase = [], []
     push!(phase, spikes.phase)
 end
 
+import JLD2
+JLD2.save(datadir("checkpoint_tetrodecheck_$(animal)_$(day).tmp.jld2"), "iso", "phase")
 
+df = vcat((DataFrame(Dict("tetrode"=>tet,"phase"=>ph,"isolated"=>is)) for (tet,ph,is) in zip(ca1, phase, iso) 
+           if ph !== nothing)...)
+gdf = groupby(df, :tetrode)
+pl = [(@df DataFrame(dropmissing(g, :isolated)) histogram(:phase, group=:isolated, bins=40; normalize=:probability,label="",xticks=[],yticks=[], alpha=0.4, title="$(g.tetrode[1])")) for g in gdf]
+plot(pl...)
+
+figname = plotsdir("isolated", "find_goot_tet.jl", "$(animal)_$(day)_tetrodePhaseLocking")
+mkpath(dirname(figname))
+savefig("$figname.pdf")
+savefig("$figname.png")

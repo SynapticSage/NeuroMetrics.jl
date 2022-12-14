@@ -140,7 +140,8 @@ function get_plot(key)
     times = mean(cta.times[sel])
     times = times .- minimum(times)
     vals  = mean(cta.yvals[sel])
-    h1 = heatmap(times,freq,vals',c=:vik,size=1/2 .*(800,2000))
+    heatmap(times,freq,vals',
+            c=:vik, size=1/2 .*(800,2000))
 end
 h1 = get_plot((iso=true,  area = "CA1", field = :C))
 h2 = get_plot((iso=true,  area = "PFC", field = :C))
