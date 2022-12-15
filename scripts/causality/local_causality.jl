@@ -163,8 +163,9 @@ ca1pfc, pfcca1, weighting_trig, checkpoint =
 
 JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
              props, ca1pfc, pfcca1, checkpoint)
+
 # ==========================
-# CUEMEM - CORRECT - HA_TRAJ
+# CUEMEM - CORRECT - HATRAJ
 # ==========================
 props = ["cuemem", "correct", "hatrajnum"]
 grid_kws=(;widths=[1f0,1f0,1f0], 
@@ -179,18 +180,42 @@ savefile = get_savefile(props)
 ca1pfc, pfcca1, weighting_trig, checkpoint = 
         obtain_local_binned_measure(em, beh, props; grd, savefile)
 
+hatrajcodex = Dict(r.hatrajnum=>r.hatraj for 
+     r in eachrow(unique(beh[!,[:hatraj, :hatrajnum]])))
 JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
              props, ca1pfc, pfcca1, checkpoint)
 
+# ==========================
+# CUEMEM - CORRECT - HATRAJ - startWell - stopWell
+# ==========================
+props = ["cuemem", "correct", "hatrajnum","startWell","stopWell"]
+grid_kws=(;
+           widths       = [1f0,1f0,1f0,1f0,1f0],
+           radiusinc    = [0f0,0f0,0f0,0f0,0f0],
+           maxrad       = [0.5f0,0.5f0, 0.5f0, 0.5f0, 0.5f0],
+           radiidefault = [0.4f0,0.4f0,0.4f0,0.4f0,0.4f0],
+           steplimit    = 1,
+          )
+grd = Utils.binning.get_grid(beh, props; grid_kws...)
+savefile = get_savefile(props)
+
+ca1pfc, pfcca1, weighting_trig, checkpoint = 
+        obtain_local_binned_measure(em, beh, props; grd, savefile)
+
+hatrajcodex = Dict(r.hatrajnum=>r.hatraj for 
+     r in eachrow(unique(beh[!,[:hatraj, :hatrajnum]])))
+JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
+             props, ca1pfc, pfcca1, checkpoint, hatrajcodex)
 
 # ========================
 # X - Y - CUEMEM - CORRERR
 # ========================
-props = ["x", "y", "cuemem", "correct", "hatrajnum"]
+props = ["x", "y", "cuemem", "startWell", "stopWell", "correct", "hatrajnum"]
 grid_kws =
-        (;widths    = [4f0,4f0,1f0,1f0,1f0],
-          radiusinc = [0.2f0,0.2f0,0f0,0f0,0f0],
-          maxrad    = [6f0,6f0,0.5f0,0.5f0],
+        (;widths    = [4f0,4f0,1f0,1f0,1f0,1f0,1f0],
+          radiusinc = [0.2f0,0.2f0,0f0,0f0,0f0,0f0,0f0],
+          maxrad    = [6f0,6f0,0.4f0,0.4f0,0.4f0,0.4f0],
+          radiidefault = [2f0,2f0,1f0,1f0,1f0,1f0,1f0]
          )
 grd = Utils.binning.get_grid(beh, props; grid_kws...)
 savefile = get_savefile(props)
