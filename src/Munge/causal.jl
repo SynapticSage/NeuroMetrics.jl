@@ -3,6 +3,7 @@ module causal
     using Infiltrator
     import Utils
 
+    using ProgressMeter
     using CausalityTools
     using Entropies
     using CausalityTools: Dataset
@@ -15,6 +16,10 @@ module causal
     import DelayEmbeddings
     #using PyCall
     #@pyimport PyIF
+    using ThreadSafeDicts
+    using JLD2
+    using SoftGlobalScope
+    import ..Munge
 
     import Munge.manifold: make_embedding_df, EmbeddingFrameFetch
 
@@ -287,6 +292,128 @@ module causal
         cumsum(PA) - cumsum(AP)
     end
 
+    export obtain_triggered_causality
+    """
+        obtain_triggered_causality(em, beh, props, params; grid_kws=nothing, 
+            savefile,
+            grd=(println("default binning compute");
+                 binning.get_grid(beh, props; grid_kws...)),
+            checkpoint=ThreadSafeDict{NamedTuple, Bool}())
+
+    Gets the triggered causality, triggered by samples entering a bin. 
+    """
+    function obtain_triggered_causality(em::DataFrame, beh::DataFrame, 
+            props::Vector, params::NamedTuple; 
+            grid_kws=nothing, savefile,
+            grd=(println("default binning compute");
+                 binning.get_grid(beh, props; grid_kws...)),
+            checkpoint=ThreadSafeDict{NamedTuple, Bool}(),
+            checkpointmod = 1
+        )
+
+        @info "obtain_local_binned_measure()" props savefile params params.window
+        ## ------------------------------
+        ## Setup frames and zone triggers
+        ## ------------------------------
+        #propstime = ["time",props...]
+        EFF = EmbeddingFrameFetch(em, :area, beh, props; 
+                                  ordering=Dict(:area=>[:ca1,:pfc]))
+
+        ## ------------------------
+        ## Setup stores for results
+        ## ------------------------
+        ca1pfc = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
+        pfcca1 = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
+        ca1pfcσ² = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
+        pfcca1σ² = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
+        counts   = fill(Int32(0),size(grd)..., length(EFF))
+        if isfile(savefile)
+            @info "obtain_local_binned_measure, found save file, loading" savefile
+            storage    = JLD2.jldopen(savefile, "r")
+            checkpoint = merge(storage["checkpoint"], checkpoint)
+            ca1pfc = storage["ca1pfc"] 
+            pfcca1 = storage["pfcca1"] 
+            ca1pfcσ² = storage["ca1pfcσ²"]
+            pfcca1σ² = storage["pfcca1σ²"]
+            counts = storage["counts"]
+            close(storage)
+        end
+        
+
+        ## ------------------------
+        ## Compute
+        ## ------------------------
+        #(e,eff) = first(enumerate(EFF))
+
+        @info "How much ground to cover" length(EFF) length(first(EFF))
+        @showprogress "frames" for (iEmbed,eff) in enumerate(EFF[1:length(EFF)])
+            @info iEmbed 
+            zones = Munge.triggering.get_triggergen(params.window, grd, eff...)
+            #(idx,data) = zones[50]
+            for (idx,data) in zones
+                if isempty(data); continue; end
+                checkpointkey = (;idx, iEmbed)
+                if checkpointkey ∈ keys(checkpoint) && checkpoint[checkpointkey]
+                    continue
+                else
+                    checkpoint[checkpointkey] = false
+                end
+                count = Int32(0)
+                cpv = view(ca1pfc, idx..., iEmbed, :)
+                pcv = view(pfcca1, idx..., iEmbed, :)
+                cpvσ² = view(ca1pfcσ², idx..., iEmbed, :)
+                pcvσ² = view(pfcca1σ², idx..., iEmbed, :)
+                Threads.@threads for D in data
+                    if isempty(D); continue; end
+                    ca1, pfc = map(d->transpose(hcat(d.data...)), D)
+                    try
+                        cpt = causal.predictiveasymmetry(ca1, pfc; params...)
+                        pct = causal.predictiveasymmetry(pfc, ca1; params...)
+                        cpt,pct = convert(Vector{Float32}, cpt),
+                                  convert(Vector{Float32}, pct)
+                        if all(isnan.(cpv)) && all(isnan.(pcv))
+                            cpv .= 0
+                            pcv .= 0
+                        end
+                        cpv .+= cpt
+                        pcv .+= pct
+                        cpvσ² .+= cpt.^2
+                        pcvσ² .+= pct.^2
+                    catch err
+                        showerror(stdout, err)
+                    end
+                    count += 1
+                end
+                ca1pfc[idx..., iEmbed, :] ./= count
+                pfcca1[idx..., iEmbed, :] ./= count
+                pfcca1σ²[idx..., iEmbed, :] ./= count
+                ca1pfcσ²[idx..., iEmbed, :] ./= count
+                counts[idx..., iEmbed] = count
+                checkpoint[checkpointkey] = true
+            end
+            if mod(iEmbed,checkpointmod) == 0
+                storage    = jldopen(savefile, "a")
+                #@info "showing store" storage
+                ["ca1pfc","pfcca1","checkpoint","counts", "ca1pfcσ²","pfcca1σ²"]
+                "ca1pfc" in keys(storage) ? delete!(storage,"ca1pfc") : nothing
+                storage["ca1pfc"] = ca1pfc
+                "pfcca1" in keys(storage) ? delete!(storage,"pfcca1") : nothing
+                storage["pfcca1"] = pfcca1
+                "counts" in keys(storage) ? delete!(storage,"counts") : nothing
+                storage["counts"] = counts
+                "checkpoint" in keys(storage) ? delete!(storage,"checkpoint") : nothing
+                storage["checkpoint"] = checkpoint
+                "ca1pfcσ²" in keys(storage) ? delete!(storage,"ca1pfcσ²") : nothing
+                storage["ca1pfcσ²"] = ca1pfcσ²
+                "pfcca1σ²" in keys(storage) ? delete!(storage,"pfcca1σ²") : nothing
+                storage["pfcca1σ²"] = pfcca1σ²
+                close(storage)
+            end
+        end
+        savefile
+    end
+end
+
     #function global_predictive_asymmetry(embeddingX::AbstractDict,
     #                                    embeddingY::AbstractDict, est;
     #                                    results=Dict(),
@@ -308,4 +435,3 @@ module causal
 
     #function local_predictive_asymmetry()
     #end
-end
