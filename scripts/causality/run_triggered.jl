@@ -85,13 +85,12 @@ function obtain_triggered_causality(em, beh, props; grid_kws=nothing,
     ## ------------------------
     ## Setup stores for results
     ## ------------------------
-    if !isfile(savefile)
-        ca1pfc = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
-        pfcca1 = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
-        ca1pfcσ² = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
-        pfcca1σ² = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
-        counts   = fill(Int16,size(grd)..., length(EFF), params[:horizon].stop)
-    else
+    ca1pfc = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
+    pfcca1 = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
+    ca1pfcσ² = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
+    pfcca1σ² = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
+    counts   = fill(Int32(0),size(grd)..., length(EFF))
+    if isfile(savefile)
         @info "obtain_local_binned_measure, found save file, loading" savefile
         storage    = JLD2.jldopen(savefile, "r")
         checkpoint = merge(storage["checkpoint"], checkpoint)
@@ -115,7 +114,7 @@ function obtain_triggered_causality(em, beh, props; grid_kws=nothing,
         @info e 
         zones = triggering.get_triggergen(params.window, grd, eff...)
         #(idx,data) = zones[50]
-        Threads.@threads for (idx,data) in zones
+        for (idx,data) in zones
             if isempty(data); continue; end
             checkpointkey = (;idx, e)
             if checkpointkey ∈ keys(checkpoint) && checkpoint[checkpointkey]
@@ -123,12 +122,12 @@ function obtain_triggered_causality(em, beh, props; grid_kws=nothing,
             else
                 checkpoint[checkpointkey] = false
             end
-            count = 0
+            count = Int32(0)
             cpv = view(ca1pfc, idx..., e, :)
             pcv = view(pfcca1, idx..., e, :)
             cpvσ² = view(ca1pfcσ², idx..., e, :)
             pcvσ² = view(pfcca1σ², idx..., e, :)
-            for D in data
+            Threads.@threads for D in data
                 if isempty(D); continue; end
                 ca1, pfc = map(d->transpose(hcat(d.data...)), D)
                 try
@@ -153,13 +152,15 @@ function obtain_triggered_causality(em, beh, props; grid_kws=nothing,
             pfcca1[idx..., e, :] ./= count
             pfcca1σ²[idx..., e, :] ./= count
             ca1pfcσ²[idx..., e, :] ./= count
-            counts[idx..., e, :] = count
+            counts[idx..., e] = count
             checkpoint[checkpointkey] = true
         end
         storage    = jldopen(savefile, "a")
         for field in ["ca1pfc","pfcca1","checkpoint","counts",
                       "ca1pfcσ²","pfcca1σ²"]
-            delete!(storage,field)
+            if field in keys(storage)
+                delete!(storage,field)
+            end
             storage[field] = eval(Symbol(field))
         end
         close(storage)
@@ -183,42 +184,10 @@ function obtain_triggered_causality(em, beh, props; grid_kws=nothing,
     storage["weighting_trig"] = weighting_trig
     (;ca1pfc, pfcca1, weighting_trig, checkpoint)
 end
+
 get_savefile(props;params=params) = 
     datadir("manifold","causal",
             "local_grid_cause_props=$(join(props,","))_$(Utils.namedtup.tostring(pop!(params,:thread)))_$tagstr.jld2")
-
-# =====
-# X - Y
-# =====
-grid_kws=(;widths=[5f0,5f0])
-props = ["x","y"]
-savefile = get_savefile(props)
-ca1pfc, pfcca1, weighting_trig, checkpoint = 
-        obtain_triggered_causality(em, beh, props; grid_kws, savefile)
-
-JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
-             props, ca1pfc, pfcca1, checkpoint)
-
-# ==========================
-# CUEMEM - CORRECT - HATRAJ
-# ==========================
-props = ["cuemem", "correct", "hatrajnum"]
-grid_kws=(;widths=[1f0,1f0,1f0], 
-           radiusinc=[0f0,0f0,0f0], 
-           maxrad=[0.5f0,0.5f0, 0.5f0],
-           radiidefault=[0.4f0,0.4f0,0.4f0],
-           steplimit=1,
-          )
-grd = Utils.binning.get_grid(beh, props; grid_kws...)
-savefile = get_savefile(props)
-
-ca1pfc, pfcca1, weighting_trig, checkpoint = 
-        obtain_triggered_causality(em, beh, props; grd, savefile)
-
-hatrajcodex = Dict(r.hatrajnum=>r.hatraj for 
-     r in eachrow(unique(beh[!,[:hatraj, :hatrajnum]])))
-JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
-             props, ca1pfc, pfcca1, checkpoint)
 
 # ================================================
 # CUEMEM - CORRECT - HATRAJ - startWell - stopWell
@@ -242,6 +211,7 @@ hatrajcodex = Dict(r.hatrajnum=>r.hatraj for
 JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
              props, ca1pfc, pfcca1, checkpoint, hatrajcodex)
 
+
 # =============================================================
 # X - Y - cueme -  correct - hatrajnum - origin - destination 
 # =============================================================
@@ -260,6 +230,39 @@ ca1pfc, pfcca1, weighting_trig, checkpoint =
 JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
              props, ca1pfc, pfcca1, checkpoint)
 
+
+# ==========================
+# CUEMEM - CORRECT - HATRAJ
+# ==========================
+props = ["cuemem", "correct"]
+grid_kws=(;widths=[1f0,1f0], 
+           radiusinc=[0f0,0f0], 
+           maxrad=[0.5f0,0.5f0],
+           radiidefault=[0.4f0,0.4f0],
+           steplimit=1,
+          )
+grd = Utils.binning.get_grid(beh, props; grid_kws...)
+savefile = get_savefile(props)
+
+ca1pfc, pfcca1, weighting_trig, checkpoint = 
+        obtain_triggered_causality(em, beh, props; grd, savefile)
+
+hatrajcodex = Dict(r.hatrajnum=>r.hatraj for 
+     r in eachrow(unique(beh[!,[:hatraj, :hatrajnum]])))
+JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
+             props, ca1pfc, pfcca1, checkpoint)
 # ========================
 # X - Y - START - STOP
 # ========================
+## =====
+## X - Y
+## =====
+#grid_kws=(;widths=[5f0,5f0])
+#props = ["x","y"]
+#savefile = get_savefile(props)
+#ca1pfc, pfcca1, weighting_trig, checkpoint = 
+#        obtain_triggered_causality(em, beh, props; grid_kws, savefile)
+#
+#JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
+#             props, ca1pfc, pfcca1, checkpoint)
+
