@@ -1,4 +1,6 @@
-(animal, day) = ("RY16",36)
+(animal, day, ref) = ("RY22",21, "ref")
+GC.gc()
+for (animal,day,ref) in (("RY16",36, ""),("RY22",21, ""))
 
 quickactivate(expanduser("~/Projects/goal-code/"));
 using GoalFetchAnalysis
@@ -34,7 +36,7 @@ save_kws = (;pfc_rate_analy=true)
 filt = Filt.get_filters()
 datacut = :all
 
-Plot.setappend((;animal,day))
+Plot.setappend((;animal,day,ref))
 Plot.setparentfolder("nonlocality")
 
 # ===================
@@ -50,7 +52,7 @@ beh2 = Load.load_behavior(animal,day)
 Munge.nonlocal.setunfilteredbeh(beh2)
 
 # THis section requires enormous RAM, 100GB at least
-LFP = Load.load_lfp(animal, day)
+LFP = Load.load_lfp(animal, day; ref)
 ca1 = sort(unique(@subset(cells, :area .== "CA1").tetrode))
 LFP = groupby(LFP, :tetrode)
 LFP = [LFP[(;tetrode)] for tetrode in ca1]
@@ -103,7 +105,7 @@ gdf = groupby(df, :tetrode)
 pl = [(@df DataFrame(dropmissing(g, :isolated)) histogram(:phase, group=:isolated, bins=40; normalize=:probability,label="",xticks=[],yticks=[], alpha=0.4, title="$(g.tetrode[1])")) for g in gdf]
 plot(pl...)
 
-figname = plotsdir("isolated", "find_goot_tet.jl", "$(animal)_$(day)_tetrodePhaseLocking")
-mkpath(dirname(figname))
-savefig("$figname.pdf")
-savefig("$figname.png")
+Plot.setparentfolder("isolated","find_goot_tet.jl")
+Plot.save("tetrodePhaseLocking")
+
+end
