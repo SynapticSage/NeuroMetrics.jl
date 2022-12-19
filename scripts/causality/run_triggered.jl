@@ -79,14 +79,14 @@ grd = Utils.binning.get_grid(beh, props; grid_kws...)
 savefile = get_savefile(props)
 
 Munge.causal.obtain_triggered_causality(em, beh, props, params; 
-                                        grd, savefile, checkpointmod=5)
+                                 grd, savefile, checkpointmod=5)
 hatrajcodex = Dict(r.hatrajnum=>r.hatraj for 
      r in eachrow(unique(beh[!,[:hatraj, :hatrajnum]])))
 
 storage = jldopen(savefile,"a");
-storage["grd"] = grd
-storage["params"] = params
-storage["grid_kws"] = grid_kws
+storage["grd"]         = grd
+storage["params"]      = params
+storage["grid_kws"]    = grid_kws
 storage["hatrajcodex"] = hatrajcodex
 close(storage)
 
@@ -101,18 +101,25 @@ grid_kws =
           radiidefault = [2f0,2f0,0.4f0,0.4f0,0.4f0,0.4f0,0.4f0],
           steplimit=3,
          )
-grd = Utils.binning.get_grid(beh, props; grid_kws...)
 savefile = get_savefile(props)
 storage = jldopen(savefile,"a");
-storage["grd"] = grd
-storage["grid_kws"] = grid_kws
-storage["params"] = params
-storage["checkpoint"] = ThreadSafeDict{NamedTuple, Bool}()
+if "grd" ∈ keys(storage)
+    grd = storage["grd"]
+    checkpoint = storage["checkpoint"]
+    @assert params == storage["params"]
+else
+    grd = Utils.binning.get_grid(beh, props; grid_kws...)
+    storage["grd"] = grd
+    storage["grid_kws"] = grid_kws
+    storage["params"] = params
+    storage["checkpoint"] = checkpoint = ThreadSafeDict{NamedTuple, Bool}()
+end
+
 close(storage)
 Munge.causal.obtain_triggered_causality(em, beh, props, params; 
                                         grd, savefile, checkpointmod=5,
                                         floattype=Float16, inttype=Int32,
-                                        nan=NaN16
+                                        nan=NaN16, checkpoint
                                        )
 
 JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
