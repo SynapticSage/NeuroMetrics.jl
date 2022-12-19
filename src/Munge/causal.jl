@@ -308,7 +308,8 @@ module causal
             grd=(println("default binning compute");
                  binning.get_grid(beh, props; grid_kws...)),
             checkpoint=ThreadSafeDict{NamedTuple, Bool}(),
-            checkpointmod = 1
+            checkpointmod = 1, 
+            inttype::Type=Int32, floattype::Type=Float32, nan=NaN32,
         )
 
         @info "obtain_local_binned_measure()" props savefile params params.window
@@ -322,20 +323,20 @@ module causal
         ## ------------------------
         ## Setup stores for results
         ## ------------------------
-        ca1pfc = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
-        pfcca1 = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
-        ca1pfcσ² = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
-        pfcca1σ² = fill(NaN32,size(grd)..., length(EFF), params[:horizon].stop)
-        counts   = fill(Int32(0),size(grd)..., length(EFF))
+        ca1pfc = fill(nan,size(grd)..., length(EFF), params[:horizon].stop)
+        pfcca1 = fill(nan,size(grd)..., length(EFF), params[:horizon].stop)
+        ca1pfcσ² = fill(nan,size(grd)..., length(EFF), params[:horizon].stop)
+        pfcca1σ² = fill(nan,size(grd)..., length(EFF), params[:horizon].stop)
+        counts   = fill(inttype(0),size(grd)..., length(EFF))
         if isfile(savefile)
             @info "obtain_local_binned_measure, found save file, loading" savefile
             storage    = JLD2.jldopen(savefile, "r")
             checkpoint = merge(storage["checkpoint"], checkpoint)
-            ca1pfc = storage["ca1pfc"] 
-            pfcca1 = storage["pfcca1"] 
-            ca1pfcσ² = storage["ca1pfcσ²"]
-            pfcca1σ² = storage["pfcca1σ²"]
-            counts = storage["counts"]
+            ca1pfc = "ca1pfc" ∈ keys(storage) ? storage["ca1pfc"]  : ca1pfc
+            pfcca1 = "pfcca1" ∈ keys(storage) ? storage["pfcca1"] : pfcca1
+            ca1pfcσ² = "ca1pfcσ²" ∈ keys(storage) ? storage["ca1pfcσ²"] : ca1pfcσ²
+            pfcca1σ² = "pfcca1σ²" ∈ keys(storage) ? storage["pfcca1σ²"] : pfcca1σ²
+            counts = "counts" in keys(storage) ? storage["counts"] : counts
             close(storage)
         end
         
@@ -358,7 +359,7 @@ module causal
                 else
                     checkpoint[checkpointkey] = false
                 end
-                count = Int32(0)
+                count = inttype(0)
                 cpv = view(ca1pfc, idx..., iEmbed, :)
                 pcv = view(pfcca1, idx..., iEmbed, :)
                 cpvσ² = view(ca1pfcσ², idx..., iEmbed, :)
@@ -369,8 +370,8 @@ module causal
                     try
                         cpt = causal.predictiveasymmetry(ca1, pfc; params...)
                         pct = causal.predictiveasymmetry(pfc, ca1; params...)
-                        cpt,pct = convert(Vector{Float32}, cpt),
-                                  convert(Vector{Float32}, pct)
+                        cpt,pct = convert(Vector{floattype}, cpt),
+                                  convert(Vector{floattype}, pct)
                         if all(isnan.(cpv)) && all(isnan.(pcv))
                             cpv .= 0
                             pcv .= 0

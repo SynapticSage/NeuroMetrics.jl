@@ -78,14 +78,17 @@ grid_kws=(;
 grd = Utils.binning.get_grid(beh, props; grid_kws...)
 savefile = get_savefile(props)
 
-ca1pfc, pfcca1, weighting_trig, checkpoint = 
-        Munge.causal.obtain_triggered_causality(em, beh, props, params; grd, savefile)
-
+Munge.causal.obtain_triggered_causality(em, beh, props, params; 
+                                        grd, savefile, checkpointmod=5)
 hatrajcodex = Dict(r.hatrajnum=>r.hatraj for 
      r in eachrow(unique(beh[!,[:hatraj, :hatrajnum]])))
-JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
-             props, ca1pfc, pfcca1, checkpoint, hatrajcodex)
 
+storage = jldopen(savefile,"a");
+storage["grd"] = grd
+storage["params"] = params
+storage["grid_kws"] = grid_kws
+storage["hatrajcodex"] = hatrajcodex
+close(storage)
 
 # =============================================================
 # X - Y - cueme -  correct - hatrajnum - origin - destination 
@@ -94,13 +97,23 @@ props = ["x", "y", "cuemem", "correct", "hatrajnum", "startWell", "stopWell"]
 grid_kws =
         (;widths    = [4f0,4f0,1f0,1f0,1f0,1f0,1f0],
           radiusinc = [0.2f0,0.2f0,0f0,0f0,0f0,0f0,0f0],
-          maxrad    = [6f0,6f0,0.4f0,0.4f0,0.4f0,0.4f0],
-          radiidefault = [2f0,2f0,1f0,1f0,1f0,1f0,1f0]
+          maxrad    = [6f0,6f0,0.4f0,0.4f0,0.4f0,0.4f0,0.4f0],
+          radiidefault = [2f0,2f0,0.4f0,0.4f0,0.4f0,0.4f0,0.4f0],
+          steplimit=3,
          )
 grd = Utils.binning.get_grid(beh, props; grid_kws...)
 savefile = get_savefile(props)
+storage = jldopen(savefile,"a");
+storage["grd"] = grd
+storage["grid_kws"] = grid_kws
+storage["params"] = params
+storage["checkpoint"] = ThreadSafeDict{NamedTuple, Bool}()
+close(storage)
 Munge.causal.obtain_triggered_causality(em, beh, props, params; 
-                                        grd, savefile, checkpointmod=5)
+                                        grd, savefile, checkpointmod=5,
+                                        floattype=Float16, inttype=Int32,
+                                        nan=NaN16
+                                       )
 
 JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
              props, ca1pfc, pfcca1, checkpoint)
@@ -116,6 +129,7 @@ grid_kws=(;widths=[1f0,1f0],
            radiidefault=[0.4f0,0.4f0],
            steplimit=1,
           )
+
 grd = Utils.binning.get_grid(beh, props; grid_kws...)
 savefile = get_savefile(props)
 obtain_triggered_causality(em, beh, props; grd, savefile, checkpointmod=5)
