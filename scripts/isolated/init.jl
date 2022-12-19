@@ -1,4 +1,9 @@
-(animal, day) = first((("RY16",36),("RY22",21), ("super", 0)))
+ datasets = (
+             ("RY16",36,:ca1ref),("RY22",21,:ca1ref), ("super", 0, :ca1ref),
+             ("RY16",36,:default),("RY22",21,:default), ("super", 0, :default),
+            )
+
+ (animal, day) = first(datasets)
 
 quickactivate(expanduser("~/Projects/goal-code/"));
 using GoalFetchAnalysis
@@ -50,7 +55,7 @@ beh2 = Load.load_behavior(animal,day)
 Munge.nonlocal.setunfilteredbeh(beh2)
 
 # Acquire LFP and isolated spikes
-lfp = Load.load_lfp(animal, day, tet=18);
+lfp = Load.load_lfp(animal, day, tet=tet);
 lfp.time = lfp.time .- Load.min_time_records[end]
 lfp = Munge.lfp.annotate_cycles(lfp, method="peak-to-peak") # TODO potential bug, 1st time runs, cuts trough-to-trough, second peak-to-peak
 @assert length(unique(lfp.cycle)) > 1
@@ -124,7 +129,7 @@ s = subset(sp, :pyrint => s->s.=="pyr")
 histogram(sp.phase,group=sp.isolated, normalize=:pdf, alpha=0.5, legend_title=:isolated, xlabel="phase",ylabel="fraction")
 Plot.setfolder("phase_locking")
 Plot.setappend("$animal-$day")
-Plot.save("all_cells")
+Plot.save("all_cells_tet=$tet")
 
 
 Plot.setfolder("phase_locking", "cells_$animal-$day")

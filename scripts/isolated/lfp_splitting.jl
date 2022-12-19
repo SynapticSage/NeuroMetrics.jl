@@ -26,7 +26,7 @@ using Plots
 using LazySets
 GC.gc()
 datasets = (("RY16",36, nothing),("RY22",21, ""), ("RY22",21, "ref"))
-for (animal,day,ref) in datasets
+for (animal,day,ref) in datasets[2:end]
 
     clab = OrderedDict(-1 => "nontask", 0 => "cue", 1=> "mem", missing=>"sleep")
     Munge.nonlocal.setclab(clab)
