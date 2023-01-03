@@ -105,7 +105,11 @@ savefile = get_savefile(props)
 storage = jldopen(savefile,"a");
 if "grd" ∈ keys(storage)
     grd = storage["grd"]
-    checkpoint = storage["checkpoint"]
+    if "checkpoint" in keys(storage)
+        checkpoint = storage["checkpoint"]
+    else
+        checkpoint = ThreadSafeDicts{NamedTuple, Bool}()
+    end
     @assert params == storage["params"]
 else
     grd = Utils.binning.get_grid(beh, props; grid_kws...)
@@ -121,9 +125,6 @@ Munge.causal.obtain_triggered_causality(em, beh, props, params;
                                         floattype=Float16, inttype=Int32,
                                         nan=NaN16, checkpoint
                                        )
-
-JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
-             props, ca1pfc, pfcca1, checkpoint)
 
 
 # ==========================
