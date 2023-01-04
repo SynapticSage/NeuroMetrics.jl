@@ -413,6 +413,17 @@ module causal
         end
         savefile
     end
+
+    # ANALYSIS SAVE FILES
+    """
+        get_trigger_savefile
+
+    Obtains the savefile name for given `props` and `params`
+    """
+    get_trigger_savefile(props;params=params) = 
+        datadir("manifold","causal",
+                "local_grid_cause_props=$(join(props,","))_$(Utils.namedtup.tostring(pop!(params,:thread)))_$tagstr.jld2")
+
 end
 
     #function global_predictive_asymmetry(embeddingX::AbstractDict,

@@ -15,11 +15,15 @@ module manifold
 
     using Serialization
     using DrWatson
-    import Utils
     using Infiltrator
+    using DataFrames, DataFramesMeta
+
+    import Utils
     import Table: CItype
     import Table
-    using DataFrames
+    import Filt
+    import Utils.namedtup: ntopt_string
+    import Utils.dict: load_dict_to_module!
 
     export get_dim_subset
     function get_dim_subset(dict_of_embeds::Dict, dim::Int)::Dict
@@ -68,18 +72,61 @@ module manifold
     end
 
     export load_manis
-    function load_manis(mod; feature_engineer, distance=:many, filt, tag="")
+    function load_manis(;feature_engineer, distance=:many, filt, tag="")
         savefile = path_manis(;feature_engineer, distance, filt, tag)
         data     = deserialize(savefile)
-        skipped=[]
-        for (k, v) in zip(keys(data), values(data))
-            try
-            Core.eval(mod, :($(Symbol(k)) = $v))
-            catch
-                push!(skipped, k)
-            end
+        data
+    end
+    function load_manis(mod; feature_engineer, distance=:many, filt, tag="")
+        data = load_manis(;feature_engineer, distance=:many, filt, tag="")
+        load_dict_to_module!(mod, data)
+        data
+    end
+
+    """
+        load_manis_workspace
+
+    Handles what Umap_deserialize script used to. Namely, it grabs all of
+    the variables used for manifold analyses
+    """
+    export load_manis_df
+    function load_manis_workspace(animal::String, day; 
+        filt, areas, distance, feature_engineer, N, trans=:Matrix)
+
+        data = load_manis(;feature_engineer, filt, distance, tag="$(animal)$(day).$(N)seg")
+        embedding_overall = merge(embedding_overall, data[:embedding])
+        animal, day = data[:animal], data[:day]
+        @time global spikes, beh, ripples, cells = Load.load(animal,day)
+
+        # Filter
+        filters = Filt.get_filters()
+        if Symbol(filt) in keys(filters)
+            beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes; filter_skipmissingcols=true, filters=filters[Symbol(filt)])
         end
-        @warn "skipped" skipped
+
+        embedding = embedding_overall
+
+        transform(em) = if trans == :DimArray
+            (em=em';DimArray(em, (Dim{:time}(beh.time[1:size(em,1)]), Dim{:comp}(1:size(em,2)))))
+        elseif trans == :Dataset
+            (em=em';Dataset(eachcol(em)...))
+        else
+            em'
+        end
+
+        # Which core would you like to work on?
+        #min_dist, n_neighbors, metric, dim = [0.3], [5,150], [:CityBlock, :Euclidean], 3
+        min_dist, n_neighbors, metric, dim, feature = [0.3], [150], [:CityBlock], 3, :zscore
+        K = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors && k.metric ∈ metric && k.dim == dim && k.feature == feature, keys(embedding))
+        embedding = Dict(k=>transform(embedding[k]) for k in K)
+        K
+        em = make_embedding_df(embedding, inds_of_t, scores, beh)
+
+        Dict(pairs((;K,em)))
+    end
+    function load_manis_workspace(mod::Module, animal::String, day;kws...)
+        data=load_manis_workspace(animal,day;kws...)
+        load_dict_to_module!(data)
         data
     end
 
@@ -203,5 +250,16 @@ module manifold
     Base.iterate(em::EmbeddingFrameFetch) = em[1], 1
     Base.iterate(em::EmbeddingFrameFetch, count) = count != length(em) ? 
                                             (em[count+1], count+1) : nothing
+
+
+    # ANALYSIS SAVE FILES
+    """
+        get_trigger_savefile
+
+    Obtains the savefile name for given `props` and `params`
+    """
+    get_trigger_savefile(props;params=params) = 
+        datadir("manifold","causal",
+                "local_grid_cause_props=$(join(props,","))_$(Utils.namedtup.tostring(pop!(params,:thread)))_$tagstr.jld2")
 
 end

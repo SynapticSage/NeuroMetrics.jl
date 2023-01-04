@@ -1,78 +1,18 @@
-using DrWatson
-using GoalFetchAnalysis
-using Infiltrator
-import Plot
-
-#  ================
-# CAUSALITY AND MANFIOLD
-#  ================
-
-using Serialization, CausalityTools, Entropies
-using Plots, DataFrames
-using Statistics, NaNStatistics, HypothesisTests
-using StatsPlots, JLD2
-using Utils.namedtup: ntopt_string
-using DataStructures: OrderedDict
-using Munge.manifold, Munge.causal, Munge.triggering
-using Utils.binning
-
-
-#  ================
-# CAUSALITY AND MANFIOLD
-#  ================
-
-cor = Dict(0=>"correct", 1=>"error")
-tsk = Dict(0=>"cue", 1=>"mem")
-lab = OrderedDict([0,1]=>"CUE correct", [1,1]=>"MEM correct",
-                  [0,0]=>"CUE error", [1,0]=>"MEM error")
-conditionals = [:cuemem,:correct]
-
-## ----------
-## PARAMETERS
-## ----------
-animal, day = "RY16", 36
-
-# Obtain params
-# ---------------
-@info "prop missinG"
-esttype = :binned
-est, params = get_est_preset(esttype)
-params = (;params..., horizon=1:30, thread=false)
-params = (;params..., binning=5, window=1.25)
-
-# Obtain savefile
-# ---------------
-paramstr = Utils.namedtup.tostring(params)
-N = 100
-tagstr = if "tag" in propertynames(Main)
-    "_$tag"
-else
-    "$animal$day.$(N)seg"
-end
-
-get_savefile(props;params=params) = 
-    datadir("manifold","causal",
-            "local_grid_cause_props=$(join(props,","))_$(Utils.namedtup.tostring(pop!(params,:thread)))_$tagstr.jld2")
-
-
-props = ["cuemem", "correct", "hatrajnum"]
-savefile = get_savefile(props; params)
-@assert isfile(savefile)
-storage = jldopen(savefile,"r");
-
-@load savefile pfcca1
-@load savefile ca1pfc
-
 #                    
 #,---.|         |    
 #|---'|    ,---.|--- 
 #|    |    |   ||    
 #`    `---'`---'`---'
-#                    
+#
+# Plots the results of a triggered causal run
+# where the run has x-y variables in its split
+#
+# Before running this, you need data in your workspace
+using DrWatson
+using Plot.task
+include(scriptsdir("causality", "init_trig_plot.jl"))
 
 func = nanmean
-
-using Plot.task
 tsk = Load.load_task(animal, day)
 
 function getnanfrac(X)
