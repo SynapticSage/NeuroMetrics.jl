@@ -83,15 +83,15 @@ module manifold
         data
     end
 
+    export load_manis_df
     """
         load_manis_workspace
 
     Handles what Umap_deserialize script used to. Namely, it grabs all of
     the variables used for manifold analyses
     """
-    export load_manis_df
     function load_manis_workspace(animal::String, day; 
-        filt, areas, distance, feature_engineer, N, trans=:Matrix)
+        filt, areas, distance, feature_engineer, N, trans=:Matrix, kws...)
 
         data = load_manis(;feature_engineer, filt, distance, tag="$(animal)$(day).$(N)seg")
         embedding_overall = merge(embedding_overall, data[:embedding])
@@ -252,14 +252,5 @@ module manifold
                                             (em[count+1], count+1) : nothing
 
 
-    # ANALYSIS SAVE FILES
-    """
-        get_trigger_savefile
-
-    Obtains the savefile name for given `props` and `params`
-    """
-    get_trigger_savefile(props;params=params) = 
-        datadir("manifold","causal",
-                "local_grid_cause_props=$(join(props,","))_$(Utils.namedtup.tostring(pop!(params,:thread)))_$tagstr.jld2")
 
 end

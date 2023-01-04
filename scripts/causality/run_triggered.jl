@@ -38,19 +38,7 @@ N = 100
 # ---------------
 # Obtain savefile
 # ---------------
-paramstr = Utils.namedtup.tostring(params)
-tagstr = if "tag" in propertynames(Main)
-    "_$tag"
-else
-    "$animal$day.$(N)seg"
-end
 
-## ----------
-## PARAMETERS
-## ----------
-get_savefile(props;params=params) = 
-    datadir("manifold","causal",
-            "local_grid_cause_props=$(join(props,","))_$(Utils.namedtup.tostring(pop!(params,:thread)))_$tagstr.jld2")
 
 # ================================================
 # CUEMEM - CORRECT - HATRAJ - startWell - stopWell

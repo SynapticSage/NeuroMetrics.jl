@@ -1,7 +1,6 @@
 module causal
 
     using Infiltrator
-    import Utils
 
     using ProgressMeter
     using CausalityTools
@@ -12,16 +11,16 @@ module causal
     using ShiftedArrays
     using DataStructures: OrderedDict
     using StaticArrays
-    import Table
     import DelayEmbeddings
-    #using PyCall
-    #@pyimport PyIF
     using ThreadSafeDicts
     using JLD2
     using SoftGlobalScope
-    import ..Munge
+    using DrWatson
 
+    import ..Munge
     import Munge.manifold: make_embedding_df, EmbeddingFrameFetch
+    import Utils
+    import Table
 
     export get_est_preset
     function get_est_preset(esttype::Symbol, horizon=1500)
@@ -415,14 +414,29 @@ module causal
     end
 
     # ANALYSIS SAVE FILES
+    export get_trigger_savefile
     """
         get_trigger_savefile
 
     Obtains the savefile name for given `props` and `params`
     """
-    get_trigger_savefile(props;params=params) = 
+    function get_trigger_savefile(animal, day, N, props; params=(;)) 
+        tagstr = "$animal$day.$(N)seg"
+        paramstr = Utils.namedtup.tostring(pop!(params,:thread))
         datadir("manifold","causal",
-                "local_grid_cause_props=$(join(props,","))_$(Utils.namedtup.tostring(pop!(params,:thread)))_$tagstr.jld2")
+                "local_grid_cause_props=$(join(props,","))_$(paramstr)_$tagstr.jld2")
+    end
+    """
+        load_trigger_savefile
+
+    Handles the loading of a trigger save file. See docfile for `get_trigger_savefile`
+    """
+    function load_trigger_savefile(animal, day, N, props; params=(;))
+        savefile = get_trigger_savefile(animal, day, N, props; params)
+        "local_grid_cause_props=cuemem,correct,hatrajnum,startWell,stopWell_binning=>5,window=>1.25,horizon=>1-30,bins=>[0.25, 0.25, 0.25]_RY1636.100seg.jld2"
+        @assert isfile(savefile) "file is missing"
+        jldopen(savefile,"r")
+    end
 
 end
 
