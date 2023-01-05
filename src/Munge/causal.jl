@@ -327,6 +327,8 @@ module causal
         ca1pfcσ² = fill(nan,size(grd)..., length(EFF), params[:horizon].stop)
         pfcca1σ² = fill(nan,size(grd)..., length(EFF), params[:horizon].stop)
         counts   = fill(inttype(0),size(grd)..., length(EFF))
+        nancounts = fill(inttype(0), size(grd)..., length(EFF))
+
         if isfile(savefile)
             @info "obtain_local_binned_measure, found save file, loading" savefile
             storage    = JLD2.jldopen(savefile, "r")
@@ -336,6 +338,7 @@ module causal
             ca1pfcσ² = "ca1pfcσ²" ∈ keys(storage) ? storage["ca1pfcσ²"] : ca1pfcσ²
             pfcca1σ² = "pfcca1σ²" ∈ keys(storage) ? storage["pfcca1σ²"] : pfcca1σ²
             counts = "counts" in keys(storage) ? storage["counts"] : counts
+            nancounts = "counts" in keys(storage) ? storage["nancounts"] : nancounts
             close(storage)
         end
         
@@ -359,6 +362,7 @@ module causal
                     checkpoint[checkpointkey] = false
                 end
                 count = inttype(0)
+                ncount = inttype(0)
                 cpv = view(ca1pfc, idx..., iEmbed, :)
                 pcv = view(pfcca1, idx..., iEmbed, :)
                 cpvσ² = view(ca1pfcσ², idx..., iEmbed, :)
@@ -369,26 +373,32 @@ module causal
                     try
                         cpt = causal.predictiveasymmetry(ca1, pfc; params...)
                         pct = causal.predictiveasymmetry(pfc, ca1; params...)
+                        if any(isnan.(cpt)) || any(isnan.(pct))
+                            ncount .+= 1
+                            continue
+                        end
                         cpt,pct = convert(Vector{floattype}, cpt),
                                   convert(Vector{floattype}, pct)
-                        if all(isnan.(cpv)) && all(isnan.(pcv))
-                            cpv .= 0
-                            pcv .= 0
-                        end
+                        #if all(isnan.(cpv)) && all(isnan.(pcv))
+                        #    cpv .= 0
+                        #    pcv .= 0
+                        #end
                         cpv .+= cpt
                         pcv .+= pct
                         cpvσ² .+= cpt.^2
                         pcvσ² .+= pct.^2
+                        
                     catch err
                         showerror(stdout, err)
                     end
                     count += 1
                 end
-                ca1pfc[idx..., iEmbed, :] ./= count
-                pfcca1[idx..., iEmbed, :] ./= count
+                ca1pfc[idx..., iEmbed, :]   ./= count
+                pfcca1[idx..., iEmbed, :]   ./= count
                 pfcca1σ²[idx..., iEmbed, :] ./= count
                 ca1pfcσ²[idx..., iEmbed, :] ./= count
-                counts[idx..., iEmbed] = count
+                counts[idx...,   iEmbed] = count
+                nancounts[idx..., iEmbed] = ncount
                 checkpoint[checkpointkey] = true
             end
             if mod(iEmbed,checkpointmod) == 0
