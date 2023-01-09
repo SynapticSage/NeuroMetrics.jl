@@ -5,6 +5,10 @@ where ℳ  is a manifold as a function of time
 
 # Params
 filt selects a condition
+
+# Assumptions
+you already loaded some data we can work on
+(see causality/run.jl)
 """
 
 using DrWatson
@@ -18,7 +22,7 @@ if !hasproperty(Main, :esttype)
     esttype = :binned
 end
 
-embedding_rows = Dict(k=>Dataset(v)
+embedding_rows = Dict(k=>size(v,1)>size(v,2) ? Dataset(v) : Dataset(v')
                       for (k,v) in embedding);
 @info esttype
 if esttype == :binned

@@ -291,7 +291,7 @@ module causal
         cumsum(PA) - cumsum(AP)
     end
 
-    export obtain_triggered_causality
+    export obtain_triggered_causality_binavg
     """
         obtain_triggered_causality(em, beh, props, params; grid_kws=nothing, 
             savefile,
@@ -301,7 +301,7 @@ module causal
 
     Gets the triggered causality, triggered by samples entering a bin. 
     """
-    function obtain_triggered_causality(em::DataFrame, beh::DataFrame, 
+    function obtain_triggered_causality_binavg(em::DataFrame, beh::DataFrame, 
             props::Vector, params::NamedTuple; 
             grid_kws=nothing, savefile,
             grd=(println("default binning compute");
@@ -424,6 +424,23 @@ module causal
     end
 
     # ANALYSIS SAVE FILES
+    export get_alltimes_savefile
+    """
+        get_trigger_savefile
+
+    Obtains the savefile name for given `params`
+    """
+    function get_alltimes_savefile(animal, day, N; params=(;)) 
+        tagstr = "$animal$day.$(N)seg"
+        paramstr = Utils.namedtup.tostring(pop!(params,:thread))
+        datadir("manifold","causal","pa_cause_$(paramstr)_$tagstr.jld2")
+    end
+
+    export load_alltimes_savefile
+    function load_alltimes_savefile(animal, day, N; params=(;))
+        jldopen(get_alltimes_savefile(animal,day,N;params), 'r')
+    end
+    
     export get_trigger_savefile
     """
         get_trigger_savefile

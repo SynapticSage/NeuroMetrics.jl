@@ -69,9 +69,11 @@ function save(desc::String; rmexist=nothing)
     end
     Plots.CURRENT_PLOT
 end
-function save(desc::NamedTuple; linker="=>", delim=",", rmexist=nothing)
+function save(desc::NamedTuple; linker="=>", delim=",", rmexist=nothing,append=nothing,prepend=nothing)
     desc = ["$(k)$(linker)$(v)" for (k, v) in zip(keys(desc), values(desc))]
     desc = join(desc, delim)
+    desc = append === nothing ? desc  : desc * append
+    desc = prepend === nothing ? desc : prepend * desc 
     save(desc; rmexist)
 end
 function save(desc::Dict; kws...)

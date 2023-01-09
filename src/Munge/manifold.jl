@@ -19,11 +19,12 @@ module manifold
     using DataFrames, DataFramesMeta
 
     import Utils
+    import Load
     import Table: CItype
     import Table
     import Filt
     import Utils.namedtup: ntopt_string
-    import Utils.dict: load_dict_to_module!
+    import Utils: dict
 
     export get_dim_subset
     function get_dim_subset(dict_of_embeds::Dict, dim::Int)::Dict
@@ -74,12 +75,17 @@ module manifold
     export load_manis
     function load_manis(;feature_engineer, distance=:many, filt, tag="")
         savefile = path_manis(;feature_engineer, distance, filt, tag)
+        if isfile(savefile)
+            @info "load_manis located savefile" savefile
+        else
+            @error "load_manis did not locate savefile" savefile
+        end
         data     = deserialize(savefile)
         data
     end
     function load_manis(mod; feature_engineer, distance=:many, filt, tag="")
         data = load_manis(;feature_engineer, distance=:many, filt, tag="")
-        load_dict_to_module!(mod, data)
+        dict.load_dict_to_module!(mod, data)
         data
     end
 
@@ -89,14 +95,19 @@ module manifold
 
     Handles what Umap_deserialize script used to. Namely, it grabs all of
     the variables used for manifold analyses
+
+    Calls load_manis, pulling computing manifolds, indices, time, et cetera. It then
+    elaborates this set of variables with a dataframe version of the manifold data,
+    individual samples in rows and properties in columns.
     """
     function load_manis_workspace(animal::String, day; 
-        filt, areas, distance, feature_engineer, N, trans=:Matrix, kws...)
-
+        filt, areas, distance, feature_engineer, N, trans=:Matrix, embedding_overall=nothing, kws...)
         data = load_manis(;feature_engineer, filt, distance, tag="$(animal)$(day).$(N)seg")
+
+        embedding_overall = embedding_overall === nothing ?
+            typeof(data[:embedding])() : embedding_overall
         embedding_overall = merge(embedding_overall, data[:embedding])
-        animal, day = data[:animal], data[:day]
-        @time global spikes, beh, ripples, cells = Load.load(animal,day)
+        @time spikes, beh, ripples, cells = Load.load(animal,day)
 
         # Filter
         filters = Filt.get_filters()
@@ -117,16 +128,16 @@ module manifold
         # Which core would you like to work on?
         #min_dist, n_neighbors, metric, dim = [0.3], [5,150], [:CityBlock, :Euclidean], 3
         min_dist, n_neighbors, metric, dim, feature = [0.3], [150], [:CityBlock], 3, :zscore
-        K = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors && k.metric ∈ metric && k.dim == dim && k.feature == feature, keys(embedding))
-        embedding = Dict(k=>transform(embedding[k]) for k in K)
-        K
-        em = make_embedding_df(embedding, inds_of_t, scores, beh)
-
-        Dict(pairs((;K,em)))
+        filtkeys = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors && 
+                   k.metric ∈ metric && k.dim == dim && k.feature == feature, 
+                   keys(embedding)) # filter keys
+        embedding = Dict(k=>transform(embedding[k]) for k in filtkeys) # transform embedding entries
+        emdf = make_embedding_df(embedding, data[:inds_of_t], data[:scores], beh) # get embedding dataframe
+        merge(Dict(pairs(data)), Dict(pairs((;filtkeys,emdf))))
     end
-    function load_manis_workspace(mod::Module, animal::String, day;kws...)
+    function load_manis_workspace(mod::Module, animal::String, day; kws...)
         data=load_manis_workspace(animal,day;kws...)
-        load_dict_to_module!(data)
+        dict.load_dict_to_module!(mod, data)
         data
     end
 

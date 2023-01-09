@@ -17,7 +17,7 @@ using Munge.manifold, Munge.causal, Munge.triggering
 using Utils.binning
 using Munge.causal
 
-include(scriptsdir("manifold","Umap_deserialize.jl"))
+
 
 ## ----------
 ## CONSTANTS
@@ -28,17 +28,17 @@ cor,tsk,cortsk = Munge.behavior.cor, Munge.behavior.task,
 ## ----------
 ## PARAMETERS
 ## ----------
-animal, day = "RY16", 36
+animal, day, N, filt = "RY16", 36, 100, nothing
+areas = (:ca1,:pfc)
+distance = :many
+feature_engineer = :many # many | nothing
 esttype = :binned
 est, params = get_est_preset(esttype)
 params = (;params..., horizon=1:30, thread=false)
 params = (;params..., binning=5, window=1.25)
-N = 100
-
-# ---------------
-# Obtain savefile
-# ---------------
-
+manifold.load_manis_workspace(Main, animal, day; filt, 
+                              areas, distance, feature_engineer, 
+                              N)
 
 # ================================================
 # CUEMEM - CORRECT - HATRAJ - startWell - stopWell
@@ -52,7 +52,7 @@ grid_kws=(;
            steplimit    = 1,
           )
 grd = Utils.binning.get_grid(beh, props; grid_kws...)
-savefile = get_savefile(props)
+savefile = get_trigger_savefile(props)
 
 Munge.causal.obtain_triggered_causality(em, beh, props, params; 
                                  grd, savefile, checkpointmod=5)
@@ -78,7 +78,7 @@ grid_kws =
           steplimit=3,
          )
 
-savefile = get_savefile(props)
+savefile = get_trigger_savefile(props)
 storage = jldopen(savefile,"a");
 if "grd" ∈ keys(storage)
     grd = storage["grd"]
@@ -97,7 +97,7 @@ else
 end
 
 close(storage)
-Munge.causal.obtain_triggered_causality(em, beh, props, params; 
+Munge.causal.obtain_triggered_causality_binavg(em, beh, props, params; 
                                         grd, savefile, checkpointmod=5,
                                         floattype=Float16, inttype=Int32,
                                         nan=NaN16, checkpoint
@@ -109,21 +109,21 @@ Munge.causal.obtain_triggered_causality(em, beh, props, params;
 # ==========================
 props = ["cuemem", "correct"]
 grid_kws=(;widths=[1f0,1f0], 
-           radiusinc=[0f0,0f0], 
-           maxrad=[0.5f0,0.5f0],
-           radiidefault=[0.4f0,0.4f0],
-           steplimit=1,
-          )
+          radiusinc=[0f0,0f0], 
+          maxrad=[0.5f0,0.5f0],
+          radiidefault=[0.4f0,0.4f0],
+          steplimit=1,
+         )
 
 grd = Utils.binning.get_grid(beh, props; grid_kws...)
-savefile = get_savefile(props)
-obtain_triggered_causality(em, beh, props; grd, savefile, checkpointmod=5)
+savefile = get_trigger_savefile(props)
+obtain_triggered_causality_binavg(em, beh, props; grd, savefile, checkpointmod=5)
 
 hatrajcodex = Dict(r.hatrajnum=>r.hatraj for 
      r in eachrow(unique(beh[!,[:hatraj, :hatrajnum]])))
 
-JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
-             props, ca1pfc, pfcca1, checkpoint)
+JLD2.jldsave(savefile; params, est, grd, grid_kws, 
+             weighting_trig, props, ca1pfc, pfcca1, checkpoint)
 
 # ========================
 # X - Y - START - STOP
@@ -134,9 +134,9 @@ JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
 ## =====
 #grid_kws=(;widths=[5f0,5f0])
 #props = ["x","y"]
-#savefile = get_savefile(props)
+#savefile = get_trigger_savefile(props)
 #ca1pfc, pfcca1, weighting_trig, checkpoint = 
-#        obtain_triggered_causality(em, beh, props; grid_kws, savefile)
+#        obtain_triggered_causality_binavg(em, beh, props; grid_kws, savefile)
 #
 #JLD2.jldsave(savefile; params, est, grd, grid_kws, weighting_trig,
 #             props, ca1pfc, pfcca1, checkpoint)
