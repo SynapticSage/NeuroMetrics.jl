@@ -1,17 +1,28 @@
 
-include(scriptsdir("causality", "init_trig_plot.jl"))
+include(scriptsdir("causality", "init_alltimes_plot.jl"))
+
+tagstr = "$animal.$day.$N"
+lab = Munge.behavior.cortsk
 
 # ---------------
 # Embedding trust
 # ---------------
+
 # Can we trust the embedding?
 Plot.setfolder("manifold", "trust")
 em = Munge.causal.make_embedding_df(embedding, inds_of_t, scores, beh)
-histogram(em.score)
+histogram(em.score, bins=100)
 Plot.save(tagstr)
 
+# Embedding trust per area
+@df em histogram(:score, bins=100, grouping=:area)
+Plot.save(tagstr * "_split=area")
+
+@df em histogram(:score, bins=100, grouping=:feature)
+Plot.save(tagstr * "_split=feature")
+
 ## All-time plots
-Plot.setfolder("causal","GEN_CAUSAL")
+Plot.setfolder("causality","GEN_CAUSAL")
 
 #plotcause(mean(values(filter(v-> v[1].n_neighbors==5, G_ca1pfc))), alpha=0.4, label="CA1->PFC");
 #plotcause!(mean(values(filter(v->v[1].n_neighbors==5, G_pfcca1))), alpha=0.4, label="PFC->CA1")
@@ -42,6 +53,7 @@ Plot.setfolder("causal","GEN_CAUSAL")
 
 K = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors &&
            k.metric ∈ metric && k.dim == dim && k.feature == feature, keys(G_ca1pfc))
+K = nothing
 
 # ------------------------------------------
 # FUNCTIONS
@@ -49,13 +61,14 @@ K = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors &&
 using Plot.cause
 function getcausedistovertime(C::Dict)
     V = [V for V in values(C) if !ismissing(V)]
-    [(i * 1/30,V[j][i]) for i in 1:250 for j in 1:length(V)]
+    [(i * 1/30, V[j][i]) for i in 1:last(params[:horizon]) for j in 1:length(V)]
 end
 function plotcausedistovertime(C::Dict;ch=:black,cmc=:black,labelmc="",histalpha=0.6,kws...)
     if K !== nothing
         C = Dict(k=>v for (k,v) in C if k ∈ K)
-    end V = [V for V in values(C) if !ismissing(V)]
-    histme = [(i * 1/30,V[j][i]) for i in 1:250 for j in 1:length(V)]
+    end 
+    V = [V for V in values(C) if !ismissing(V)]
+    histme = [(i * 1/30,V[j][i]) for i in 1:last(params[:horizon]) for j in 1:length(V)]
     histogram2d(histme;kws...,alpha=histalpha)
     plotmediancause!(V; timefact=1/30, c=cmc, markersize=1,label=labelmc,
                     fill=0, fillalpha=0.35, linewidth=0.2)
@@ -126,16 +139,14 @@ end
 # --------------------------------------------------
 
 Plot.setfolder("manifold","GEN_CAUSAL")
-
 caukws=(;bins=2 .* (30,45))
-plot(plotcausedistovertime(G_ca1pfc; cmc=:red, labelmc="ca1 → pfc",caukws...),
+plot(plotcausedistovertime(G_ca1pfc; cmc=:red,  labelmc="ca1 → pfc",caukws...),
      plotcausedistovertime(G_pfcca1; cmc=:blue, labelmc="pfc → ca1",caukws...),
      ylim=(-0.0010, 0.0010), 
      size=(1200,600)
-   )
+)
 
 Plot.save("GEN_CAUSAL-$tagstr")
-
 caukws=(;bins=2 .* (30,45))
 plot(plotcausedistovertime(G_ca1pfc; cmc=:red, labelmc="ca1 → pfc",caukws...,histalpha=1),
      plotcausedistovertime(G_pfcca1; cmc=:blue, labelmc="pfc → ca1",caukws...,histalpha=1),
@@ -167,6 +178,7 @@ P1= plot(
          plotcausedistovertime(C_pfcca1[[1,0]];title="PFC→CA1, MEM error",cmc=:blue,caukws...,bins=(60,300), histalpha=1);
     condkws...
 )
+
 Plot.save("MEM-$tagstr-opaque")
 
 
@@ -204,7 +216,7 @@ Cmd_pfcca1=OrderedDict("PFC→CA1 "*lab[k] => [diff(getmean(v)); 0] for (k,v) in
 # --------------
 # JUST THE MEANS
 # --------------
-time = collect(1:250) .* 1/30
+time = collect(1:last(params[:horizon])) .* 1/30
 # PLOT CA1 → PFC
 plot([plot(time,v; fill=0, label=k, c=:red) for (k,v) in Cm_ca1pfc]..., xlabel="time", ylabel="𝔸", alpha=0.5)
 # PLOT PFC → CA1
@@ -425,4 +437,4 @@ results = []
         @infiltrate
     end
 end
-results = vcat(results...);
+results = vcat(results...)

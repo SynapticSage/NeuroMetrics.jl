@@ -16,6 +16,7 @@ using Serialization
 using Utils.namedtup: ntopt_string
 using CausalityTools
 using Entropies
+using ProgressMeter
 
 if !hasproperty(Main, :esttype)
 @info "prop missinG"
@@ -24,6 +25,7 @@ end
 
 embedding_rows = Dict(k=>size(v,1)>size(v,2) ? Dataset(v) : Dataset(v')
                       for (k,v) in embedding);
+
 @info esttype
 if esttype == :binned
     params = (;bins = 9, horizon=1:3000)
@@ -43,15 +45,17 @@ if filt !== nothing
     params = (;params..., filt)
 end
 
+spikes, beh, ripples, cells  = Load.load(animal, day)
 task_vars = replace([beh.cuemem beh.correct],NaN=>-1)[1:nsamp, :]
 groupinds = Utils.findgroups(task_vars)
 groups    = OrderedDict(k=>task_vars[groupinds.==k,:][1,:]
                       for k in unique(groupinds))
-groups    = [[1,1],[0,1],[1,0],[0,0]]
+groups    = [(cuemem=1,correct=1),(cuemem=0,correct=1),(cuemem=1,correct=0),(cuemem=0,correct=0)]
 
 cp_cond = OrderedDict()
 pc_cond = OrderedDict()
-for group in keys(groups)
+
+@showprogress for group in keys(groups)
     inds = groupinds .== group
     ca1 = embedding_rows[:ca1][inds]
     pfc = embedding_rows[:pfc][inds]

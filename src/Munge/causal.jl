@@ -77,6 +77,10 @@ module causal
     end
     function predictiveasymmetry(embeddingX::AbstractArray,
                 embeddingY::AbstractArray, est; params...)
+        if size(embeddingX,2) > size(embeddingX,1)
+            @assert size(embeddingY,2) > size(embeddingY,1)
+            embeddingX, embeddingY = embeddingX', embeddingY'
+        end
         causal.predictiveasymmetry(
              Dataset(embeddingX), Dataset(embeddingY), est; params...)
     end
@@ -120,7 +124,7 @@ module causal
             #@info est
         end
 
-        if maximum(params[:horizon]) > length(uniX)
+        if !isempty(embeddingX) && maximum(params[:horizon]) > length(uniX)
             @error "Horizon too long"
         end
 
@@ -141,6 +145,10 @@ module causal
     end
     function predictiveasymmetry(embeddingX::AbstractArray,
                 embeddingY::AbstractArray; params...)
+        if size(embeddingX,2) > size(embeddingX,1)
+            @assert size(embeddingY,2) > size(embeddingY,1)
+            embeddingX, embeddingY = embeddingX', embeddingY'
+        end
         predictiveasymmetry(
              Dataset(embeddingX), Dataset(embeddingY); params...)
     end
@@ -155,6 +163,9 @@ module causal
         for (k,v) in pairedembeddings
             if k ∉ keys(checkpoint)
                 push!(checkpoint, k=>predictiveasymmetry(v[1],v[2];k...,params...))
+            elseif k ∈ keys(checkpoint)
+                previous = checkpoint[k]
+                @infiltrate
             end
         end
     end
