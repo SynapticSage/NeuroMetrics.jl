@@ -10,8 +10,6 @@ using Statistics, NaNStatistics, HypothesisTests
 using StatsPlots, JLD2
 using DataStructures: OrderedDict
 
-serialize("")
-
 using GoalFetchAnalysis
 using Utils.namedtup: ntopt_string
 import Plot
@@ -23,7 +21,7 @@ import Munge
 ## ----------
 ## CONSTANTS
 ## ----------
-corerr,tsk,cortsk = Munge.behavior.corerr, Munge.behavior.tsk, 
+corerr,tsk,lab = Munge.behavior.corerr, Munge.behavior.tsk, 
                 Munge.behavior.cortsk
 
 ## ----------
@@ -37,7 +35,7 @@ params = (;params..., horizon=1:30, thread=false)
 props = ["cuemem", "correct", "hatrajnum"]
 props = ["cuemem", "correct", "hatrajnum","startWell","stopWell"]
 N = 100
-
+spikes, beh, ripples, cells  = Load.load(animal, day)
 # ---------------
 # Obtain savefile
 # ---------------

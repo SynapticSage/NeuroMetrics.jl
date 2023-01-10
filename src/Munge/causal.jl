@@ -449,7 +449,7 @@ module causal
 
     export load_alltimes_savefile
     function load_alltimes_savefile(animal, day, N; params=(;))
-        jldopen(get_alltimes_savefile(animal,day,N;params), 'r')
+        jldopen(get_alltimes_savefile(animal,day,N;params), "r")
     end
     
     export get_trigger_savefile
