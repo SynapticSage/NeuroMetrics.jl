@@ -59,9 +59,27 @@ module behavior
         combine(beh, identity)
     end
 
+
+    export get_wells_df
+    function get_wells_df(animal,day,epoch;task,beh)
+        wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
+        wellrange = maximum(skipmissing(beh.stopWell))
+        wells.well = collect(1:wellrange)
+        wells.name .= ""
+        homeWell, arenaWells = begin
+            hw = argmax(StatsBase.fit(StatsBase.Histogram, filter(b->b!=-1,beh.stopWell), 1:wellrange).weights)
+            @info "Homewell = $hw"
+            wells[hw,:], wells[setdiff(1:wellrange,hw),:]
+        end
+        homeWell.name = "home"
+        arenaWells.name .= "arena"
+        wells = vcat(DataFrame(homeWell),arenaWells)
+    end
+
     # LABELING
     corerr = Dict(0=>"correct", 1=>"error")
     tsk = Dict(0=>"cue",     1=>"mem")
     cortsk = OrderedDict([0,1]=>"CUE correct", [1,1]=>"MEM correct",
                       [0,0]=>"CUE error",   [1,0]=>"MEM error")
+
 end

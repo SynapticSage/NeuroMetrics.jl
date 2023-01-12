@@ -431,12 +431,16 @@ poke_3_sc = scatter!(axArena, poke_3_xy, marker='↓', markersize=30, color=:whi
 poke_4_sc = scatter!(axArena, poke_4_xy, marker='↑', markersize=30, color=:white, glow_width=10)
 poke_5_sc = scatter!(axArena, poke_5_xy, marker='←', markersize=30, color=:white, glow_width=10)
 
+function mymktemp()
+    path = mktemp()[1] * ".mp4"
+    replace(path, "/tmp/" => "~/tmp/")
+end
+
 function play_graphic(stop=length(T)-2000; framerate = 90)
     start = t[]
     timestamps = range(start, stop, step=1)
     P=Progress(stop-start, desc="Video")
-    path = joinpath(dirname(decode_file), "decode_split=$(split_num)_start=$(start)_stop=$stop.mp4")
-    record(Fig, path, timestamps; framerate=framerate, compression=10) do stamp
+    record(Fig, mymktemp(), timestamps; framerate=framerate, compression=10) do stamp
         try
             t[] = stamp
         catch
@@ -449,8 +453,8 @@ end
 # -------------
 # VISUALIZE
 # -------------
-if visualize == :video
+if opt[:visualize] == :video
     play_graphic()
-elseif visualize == :slider
+elseif opt[:visualize] == :slider
 end
 
