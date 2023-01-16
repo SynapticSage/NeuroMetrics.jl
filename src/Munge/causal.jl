@@ -163,9 +163,28 @@ module causal
         for (k,v) in pairedembeddings
             if k ∉ keys(checkpoint)
                 push!(checkpoint, k=>predictiveasymmetry(v[1],v[2];k...,params...))
-            elseif k ∈ keys(checkpoint)
+            elseif k ∈ keys(checkpoint) # if we re-encounter a key! (possible checkpoint computation)
                 previous = checkpoint[k]
-                @infiltrate
+                # We are reencountering a key, is it a task, if so fetch it
+                if previous isa Task
+                    checkpoint[k] = previous = fetch(checkpoint[k])
+                end
+                # If we have a vector, is it the expected length for a given horizon; if so
+                # skip it, else compute the missing horizon
+                if previous isa Vector
+                    if length(previous) == length(params[:horizon])
+                        @info "predictiveasymmetry reencoutered key, but already computed, skipping" 
+                        continue
+                    else
+                        @info "predictiveasymmetry reencountered key, and extending horizon" length(previous) length(params[:horizon])
+                        newhorizon = setdiff(collect(params[:horizon]), 1:length(params[:horizon]))
+                        newparams = (;params..., horizon=newhorizon)
+                        push!(checkpoint, k=>predictiveasymmetry(v[1],v[2];
+                                                                 k...,newparams...))
+                    end
+                else
+                    @warn "predictiveasymmetry may have reencountered a key which prevous failed" key=k
+                end
             end
         end
     end
@@ -173,23 +192,42 @@ module causal
     ## ---------- CONDITIONAL WITHOUT AN ESTIMATOR ------------------
     export conditional_pred_asym
     function conditional_pred_asym(checkpoint::AbstractDict, 
-            pairedembeddings::Dict, data::DataFrame, data_vars=[:cuemem, :correct]; 
+            pairedembeddings::Dict, data::DataFrame, data_vars; 
             groups=nothing, params...)
 
-        data_vars = replace(hcat([data[!,var] for var in data_vars]...),NaN=>-1,missing=>-1)
+        @info "conditional_pred_asym" data_vars groups 
+
+        # Figure out the possible permutations of the data-variables user wants to
+        # condition on
+        data_vars = replace(hcat([data[!,var] for var in data_vars]...),
+                            NaN=>-1,missing=>-1)
         groupinds = Utils.findgroups(data_vars)
         groupsfulllist    = OrderedDict(data_vars[findfirst(groupinds.==k),:]=>k
                           for k in unique(groupinds))
+
+        # Enumerate list, not given by user
         if groups === nothing
             groups = groupsfulllist
         end
-        #groups    = [[1,1],[0,1],[1,0],[0,0]]
 
         for group in groups
             @info group
+            # If key not in list, then  skip it
+            if group ∉ keys(groupsfulllist)
+                @info "runconditional: group=$group ∉ keys(groupsfulllist)"
+                continue
+            end
+            # Figure out which indices are our group of interest
             condition_inds = groupsfulllist[group] .== groupinds
+            # If key doesn't exist, make a new dict there
             if group ∉ keys(checkpoint)
                 checkpoint[group] = Dict()
+            end
+            # If dict type incorrect, fix it
+            if !(Task <: valtype(checkpoint[group])) || 
+                !(Task <: valtype(checkpoint[group]))
+                kt, vt = keytype(checkpoint), Union{Task,Vector,valtype(checkpoint[group])}
+                checkpoint[group] = Dict{kt}{vt}(checkpoint[group])
             end
             predictiveasymmetry!(checkpoint[group], pairedembeddings; condition_inds, params...)
         end
@@ -471,7 +509,6 @@ module causal
     """
     function load_trigger_savefile(animal, day, N, props; params=(;))
         savefile = get_trigger_savefile(animal, day, N, props; params)
-        "local_grid_cause_props=cuemem,correct,hatrajnum,startWell,stopWell_binning=>5,window=>1.25,horizon=>1-30,bins=>[0.25, 0.25, 0.25]_RY1636.100seg.jld2"
         @assert isfile(savefile) "file is missing"
         jldopen(savefile,"r")
     end

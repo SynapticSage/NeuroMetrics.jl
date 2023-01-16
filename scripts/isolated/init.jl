@@ -1,36 +1,37 @@
- datasets = (
-             ("RY16",36,:ca1ref),("RY22",21,:ca1ref), ("super", 0, :ca1ref),
-             ("RY16",36,:default),("RY22",21,:default), ("super", 0, :default),
-            )
+using DrWatson
+quickactivate(expanduser("~/Projects/goal-code/"));
 
-#(animal, day, tet) = first(datasets)
+using GoalFetchAnalysis
+using Timeshift
+using Timeshift.types
+using Timeshift.shiftmetrics
+using Field.metrics
+using Plot
+using Plot.receptivefield
+using Utils.namedtup
+using Munge.timeshift: getshift
+using Munge.nonlocal
+using Utils.statistic: pfunc
+import Plot
+using Munge.spiking
+using Filt
+using Infiltrator
+
+using DataStructures: OrderedDict
+using DimensionalData
+import DimensionalData: Between
+using ProgressMeter
+using DataFrames, DataFramesMeta
+using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
+using Plots
+using LazySets
+using JLD2
+
+datasets = (("RY16",36,:ca1ref), ("RY22",21,:ca1ref),  ("super", 0, :ca1ref),
+            ("RY16",36,:default),("RY22",21,:default), ("super", 0, :default))
+
 for (animal, day, tet) in datasets
 
-    quickactivate(expanduser("~/Projects/goal-code/"));
-    using GoalFetchAnalysis
-    using Timeshift
-    using Timeshift.types
-    using Timeshift.shiftmetrics
-    using Field.metrics
-    using Plot
-    using Plot.receptivefield
-    using Utils.namedtup
-    using Munge.timeshift: getshift
-    using Munge.nonlocal
-    using Utils.statistic: pfunc
-    import Plot
-    using Munge.spiking
-    using Filt
-    using Infiltrator
-
-    using DataStructures: OrderedDict
-    using DimensionalData
-    import DimensionalData: Between
-    using ProgressMeter
-    using DataFrames, DataFramesMeta
-    using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
-    using Plots
-    using LazySets
 
     clab = OrderedDict(-1 => "nontask", 0 => "cue", 1=> "mem", missing=>"sleep")
     Munge.nonlocal.setclab(clab)
@@ -115,7 +116,6 @@ for (animal, day, tet) in datasets
     tsk = subset(tsk, :task=>t->t .!= "sleep")
     ismissing.(spikes.velVec)
 
-    using JLD2
     filename = datadir("isolated","iso_animal=$(animal)_day=$(day)")
     !isdir(dirname(filename)) ? mkpath(dirname(filename)) : nothing
     @save "$filename"
