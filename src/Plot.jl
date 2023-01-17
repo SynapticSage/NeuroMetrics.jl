@@ -14,9 +14,13 @@ folder_args   = []
 complete_folder_args = []
 exts = ["png", "pdf"]
 append, prepend = "", ""
+active = true
 
 setappend(val)  = @eval Plot append = $val
 setprepend(val) = @eval Plot prepend = $val
+off() = @eval Plot active = false
+on()  = @eval Plot active = true
+toggle() = @eval Plot !active
 
 function setparentfolder(args::String...)
     @eval Plot parent_folder = $args
@@ -65,7 +69,7 @@ function save(desc::String; rmexist=nothing)
     names = joinpath.([folder], names)
     for name in names
         @info "saving" name
-        savefig(name)
+        active ? savefig(name) : nothing
     end
     Plots.CURRENT_PLOT
 end
