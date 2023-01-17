@@ -128,9 +128,6 @@ begin
 
 end
 
-#GLMakie.scatter!(vidax, bx, by, c=:orange)
-#cuemem, corr, hatraj, hatrajnum
-#well,   poke
 display(Fig)
 
 @showprogress for stamp in t[]:(T-100)
@@ -142,7 +139,9 @@ display(Fig)
     sleep(1/90)
 end
 
-GLMakie.record(Fig, mymktemp(), framerate=60, t[]:(T-100), compression=12) do stamp
+prog = Progress(length(t[]:(T-100)), desc="Recording video")
+iter = ((next!(prog); t) for t in t[]:(T-100))
+GLMakie.record(Fig, mymktemp(), framerate=60, iter, compression=12) do stamp
     try
             t[] = stamp
     catch
