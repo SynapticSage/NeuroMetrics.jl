@@ -75,47 +75,57 @@ end
 
 # Setup observables
 begin
-    N = 5
-    Fig = Figure(resolution=(800,800))
+
+    N = 4
+    Fig = Figure(resolution=(1400,700))
     if opt[:visualize] == :video
     t = Observable(Int(1000))
     elseif opt[:visualize] == :slider
-    sl_t = Slider(Fig[1:N, 4], range = 1:size(beh,1), horizontal = false, 
-                  startvalue = 1000)
-    t = lift(sl_t.value) do tt
-        tt
+    sl_t = Slider(Fig[1:N, 4], 
+                  range = 1:size(beh,1), 
+                  horizontal=false, 
+                  startvalue=1000)
+    t = lift(sl_t.value) do tt;
+        tt; end
     end
-    end
-        vidax = Axis(Fig[1:N, 1:2])
-        B = @lift beh[max(1,$t-opt[:nback]):$t,:]
-        b = @lift beh[$t, :]
+
+    vidax = Axis(Fig[1:N, 1:2])
+    B = @lift beh[max(1,$t-opt[:nback]):$t,:]
+    b = @lift beh[$t, :]
+
     # Track and Video
     begin
         frame = @lift Matrix(video[$b.time])'
         realvideo = image!(vidax, yax,xax, frame, zindex=-10, alpha=0.5)
         GLMakie.lines!(vidax, eachcol(boundary)...; color=:red)
     end
+
     #Behavior
     begin
         Bx, By, L = @lift($B.x),@lift($B.y), 
                         @lift collect(LinRange(0,1,length($B.y)))
         bx, by = @lift([$b.x]),@lift([$b.y])
         GLMakie.scatter!(vidax, Bx, By)
+        hatraj = @lift $b.hatraj === missing ? [""] : [uppercase($b.hatraj)]
+        a=GLMakie.annotations!(hatraj, [Point2f((135.0, 50.0))], color=:orange, textsize=40)
     end
+
     begin
         poke = @lift $b.poke
         wellpoke = @lift $poke == 0 ? (NaN,NaN) : Tuple(wells[$poke, [:x,:y]])
         GLMakie.scatter!(vidax, wellpoke, color=:orange, glowwidth=5, glowcolor=:orange, transparency=true)
     end
+
     # Reporters
     begin
         barvar(Fig, b, :startWell; i=1)
         barvar(Fig, b, :stopWell;  i=2)
         barvar(Fig, b, :cuemem;    i=3)
         barvar(Fig, b, :correct;   i=4)
-        barvar(Fig, b, :hatrajnum;    i=5)
+        #barvar(Fig, b, :hatrajnum; i=5)
     end
     # Well scatter
+
 end
 
 #GLMakie.scatter!(vidax, bx, by, c=:orange)
