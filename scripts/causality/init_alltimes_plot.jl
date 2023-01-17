@@ -30,7 +30,7 @@ corerr,tsk,lab = Munge.behavior.corerr, Munge.behavior.tsk,
 animal, day = "RY16", 36
 esttype = :binned
 est, params = get_est_preset(esttype)
-params = (;params..., binning=5, window=1.25)
+params = (;params..., binning=7, window=1.25)
 params = (;params..., horizon=1:30, thread=false)
 props = ["cuemem", "correct", "hatrajnum"]
 props = ["cuemem", "correct", "hatrajnum","startWell","stopWell"]

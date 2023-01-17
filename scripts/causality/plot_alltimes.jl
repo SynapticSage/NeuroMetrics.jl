@@ -1,6 +1,16 @@
 
 include(scriptsdir("causality", "init_alltimes_plot.jl"))
 
+predasym = storage["predasym"]
+
+G_ca1pfc, G_pfcca1 = predasym["alltimes"]["ca1pfc"], predasym["alltimes"]["pfcca1"]
+C_ca1pfc, C_pfcca1 = predasym["props=[cuemem,correct]"]["ca1pfc"], 
+                     predasym["props=[cuemem,correct]"]["pfcca1"]
+H_ca1pfc, H_pfcca1 = predasym["props=[cuemem,correct,hatraj]"]["ca1pfc"], 
+                     predasym["props=[cuemem,correct,hatraj]"]["pfcca1"]
+
+Plot.off()
+
 tagstr = "$animal.$day.$N"
 lab = Munge.behavior.cortsk
 
@@ -23,7 +33,6 @@ Plot.save(tagstr * "_split=feature")
 
 ## All-time plots
 Plot.setfolder("causality","GEN_CAUSAL")
-
 #plotcause(mean(values(filter(v-> v[1].n_neighbors==5, G_ca1pfc))), alpha=0.4, label="CA1->PFC");
 #plotcause!(mean(values(filter(v->v[1].n_neighbors==5, G_pfcca1))), alpha=0.4, label="PFC->CA1")
 #xlims!((0,250))
@@ -138,20 +147,24 @@ end
 
 # --------------------------------------------------
 
+
 Plot.setfolder("manifold","GEN_CAUSAL")
-caukws=(;bins=2 .* (30,45))
+
+caukws=(;bins=2 .* (30,100))
 plot(plotcausedistovertime(G_ca1pfc; cmc=:red,  labelmc="ca1 → pfc",caukws...),
-     plotcausedistovertime(G_pfcca1; cmc=:blue, labelmc="pfc → ca1",caukws...),
+     plotcausedistovertime(G_pfcca1; cmc=:blue, labelmc="pfc → ca1",caukws...);
      ylim=(-0.0010, 0.0010), 
-     size=(1200,600)
+     size=(1200,600),
+     caukws...
 )
 
 Plot.save("GEN_CAUSAL-$tagstr")
-caukws=(;bins=2 .* (30,45))
+caukws=(;bins=2 .* (30,100))
 plot(plotcausedistovertime(G_ca1pfc; cmc=:red, labelmc="ca1 → pfc",caukws...,histalpha=1),
-     plotcausedistovertime(G_pfcca1; cmc=:blue, labelmc="pfc → ca1",caukws...,histalpha=1),
+     plotcausedistovertime(G_pfcca1; cmc=:blue, labelmc="pfc → ca1",caukws...,histalpha=1);
      ylim=(-0.0010, 0.0010), 
-     size=(1200,600)
+     size=(1200,600),
+     caukws
    )
 
 Plot.save("GEN_CAUSAL-$tagstr-opaque")
@@ -160,12 +173,12 @@ Plot.save("GEN_CAUSAL-$tagstr-opaque")
 
 Plot.setfolder("manifold","COND_CAUSAL")
 
-condkws = (ylim=(-0.003,0.003),size=(900,900))
+condkws = (ylim=(-0.003,0.003),size=(800,800))
 P1= plot(
          plotcausedistovertime(C_ca1pfc[[1,1]];title="CA1→PFC, MEM correct",cmc=:red,caukws...,bins=(60,200)),
          plotcausedistovertime(C_pfcca1[[1,1]];title="PFC→CA1, MEM correct",cmc=:blue,caukws...,bins=(60,150)),
-         plotcausedistovertime(C_ca1pfc[[1,0]];title="CA1→PFC, MEM error",cmc=:red,caukws...,bins=(60,450)),
-         plotcausedistovertime(C_pfcca1[[1,0]];title="PFC→CA1, MEM error",cmc=:blue,caukws...,bins=(60,300));
+         plotcausedistovertime(C_ca1pfc[[1,0]];title="CA1→PFC, MEM error",  cmc=:red,caukws...,bins=(60,450)),
+         plotcausedistovertime(C_pfcca1[[1,0]];title="PFC→CA1, MEM error",  cmc=:blue,caukws...,bins=(60,300));
     condkws...
 )
 
@@ -216,11 +229,11 @@ Cmd_pfcca1=OrderedDict("PFC→CA1 "*lab[k] => [diff(getmean(v)); 0] for (k,v) in
 # --------------
 # JUST THE MEANS
 # --------------
-time = collect(1:last(params[:horizon])) .* 1/30
+x_time = collect(1:last(params[:horizon])) .* 1/30
 # PLOT CA1 → PFC
-plot([plot(time,v; fill=0, label=k, c=:red) for (k,v) in Cm_ca1pfc]..., xlabel="time", ylabel="𝔸", alpha=0.5)
+plot([plot(x_time,v; fill=0, label=k, c=:red) for (k,v) in Cm_ca1pfc]..., xlabel="time", ylabel="𝔸", alpha=0.5)
 # PLOT PFC → CA1
-plot([plot(time,v; fill=0, label=k, c=:skyblue) for (k,v) in Cm_pfcca1]..., xlabel="time",  ylabel="𝔸", alpha=0.5)
+plot([plot(x_time,v; fill=0, label=k, c=:skyblue) for (k,v) in Cm_pfcca1]..., xlabel="time",  ylabel="𝔸", alpha=0.5)
 
 
 # -----------
@@ -229,29 +242,30 @@ plot([plot(time,v; fill=0, label=k, c=:skyblue) for (k,v) in Cm_pfcca1]..., xlab
 Plot.setfolder("manifold","COND_CAUSAL", "jacknived flows")
 getjacknives(x) = leaveoneout(x; func=func_full)
 # How do those bins look on my image?
-plot([(plot(time, getmean(v); fill=0, label=k, c=:skyblue); 
-       plot!(time, getjacknives(v); c=:black, linestyle=:dash, alpha=0.25, label="");
+plot([(plot(x_time, getmean(v); fill=0, label=k, c=:skyblue); 
+       plot!(x_time, getjacknives(v); c=:black, linestyle=:dash, alpha=0.25, label="");
        vline!(collect(Iterators.flatten(bins)), c=:black, linestyle=:dash, label=""))
        for (k,v) in C_ca1pfc]..., xlabel="time", ylabel="𝔸", alpha=0.5, link=:y)
 Plot.save((;direction="ca1-pfc", params...))
 
 # PLOT PFC → CA1
-plot([(plot(time, getmean(v); fill=0, label=k, c=:red); 
-       plot!(time, getjacknives(v); c=:black, linestyle=:dash, alpha=0.25, label="");
+plot([(plot(x_time, getmean(v); fill=0, label=k, c=:red); 
+       plot!(x_time, getjacknives(v); c=:black, linestyle=:dash, alpha=0.25, label="");
        vline!(collect(Iterators.flatten(bins)), c=:black, linestyle=:dash, label=""))
       for (k,v) in C_pfcca1]..., xlabel="time", ylabel="𝔸", alpha=0.5, link=:y,
      ylim=(-0.003, 0.002))
 Plot.save((;direction="pfc-ca1", params...))
 
 # BOTH 
-p=plot([(plot(time, getmean(v1); fill=0, label="ca1→pfc",  legend_title="direction",
+p=plot([(plot(x_time, getmean(v1); fill=0, label="ca1→pfc",  legend_title="direction",
               title=lab[k1], c=:red, alpha=0.5); 
-       plot!(time, getjacknives(v1); c=:black, linestyle=:dash, alpha=0.25, label="");
-       plot!(time, getmean(v2); fill=0, label="pfc→ca1 ", legend_title="direction", title=lab[k2], c=:skyblue, alpha=0.5); 
-       plot!(time, getjacknives(v2); c=:black, linestyle=:dash, alpha=0.25, label="");
+       plot!(x_time, getjacknives(v1); c=:black, linestyle=:dash, alpha=0.25, label="");
+       plot!(x_time, getmean(v2); fill=0, label="pfc→ca1 ", legend_title="direction", title=lab[k2], c=:skyblue, alpha=0.5); 
+       plot!(x_time, getjacknives(v2); c=:black, linestyle=:dash, alpha=0.25, label="");
        vline!(collect(Iterators.flatten(bins)), c=:black, linestyle=:dash, label=""))
-      for ((k1,v1),(k2,v2)) in zip(C_ca1pfc, C_pfcca1)]..., xlabel="time", ylabel="𝔸", alpha=0.5, link=:y,
-       ylim=(-0.0034, 0.0034), xlim=(0,3.5), size=(1000,400))
+      for ((k1,v1),(k2,v2)) in zip(C_ca1pfc, C_pfcca1)]..., 
+       xlabel="time", ylabel="𝔸", alpha=0.5, link=:y, ylim=(-0.0034, 0.0034), xlim=(0,3.5), size=(1000,400))
+
 Plot.save((;direction="both ca1-pfc pfc-ca1", params...))
 
 Plot.setfolder("manifold","COND_CAUSAL")
@@ -264,7 +278,7 @@ Plot.save("summary all on same axis")
 # ----------------
 # BIN THE MEANS
 # ---------------
-B = bin_the_curves(values(Cm_ca1pfc)...; bins, time)
+B = bin_the_curves(values(Cm_ca1pfc)...; bins, x_time)
 V = collect(skipmissing(values(first(values(C_ca1pfc)))))
 J = [leaveoneout(V; func=func_bin) for V in collect(values(C_ca1pfc))]
 J = [vcat(j...) for j in J]
@@ -297,7 +311,7 @@ else
 end
 Plot.save("ca1pfc - groupedbar")
 
-B = bin_the_curves(values(Cm_pfcca1)...; bins, time)
+B = bin_the_curves(values(Cm_pfcca1)...; bins, x_time)
 V = collect(skipmissing(values(first(values(C_pfcca1)))))
 J = [leaveoneout(V; func=func_bin) for V in collect(values(C_pfcca1))]
 J = [vcat(j...) for j in J]
@@ -327,10 +341,11 @@ else
 end
 Plot.save("pfcca1 - groupedbar")
 
-# ----------------
-# BIN THE MEANS -- DIFF
-# ---------------
-B = bin_the_curves(values(Cmd_ca1pfc)...; bins, time)
+# ----------------------*
+# BIN THE MEANS -- DIFF |
+# ----------------------*
+
+B = bin_the_curves(values(Cmd_ca1pfc)...; bins, x_time)
 V = collect(skipmissing(values(first(values(Cd_ca1pfc)))))
 J = [leaveoneout(V; func=func_bin) for V in collect(values(Cd_ca1pfc))]
 J = [vcat(j...) for j in J]
@@ -362,7 +377,7 @@ else
 end
 Plot.save("diff - ca1pfc - groupedbar")
 
-B = bin_the_curves(values(Cmd_pfcca1)...; bins, time)
+B = bin_the_curves(values(Cmd_pfcca1)...; bins, x_time)
 V = collect(skipmissing(values(first(values(Cd_pfcca1)))))
 J = [leaveoneout(V; func=func_bin) for V in collect(values(Cd_pfcca1))]
 J = [vcat(j...) for j in J]
@@ -382,7 +397,8 @@ else
     #           #legend=:none,
     #           linewidth=2, group=vec(group),
     #           alpha=0.5, ylabel="Binned 𝔸")
-    groupedbar(["early","intermediate","late"], manual_trans(B);
+    groupedbar(["early","intermediate","late"], 
+               manual_trans(B);
                legend=:none,
                errorbar=yerrors, linewidth=2, 
                label=(string.(collect(keys(Cmd_pfcca1)))),
@@ -438,3 +454,55 @@ results = []
     end
 end
 results = vcat(results...)
+
+
+# Ha Traj
+
+function get_ha_vals(set, f=nothing)
+    sort([k for k in 
+     collect(keys(H_ca1pfc))
+     if k[1:length(set)] == set
+     && (f===nothing || startswith(k[end],f))
+    ])
+end
+function get_ha_vals(set)
+    get_ha_vals(set, nothing)
+end
+
+ca1pfc_color(i,n) = get(ColorSchemes.Blues, 0.15 + 0.85*(i/n))
+pfcca1_color(i,n) = get(ColorSchemes.Reds, 0.15 + 0.85*(i/n))
+begin
+    p1=plot()
+    plot!(x_time, getmean(H_ca1pfc[[0,1,"a1"]]);   title="CA1→PFC",  
+                                  c=ca1pfc_color(1,4),bins=(60,200), label="1", linestyle=:dash)
+    plot!(x_time, getmean(H_ca1pfc[[0,1,"a2"]]);   
+                                  c=ca1pfc_color(2,4),bins=(60,200), label="2", linestyle=:dash)
+    plot!(x_time, getmean(H_ca1pfc[[1,1,"a3"]]);  
+                                  c=ca1pfc_color(3,4),bins=(60,200), label="3")
+    plot!(x_time, getmean(H_ca1pfc[[1,1,"a4"]]); 
+                                  c=ca1pfc_color(4,4),bins=(60,200), label="4")
+    #plot!(getmean(H_ca1pfc[[1,1,"a5"]]);   title="CA1→PFC, MEM correct",  
+    #                              c=ca1pfc_color(3,4),bins=(60,200), label="3", linestyle=:dash)
+    #plot!(getmean(H_ca1pfc[[1,1,"a6"]]);   title="CA1→PFC, MEM correct",  
+    #                               c=ca1pfc_color(4,4),bins=(60,200),label="4", linestyle=:dash)
+    hline!([0];c=:black,linestyle=:dash,label="")
+
+    p2=plot()
+    plot!(x_time, getmean(H_pfcca1[[0,1,"a1"]]);   title="PFC→CA1",  
+                                  c=pfcca1_color(1,4),bins=(60,200), label="1", linestyle=:dash)
+    plot!(x_time, getmean(H_pfcca1[[0,1,"a2"]]);   
+                                  c=pfcca1_color(2,4),bins=(60,200), label="2", linestyle=:dash)
+    plot!(x_time, getmean(H_pfcca1[[1,1,"a3"]]);   
+                                  c=pfcca1_color(3,4),bins=(60,200), label="3")
+    plot!(x_time, getmean(H_pfcca1[[1,1,"a4"]]);   
+                                  c=pfcca1_color(4,4),bins=(60,200), label="4")
+    #plot!(getmean(H_pfcca1[[1,1,"a5"]]);  
+    #                              c=pfcca1_color(3,4),bins=(60,200), label="3", linestyle=:dash)
+    #plot!(getmean(H_pfcca1[[1,1,"a6"]]); 
+    #                               c=pfcca1_color(4,4),bins=(60,200),label="4", linestyle=:dash)
+    hline!([0];c=:black,linestyle=:dash,label="")
+    nothing
+end
+plot(p1,p2, background_color=:seashell2)
+
+
