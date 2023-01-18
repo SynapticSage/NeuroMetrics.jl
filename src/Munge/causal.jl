@@ -477,16 +477,57 @@ module causal
     end
 
     # ANALYSIS SAVE FILES
+    """
+        find_horizon_values
+
+    obtains all horizon values that are present in files in the munge/causal savefolder
+    optionally contraining to values less than or equal to `constraint`
+    """
+    function _find_horizon_values(;constraint::Union{Int,Nothing}=nothing)
+        files = readdir(datadir("manifold","causal")) 
+        search=",horizon=>"
+        # Cut out the horizon data from the string names
+        inds = findfirst.([search], files)
+        data = [file[last(ind)+1:end] for (file,ind) in zip(files,inds)
+               if ind !== nothing]
+        inds = findfirst.(",", data)
+        inds = [(ind === nothing ? findfirst("_",datum) : ind) for (datum,ind) in zip(data,inds)]
+        data = [file[begin:first(ind)-1] for (file,ind) in zip(data,inds)]
+        data = replace.(data, "-"=>":")
+        data = unique(last.([Base.eval(instr) for instr in Meta.parse.(data)]))
+        constraint === nothing ? data : data[data .<= constraint]
+    end
     export get_alltimes_savefile
     """
         get_trigger_savefile
 
     Obtains the savefile name for given `params`
     """
-    function get_alltimes_savefile(animal, day, N; params=(;)) 
+    function get_alltimes_savefile(animal, day, N; params=(;), allowlowerhorizon=false) 
         tagstr = "$animal$day.$(N)seg"
-        paramstr = Utils.namedtup.tostring(pop!(params,:thread))
-        datadir("manifold","causal","pa_cause_$(paramstr)_$tagstr.jld2")
+        @info "param order " keys(params)
+        filename = ""
+        # allowhorizon means we search for multiple possible filenames, as long as the other params are the same and horizon less than what user asked for
+        if allowlowerhorizon
+            @info "Looking for file with horizon <= $(last(params[:horizon]))"
+            params = OrderedDict(pairs(params))
+            pop!(params, :thread)
+            horizons = _find_horizon_values(;constraint=last(params[:horizon]))
+            possparams = [(setindex!(copy(params), 1:horizon, :horizon))
+                      for horizon in horizons]
+            @info "param order " keys(possparams[1])
+            paramstrs = Utils.namedtup.tostring.(NamedTuple.(possparams),keysort=true)
+            files = [datadir("manifold", "causal", "pa_cause_$(paramstr)_$tagstr.jld2")
+                    for paramstr in paramstrs]
+            exists = isfile.(files)
+            horizons, files = horizons[exists], files[exists]
+            filename = files[argmax(horizons)]
+        end
+        if isempty(filename)
+            paramstr = Utils.namedtup.tostring(pop!(params,:thread),keysort=true)
+            filename = datadir("manifold","causal", "pa_cause_$(paramstr)_$tagstr.jld2")
+        end
+        filename
     end
 
     export load_alltimes_savefile
