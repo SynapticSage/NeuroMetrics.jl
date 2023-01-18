@@ -23,19 +23,23 @@ module causal
     import Table
 
     export get_est_preset
-    function get_est_preset(esttype::Symbol, horizon=1500)
+    function get_est_preset(esttype::Symbol; 
+            horizon=1:300, bins = [0.25,0.25,0.25],
+            m=15, τ=1, other_params...
+        )
         if esttype == :binned
-            params = (;bins = [0.25,0.25,0.25], horizon=1:horizon)
+            params = (;bins, horizon)
             est = VisitationFrequency(RectangularBinning(params.bins))
             @info "Starting binned estimator, "
         elseif esttype == :symbolic
-            params = (m = 15, τ = 1)
             #params = (m = 100, τ = 4)
+            params = (m, τ)
             est = SymbolicPermutation(;params...)
-            params = (;params..., horizon=1:horizon)
+            params = (;params..., horizon)
         else
-            @warn "not recog"
+            @error "not recog"
         end
+        params = (;params..., other_params...)
         (;est, params)
     end
 

@@ -15,6 +15,7 @@ using Statistics, NaNStatistics, HypothesisTests
 using StatsPlots
 using JLD2
 using DiskBackedDicts, ThreadSafeDicts
+using SoftGlobalScope
 function Base.fetch(X::AbstractDict)
     Dict(k=>(try;fetch(v);catch;missing;end) for (k,v) in X)
 end
@@ -31,6 +32,7 @@ corerr,tsk,cortsk = Munge.behavior.cor, Munge.behavior.tsk,
 ## ----------
 PROPS = [[:cuemem, :correct],[:cuemem,:correct,:hatraj]]
 datasets = (("RY22", 21, 100, nothing), ("RY16", 36, 100, nothing))
+datasets = (("RY16", 36, 100, nothing),)
 opts = Dict(
             :skipifproc => true
            )
@@ -38,6 +40,8 @@ opts = Dict(
 global predasym = nothing
 (animal, day, N, filt) = last(datasets)
 (animal, day, N, filt) = first(datasets)
+
+
 @showprogress "datasets" for (animal, day, N, filt) in datasets
 
     @info "dataset" animal day N filt
@@ -76,6 +80,7 @@ global predasym = nothing
     end
 
     # SETUP
+    usecheckpoint = true
     begin
         # Threading
         if params[:thread]
@@ -86,7 +91,7 @@ global predasym = nothing
             Dtype = Dict
         end
         storage = jldopen(savefile, "r")
-        if "predasym" in keys(storage)
+        if usecheckpoint && "predasym" in keys(storage)
             predasym = storage["predasym"]
         else
             predasym = Dtype()
@@ -134,7 +139,11 @@ global predasym = nothing
         @info "props" 🔑
         if 🔑 ∉ keys(predasym)
             predasym[🔑], info[🔑] = Dict{String,Any}(), Dict{String,Any}()
+        else
+            print("🔑 in predasym, skipping...")
+            continue
         end
+        @infiltrate
 
         C_ca1pfc = predasym[🔑]["ca1pfc"] = Dtype() 
         C_pfcca1 = predasym[🔑]["pfcca1"] = Dtype()
@@ -181,8 +190,5 @@ global predasym = nothing
     using JLD2
     S=JLD2.jldsave(savefile; CA1PFC, PFCCA1, animal, day, N, params, est, 
                    predasym, info)
-
-    #em = Table.to_dataframe(embedding, explode=false)
-    #opt = getoptions(em)
 
 end

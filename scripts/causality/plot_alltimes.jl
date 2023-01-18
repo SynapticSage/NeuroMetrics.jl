@@ -1,5 +1,23 @@
 
-include(scriptsdir("causality", "init_alltimes_plot.jl"))
+#  ==================================
+# PLOT ALL TIMES 
+#  ==================================
+using DrWatson
+using Infiltrator
+using ThreadSafeDicts
+using Serialization, CausalityTools, Entropies
+using Plots, DataFrames
+using Statistics, NaNStatistics, HypothesisTests
+using StatsPlots, JLD2
+using DataStructures: OrderedDict
+
+using GoalFetchAnalysis
+using Utils.namedtup: ntopt_string
+import Plot
+using Munge.manifold, Munge.causal, Munge.triggering
+using Utils.binning
+using Munge.causal
+import Munge
 
 predasym = storage["predasym"]
 
@@ -11,8 +29,26 @@ H_ca1pfc, H_pfcca1 = predasym["props=[cuemem,correct,hatraj]"]["ca1pfc"],
 
 Plot.off()
 
+## ----------
+## CONSTANTS
+## ----------
+corerr,tsk,lab = Munge.behavior.corerr, Munge.behavior.tsk, 
+                Munge.behavior.cortsk
+
+## ----------
+## PARAMETERS
+## ----------
+est, params = get_est_preset(:binned, binning=7, window=1.25, horizon=1:30, thread=false)
+datasets = (("RY16", 36, 100), ("RY22", 21, 100))
+
+(animal, day, N) = datasets[1]
+
+## ----------
+## LOAD
+## ----------
+spikes, beh, ripples, cells  = Load.load(animal, day)
+storage = load_alltimes_savefile(animal, day, N; params)
 tagstr = "$animal.$day.$N"
-lab = Munge.behavior.cortsk
 
 # ---------------
 # Embedding trust
@@ -470,7 +506,7 @@ function get_ha_vals(set)
 end
 
 ca1pfc_color(i,n) = get(ColorSchemes.Blues, 0.15 + 0.85*(i/n))
-pfcca1_color(i,n) = get(ColorSchemes.Reds, 0.15 + 0.85*(i/n))
+pfcca1_color(i,n) = get(ColorSchemes.Reds,  0.15 + 0.85*(i/n))
 begin
     p1=plot()
     plot!(x_time, getmean(H_ca1pfc[[0,1,"a1"]]);   title="CA1→PFC",  
