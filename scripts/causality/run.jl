@@ -30,14 +30,15 @@ corerr,tsk,cortsk = Munge.behavior.cor, Munge.behavior.tsk,
 ## ----------
 ## PARAMS
 ## ----------
+opt = Dict(
+           :skipexisting_predasym_keys => false, # skip existing predasym dict (if not, we can extend a key's results)
+           :use_existing_predasym => false, # use existing predasym[🔑]
+          )
 PROPS = [[:cuemem, :correct],[:cuemem,:correct,:hatraj]]
 datasets = (("RY22", 21, 100, nothing), ("RY16", 36, 100, nothing))
 datasets = (("RY16", 36, 100, nothing),)
-opts = Dict(
-            :skipifproc => true
-           )
 
-global predasym = nothing
+global predasym, savefile, loadfile = nothing, nothing, nothing
 (animal, day, N, filt) = last(datasets)
 (animal, day, N, filt) = first(datasets)
 
@@ -53,23 +54,22 @@ global predasym = nothing
     distance = :many
     feature_engineer = :many # many | nothing
     esttype = :binned
-    est, params = get_est_preset(esttype)
-    params = (;params..., horizon=1:30, thread=true)
-    params = (;params..., binning=7, window=1.25)
+    est, params = get_est_preset(esttype, horizon=1:60, thread=true, binning=7, window=1.25)
     manifold.load_manis_workspace(Main, animal, day; filt, 
                                   areas, distance, feature_engineer, 
                                   N)
     spikes, beh, ripples, cells  = Load.load(animal, day)
     savefile = get_alltimes_savefile(animal, day, N; params)
+    loadfile = get_alltimes_savefile(animal, day, N; params, allowlowerhorizon=true)
+
 
     ## -----------------------------
     ## COMPUTE
     ## -----------------------------
-
     # GET PAIRED EMBEDDINGS
     # (each set of embeddings takes about 15 seconds)
-    if isfile(savefile)
-        storage = JLD2.jldopen(savefile, "r")
+    if isfile(loadfile)
+        storage = JLD2.jldopen(loadfile, "r")
         CA1PFC, PFCCA1 = storage["CA1PFC"], storage["PFCCA1"]
         close(storage)
     else
@@ -80,7 +80,6 @@ global predasym = nothing
     end
 
     # SETUP
-    usecheckpoint = true
     begin
         # Threading
         if params[:thread]
@@ -90,17 +89,26 @@ global predasym = nothing
         else
             Dtype = Dict
         end
-        storage = jldopen(savefile, "r")
-        if usecheckpoint && "predasym" in keys(storage)
-            predasym = storage["predasym"]
-        else
+        if opt[:use_existing_predasym]
+            storagesave = isfile(savefile) ? jldopen(savefile, "r") : nothing
+            storageload = isfile(loadfile) ? jldopen(loadfile, "r") : nothing
+            if storagesave !== nothing && "predasym" in keys(storagesave)
+                predasym = deepcopy(storagesave["predasym"])
+            elseif storageload !== nothing && "predasym" in keys(storageload)
+                predasym = deepcopy(storageload["predasym"])
+            else
+                predasym = nothing
+            end
+            storagesave === nothing ? nothing : close(storagesave)
+            storageload === nothing ? nothing : close(storageload)
+        end
+        if predasym === nothing
             predasym = Dtype()
             predasym["alltimes"] = Dtype()
             for key in ("ca1pfc","pfcca1")
                 predasym["alltimes"][key] = Dtype()
             end
         end
-        close(storage)
         info = Dtype()
         GC.gc()
     end
@@ -113,7 +121,8 @@ global predasym = nothing
         elseif conditionals == [:cuemem, :correct, :hatraj]
             groups=[[cuemem, correct, hatraj] 
                     for cuemem in 0:1, correct in 0:1, 
-                    hatraj in skipmissing(unique(beh.hatraj))]        elseif conditionals == [:cuemem, :correct, :hatrajnum]
+                    hatraj in skipmissing(unique(beh.hatraj))]        
+        elseif conditionals == [:cuemem, :correct, :hatrajnum]
             groups=[[cuemem, correct, hatraj] 
                     for cuemem in 0:1, correct in 0:1, 
                     hatraj in skipmissing(unique(beh.hatrajnum))]
@@ -128,25 +137,30 @@ global predasym = nothing
                               inds_of_t, params...)
     end
 
-    # Obtain conditional runs
     props, i = first(PROPS), 1
     props, i = last(PROPS), 2
     using SoftGlobalScope
     prog = Progress(length(PROPS), desc="Props")
+
+    # Obtain conditional runs
     @softscope for (i,props) in enumerate(PROPS)
 
         🔑 = "props=" * replace(string(props),":"=>""," "=>"")
         @info "props" 🔑
         if 🔑 ∉ keys(predasym)
             predasym[🔑], info[🔑] = Dict{String,Any}(), Dict{String,Any}()
-        else
+        elseif opt[:skipexisting_predasym_keys]
             print("🔑 in predasym, skipping...")
             continue
         end
-        @infiltrate
 
-        C_ca1pfc = predasym[🔑]["ca1pfc"] = Dtype() 
-        C_pfcca1 = predasym[🔑]["pfcca1"] = Dtype()
+        if "ca1pfc" ∈ keys(predasym[🔑])
+            C_ca1pfc = predasym[🔑]["ca1pfc"] 
+            C_pfcca1 = predasym[🔑]["pfcca1"]
+        else
+            C_ca1pfc = predasym[🔑]["ca1pfc"] = Dtype() 
+            C_pfcca1 = predasym[🔑]["pfcca1"] = Dtype()
+        end
 
         runconditional(C_ca1pfc, C_pfcca1, props)
         run(`pushover-cli finished $animal iteration $i, key count = $(length(keys(C_ca1pfc)))`)

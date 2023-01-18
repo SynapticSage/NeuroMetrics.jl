@@ -180,6 +180,7 @@ module causal
                         @info "predictiveasymmetry reencoutered key, but already computed, skipping" 
                         continue
                     else
+                        @infiltrate
                         @info "predictiveasymmetry reencountered key, and extending horizon" length(previous) length(params[:horizon])
                         newhorizon = setdiff(collect(params[:horizon]), 1:length(params[:horizon]))
                         newparams = (;params..., horizon=newhorizon)
@@ -504,6 +505,7 @@ module causal
     Obtains the savefile name for given `params`
     """
     function get_alltimes_savefile(animal, day, N; params=(;), allowlowerhorizon=false) 
+        params = pop!(params,:thread)
         tagstr = "$animal$day.$(N)seg"
         @info "param order " keys(params)
         filename = ""
@@ -511,20 +513,22 @@ module causal
         if allowlowerhorizon
             @info "Looking for file with horizon <= $(last(params[:horizon]))"
             params = OrderedDict(pairs(params))
-            pop!(params, :thread)
             horizons = _find_horizon_values(;constraint=last(params[:horizon]))
             possparams = [(setindex!(copy(params), 1:horizon, :horizon))
                       for horizon in horizons]
-            @info "param order " keys(possparams[1])
             paramstrs = Utils.namedtup.tostring.(NamedTuple.(possparams),keysort=true)
             files = [datadir("manifold", "causal", "pa_cause_$(paramstr)_$tagstr.jld2")
                     for paramstr in paramstrs]
             exists = isfile.(files)
-            horizons, files = horizons[exists], files[exists]
-            filename = files[argmax(horizons)]
+            if any(exists)
+                horizons, files = horizons[exists], files[exists]
+                filename = files[argmax(horizons)]
+            else
+                filename = ""
+            end
         end
         if isempty(filename)
-            paramstr = Utils.namedtup.tostring(pop!(params,:thread),keysort=true)
+            paramstr = Utils.namedtup.tostring(NamedTuple(params); keysort=true)
             filename = datadir("manifold","causal", "pa_cause_$(paramstr)_$tagstr.jld2")
         end
         filename
