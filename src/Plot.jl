@@ -18,8 +18,12 @@ active = true
 
 setappend(val)  = @eval Plot append = $val
 setprepend(val) = @eval Plot prepend = $val
-off() = @eval Plot active = false
-on()  = @eval Plot active = true
+function off()
+    @eval Plot active = false
+end
+function on()
+    @eval Plot active = true
+end
 toggle() = @eval Plot !active
 
 function setparentfolder(args::String...)
@@ -68,8 +72,10 @@ function save(desc::String; rmexist=nothing)
     names = replace.(names, ".."=>".")
     names = joinpath.([folder], names)
     for name in names
-        @info "saving" name
-        active ? savefig(name) : nothing
+        active ? begin 
+            @info "saving" name
+            savefig(name)
+            end : nothing
     end
     Plots.CURRENT_PLOT
 end
