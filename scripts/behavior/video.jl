@@ -112,7 +112,7 @@ begin
         hatraj = @lift $b.hatraj === missing ? [""] : [uppercase($b.hatraj)]
         a=GLMakie.annotations!(hatraj, [Point2f((135.0, 50.0))], color=:orange, textsize=40)
         animal_location = @lift [Point2f($b.x,$b.y)]
-        speed = @lift round(abs($b.velVecClean),sigdigits=2)
+        speed = @lift round(abs($b.velVec),sigdigits=2)
         speedtext = @lift ["| v⃗ | $($speed)"]
         vtext=GLMakie.annotations!(speedtext, animal_location, color=:hotpink, textsize=20, align=(:left,:top))
         smspeed = @lift round(abs($b.smoothvel),sigdigits=2)
