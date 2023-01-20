@@ -13,6 +13,7 @@ using ColorSchemes, Colors
 import ColorSchemeTools 
 using DataFrames, DataFramesMeta
 using Printf, Infiltrator
+using ImageFiltering
 
 # --------------------------
 # PARAMS
@@ -42,8 +43,8 @@ xax, yax = collect.(exampframe.dims)
 # FILTER BY SOME CONDITIONS?
 #[ --------------------------
 beh = @subset(beh, :epoch .== 2)
-Munge.behavior.annotate_poke!(beh)
 T = size(beh, 1)
+
 
 # FUnctions
 begin
@@ -102,12 +103,21 @@ begin
 
     #Behavior
     begin
+        movement = @lift $b.moving
         Bx, By, L = @lift($B.x),@lift($B.y), 
                         @lift collect(LinRange(0,1,length($B.y)))
-        bx, by = @lift([$b.x]),@lift([$b.y])
+        bx, by = @lift([$movement ? $b.x : NaN]),@lift([$movement ? $b.y : NaN])
         GLMakie.scatter!(vidax, Bx, By)
+        GLMakie.scatter!(vidax, bx, by, color=RGBA(1,0.5,1,0.15), markersize=80)
         hatraj = @lift $b.hatraj === missing ? [""] : [uppercase($b.hatraj)]
         a=GLMakie.annotations!(hatraj, [Point2f((135.0, 50.0))], color=:orange, textsize=40)
+        animal_location = @lift [Point2f($b.x,$b.y)]
+        speed = @lift round(abs($b.velVecClean),sigdigits=2)
+        speedtext = @lift ["| v⃗ | $($speed)"]
+        vtext=GLMakie.annotations!(speedtext, animal_location, color=:hotpink, textsize=20, align=(:left,:top))
+        smspeed = @lift round(abs($b.smoothvel),sigdigits=2)
+        smspeedtext = @lift ["sm( v⃗ ) $($smspeed)"]
+        smvtext=GLMakie.annotations!(smspeedtext, animal_location, color=:pink, textsize=20, align=(:left,:top), offset=(0,30))
     end
 
     begin
@@ -127,17 +137,16 @@ begin
     # Well scatter
 
 end
-
 display(Fig)
 
-@showprogress for stamp in t[]:(T-100)
-    try
-    	t[] = stamp
-    catch
-    	@warn "timestamp failed with t=$(t[])"
-    end
-    sleep(1/90)
-end
+#@showprogress for stamp in t[]:(T-100)
+#    try
+#    	t[] = stamp
+#    catch
+#    	@warn "timestamp failed with t=$(t[])"
+#    end
+#    sleep(1/90)
+#end
 
 prog = Progress(length(t[]:(T-100)), desc="Recording video")
 iter = ((next!(prog); t) for t in t[]:(T-100))

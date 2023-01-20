@@ -2,20 +2,14 @@ using DrWatson
 quickactivate(expanduser("~/Projects/goal-code/"));
 
 using GoalFetchAnalysis
-using Timeshift
-using Timeshift.types
-using Timeshift.shiftmetrics
+using Timeshift, Timeshift.types, Timeshift.shiftmetrics
 using Field.metrics
-using Plot
-using Plot.receptivefield
-using Utils.namedtup
+using Plot, Plot.receptivefield
+using Munge.spiking, Munge.nonlocal
 using Munge.timeshift: getshift
-using Munge.nonlocal
+using Utils.namedtup 
 using Utils.statistic: pfunc
-import Plot
-using Munge.spiking
 using Filt
-using Infiltrator
 
 using DataStructures: OrderedDict
 using DimensionalData
@@ -26,12 +20,23 @@ using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
 using Plots
 using LazySets
 using JLD2
+using Infiltrator
 
 datasets = (("RY16",36,:ca1ref), ("RY22",21,:ca1ref),  ("super", 0, :ca1ref),
             ("RY16",36,:default),("RY22",21,:default), ("super", 0, :default))
+(animal, day, tet) = first(datasets)
 
-for (animal, day, tet) in datasets
+opt = Dict(:process_outoffield => true, :ploton=>true)
 
+# Plotting turned on?
+if opt[:ploton] 
+    Plot.on()
+else
+    Plot.off()
+end
+
+@showprogress "datasets" for (animal, day, tet) in datasets[2:end]
+    @info "loop" animal day tet
 
     clab = OrderedDict(-1 => "nontask", 0 => "cue", 1=> "mem", missing=>"sleep")
     Munge.nonlocal.setclab(clab)
@@ -55,20 +60,31 @@ for (animal, day, tet) in datasets
     allspikes = copy(spikes)
     beh2 = Load.load_behavior(animal,day)
     Munge.nonlocal.setunfilteredbeh(beh2)
-
-    # Acquire LFP and isolated spikes
     lfp = Load.load_lfp(animal, day, tet=tet);
-    lfp.time = lfp.time .- Load.min_time_records[end]
-    lfp = Munge.lfp.annotate_cycles(lfp, method="peak-to-peak") # TODO potential bug, 1st time runs, cuts trough-to-trough, second peak-to-peak
-    @assert length(unique(lfp.cycle)) > 1
-    #sp = @subset(spikes, :tetrode .== 6);
-    @df lfp[1:2500,:] begin
-        Plots.plot(:time, :raw, label="raw")
-        Plots.plot!(:time, mod2pi.(:phase) .+100,label="phase")
-        Plots.plot!(:time, 10*:cycle)
+
+    ## MUNGE LFP ##
+    # Center and annotate
+    begin
+        lfp.time = lfp.time .- Load.min_time_records[end]
+        # TODO potential bug, 1st time runs, cuts trough-to-trough, second peak-to-peak
+        lfp = Munge.lfp.annotate_cycles(lfp, method="peak-to-peak") 
     end
-    Utils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
-    @assert !all(ismissing.(spikes.phase))
+    # Visualize our annotations
+    begin
+        @assert length(unique(lfp.cycle)) > 1
+        #sp = @subset(spikes, :tetrode .== 6);
+        @df lfp[1:2500,:] begin
+            Plots.plot(:time, :raw, label="raw")
+            Plots.plot!(:time, mod2pi.(:phase) .+100,label="phase")
+            Plots.plot!(:time, 10*:cycle)
+        end
+    end
+    # Transfer lfp phase to spikes (for phase locking measurements)
+    begin
+        Utils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
+        @assert !all(ismissing.(spikes.phase))
+    end
+    ##
 
 
     # ===================
@@ -80,65 +96,104 @@ for (animal, day, tet) in datasets
     # ===================
     # FIelds
     # ===================
-    F = load_fields()
-    kz = collect(filter(k->k.animal == animal && k.day == day, keys(F)))
-    @time f = F[bestpartialmatch(kz, 
-                                 (;datacut, widths=5,coactivity=nothing), 
-                                 nothing_means_removekey=true)];
-    f = f isa ShiftedFields ? f : ShiftedFields(deepcopy(f))
-    unitshift = Timeshift.types.matrixform(f)
+    if opt[:process_outoffield]
+        F = load_fields()
+        kz = collect(filter(k->k.animal == animal && k.day == day, keys(F)))
+        @time f = F[bestpartialmatch(kz, 
+                                     (;datacut, widths=5,coactivity=nothing), 
+                                     nothing_means_removekey=true)];
+        f = f isa ShiftedFields ? f : ShiftedFields(deepcopy(f))
+        unitshift = Timeshift.types.matrixform(f)
 
-    # ===================
-    # OUT OF FIELD SPIKES
-    # ===================
-    # Setup a  shift-getting convenience method, the shifts, and a few metrics
-    shifts = collect(unitshift.dims[2])
-    push_dims!(unitshift)
-    push_celltable!( unitshift, cells, :unit, :area)
-    push_metric!(unitshift, Field.metrics.bitsperspike)
-    push_metric!(unitshift, Field.metrics.totalcount)
-    push_shiftmetric!(unitshift, best_tau!; metric=:bitsperspike)
-    annotate_nonlocal_spikes!(spikes, cells, unitshift, 0)
+        # ===================
+        # OUT OF FIELD SPIKES
+        # ===================
+        # Setup a  shift-getting convenience method, the shifts, and a few metrics
+        shifts = collect(unitshift.dims[2])
+        push_dims!(unitshift)
+        push_celltable!( unitshift, cells, :unit, :area)
+        push_metric!(unitshift, Field.metrics.bitsperspike)
+        push_metric!(unitshift, Field.metrics.totalcount)
+        push_shiftmetric!(unitshift, best_tau!; metric=:bitsperspike)
+        annotate_nonlocal_spikes!(spikes, cells, unitshift, 0)
+        # Which cells pass our criteria?
+        #region = :CA1
+        #metricfilter = metricfilters[region]
+    end
 
 
-    # Which cells pass our criteria?
-    #region = :CA1
-    #metricfilter = metricfilters[region]
     @assert length(unique(lfp.cycle)) > 1
     cycles = Munge.lfp.get_cycle_table(lfp)
     Munge.lfp.annotate_cycles!(spikes, cycles)
 
-    """
-    Make sure sleep not included here
-    """
-    tsk = Load.load_task(animal, day)
-    tsk = DataFrame(unique(eachrow(tsk[:,[:start,:end,:task]])))
-    tsk = subset(tsk, :task=>t->t .!= "sleep")
-    ismissing.(spikes.velVec)
-
-    filename = datadir("isolated","iso_animal=$(animal)_day=$(day)")
-    !isdir(dirname(filename)) ? mkpath(dirname(filename)) : nothing
-    @save "$filename"
-
-    # Testing isolation
-    #Munge.spiking.isolated(spikes, lfp, include_samples=false, N=3, thresh=8)
-    spikes = :phase ∈ propertynames(spikes) ? spikes[!,Not(:phase)] : spikes
-    Utils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
-    sp = subset(dropmissing(spikes,:isolated),:velVec => v->abs.(v) .> 4, :area => a->a .== "CA1")
-    sp.pyrint = replace(sp.meanrate .> 5, 0=>"pyr",1=>"int")
-    s = subset(sp, :pyrint => s->s.=="pyr")
-    histogram(sp.phase,group=sp.isolated, normalize=:pdf, alpha=0.5, legend_title=:isolated, xlabel="phase",ylabel="fraction")
-    Plot.setfolder("phase_locking")
-    Plot.setappend("$animal-$day-$tet")
-    Plot.save("all_cell")
-
-
-    Plot.setfolder("phase_locking", "cells_$animal-$day")
-    @showprogress for s in groupby(sp,:unit)
-        histogram(s.phase,group=s.isolated, normalize=:pdf, 
-                  alpha=0.5, legend_title=:isolated, xlabel="phase",
-                  ylabel="fraction",xlim=(0,2*pi))
-        Plot.save((;pyrint=s.pyrint[1],area=s.area[1],cell=s.unit[1])) 
+    # Ensuring no sleep
+    begin
+        tsk = Load.load_task(animal, day)
+        tsk = DataFrame(unique(eachrow(tsk[:,[:start,:end,:task]])))
+        tsk = subset(tsk, :task=>t->t .!= "sleep")
+        ismissing.(spikes.velVec)
     end
 
-end
+    begin
+        filename = datadir("isolated","iso_animal=$(animal)_day=$(day)")
+        !isdir(dirname(filename)) ? mkpath(dirname(filename)) : nothing
+        @save "$filename"
+    end
+
+    # Testing isolation
+    Plot.setfolder("phase_locking")
+    # All spikes, no cell grouping
+    begin
+        spikes = :phase ∈ propertynames(spikes) ? spikes[!,Not(:phase)] : spikes
+        Utils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
+        SP = subset(dropmissing(spikes,:isolated),:velVec => v->abs.(v) .> 3)
+        SP.pyrint = replace(SP.meanrate .> 4, 0=>"pyr",1=>"int")
+        P=[]
+        for sp in groupby(SP, :area)
+            s = subset(sp, :pyrint => s->s.=="pyr")
+            p1=histogram(s.phase, group=s.isolated, normalize=:pdf, alpha=0.5, 
+                      legend_title=:isolated, ylabel="fraction",
+                      title="PL of $(sp.area[1]) to $tet tetrode"
+                     )
+            lfp.phase_digitize = Int8.(Utils.binning.digitize(lfp.phase, 80+1))
+            p2=@df combine(groupby(lfp, :phase_digitize), 
+                           :phase=>x->maximum(abs.(x)).*mode(sign.(x)),
+                    :raw => mean, renamecols=false) plot(:phase, :raw; xlabel="phase", c=:black, linewidth=2)
+            lay = @layout [a{0.8h}; b{0.2h}]
+            p=plot(p1,p2, layout=lay, label="")
+            push!(P, p)
+            p
+            Plot.setfolder("phase_locking")
+            Plot.save("all cell in $(sp.area[1]) to $tet tetrode")
+        end
+    end
+
+    Plot.setfolder("phase_locking", "cells_$animal-$day")
+    begin # Individual cells
+        sp = subset(dropmissing(spikes,:isolated),
+                        :velVec => v->abs.(v) .> 4)
+        sp.pyrint = replace(sp.meanrate .> 5, 0=>"pyr",1=>"int")
+        for sp_area in groupby(sp, :area)
+
+            @info sp_area.area[1]
+            H = []
+            G=  groupby(sp_area, :unit)
+            @showprogress for s in G
+                title = if s === first(G)
+                    "$area=$(s.area[1])" 
+                else
+                    ""
+                end
+                h=histogram(s.phase; 
+                            group=s.isolated, normalize=:pdf, bins=20, title,
+                            alpha=0.5, legend_title=:isolated, xlabel="phase",
+                            ylabel="fraction",xlim=(0,2*pi),size=(50,50),textsize=4)
+                push!(H, h)
+                Plot.save((;pyrint=s.pyrint[1], area=s.area[1], cell=s.unit[1])) 
+            end
+            plot(H[1:min(49,length(H))]..., size=(2000,2000), right_margin = 12Plots.mm)
+
+            Plot.save((;area=s.area[1])) 
+        end
+    end
+end # end dataset loop

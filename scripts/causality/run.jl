@@ -31,12 +31,14 @@ corerr,tsk,cortsk = Munge.behavior.cor, Munge.behavior.tsk,
 ## PARAMS
 ## ----------
 opt = Dict(
-           :skipexisting_predasym_keys => false, # skip existing predasym dict (if not, we can extend a key's results)
-           :use_existing_predasym => false, # use existing predasym[🔑]
+           :skipexisting_predasym_keys => true, # skip existing predasym dict (if not, we can extend a key's results)
+           :use_existing_predasym => true, # use existing predasym[🔑]
           )
-PROPS = [[:cuemem, :correct],[:cuemem,:correct,:hatraj]]
+PROPS = [[:cuemem, :correct],[:cuemem,:correct,:hatraj], [:cuemem, :correct, :hatraj, :moving]]
 datasets = (("RY22", 21, 100, nothing), ("RY16", 36, 100, nothing))
-datasets = (("RY16", 36, 100, nothing),)
+#datasets = (("RY16", 36, 100, nothing),)
+#datasets = (("RY22", 21, 100, nothing), )
+@info "datasets" datasets
 
 global predasym, savefile, loadfile = nothing, nothing, nothing
 (animal, day, N, filt) = last(datasets)
@@ -46,6 +48,7 @@ global predasym, savefile, loadfile = nothing, nothing, nothing
 @showprogress "datasets" for (animal, day, N, filt) in datasets
 
     @info "dataset" animal day N filt
+    predasym = nothing
 
     ## ----------
     ## PARAMETERS
@@ -93,8 +96,10 @@ global predasym, savefile, loadfile = nothing, nothing, nothing
             storagesave = isfile(savefile) ? jldopen(savefile, "r") : nothing
             storageload = isfile(loadfile) ? jldopen(loadfile, "r") : nothing
             if storagesave !== nothing && "predasym" in keys(storagesave)
+                @info "loading prev predasym from storageSAVE"
                 predasym = deepcopy(storagesave["predasym"])
             elseif storageload !== nothing && "predasym" in keys(storageload)
+                @info "loading prev predasym from storageLOAD"
                 predasym = deepcopy(storageload["predasym"])
             else
                 predasym = nothing
@@ -187,17 +192,19 @@ global predasym, savefile, loadfile = nothing, nothing, nothing
         using JLD2
         S=JLD2.jldsave(savefile; CA1PFC, PFCCA1, animal, day, N, params, est, 
                        predasym, info)
+        run(`pushover-cli saved $animal iteration $i, key count = $(length(keys(C_ca1pfc)))`)
 
         next!(prog)
 
     end
 
     # COMPUTE ALL TIMES
-    begin
+    if isempty(predasym["alltimes"]["ca1pfc"]) || !opt[:skipexisting_predasym_keys]
         predictiveasymmetry!(predasym["alltimes"]["ca1pfc"], CA1PFC; params...)
         predictiveasymmetry!(predasym["alltimes"]["pfcca1"], PFCCA1; params...)
         predasym["alltimes"]["ca1pfc"] = fetch(predasym["alltimes"]["ca1pfc"])
         predasym["alltimes"]["pfcca1"] = fetch(predasym["alltimes"]["pfcca1"])
+        run(`pushover-cli finished $animal alltimes`)
     end
 
     # Checkpoint
