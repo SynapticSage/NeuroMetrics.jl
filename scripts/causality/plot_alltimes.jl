@@ -5,11 +5,11 @@
 using DrWatson
 using Infiltrator
 using ThreadSafeDicts
-using Serialization, CausalityTools, Entropies
-using Plots, DataFrames
+using JLD2, Serialization, CausalityTools, Entropies
+using DataFrames, DataFramesMeta
 using Statistics, NaNStatistics, HypothesisTests
-using StatsPlots, JLD2
 using DataStructures: OrderedDict
+using Plots, StatsPlots, ColorSchemes
 
 using GoalFetchAnalysis
 using Utils.namedtup: ntopt_string
@@ -19,21 +19,44 @@ using Utils.binning
 using Munge.causal
 import Munge
 
+## ----------
+## PARAMETERS
+## ----------
+animal,day, filt, N="RY22",21,nothing,100
+animal,day, filt, N="RY16",36,nothing,100
+spikes, beh, ripples, cells  = Load.load(animal, day)
+areas = (:ca1,:pfc)
+distance = :many
+feature_engineer = :many # many | nothing
+esttype = :binned
+est, params = get_est_preset(esttype, horizon=1:60, thread=true, binning=7, window=1.25)
+manifold.load_manis_workspace(Main, animal, day; filt, 
+                              areas, distance, feature_engineer, 
+                              N)
+storage = load_alltimes_savefile(animal, day, N; params)
 predasym = storage["predasym"]
+
+x_time = collect(1:last(params[:horizon])) .* 1/30
 
 G_ca1pfc, G_pfcca1 = predasym["alltimes"]["ca1pfc"], predasym["alltimes"]["pfcca1"]
 C_ca1pfc, C_pfcca1 = predasym["props=[cuemem,correct]"]["ca1pfc"], 
                      predasym["props=[cuemem,correct]"]["pfcca1"]
 H_ca1pfc, H_pfcca1 = predasym["props=[cuemem,correct,hatraj]"]["ca1pfc"], 
                      predasym["props=[cuemem,correct,hatraj]"]["pfcca1"]
-
-Plot.off()
+H_ca1pfc, H_pfcca1 = predasym["props=[cuemem,correct,hatraj]"]["ca1pfc"], 
+                     predasym["props=[cuemem,correct,hatraj]"]["pfcca1"]
+h_ca1pfc, h_pfcca1 =  predasym["props=[cuemem,correct,ha]"]["ca1pfc"], 
+                      predasym["props=[cuemem,correct,ha]"]["pfcca1"]
+Hm_ca1pfc, Hm_pfcca1 =  predasym["props=[cuemem,correct,hatraj,moving]"]["ca1pfc"], 
+                      predasym["props=[cuemem,correct,hatraj,moving]"]["pfcca1"]
+Plot.on()
+Plot.setappend("$animal.$day.$N")
 
 ## ----------
 ## CONSTANTS
 ## ----------
 corerr,tsk,lab = Munge.behavior.corerr, Munge.behavior.tsk, 
-                Munge.behavior.cortsk
+                 Munge.behavior.cortsk
 
 ## ----------
 ## PARAMETERS
@@ -265,7 +288,6 @@ Cmd_pfcca1=OrderedDict("PFC→CA1 "*lab[k] => [diff(getmean(v)); 0] for (k,v) in
 # --------------
 # JUST THE MEANS
 # --------------
-x_time = collect(1:last(params[:horizon])) .* 1/30
 # PLOT CA1 → PFC
 plot([plot(x_time,v; fill=0, label=k, c=:red) for (k,v) in Cm_ca1pfc]..., xlabel="time", ylabel="𝔸", alpha=0.5)
 # PLOT PFC → CA1
@@ -492,7 +514,12 @@ end
 results = vcat(results...)
 
 
-# Ha Traj
+#                                       
+# |   |,---.    |                  o    
+# |---||---|    |--- ,---.,---.    .    
+# |   ||   |    |    |    ,---|    |    
+# `   '`   '    `---'`    `---^    |    
+#                              `---'    
 
 function get_ha_vals(set, f=nothing)
     sort([k for k in 
@@ -505,40 +532,276 @@ function get_ha_vals(set)
     get_ha_vals(set, nothing)
 end
 
-ca1pfc_color(i,n) = get(ColorSchemes.Blues, 0.15 + 0.85*(i/n))
-pfcca1_color(i,n) = get(ColorSchemes.Reds,  0.15 + 0.85*(i/n))
+arena_ca1pfc_color(i,n) = get(ColorSchemes.Blues, 0.15 + 0.85*(i/n))
+arena_pfcca1_color(i,n) = get(ColorSchemes.Reds,  0.15 + 0.85*(i/n))
+home_ca1pfc_color(i,n) = get(ColorSchemes.Greens, 0.15 + 0.85*(i/n))
+home_pfcca1_color(i,n) = get(ColorSchemes.Oranges,  0.15 + 0.85*(i/n))
+kws = (;bins=(60,200), fillrange=0, fillalpha=0.025, linewidth=2)
+
+Plot.setfolder("causality","HATRAJ_CAUSAL")
+begin
+    begin
+        p1=plot()
+        plot!(x_time, getmean(H_ca1pfc[[0,1,"a1"]]);   title="CA1→PFC",  
+                                      c=arena_ca1pfc_color(1,4),kws..., label="Cue-A1", linestyle=:dot)
+        plot!(x_time, getmean(H_ca1pfc[[0,1,"a2"]]);   
+                                      c=arena_ca1pfc_color(2,4),kws..., label="Cue-A2", linestyle=:dot)
+        plot!(x_time, getmean(H_ca1pfc[[1,1,"a3"]]);  
+                                      c=arena_ca1pfc_color(3,4),kws..., label="Mem-A1")
+        plot!(x_time, getmean(H_ca1pfc[[1,1,"a4"]]); 
+                                      c=arena_ca1pfc_color(4,4),kws..., label="Mem-A2")
+        #plot!(getmean(H_ca1pfc[[1,1,"a5"]]);   title="CA1→PFC, MEM correct",  
+        #                              c=ca1pfc_color(3,4),kws..., label="3", linestyle=:dot)
+        #plot!(getmean(H_ca1pfc[[1,1,"a6"]]);   title="CA1→PFC, MEM correct",  
+        #                               c=ca1pfc_color(4,4),kws...,label="4", linestyle=:dot)
+        hline!([0];c=:black,linestyle=:dot,label="")
+
+        p2=plot()
+        plot!(x_time, getmean(H_pfcca1[[0,1,"a1"]]);   title="PFC→CA1",  
+                                      c=arena_pfcca1_color(1,4),kws..., label="Cue-A1", linestyle=:dot)
+        plot!(x_time, getmean(H_pfcca1[[0,1,"a2"]]);                                          
+                                      c=arena_pfcca1_color(2,4),kws..., label="Cue-A2", linestyle=:dot)
+        plot!(x_time, getmean(H_pfcca1[[1,1,"a3"]]);                                          
+                                      c=arena_pfcca1_color(3,4),kws..., label="Mem-A1")
+        plot!(x_time, getmean(H_pfcca1[[1,1,"a4"]]);                                          
+                                      c=arena_pfcca1_color(4,4),kws..., label="Mem-A2")
+        #plot!(getmean(H_pfcca1[[1,1,"a5"]]);  
+        #                              c=pfcca1_color(3,4),kws..., label="3", linestyle=:dot)
+        #plot!(getmean(H_pfcca1[[1,1,"a6"]]); 
+        #                               c=pfcca1_color(4,4),kws...,label="4", linestyle=:dot)
+        hline!([0];c=:black,linestyle=:dot,label="")
+        nothing
+    end
+    arena = plot(p1,p2, background_color=:seashell2)
+    Plot.save("arena flow")
+
+    begin
+        p1=plot()
+        plot!(x_time, getmean(H_ca1pfc[[0,1,"h1"]]);   title="CA1→PFC",  
+                                      c=home_ca1pfc_color(1,4),kws..., label="Cue-H1", linestyle=:dot)
+        plot!(x_time, getmean(H_ca1pfc[[0,1,"h2"]]);   
+                                      c=home_ca1pfc_color(2,4),kws..., label="Cue-H2", linestyle=:dot)
+        plot!(x_time, getmean(H_ca1pfc[[1,1,"h3"]]);  
+                                      c=home_ca1pfc_color(3,4),kws..., label="Mem-H1")
+        plot!(x_time, getmean(H_ca1pfc[[1,1,"h4"]]); 
+                                      c=home_ca1pfc_color(4,4),kws..., label="Mem-H2")
+        #plot!(getmean(H_ca1pfc[[1,1,"a5"]]);   title="CA1→PFC, MEM correct",  
+        #                              c=ca1pfc_color(3,4),kws..., label="3", linestyle=:dot)
+        #plot!(getmean(H_ca1pfc[[1,1,"a6"]]);   title="CA1→PFC, MEM correct",  
+        #                               c=ca1pfc_color(4,4),kws...,label="4", linestyle=:dot)
+        hline!([0];c=:black,linestyle=:dot,label="")
+
+        p2=plot()
+        plot!(x_time, getmean(H_pfcca1[[0,1,"h1"]]);   title="PFC→CA1",  
+                                      c=home_pfcca1_color(1,4),kws..., label="Cue-H1", linestyle=:dot)
+        plot!(x_time, getmean(H_pfcca1[[0,1,"h2"]]);   
+                                      c=home_pfcca1_color(2,4),kws..., label="Cue-H2", linestyle=:dot)
+        plot!(x_time, getmean(H_pfcca1[[1,1,"h3"]]);   
+                                      c=home_pfcca1_color(3,4),kws..., label="Mem-H1")
+        plot!(x_time, getmean(H_pfcca1[[1,1,"h4"]]);   
+                                      c=home_pfcca1_color(4,4),kws..., label="Mem-H2")
+        #plot!(getmean(H_pfcca1[[1,1,"a5"]]);  
+        #                              c=pfcca1_color(3,4),kws..., label="3", linestyle=:dot)
+        #plot!(getmean(H_pfcca1[[1,1,"a6"]]); 
+        #                               c=pfcca1_color(4,4),kws...,label="4", linestyle=:dot)
+        hline!([0];c=:black,linestyle=:dot,label="")
+        nothing
+    end
+    home = plot(p1,p2, background_color=:seashell2)
+    Plot.save("home flow")
+
+    (;arena, home)
+end
+plot(home,arena, layout=Plots.grid(2,1), background_color=:seashell2) 
+
+
+Plot.setfolder("causality","HA_CAUSAL")
 begin
     p1=plot()
-    plot!(x_time, getmean(H_ca1pfc[[0,1,"a1"]]);   title="CA1→PFC",  
-                                  c=ca1pfc_color(1,4),bins=(60,200), label="1", linestyle=:dash)
-    plot!(x_time, getmean(H_ca1pfc[[0,1,"a2"]]);   
-                                  c=ca1pfc_color(2,4),bins=(60,200), label="2", linestyle=:dash)
-    plot!(x_time, getmean(H_ca1pfc[[1,1,"a3"]]);  
-                                  c=ca1pfc_color(3,4),bins=(60,200), label="3")
-    plot!(x_time, getmean(H_ca1pfc[[1,1,"a4"]]); 
-                                  c=ca1pfc_color(4,4),bins=(60,200), label="4")
-    #plot!(getmean(H_ca1pfc[[1,1,"a5"]]);   title="CA1→PFC, MEM correct",  
-    #                              c=ca1pfc_color(3,4),bins=(60,200), label="3", linestyle=:dash)
-    #plot!(getmean(H_ca1pfc[[1,1,"a6"]]);   title="CA1→PFC, MEM correct",  
-    #                               c=ca1pfc_color(4,4),bins=(60,200),label="4", linestyle=:dash)
-    hline!([0];c=:black,linestyle=:dash,label="")
+    plot!(x_time, getmean(h_ca1pfc[[0,1,'H']]);   title="CA1→PFC",  
+                                  c=home_ca1pfc_color(2,4),kws...,  label="Cue-H", linestyle=:dot)
+    plot!(x_time, getmean(h_ca1pfc[[0,1,'A']]);   
+                                  c=arena_ca1pfc_color(2,4),kws..., label="Cue-A", linestyle=:dot)
+    plot!(x_time, getmean(h_ca1pfc[[1,1,'H']]);  
+                                  c=home_ca1pfc_color(2,4),kws...,  label="Mem-H")
+    plot!(x_time, getmean(h_ca1pfc[[1,1,'A']]); 
+                                  c=arena_ca1pfc_color(2,4),kws..., label="Mem-A")
+    #plot!(getmean(h_ca1pfc[[1,1,"a5"]]);   title="CA1→PFC, MEM correct",  
+    #                              c=ca1pfc_color(3,4),kws..., label="3", linestyle=:dot)
+    #plot!(getmean(h_ca1pfc[[1,1,"a6"]]);   title="CA1→PFC, MEM correct",  
+    #                               c=ca1pfc_color(4,4),kws...,label="4", linestyle=:dot)
+    hline!([0];c=:black,linestyle=:dot,label="")
 
     p2=plot()
-    plot!(x_time, getmean(H_pfcca1[[0,1,"a1"]]);   title="PFC→CA1",  
-                                  c=pfcca1_color(1,4),bins=(60,200), label="1", linestyle=:dash)
-    plot!(x_time, getmean(H_pfcca1[[0,1,"a2"]]);   
-                                  c=pfcca1_color(2,4),bins=(60,200), label="2", linestyle=:dash)
-    plot!(x_time, getmean(H_pfcca1[[1,1,"a3"]]);   
-                                  c=pfcca1_color(3,4),bins=(60,200), label="3")
-    plot!(x_time, getmean(H_pfcca1[[1,1,"a4"]]);   
-                                  c=pfcca1_color(4,4),bins=(60,200), label="4")
-    #plot!(getmean(H_pfcca1[[1,1,"a5"]]);  
-    #                              c=pfcca1_color(3,4),bins=(60,200), label="3", linestyle=:dash)
-    #plot!(getmean(H_pfcca1[[1,1,"a6"]]); 
-    #                               c=pfcca1_color(4,4),bins=(60,200),label="4", linestyle=:dash)
-    hline!([0];c=:black,linestyle=:dash,label="")
+    plot!(x_time, getmean(h_pfcca1[[0,1,'H']]);   title="PFC→CA1",  
+                                  c=home_pfcca1_color(2,4),kws...,  label="Cue-H", linestyle=:dot)
+    plot!(x_time, getmean(h_pfcca1[[0,1,'A']]);   
+                                  c=arena_pfcca1_color(2,4),kws..., label="Cue-A", linestyle=:dot)
+    plot!(x_time, getmean(h_pfcca1[[1,1,'H']]);   
+                                  c=home_pfcca1_color(2,4),kws...,  label="Mem-H")
+    plot!(x_time, getmean(h_pfcca1[[1,1,'A']]);   
+                                  c=arena_pfcca1_color(4,4),kws..., label="Mem-A")
+    #plot!(getmean(h_pfcca1[[1,1,"a5"]]);  
+    #                              c=pfcca1_color(3,4),kws..., label="3", linestyle=:dot)
+    #plot!(getmean(h_pfcca1[[1,1,"a6"]]); 
+    #                               c=pfcca1_color(4,4),kws...,label="4", linestyle=:dot)
+    hline!([0];c=:black,linestyle=:dot,label="")
     nothing
 end
 plot(p1,p2, background_color=:seashell2)
+Plot.save("home and arena flow summaries")
 
 
+Plot.setfolder("causality","HATRAJ_moving_CAUSAL")
+begin
+
+    begin
+        lab="Move"
+        p1=plot()
+        plot!(x_time, getmean(Hm_ca1pfc[[0,1,"a1",true]]);   title="$lab\nCA1→PFC",  
+                                      c=arena_ca1pfc_color(1,4),kws..., label="Cue-A1", linestyle=:dot)
+        plot!(x_time, getmean(Hm_ca1pfc[[0,1,"a2",true]]);   
+                                      c=arena_ca1pfc_color(2,4),kws..., label="Cue-A2", linestyle=:dot)
+        plot!(x_time, getmean(Hm_ca1pfc[[1,1,"a3",true]]);  
+                                      c=arena_ca1pfc_color(3,4),kws..., label="Mem-A1")
+        plot!(x_time, getmean(Hm_ca1pfc[[1,1,"a4",true]]); 
+                                      c=arena_ca1pfc_color(4,4),kws..., label="Mem-A2")
+        #plot!(getmean(Hm_ca1pfc[[1,1,"a5"]]);   title="CA1→PFC, MEM correct",  
+        #                              c=ca1pfc_color(3,4),kws..., label="3", linestyle=:dot)
+        #plot!(getmean(Hm_ca1pfc[[1,1,"a6"]]);   title="CA1→PFC, MEM correct",  
+        #                               c=ca1pfc_color(4,4),kws...,label="4", linestyle=:dot)
+        hline!([0];c=:black,linestyle=:dot,label="")
+
+        p2=plot()
+        plot!(x_time, getmean(Hm_pfcca1[[0,1,"a1",true]]);   title="$lab\nPFC→CA1",  
+                                      c=arena_pfcca1_color(1,4),kws..., label="Cue-A1", linestyle=:dot)
+        plot!(x_time, getmean(Hm_pfcca1[[0,1,"a2",true]]);                                          
+                                      c=arena_pfcca1_color(2,4),kws..., label="Cue-A2", linestyle=:dot)
+        plot!(x_time, getmean(Hm_pfcca1[[1,1,"a3",true]]);                                          
+                                      c=arena_pfcca1_color(3,4),kws..., label="Mem-A1")
+        plot!(x_time, getmean(Hm_pfcca1[[1,1,"a4",true]]);                                          
+                                      c=arena_pfcca1_color(4,4),kws..., label="Mem-A2")
+        #plot!(getmean(Hm_pfcca1[[1,1,"a5"]]);  
+        #                              c=pfcca1_color(3,4),kws..., label="3", linestyle=:dot)
+        #plot!(getmean(Hm_pfcca1[[1,1,"a6"]]); 
+        #                               c=pfcca1_color(4,4),kws...,label="4", linestyle=:dot)
+        hline!([0];c=:black,linestyle=:dot,label="")
+        nothing
+    end
+    movingarena = plot(p1,p2, background_color=:seashell2)
+    Plot.save("moving arena flow")
+
+    begin
+        lab="Move"
+        p1=plot()
+        plot!(x_time, getmean(Hm_ca1pfc[[0,1,"h1",true]]);   title="$lab\nCA1→PFC",  
+                                      c=home_ca1pfc_color(1,4),kws..., label="Cue-H1", linestyle=:dot)
+        plot!(x_time, getmean(Hm_ca1pfc[[0,1,"h2",true]]);   
+                                      c=home_ca1pfc_color(2,4),kws..., label="Cue-H2", linestyle=:dot)
+        plot!(x_time, getmean(Hm_ca1pfc[[1,1,"h3",true]]);  
+                                      c=home_ca1pfc_color(3,4),kws..., label="Mem-H1")
+        plot!(x_time, getmean(Hm_ca1pfc[[1,1,"h4",true]]); 
+                                      c=home_ca1pfc_color(4,4),kws..., label="Mem-H2")
+        #plot!(getmean(Hm_ca1pfc[[1,1,"a5"]]);   title="CA1→PFC, MEM correct",  
+        #                              c=ca1pfc_color(3,4),kws..., label="3", linestyle=:dot)
+        #plot!(getmean(Hm_ca1pfc[[1,1,"a6"]]);   title="CA1→PFC, MEM correct",  
+        #                               c=ca1pfc_color(4,4),kws...,label="4", linestyle=:dot)
+        hline!([0];c=:black,linestyle=:dot,label="")
+
+        p2=plot()
+        plot!(x_time, getmean(Hm_pfcca1[[0,1,"h1",true]]);   title="$lab\nPFC→CA1",  
+                                      c=home_pfcca1_color(1,4),kws..., label="Cue-H1", linestyle=:dot)
+        plot!(x_time, getmean(Hm_pfcca1[[0,1,"h2",true]]);   
+                                      c=home_pfcca1_color(2,4),kws..., label="Cue-H2", linestyle=:dot)
+        plot!(x_time, getmean(Hm_pfcca1[[1,1,"h3",true]]);   
+                                      c=home_pfcca1_color(3,4),kws..., label="Mem-H1")
+        plot!(x_time, getmean(Hm_pfcca1[[1,1,"h4",true]]);   
+                                      c=home_pfcca1_color(4,4),kws..., label="Mem-H2")
+        #plot!(getmean(Hm_pfcca1[[1,1,"a5"]]);  
+        #                              c=pfcca1_color(3,4),kws..., label="3", linestyle=:dot)
+        #plot!(getmean(Hm_pfcca1[[1,1,"a6"]]); 
+        #                               c=pfcca1_color(4,4),kws...,label="4", linestyle=:dot)
+        hline!([0];c=:black,linestyle=:dot,label="")
+        nothing
+    end
+    movinghome = plot(p1,p2, background_color=:seashell2)
+    Plot.save("moving home flow")
+
+    begin
+        lab="Still"
+        p1=plot()
+        plot!(x_time, getmean(Hm_ca1pfc[[0,1,"a1",false]]);   title="$lab\nCA1→PFC",  
+                                      c=arena_ca1pfc_color(1,4),kws..., label="Cue-A1", linestyle=:dot)
+        plot!(x_time, getmean(Hm_ca1pfc[[0,1,"a2",false]]);   
+                                      c=arena_ca1pfc_color(2,4),kws..., label="Cue-A2", linestyle=:dot)
+        plot!(x_time, getmean(Hm_ca1pfc[[1,1,"a3",false]]);  
+                                      c=arena_ca1pfc_color(3,4),kws..., label="Mem-A1")
+        plot!(x_time, getmean(Hm_ca1pfc[[1,1,"a4",false]]); 
+                                      c=arena_ca1pfc_color(4,4),kws..., label="Mem-A2")
+        #plot!(getmean(Hm_ca1pfc[[1,1,"a5"]]);   title="CA1→PFC, MEM correct",  
+        #                              c=ca1pfc_color(3,4),kws..., label="3", linestyle=:dot)
+        #plot!(getmean(Hm_ca1pfc[[1,1,"a6"]]);   title="CA1→PFC, MEM correct",  
+        #                               c=ca1pfc_color(4,4),kws...,label="4", linestyle=:dot)
+        hline!([0];c=:black,linestyle=:dot,label="")
+
+        p2=plot()
+        plot!(x_time, getmean(Hm_pfcca1[[0,1,"a1",false]]);   title="$lab\nPFC→CA1",  
+                                      c=arena_pfcca1_color(1,4),kws..., label="Cue-A1", linestyle=:dot)
+        plot!(x_time, getmean(Hm_pfcca1[[0,1,"a2",false]]);                                          
+                                      c=arena_pfcca1_color(2,4),kws..., label="Cue-A2", linestyle=:dot)
+        plot!(x_time, getmean(Hm_pfcca1[[1,1,"a3",false]]);                                          
+                                      c=arena_pfcca1_color(3,4),kws..., label="Mem-A1")
+        plot!(x_time, getmean(Hm_pfcca1[[1,1,"a4",false]]);                                          
+                                      c=arena_pfcca1_color(4,4),kws..., label="Mem-A2")
+        #plot!(getmean(Hm_pfcca1[[1,1,"a5"]]);  
+        #                              c=pfcca1_color(3,4),kws..., label="3", linestyle=:dot)
+        #plot!(getmean(Hm_pfcca1[[1,1,"a6"]]); 
+        #                               c=pfcca1_color(4,4),kws...,label="4", linestyle=:dot)
+        hline!([0];c=:black,linestyle=:dot,label="")
+        nothing
+    end
+    stillarena = plot(p1,p2, background_color=:seashell2)
+    Plot.save("still arena flow")
+
+    begin
+        lab="Still"
+        p1=plot()
+        plot!(x_time, getmean(Hm_ca1pfc[[0,1,"h1",false]]);   title="$lab\nCA1→PFC",  
+                                      c=home_ca1pfc_color(1,4),kws..., label="Cue-H1", linestyle=:dot)
+        plot!(x_time, getmean(Hm_ca1pfc[[0,1,"h2",false]]);   
+                                      c=home_ca1pfc_color(2,4),kws..., label="Cue-H2", linestyle=:dot)
+        plot!(x_time, getmean(Hm_ca1pfc[[1,1,"h3",false]]);  
+                                      c=home_ca1pfc_color(3,4),kws..., label="Mem-H1")
+        plot!(x_time, getmean(Hm_ca1pfc[[1,1,"h4",false]]); 
+                                      c=home_ca1pfc_color(4,4),kws..., label="Mem-H2")
+        #plot!(getmean(Hm_ca1pfc[[1,1,"a5"]]);   title="CA1→PFC, MEM correct",  
+        #                              c=ca1pfc_color(3,4),kws..., label="3", linestyle=:dot)
+        #plot!(getmean(Hm_ca1pfc[[1,1,"a6"]]);   title="CA1→PFC, MEM correct",  
+        #                               c=ca1pfc_color(4,4),kws...,label="4", linestyle=:dot)
+        hline!([0];c=:black,linestyle=:dot,label="")
+
+        p2=plot()
+        plot!(x_time, getmean(Hm_pfcca1[[0,1,"h1",false]]);   title="$lab\nPFC→CA1",  
+                                      c=home_pfcca1_color(1,4),kws..., label="Cue-H1", linestyle=:dot)
+        plot!(x_time, getmean(Hm_pfcca1[[0,1,"h2",false]]);   
+                                      c=home_pfcca1_color(2,4),kws..., label="Cue-H2", linestyle=:dot)
+        plot!(x_time, getmean(Hm_pfcca1[[1,1,"h3",false]]);   
+                                      c=home_pfcca1_color(3,4),kws..., label="Mem-H1")
+        plot!(x_time, getmean(Hm_pfcca1[[1,1,"h4",false]]);   
+                                      c=home_pfcca1_color(4,4),kws..., label="Mem-H2")
+        #plot!(getmean(Hm_pfcca1[[1,1,"a5"]]);  
+        #                              c=pfcca1_color(3,4),kws..., label="3", linestyle=:dot)
+        #plot!(getmean(Hm_pfcca1[[1,1,"a6"]]); 
+        #                               c=pfcca1_color(4,4),kws...,label="4", linestyle=:dot)
+        hline!([0];c=:black,linestyle=:dot,label="")
+        nothing
+    end
+    stillhome = plot(p1,p2, background_color=:seashell2)
+    Plot.save("still home flow")
+
+    (;movingarena, movinghome, stillarena, stillhome)
+end
+P= plot(movinghome,movingarena, stillhome, stillarena, layout=Plots.grid(2,2), background_color=:seashell2) 
+P.attr[:size]=(1200,800)
+P
+Plot.save("move+still home+arena flow summaries")

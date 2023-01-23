@@ -31,11 +31,16 @@ corerr,tsk,cortsk = Munge.behavior.cor, Munge.behavior.tsk,
 ## PARAMS
 ## ----------
 opt = Dict(
-           :skipexisting_predasym_keys => true, # skip existing predasym dict (if not, we can extend a key's results)
            :use_existing_predasym => true, # use existing predasym[🔑]
+           :skipexisting_predasym_keys => true, # skip existing predasym dict (if not, we can extend a key's results)
           )
-PROPS = [[:cuemem, :correct],[:cuemem,:correct,:hatraj], [:cuemem, :correct, :hatraj, :moving]]
-datasets = (("RY22", 21, 100, nothing), ("RY16", 36, 100, nothing))
+PROPS = [[:cuemem, :correct],
+         [:cuemem,:correct,:hatraj], 
+         [:cuemem, :correct, :hatraj, :moving], 
+         [:cuemem,:correct,:ha], 
+         [:cuemem, :correct, :ha, :moving]]
+datasets = (("RY22", 21, 100, nothing), 
+            ("RY16", 36, 100, nothing))
 #datasets = (("RY16", 36, 100, nothing),)
 #datasets = (("RY22", 21, 100, nothing), )
 @info "datasets" datasets
@@ -87,7 +92,7 @@ global predasym, savefile, loadfile = nothing, nothing, nothing
         # Threading
         if params[:thread]
             Threads.nthreads() = 16
-            print("Threads => ", Threads.nthreads())
+            print("Setting threads => ", Threads.nthreads())
             Dtype = ThreadSafeDict
         else
             Dtype = Dict
