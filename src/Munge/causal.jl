@@ -180,7 +180,6 @@ module causal
                         @info "predictiveasymmetry reencoutered key, but already computed, skipping" 
                         continue
                     else
-                        @infiltrate
                         @info "predictiveasymmetry reencountered key, and extending horizon" length(previous) length(params[:horizon])
                         newhorizon = setdiff(collect(params[:horizon]), 1:length(params[:horizon]))
                         newparams = (;params..., horizon=newhorizon)
@@ -212,7 +211,7 @@ module causal
 
         # Enumerate list, not given by user
         if groups === nothing
-            groups = groupsfulllist
+            groups = collect(keys(groupsfulllist))
         end
 
         for group in groups
