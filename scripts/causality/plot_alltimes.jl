@@ -1,4 +1,3 @@
-
 #  ==================================
 # PLOT ALL TIMES 
 #  ==================================
@@ -789,19 +788,5 @@ begin
                                       c=home_pfcca1_color(3,4),kws..., label="Mem-H1")
         plot!(x_time, getmean(Hm_pfcca1[[1,1,"h4",false]]);   
                                       c=home_pfcca1_color(4,4),kws..., label="Mem-H2")
-        #plot!(getmean(Hm_pfcca1[[1,1,"a5"]]);  
-        #                              c=pfcca1_color(3,4),kws..., label="3", linestyle=:dot)
-        #plot!(getmean(Hm_pfcca1[[1,1,"a6"]]); 
-        #                               c=pfcca1_color(4,4),kws...,label="4", linestyle=:dot)
-        hline!([0];c=:black,linestyle=:dot,label="")
-        nothing
-    end
-    stillhome = plot(p1,p2, background_color=:seashell2)
-    Plot.save("still home flow")
-
-    (;movingarena, movinghome, stillarena, stillhome)
-end
-P= plot(movinghome,movingarena, stillhome, stillarena, layout=Plots.grid(2,2), background_color=:seashell2) 
-P.attr[:size]=(1200,800)
-P
+        #plot!(getmean(Hm_pfcca1[[1,1,"
 Plot.save("move+still home+arena flow summaries")

@@ -31,7 +31,7 @@ corerr,tsk,cortsk = Munge.behavior.cor, Munge.behavior.tsk,
 ## PARAMS
 ## ----------
 opt = Dict(
-           :use_existing_predasym => true, # use existing predasym[🔑]
+           :use_existing_predasym      => true, # use existing predasym[🔑]
            :skipexisting_predasym_keys => true, # skip existing predasym dict (if not, we can extend a key's results)
           )
 PROPS = [[:cuemem, :correct],
