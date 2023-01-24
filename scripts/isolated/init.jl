@@ -22,9 +22,10 @@ using LazySets
 using JLD2
 using Infiltrator
 
-datasets = (("RY16",36,:ca1ref), ("RY22",21,:ca1ref),  ("super", 0, :ca1ref),
-            ("RY16",36,:default),("RY22",21,:default), ("super", 0, :default))
-(animal, day, tet) = first(datasets)
+datasets = (("RY16",36,:ca1ref), ("RY22",21,:ca1ref),  #("super", 0, :ca1ref),
+            ("RY16",36,:default),("RY22",21,:default), #("super", 0, :default)
+           )
+(animal, day, tet) = datasets[2]
 
 opt = Dict(:process_outoffield => true, :ploton=>true)
 
@@ -35,7 +36,11 @@ else
     Plot.off()
 end
 
-@showprogress "datasets" for (animal, day, tet) in datasets[2:end]
+init = 1
+if init != 1; @warn("initial dataset is $init"); end
+(animal, day, tet) = datasets[1]
+@showprogress "datasets" for (animal, day, tet) in datasets[init:end]
+
     @info "loop" animal day tet
 
     clab = OrderedDict(-1 => "nontask", 0 => "cue", 1=> "mem", missing=>"sleep")
@@ -47,7 +52,6 @@ end
     datacut = :all
 
     Plot.setappend((;animal,day,tet))
-    Plot.setparentfolder("nonlocality")
 
     # ===================
     # ACQUIRE DATA
@@ -62,7 +66,9 @@ end
     Munge.nonlocal.setunfilteredbeh(beh2)
     lfp = Load.load_lfp(animal, day, tet=tet);
 
+    # =============
     ## MUNGE LFP ##
+    # =============
     # Center and annotate
     begin
         lfp.time = lfp.time .- Load.min_time_records[end]
@@ -76,9 +82,10 @@ end
         @df lfp[1:2500,:] begin
             Plots.plot(:time, :raw, label="raw")
             Plots.plot!(:time, mod2pi.(:phase) .+100,label="phase")
-            Plots.plot!(:time, 10*:cycle)
+            Plots.plot!(:time, 10*:cycle, label="cycle labels")
         end
     end
+
     # Transfer lfp phase to spikes (for phase locking measurements)
     begin
         Utils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
@@ -94,7 +101,7 @@ end
     Munge.spiking.isolated(spikes, lfp, include_samples=false)
 
     # ===================
-    # FIelds
+    # FIELDS
     # ===================
     if opt[:process_outoffield]
         F = load_fields()
@@ -119,6 +126,7 @@ end
         # Which cells pass our criteria?
         #region = :CA1
         #metricfilter = metricfilters[region]
+        Plot.setparentfolder("nonlocality")
     end
 
 
@@ -126,7 +134,7 @@ end
     cycles = Munge.lfp.get_cycle_table(lfp)
     Munge.lfp.annotate_cycles!(spikes, cycles)
 
-    # Ensuring no sleep
+    # ENSURING NO SLEEP :: Usually taken care of
     begin
         tsk = Load.load_task(animal, day)
         tsk = DataFrame(unique(eachrow(tsk[:,[:start,:end,:task]])))
@@ -134,11 +142,14 @@ end
         ismissing.(spikes.velVec)
     end
 
+    # SAVE THE DATA
     begin
-        filename = datadir("isolated","iso_animal=$(animal)_day=$(day)")
+        filename = datadir("isolated","iso_animal=$(animal)_day=$(day)_tet=$(tet)")
         !isdir(dirname(filename)) ? mkpath(dirname(filename)) : nothing
-        @save "$filename"
+        @save "$filename" compress=true lfp spikes tsk cells beh cycles
     end
+
+    Plot.setparentfolder("isolated")
 
     # Testing isolation
     Plot.setfolder("phase_locking")
@@ -167,8 +178,9 @@ end
             Plot.save("all cell in $(sp.area[1]) to $tet tetrode")
         end
     end
+    P
 
-    Plot.setfolder("phase_locking", "cells_$animal-$day")
+    Plot.setfolder("phase_locking", "cells_$animal-$day-$tet")
     begin # Individual cells
         sp = subset(dropmissing(spikes,:isolated),
                         :velVec => v->abs.(v) .> 4)
@@ -187,13 +199,13 @@ end
                 h=histogram(s.phase; 
                             group=s.isolated, normalize=:pdf, bins=20, title,
                             alpha=0.5, legend_title=:isolated, xlabel="phase",
-                            ylabel="fraction",xlim=(0,2*pi),size=(50,50),textsize=4)
+                            ylabel="fraction",xlim=(0,2*pi),size=(400,400*2/3),textsize=4)
                 push!(H, h)
                 Plot.save((;pyrint=s.pyrint[1], area=s.area[1], cell=s.unit[1])) 
             end
             plot(H[1:min(49,length(H))]..., size=(2000,2000), right_margin = 12Plots.mm)
 
-            Plot.save((;area=s.area[1])) 
+            Plot.save((;area=sp_area.area[1])) 
         end
     end
 end # end dataset loop

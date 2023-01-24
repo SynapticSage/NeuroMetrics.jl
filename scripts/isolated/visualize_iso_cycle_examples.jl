@@ -23,6 +23,8 @@ import Plot
 using Munge.spiking
 using Filt
 
+Plot.off()
+
 
 cycles.time = (cycles.stop - cycles.start)/2 + cycles.start
 Utils.filtreg.register(cycles, spikes; on="time", transfer=["cycle"])
@@ -72,45 +74,60 @@ dropmissing(cycles, :isounits)
 function plot_cycle()
 end
 
+# --------------------------------
+# ACTUAL ISOLATED SPIKING EXAMPLES
+# --------------------------------
 Plot.setfolder("examples, isolated cycles")
-gs, gl, gc, gS = groupby(isospikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cycle), groupby(spikes,:cycle)
+begin
+    gs, gl, gc, gS = groupby(isospikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cycle), groupby(spikes,:cycle)
 
-cycfilt = subset(dropmissing(cycles, :isounits),
-                 :cycLen => l->l.>10)
-@assert !isempty(cycfilt)
+    cycfilt = subset(dropmissing(cycles, :isounits),
+                     :cycLen => l->l.>10)
+    @assert !isempty(cycfilt)
 
-cycle = first(eachrow(cycfilt))
-cycleit = Iterators.take(Random.shuffle(eachrow(cycfilt)), 100)
-@showprogress "plotting cycles" for cycle in cycleit
-    stats = Plot.nonlocal.plot_cycle_example(gs,gl,cycle;return_stats=true, gS)
-    Plot.save((;cycle=stats.cycle, units=stats.unit))
+    cycle = first(eachrow(cycfilt))
+    cycleit = Iterators.take(Random.shuffle(eachrow(cycfilt)), 100)
+    STATS, pushstats = [], true
+    @showprogress "plotting cycles" for cycle in cycleit
+        stats = Plot.nonlocal.plot_cycle_example(gs,gl,cycle;
+                                                 return_stats=true, gS)
+        pushstats ? push!(STATS, stats) : nothing
+        Plot.save((;cycle=stats.cycle, units=stats.unit))
+    end
 end
+pcs = [st.plotcycstat for st in STATS]
+res = [st.rangeerror for st in STATS]
+for (rs, pc) in zip(res, pcs)
+    display(plot(pc, background_color = rs ? :lightpink : :white))
+end
+# --------------------------------------
 
 # --------------------------------------
 Plot.setfolder("examples, adjacent cycles, indiv")
-adjspikes = @subset(spikes, (!).(:isolated), (!).(ismissing.(:isolated)),
-                    (!).(ismissing.(:cycle)))
-cycles.adjunits   = Vector{Union{Missing,Vector}}(missing, size(cycles,1));
-cycles.adjtime    = Vector{Union{Missing,Vector}}(missing, size(cycles,1));
-cycles.adjN       = Vector{Union{Missing,Int16}}(missing, size(cycles,1));
-gs, gl, gc = groupby(adjspikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cycle)
-@showprogress for cycle in unique(disallowmissing(adjspikes.cycle))
-    s, l, c = gs[(;cycle)], gl[(;cycle)], gc[(;cycle)]
-    c = view(c, 1, :)
-    c[:adjunits]   = s.unit
-    c[:adjtime]   = s.time
-    c[:adjN]   = size(s,1)
-    c[:nearestcyc] = disallowmissing(s.nearestcyc)
-    c[:meancyc]    = disallowmissing(s.meancyc)
-    c[:cycLen]     = size(l,1)
-end
+begin
+    adjspikes = @subset(spikes, (!).(:isolated), (!).(ismissing.(:isolated)),
+                        (!).(ismissing.(:cycle)))
+    cycles.adjunits   = Vector{Union{Missing,Vector}}(missing, size(cycles,1));
+    cycles.adjtime    = Vector{Union{Missing,Vector}}(missing, size(cycles,1));
+    cycles.adjN       = Vector{Union{Missing,Int16}}(missing,  size(cycles,1));
+    gs, gl, gc = groupby(adjspikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cycle)
+    @showprogress for cycle in unique(disallowmissing(adjspikes.cycle))
+        s, l, c = gs[(;cycle)], gl[(;cycle)], gc[(;cycle)]
+        c = view(c, 1, :)
+        c[:adjunits]   = s.unit
+        c[:adjtime]   = s.time
+        c[:adjN]   = size(s,1)
+        c[:nearestcyc] = disallowmissing(s.nearestcyc)
+        c[:meancyc]    = disallowmissing(s.meancyc)
+        c[:cycLen]     = size(l,1)
+    end
 
-gs, gl, gc = groupby(adjspikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cycle)
-cycfilt = subset(dropmissing(cycles, :adjunits))
-cycle   = first(eachrow(cycfilt))
-cycleit = Iterators.take(Random.shuffle(eachrow(cycfilt)), 100)
-@showprogress "plotting cycles" for cycle in cycleit
-    stats = Plot.nonlocal.plot_cycle_example(gs,gl,cycle;return_stats=true, gS, )
-    Plot.save((;cycle=stats.cycle, units=stats.unit))
+    gs, gl, gc = groupby(adjspikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cycle)
+    cycfilt = subset(dropmissing(cycles, :adjunits))
+    cycle   = first(eachrow(cycfilt))
+    cycleit = Iterators.take(Random.shuffle(eachrow(cycfilt)), 100)
+    @showprogress "plotting cycles" for cycle in cycleit
+        stats = Plot.nonlocal.plot_cycle_example(gs,gl,cycle;return_stats=true, gS, )
+        Plot.save((;cycle=stats.cycle, units=stats.unit))
+    end
 end
-
