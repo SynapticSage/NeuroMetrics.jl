@@ -100,4 +100,85 @@ module cause
         a
     end
 
+    # ============================
+    # plot_alltimes.jl functions
+    # ============================
+    key_filter = nothing
+    setkeyfilter(K) = @eval cause key_filter = $K
+    function getcausedistovertime(C::Dict)
+        V = [V for V in values(C) if !ismissing(V)]
+        [(i * 1/30, V[j][i]) for i in 1:last(params[:horizon]) for j in 1:length(V)]
+    end
+    function plotcausedistovertime(C::Dict;ch=:black,cmc=:black,labelmc="",histalpha=0.6,kws...)
+        if key_filter !== nothing
+            C = Dict(k=>v for (k,v) in C if k ∈ key_filter)
+        end 
+        V = [V for V in values(C) if !ismissing(V)]
+        histme = [(i * 1/30,V[j][i]) for i in 1:last(params[:horizon]) for j in 1:length(V)]
+        histogram2d(histme;kws...,alpha=histalpha)
+        plotmediancause!(V; timefact=1/30, c=cmc, markersize=1,label=labelmc,
+                        fill=0, fillalpha=0.35, linewidth=0.2)
+        hline!([0], c=ch, linewidth=3, linestyle=:dash, 
+               xlabel="time (s)", ylabel="ℙ_asymmetry", label="")
+    end
+    function getmedian(set_cause)
+        set_cause = collect(values(set_cause))
+        inds = [isassigned(set_cause,p) && !ismissing(p) for p in eachindex(set_cause)]
+        set_cause = skipmissing(set_cause[inds])
+        set_cause = hcat(set_cause...)'
+        #vec(median(transform(set_cause),dims=2))
+        vec(median((set_cause),dims=1))
+    end
+    function getmean(set_cause)
+        set_cause = collect(values(set_cause))
+        inds = [isassigned(set_cause,p) && !ismissing(p) for p in eachindex(set_cause)]
+        set_cause = skipmissing(set_cause[inds])
+        set_cause = hcat(set_cause...)'
+        #vec(mean(transform(set_cause),dims=2))
+        vec(mean((set_cause),dims=1))
+    end
+    function bin_the_curves(curves...; time=time, 
+            bins=[(0,0.20), (0.20,1), (1,3.5)], statfun=mean)
+        curves = collect(skipmissing(curves))
+        inds = [Utils.in_range(time,bin) for bin in bins]
+        avgs = zeros(length(curves), length(bins))
+        for (c,curve) in enumerate(curves)
+            for (b,ind) in enumerate(inds)
+                avg = statfun(curve[ind])
+                avgs[c,b] = avg
+            end
+        end
+        avgs
+    end
+    # Jacknife summaries
+    func_full = x->getmean(x)
+    func_bin = x->mean(bin_the_curves.(x),dims=1)
+    function leaveoneout(D::AbstractDict; func)
+        leaveoneout(collect(values(D)); func)
+    end
+    function leaveoneout(V::Array; func)
+        V = collect(skipmissing(V))
+        results = []
+        for i in 1:length(V) 
+            V′ = V[Not(i)]
+            result = func(V′)
+            result = if result isa Array && length(result) == 1
+                result[1]
+            else
+                result
+            end
+            push!(results,result)
+        end
+        results
+    end
+    function getdiff(X::AbstractDict)
+        typeof(X)(k=>getdiff(v) for (k,v) in X)
+    end
+    function getdiff(X::AbstractArray)
+        [diff(X); 0]
+    end
+    function getdiff(X::Missing)
+        missing
+    end
+
 end
