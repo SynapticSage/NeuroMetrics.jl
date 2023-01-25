@@ -144,9 +144,9 @@ if init != 1; @warn("initial dataset is $init"); end
 
     # SAVE THE DATA
     begin
-        filename = datadir("isolated","iso_animal=$(animal)_day=$(day)_tet=$(tet)")
+        filename = datadir("isolated","iso_animal=$(animal)_day=$(day)_tet=$(tet).jld2")
         !isdir(dirname(filename)) ? mkpath(dirname(filename)) : nothing
-        @save "$filename" compress=true lfp spikes tsk cells beh cycles
+        @save "$filename" {compress=true} animal day lfp spikes allspikes tsk cells beh cycles
     end
 
     Plot.setparentfolder("isolated")

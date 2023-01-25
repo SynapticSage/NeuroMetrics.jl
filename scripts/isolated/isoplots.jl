@@ -24,6 +24,9 @@ using Plots
 using LazySets
 using ElectronDisplay # to potentially defeat the GKS error
 
+filename = datadir("isolated", "iso_animal=RY16_day=36_tet=ca1ref.jld2")
+@load "/home/ryoung/Projects/goal-code/data/isolated/iso_animal=RY16_day=36_tet=ca1ref.jld2"
+
 Utils.filtreg.register(beh,spikes;on="time",transfer=["velVec"])
 
 """

@@ -148,8 +148,7 @@ module Load
     (raster, behavior)
 
     """
-    function load(args...; as="tuple",
-            data_source=default_set)
+    function load(args...; as="tuple", data_source=default_set, center=true)
 
         # Establish a load order
         if as == "dict"
@@ -165,7 +164,7 @@ module Load
 
         # Load each data source
         data = Dict{String,Any}()
-        m = nothing
+        m = center ? nothing : 0 # nothing asks normalize to find the mintime and remove it, a number passed means use that for min
         for source ∈ load_order
             data[source] = Load.load_functions[source](args...)
             @assert typeof(data[source]) != Nothing

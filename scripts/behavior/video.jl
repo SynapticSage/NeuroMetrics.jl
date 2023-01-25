@@ -31,6 +31,7 @@ opt = Dict(
 # LOAD UP THE DATA
 # --------------------------
 animal, day = "RY16", 36
+#animal, day = "RY22", 21
 spikes, beh, tsk  = Load.load(animal, day, data_source=["spikes","behavior","task"])
 wells             = Munge.behavior.get_wells_df(animal, day, 2; task=tsk, beh)
 boundary          = Munge.task.get_boundary(tsk)
