@@ -17,7 +17,9 @@ append, prepend = "", ""
 active = true
 
 setappend(val)  = @eval Plot append = $val
+appendtoappend(val)  = @eval Plot append = append * $val
 setprepend(val) = @eval Plot prepend = $val
+prependtoprepend(val)  = @eval Plot prepend = $val * prepend
 function off()
     @eval Plot active = false
 end
