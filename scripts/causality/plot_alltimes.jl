@@ -9,6 +9,7 @@ using DataFrames, DataFramesMeta
 using Statistics, NaNStatistics, HypothesisTests
 using DataStructures: OrderedDict
 using Plots, StatsPlots, ColorSchemes
+using ProgressMeter, SoftGlobalScope
 
 using GoalFetchAnalysis
 using Utils.namedtup: ntopt_string
@@ -33,25 +34,25 @@ opt = Dict(
     # What plots?
     :ploton => true,
     :plot => Dict(
-        :manfiold_checks => true,
-        :gen_causal => true,
-        :cond_causal => true,
+        :manifold_check => false,
+        :gen_causal => false,
+        :cond_causal => false,
         :cond_causal_earlintlate => false,
         :ha => true
     )
 )
 summaryget = opt[:summaryget]
 
-arena_ca1pfc_color(i,n) = get(ColorSchemes.Blues, 0.15 + 0.85*(i/n))
-arena_pfcca1_color(i,n) = get(ColorSchemes.Reds,  0.15 + 0.85*(i/n))
-home_ca1pfc_color(i,n) = get(ColorSchemes.Greens, 0.15 + 0.85*(i/n))
-home_pfcca1_color(i,n) = get(ColorSchemes.Oranges,  0.15 + 0.85*(i/n))
+arena_ca1pfc_color(i,n) = get(ColorSchemes.Blues, 0.10 + 0.85*(i/n))
+arena_pfcca1_color(i,n) = get(ColorSchemes.Reds,  0.10 + 0.85*(i/n))
+home_ca1pfc_color(i,n) = get(ColorSchemes.Greens, 0.10 + 0.85*(i/n))
+home_pfcca1_color(i,n) = get(ColorSchemes.Oranges,  0.10 + 0.85*(i/n))
 
 ## ----------
 ## PARAMETERS
 ## ----------
-animal,day, filt, N="RY22",21,nothing,100
 animal,day, filt, N="RY16",36,nothing,100
+animal,day, filt, N="RY22",21,nothing,100
 spikes, beh, ripples, cells  = Load.load(animal, day)
 areas = (:ca1,:pfc)
 distance = :many
@@ -68,7 +69,18 @@ if opt[:diff] && !diffed
     predasym = getdiff(predasym)
 end
 opt[:ploton] ? Plot.on() : Plot.off()
+
 Plot.setappend("$animal.$day.$N")
+if opt[:link] != :y
+    Plot.appendtoappend(replace("_link=$link",":"=>""))
+end
+if opt[:summaryget] !== getmean
+    opt[:summaryget] === getmedian ? Plot.appendtoappend("_median") : nothing
+end
+if opt[:diff]
+    Plot.appendtoappend("_DIFF")
+    predasym = getdiff(predasym)
+end
 
 x_time = collect(1:last(params[:horizon])) .* 1/30
 
@@ -110,6 +122,7 @@ tagstr = "$animal.$day.$N"
 # Embedding trust
 # ---------------
 if opt[:plot][:manifold_check]
+    @info "plot_alltimes.jl" "plotting embedding trust"
     # Can we trust the embedding?
     Plot.setfolder("manifold", "trust")
     em = Munge.causal.make_embedding_df(embedding, inds_of_t, scores, beh)
@@ -127,12 +140,14 @@ end
 # ------------------------------------------
 # FUNCTIONS
 # ------------------------------------------
-K = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors &&
-           k.metric ∈ metric && k.dim == dim && k.feature == feature, keys(G_ca1pfc))
+#K = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors &&
+#k.metric ∈ metric && k.dim == dim && k.feature == feature, keys(G_ca1pfc))
 K = nothing
+Plot.cause.setkeyfilter(K)
 
 # --------------------------------------------------
-if opt[:plots][:gen_causal]
+if opt[:plot][:gen_causal]
+    @info "plot_alltimes.jl" "gen causal"
     Plot.setfolder("manifold","GEN_CAUSAL")
 
     caukws=(;bins=2 .* (30,100))
@@ -491,7 +506,7 @@ if opt[:plot][:ha]
                                       c=arena_pfcca1_color(4,4),kws..., label="Mem-A")
         #plot!(summaryfun(h_pfcca1[[1,1,"a5"]]);  
         #                              c=pfcca1_color(3,4),kws..., label="3", linestyle=:dot)
-    jk    #plot!(summaryfun(h_pfcca1[[1,1,"a6"]]); 
+        #plot!(summaryfun(h_pfcca1[[1,1,"a6"]]); 
         #                               c=pfcca1_color(4,4),kws...,label="4", linestyle=:dot)
         hline!([0];c=:black,linestyle=:dot,label="")
         nothing
@@ -504,15 +519,17 @@ if opt[:plot][:ha]
     # moving - home/arena - traj
     # --------------------------
     function plot_movhatraj(correct::Int=1)
+        
 
         Plot.setfolder("causality","HATRAJ_moving_CAUSAL")
-        background_color = if correct == -1
+        background_color = if correct == 0
             Plot.setprepend("error_")
-            :lightsalmon
+            :antiquewhite1
         else
             Plot.setprepend("")
             :seashell2
         end
+        println("background_color", background_color)
 
         c = correct == 1 ? "" : "*"
         arena_labels = ["Cue-A1", "Cue-A2", "Mem-A1", "Mem-A2"]
@@ -527,32 +544,32 @@ if opt[:plot][:ha]
             p1=plot()
             for (i,(l,h)) in enumerate(zip(arena_labels, arena_hatraj))
                 cuemem = parse(Int,last(h)) > 2
-                linestyle = cuemem ? :solid : :dot
+                linestyle, linewidth = cuemem ? (:solid,2) : (:dash,1)
                 key = [cuemem, correct, h, true]
                 if key in keys(Hm_ca1pfc)
                     y=summaryget(Hm_ca1pfc[key])
                     if y === missing; continue; end
                     plot!(x_time, y;   
-                          title="$lab\nCA1→PFC", c=arena_ca1pfc_color(i,4),kws..., 
+                          title="$lab\nCA1→PFC", c=arena_ca1pfc_color(i,4), kws..., 
                           label=l, linestyle)
                 end
             end
-            hline!([0];c=:black,linestyle=:dot,label="")
+            hline!([0];c=:black,linestyle=:dash,label="")
 
             p2=plot()
             for (i,(l, h)) in enumerate(zip(arena_labels, arena_hatraj))
                 cuemem = parse(Int,last(h)) > 2
-                linestyle = cuemem ? :solid : :dot
+                linestyle, linewidth = cuemem ? (:solid,2) : (:dash,1)
                 key = [cuemem,correct,h,true]
                 if key in keys(Hm_pfcca1)
                     y=summaryget(Hm_pfcca1[key])
                     if y === missing; continue; end
                     plot!(x_time, y;   
-                          title="$lab\nPFC→CA1", c=arena_pfcca1_color(i,4),kws..., 
+                          title="$lab\nPFC→CA1", c=arena_pfcca1_color(i,4), kws..., 
                           label=l, linestyle)
                 end
             end
-            hline!([0];c=:black,linestyle=:dot,label="")
+            hline!([0];c=:black,linestyle=:dash,label="")
             nothing
         end
         movingarena = plot(p1,p2; background_color)
@@ -564,22 +581,22 @@ if opt[:plot][:ha]
             p1=plot()
             for (i,(l,h)) in enumerate(zip(home_labels, home_hatraj))
                 cuemem = parse(Int,last(h)) > 2
-                linestyle = cuemem ? :solid : :dot
+                linestyle, linewidth = cuemem ? (:solid,2) : (:dash,1)
                 key = [cuemem, correct, h, true]
                 y = summaryget(Hm_ca1pfc[key])
                 if ismissing(y); continue; end
                 if key in keys(Hm_ca1pfc)
                     plot!(x_time, y;   
-                          title="$lab\nCA1→PFC", c=home_ca1pfc_color(i,4),kws..., 
+                          title="$lab\nCA1→PFC", c=home_ca1pfc_color(i,4), kws..., 
                           label=l, linestyle)
                 end
             end
-            hline!([0];c=:black,linestyle=:dot)
+            hline!([0];c=:black,linestyle=:dash, label="")
 
             p2=plot()
             for (i,(l, h)) in enumerate(zip(home_labels, home_hatraj))
                 cuemem = parse(Int,last(h)) > 2
-                linestyle = cuemem ? :solid : :dot
+                linestyle, linewidth = cuemem ? (:solid,2) : (:dash,1)
                 key = [cuemem,correct,h,true]
                 y = summaryget(Hm_pfcca1[key])
                 if ismissing(y); continue; end
@@ -589,7 +606,7 @@ if opt[:plot][:ha]
                           label=l, linestyle)
                 end
             end
-            hline!([0];c=:black,linestyle=:dot,label="")
+            hline!([0];c=:black,linestyle=:dash,label="")
             nothing
         end
         movinghome = plot(p1,p2; background_color)
@@ -601,7 +618,7 @@ if opt[:plot][:ha]
             p1=plot()
             for (i,(l,h)) in enumerate(zip(arena_labels, arena_hatraj))
                 cuemem = parse(Int,last(h)) > 2
-                linestyle = cuemem ? :solid : :dot
+                linestyle, linewidth = cuemem ? (:solid,2) : (:dash,1)
                 key = [cuemem,correct,h,false]
                 y = summaryget(Hm_ca1pfc[key])
                 if ismissing(y); continue; end
@@ -611,12 +628,12 @@ if opt[:plot][:ha]
                           label=l, linestyle)
                 end
             end
-            hline!([0];c=:black,linestyle=:dot,label="")
+            hline!([0];c=:black,linestyle=:dash,label="")
 
             p2=plot()
             for (i,(l, h)) in enumerate(zip(arena_labels, arena_hatraj))
                 cuemem = parse(Int,last(h)) > 2
-                linestyle = cuemem ? :solid : :dot
+                linestyle, linewidth = cuemem ? (:solid,2) : (:dash,1)
                 key = [cuemem,correct,h,false]
                 y = summaryget(Hm_pfcca1[key])
                 if ismissing(y); continue; end
@@ -626,7 +643,7 @@ if opt[:plot][:ha]
                           label=l, linestyle)
                 end
             end
-            hline!([0];c=:black,linestyle=:dot,label="")
+            hline!([0];c=:black,linestyle=:dash,label="")
             nothing
         end
         stillarena = plot(p1,p2; background_color)
@@ -638,7 +655,7 @@ if opt[:plot][:ha]
             p1=plot()
             for (i,(l,h)) in enumerate(zip(home_labels, home_hatraj))
                 cuemem = parse(Int,last(h)) > 2
-                linestyle = cuemem ? :solid : :dot
+                linestyle, linewidth = cuemem ? (:solid,2) : (:dash,1)
                 key = [cuemem,correct,h,false]
                 y = summaryget(Hm_ca1pfc[key])
                 if ismissing(y); continue; end
@@ -648,12 +665,12 @@ if opt[:plot][:ha]
                           label=l, linestyle)
                 end
             end
-            hline!([0];c=:black,linestyle=:dot,label="")
+            hline!([0];c=:black,linestyle=:dash,label="")
 
             p2=plot()
             for (i,(l, h)) in enumerate(zip(home_labels, home_hatraj))
                 cuemem = parse(Int,last(h)) > 2
-                linestyle = cuemem ? :solid : :dot
+                linestyle, linewidth = cuemem ? (:solid,2) : (:dash,1)
                 key = [cuemem,correct,h,false]
                 y = summaryget(Hm_pfcca1[key])
                 if ismissing(y); continue; end
@@ -663,7 +680,7 @@ if opt[:plot][:ha]
                           label=l, linestyle)
                 end
             end
-            hline!([0];c=:black,linestyle=:dot,label="")
+            hline!([0];c=:black,linestyle=:dash,label="")
         end
         stillhome = plot(p1, p2; background_color)
         Plot.save("still home flow")
@@ -680,4 +697,5 @@ if opt[:plot][:ha]
 
     I_movhatraj = plot_movhatraj(0)
     I_movhatraj.all
+
 end
