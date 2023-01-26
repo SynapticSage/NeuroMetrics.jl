@@ -127,13 +127,15 @@ module manifold
 
         # Which core would you like to work on?
         #min_dist, n_neighbors, metric, dim = [0.3], [5,150], [:CityBlock, :Euclidean], 3
-        min_dist, n_neighbors, metric, dim, feature = [0.3], [150], [:CityBlock], 3, :zscore
-        filtkeys = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors && 
-                   k.metric ∈ metric && k.dim == dim && k.feature == feature, 
-                   keys(embedding)) # filter keys
-        embedding = Dict(k=>transform(embedding[k]) for k in filtkeys) # transform embedding entries
+        #min_dist, n_neighbors, metric, dim, feature = [0.3], [150], [:CityBlock], 3, :zscore
+        #filtkeys = filter(k->k.min_dist ∈ min_dist && k.n_neighbors ∈ n_neighbors && 
+        #           k.metric ∈ metric && k.dim == dim && k.feature == feature, 
+        #           keys(embedding)) # filter keys
+        # embedding = Dict(k=>transform(embedding[k]) for k in filtkeys) # transform embedding entries
+        emkeys = keys(embedding)
+        embedding = Dict(k=>transform(embedding[k]) for k in emkeys) # transform embedding entries
         emdf = make_embedding_df(embedding, data[:inds_of_t], data[:scores], beh) # get embedding dataframe
-        merge(Dict(pairs(data)), Dict(pairs((;filtkeys,emdf))))
+        merge(Dict(pairs(data)), Dict(pairs((;emkeys,emdf))))
     end
     function load_manis_workspace(mod::Module, animal::String, day; kws...)
         data=load_manis_workspace(animal,day;kws...)
