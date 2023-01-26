@@ -22,9 +22,10 @@ module Precompile
     _GFA_data_dependencies = [_GFA_dependencies..., "Load", "SampleData"]
 
     using PackageCompiler
-    function precompile_GFA_dependencies()
+    function precompile_GFA_dependencies(;incremental::Bool=true)
         PackageCompiler.create_sysimage(_GFA_dependencies;
-                                        sysimage_path="GFA-dependencies-sysimage.so")
+                                        sysimage_path="GFA-dependencies-sysimage.so",
+                                        incremental)
     end
     function precompile_GFA_data_dependencies()
         PackageCompiler.create_sysimage(_GFA_data_dependencies;
