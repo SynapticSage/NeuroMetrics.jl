@@ -89,7 +89,7 @@ module manifold
         data
     end
 
-    export load_manis_df
+    export load_manis_workspace
     """
         load_manis_workspace
 
@@ -145,12 +145,12 @@ module manifold
     function make_embedding_df(embedding::Dict, inds_of_t::Vector, 
             score::Dict, beh::DataFrame; vars=[])::DataFrame
 
-        em = Table.to_dataframe(embedding, explode=false)
+        df = Table.to_dataframe(embedding, explode=false)
         sc = Table.to_dataframe(score)
 
         alignkeys = [k for k in (:animal, :day, :n_neighbors, :feature, :metric, :filt, :s, :area, :dim)
-                     if k ∈ propertynames(em) && k ∈ propertynames(sc)]
-        E, S = groupby(em, alignkeys), 
+                     if k ∈ propertynames(df) && k ∈ propertynames(sc)]
+        E, S = groupby(df, alignkeys), 
                  groupby(sc, alignkeys)
         for key in keys(E)
             key = NamedTuple(key)
@@ -158,13 +158,16 @@ module manifold
             e.score = s.value
         end
 
-        em[!, :inds_of_t] = inds_of_t[em[!,:s]]
-        em[!, :time] = getindex.([beh], em[!,:inds_of_t],[:time])
+        df[!, :inds_of_t] = inds_of_t[df[!,:s]]
+        df[!, :T_partition] = df[!,:s]
+        df[!, :T_start], df[!, :T_end] = first.(df[!, :inds_of_t]),
+                                         last.(df[!, :inds_of_t])
+        df[!, :time] = getindex.([beh], df[!,:inds_of_t],[:time])
         for var in vars
-            em[!, var] = getindex.([beh], em[!,:inds_of_t], [var])
+            df[!, var] = getindex.([beh], df[!,:inds_of_t], [var])
         end
 
-        em
+        df
     end
 
     export EmbeddingFrameFetch
