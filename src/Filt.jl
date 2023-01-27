@@ -279,6 +279,17 @@ module Filt
         filters
     end
 
+    function get_filters_desc()::OrderedDict
+        filt_desc = OrderedDict(:all => "2cm/s")
+        filters = collect(keys(get_filters()))
+        for filt in filters
+            #@info "get_filters_desc" filt
+            filt_desc[filt] = join(("$(string(filt))", filt_desc[:all]), " :: ")
+        end
+        filt_desc
+    end
+
+
     """
         get_filter_req
 

@@ -9,7 +9,6 @@ using DataFrames, DataFramesMeta
 using Statistics, NaNStatistics, HypothesisTests
 using DataStructures: OrderedDict
 using Plots, StatsPlots, ColorSchemes
-using ProgressMeter, SoftGlobalScope
 
 using GoalFetchAnalysis
 using Utils.namedtup: ntopt_string

@@ -1,75 +1,75 @@
 quickactivate(expanduser("~/Projects/goal-code/")); using GoalFetchAnalysis
-using Timeshift
-using Timeshift.types
-using Timeshift.shiftmetrics
-using Field.metrics
-using Plot
-using Plot.receptivefield
-using Utils.namedtup
+using Timeshift, Plot, Timeshift.types, Timeshift.shiftmetrics, 
+      Field.metrics, Plot.receptivefield, Utils.namedtup, 
+      Munge.nonlocal, Munge.spiking, Filt
 using Munge.timeshift: getshift
-using Munge.nonlocal
 using Utils.statistic: pfunc
 import Plot
-using Munge.spiking
-using Filt
-using Infiltrator
+filt_desc = Filt.get_filters_desc()
 
 using DataStructures: OrderedDict
-using DimensionalData
 import DimensionalData: Between
-using ProgressMeter
-using DataFrames, DataFramesMeta
-using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
-using Plots
-using LazySets
-using ElectronDisplay # to potentially defeat the GKS error
+using ProgressMeter, DimensionalData, Infiltrator,
+      Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM,
+      Plots, DataFrames, DataFramesMeta, LazySets, ElectronDisplay 
+using JLD2
 
 filename = datadir("isolated", "iso_animal=RY16_day=36_tet=ca1ref.jld2")
 @load "/home/ryoung/Projects/goal-code/data/isolated/iso_animal=RY16_day=36_tet=ca1ref.jld2"
+Munge.nonlocal.setunfilteredbeh(Load.load_behavior(animal,day);
+                               animal, day)
 
-Utils.filtreg.register(beh,spikes;on="time",transfer=["velVec"])
-
-"""
-TODOS
-
-- labels
-    - titles
-    - legend titles
-    - any missing x/ylabels
-- more accurate peak to peak
-- split these by moving and still
-- split by 1st and 2nd visit
-"""
-
-
-"""
-===========================
-Sheer diffferent rate of events (adjacent/isolated) over cue, mem, nontask
-===========================
-"""
-
-iso_sum = get_isolation_summary(spikes)
-sort!(iso_sum, [:area, :cuemem])
-
-pfc_units = @subset(cells,:area.=="PFC").unit
+# Obtain the firing rate matrix
 R = Munge.spiking.torate(allspikes, beh)
+
+# Get PFC_units
+pfc_units = @subset(cells,:area.=="PFC").unit
 pfc_units = intersect(pfc_units, collect(R.dims[2]))
 
+# Add a column to our spikes dataframe about its cell's meanrate
+Load.register(cells, spikes, on="unit", transfer=["meanrate"])
+# Add a behavioral info to spikes
+Load.register(beh, spikes, on="time", transfer=["velVec", "period","correct"])
+@assert :period ∈ propertynames(spikes)
+
+#     _  _     _____ ___  ____   ___  ____  
+#  _| || |_  |_   _/ _ \|  _ \ / _ \/ ___| 
+# |_  ..  _|   | || | | | | | | | | \___ \ 
+# |_      _|   | || |_| | |_| | |_| |___) |
+#   |_||_|     |_| \___/|____/ \___/|____/
+#                                          
+# - labels
+#     - titles
+#     - legend titles
+#     - any missing x/ylabels
+# - more accurate peak to peak
+# - split these by moving and still
+# - split by 1st and 2nd visit
+#
+
+
+
+# ==============================
+# SHEER DIFFFERENT RATE 📈 OF EVENTS
+# (adjacent/isolated) over cue, mem, nontask
+# ==============================
+
+# Acquire the isolation table
+iso_sum = get_isolation_summary(spikes)
+#sort!(iso_sum, [:area, :cuemem])
+
+# Obtain the isolated spikes dataframe
 isolated = last(groupby(subset(spikes, :isolated=>x->(!).(isnan.(x))) ,
-                                        :isolated))
+                            :isolated))
 @assert all(isolated.isolated .== true)
 
-
-Load.register(cells, spikes, on="unit", transfer=["meanrate"])
+# Select interneuron, roughly
 spikes.interneuron = spikes.meanrate .> 5
 histogram(cells.meanrate)
 iso_sum_celltype = get_isolation_summary(spikes,[:cuemem, :interneuron])
 sort!(iso_sum_celltype, [:area, :interneuron, :cuemem])
 
-Load.register(beh, spikes, on="time", transfer=["period","correct","velVec"])
-@assert :period ∈ propertynames(spikes)
-iso_sum_celltype_per = get_isolation_summary(spikes, [:cuemem, :interneuron,
-                                                      :period, :correct])
+iso_sum_celltype_per = get_isolation_summary(spikes, [:cuemem, :interneuron, :period, :correct])
 sort!(iso_sum_celltype_per, [:area, :interneuron, :cuemem, :period])
 @subset!(iso_sum_celltype_per, (:cuemem .== -1 .&& :correct .== -1) .||
                                (:cuemem .== 0 .&& :correct .!= -1)  .||
@@ -78,16 +78,18 @@ subset!(iso_sum_celltype_per, :events_per_time => x-> (!).(isinf.(x)))
 iso_sum_celltype_per
 
 # =========PLOTS =======================================
-Plot.setfolder("MUA and isolated MUA")
-kws=(;legend_position=Symbol("outerbottomright"))
-@df @subset(iso_sum,:area.=="CA1") bar(:cmlab, :timespent, ylabel="Time spent", group=:cuemem; kws...)
-Plot.save((;desc="time spent"))
-@df iso_sum bar(:cuearea, :events_per_time, ylabel="MUA events per second\n$(filt_desc[:all])", group=:cuemem; kws...)
-Plot.save((;desc="MUA per second"))
-@df iso_sum bar(:cuearea, :isolated_mean, ylabel="Isolated Spikes (sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:cmlab; kws...)
-Plot.save((;desc="fraction of isolated spikes"))
-@df iso_sum bar(:cuearea, :isolated_events_per_time, ylabel="Isolated MUA × sec⁻1\n(sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:cuemem; kws...)
-Plot.save((;desc="isolated spikes per second"))
+begin
+    Plot.setfolder("MUA and isolated MUA")
+    kws=(;legend_position=Symbol("outerbottomright"))
+    @df @subset(iso_sum,:area.=="CA1") bar(:cmlab, :timespent, ylabel="Time spent", group=:cuemem; kws...)
+    Plot.save((;desc="time spent"))
+    @df iso_sum bar(:cuearea, :events_per_time, ylabel="MUA events per second\n$(filt_desc[:all])", group=:cuemem; kws...)
+    Plot.save((;desc="MUA per second"))
+    @df iso_sum bar(:cuearea, :isolated_mean, ylabel="Isolated Spikes (sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:cmlab; kws...)
+    Plot.save((;desc="fraction of isolated spikes"))
+    @df iso_sum bar(:cuearea, :isolated_events_per_time, ylabel="Isolated MUA × sec⁻1\n(sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:cuemem; kws...)
+    Plot.save((;desc="isolated spikes per second"))
+end
 # ======================================================
 
 

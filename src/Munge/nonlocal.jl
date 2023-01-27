@@ -17,8 +17,12 @@ module nonlocal
     import Random
     using Infiltrator
 
-    beh2 = nothing
-    setunfilteredbeh(beh) = @eval nonlocal beh2 = $beh
+    unfiltered_behavior = nothing
+    current_metadata = nothing
+    function setunfilteredbeh(beh; metadata...) 
+        @eval(Munge.nonlocal, unfiltered_behavior = $beh)
+        @eval Munge.nonlocal, current_metadata = $metadata
+    end
     clab = nothing
     setclab(clabval) = @eval nonlocal clab = $clabval
 
@@ -99,13 +103,16 @@ module nonlocal
     # Returns
     A summary table
     """
-    function get_isolation_summary(spikes,split=[:cuemem])
+    function get_isolation_summary(spikes,split=[:cuemem]; unfiltered_behavior=unfiltered_behavior)
+        if unfiltered_behavior === nothing 
+            @error("\nMust either pass in unfiltered behavior or\n"*
+                 "set it in this module using `setunfilteredbeh`")
+        end
         iso_sum = combine(groupby(dropmissing(spikes,[:isolated,:nearestcyc, :meancyc]), [:area, split...]), 
                           [:isolated,:nearestcyc,:meancyc,:velVec] .=> mean, (x->nrow(x)))
-        @infiltrate
         if :period ∈ split
             # Calculate time animal spends in each cuemem segment
-            task_pers = Table.get_periods(beh2, [:period, :cuemem], 
+            task_pers = Table.get_periods(unfiltered_behavior, [:period, :cuemem], 
                                           timefract=:velVec => x->abs(x) > 2)
             # Total that time and register that column to the isolation summary
             task_pers = combine(groupby(task_pers, [:period, :cuemem]),
@@ -113,15 +120,16 @@ module nonlocal
             Utils.filtreg.register(task_pers, iso_sum, on="period", transfer=["timespent"])
         elseif :traj ∈ split
             # Calculate time animal spends in each cuemem segment
-            task_pers = Table.get_periods(beh2, [:traj, :cuemem], 
+            task_pers = Table.get_periods(unfiltered_behavior, [:traj, :cuemem], 
                                           timefract=:velVec => x->abs(x) > 2)
             # Total that time and register that column to the isolation summary
             task_pers = combine(groupby(task_pers, [:period, :cuemem]),
                                 [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
             Utils.filtreg.register(task_pers, iso_sum, on="traj", transfer=["timespent"])
         else
-            # Calculate time animal spends in each cuemem segment
-            task_pers = Table.get_periods(beh2, [:period, :cuemem], 
+            @info "traj and period not in split"
+                                # Calculate time animal spends in each cuemem segment
+            task_pers = Table.get_periods(unfiltered_behavior, [:period, :cuemem], 
                               timefract=:velVec => x->abs(x) > 2)
             dropmissing!(task_pers, :cuemem)
             # Total that time and register that column to the isolation summary
@@ -130,15 +138,18 @@ module nonlocal
                                 ((x,y)->sum(x.*y)) => :timespent)
             Utils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
         end
+
         # Acqruire events per time as events  / time spent
         iso_sum = transform(iso_sum, :x1 => :events)[:,Not(:x1)]
         iso_sum.events_per_time = iso_sum.events ./ (iso_sum.timespent)
         iso_sum.cuearea = iso_sum.area .* "\n" .* getindex.([clab], iso_sum.cuemem)
         iso_sum.cmlab = getindex.([clab], iso_sum.cuemem)
         iso_sum.isolated_events_per_time = iso_sum.isolated_mean .* iso_sum.events_per_time
+        iso_sum.iso_event_ratio = iso_sum.isolated_events_per_time ./ iso_sum.events_per_time
+        iso_sum.event_iso_ratio = iso_sum.events_per_time ./ iso_sum.isolated_events_per_time 
+
         ord = Dict("nontask"=>1,"cue"=>2,"mem"=>3)
-        @infiltrate
-        sort(iso_sum, [DataFrames.order(:cmlab, by=x->ord[x]),:cuearea])
+        sort(iso_sum, [:cuearea,DataFrames.order(:cmlab, by=x->ord[x])])
     end
 
 end

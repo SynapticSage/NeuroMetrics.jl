@@ -18,12 +18,22 @@ feature_engineer = :many # many | nothing
 esttype = :binned
 est, params = get_est_preset(esttype, horizon=1:60, thread=true, binning=7, window=1.25)
 
+opt = Dict(
+:usevideo                      => false,
+:doPrevPast                    => false,
+:visualize => :slider,
+:nback => 10)
+
+
 # Load all requisite vars
 manifold.load_manis_workspace(Main, animal, day; filt, 
       areas, distance, feature_engineer, 
       N)
 spikes, beh, ripples, cells  = Load.load(animal, day)
 storage = load_alltimes_savefile(animal, day, N; params)
+tsk = Load.load_task(animal, day)
+wells             = Munge.behavior.get_wells_df(animal, day, 2; task=tsk, beh)
+boundary          = Munge.task.get_boundary(tsk)
 video             = Load.video.load_videocollection(animal, day)
 TS = [Load.video.load_videots(animal, day, i) for i in 1:8]
 exampframe = video[0.0]
@@ -139,31 +149,44 @@ begin
     end
 
     # Instatiate current overall manifold
+	m,M = Dict(),Dict()
+	partition = Dict()
+	maxes = Dict()
+
     begin
+
 		# Plot a light grey of the total manis
-		partition = Dict()
-		maxes = Dict()
 		for (i, manis) in enumerate(emdfs)
-			maxes[i] = Axis3(Fig[i,3])
-			
+			title = NamedTuple(col=>value for (col,value) 
+							   in zip(emdfs.cols, inv(emdfs.keymap)[i]))
+			title = TextWrap.wrap(replace(Utils.namedtup.tostring(title),","=>" "),
+								  width=40)
+			maxes[i] = Axis3(Fig[i,3], title=title, titlesize=8)
 			partition[i] = @lift findfirst($t .>= manis.T_start .&& $t .< manis.T_end)		
 			e = []
 			for dim in range(1, manis.dim[1])
 				push!(e, @lift manis.value[$(partition[i])][:,dim])
 			end
 			black=RGBA(colorant"black", 0.01)
-			scatter!(e..., color=black, transparency=true)
+			scatter!(e..., color=black, transparency=true, markersize=4)
 		end
+
 	end
+end
 
 	# Record current manifold point
 	begin
-		# Plot current location of manis
-		m,M = Dict(),Dict()
-		for (i, manis) in enumerate(emdfs)
-			mani =  @lift manis[$(partition[i]), :]
-			mani_ind = @lift $mani.inds_of_t .== $b.index
 
+		# Plot current location of manis
+		for (i, manis) in enumerate(emdfs)
+			mani     =  @lift manis[$(partition[i]), :]
+			mani_ind = @lift findfirst($mani.inds_of_t .== $b.index)
+			mani_start = @lift max($mani_ind-opt[:nback], $mani.T_end)
+			point = @lift Point3f($mani.value[$mani_ind,:])
+			points = @lift Point3f.(eachrow($mani.value[$mani_start:$mani_ind,:]))
+			GLMakie.scatter
+			s=scatter!(maxes[i], point, c=colorant"red", markersize=6, glowwidth=5, glowcolor=colorant"red", )
+			S=scatter!(maxes[i], point, c=colorant"red", markersize=6, glowwidth=5, glowcolor=colorant"red", )
 		end
 
     end
@@ -171,14 +194,15 @@ begin
 end
 display(Fig)
 
-#@showprogress for stamp in t[]:(T-100)
-#    try
-#    	t[] = stamp
-#    catch
-#    	@warn "timestamp failed with t=$(t[])"
-#    end
-#    sleep(1/90)
-#end
+@showprogress for stamp in t[]:(T-100)
+    try
+    	t[] = stamp
+    catch
+    	@warn "timestamp failed with t=$(t[])"
+		sleep(0.25)
+    end
+    sleep(1/90)
+end
 
 prog = Progress(length(t[]:(T-100)), desc="Recording video")
 iter = ((next!(prog); t) for t in t[]:(T-100))

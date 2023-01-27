@@ -1,21 +1,9 @@
-using GoalFetchAnalysis
-import Plot
+using GoalFetchAnalysis, Munge.causal, Munge.manifold
 using Utils.namedtup: ntopt_string
-using Munge.causal, Munge.manifold
+import Plot
 
-using DrWatson
-using Infiltrator, ProgressMeter
-using Serialization
-using CausalityTools
-using Entropies
+using DrWatson, Infiltrator, ProgressMeter, Serialization, CausalityTools, Entropies, Plots, DataFrames, Statistics, NaNStatistics, HypothesisTests, StatsPlots, JLD2, DiskBackedDicts, ThreadSafeDicts, SoftGlobalScope
 using DataStructures: OrderedDict
-using Plots
-using DataFrames
-using Statistics, NaNStatistics, HypothesisTests
-using StatsPlots
-using JLD2
-using DiskBackedDicts, ThreadSafeDicts
-using SoftGlobalScope
 function Base.fetch(X::AbstractDict)
     Dict(k=>(try;fetch(v);catch;missing;end) for (k,v) in X)
 end
@@ -63,10 +51,14 @@ global predasym, savefile, loadfile = nothing, nothing, nothing
     feature_engineer = :many # many | nothing
     esttype = :binned
     est, params = get_est_preset(esttype, horizon=1:60, thread=true, binning=7, window=1.25)
+
+    # Loads
     manifold.load_manis_workspace(Main, animal, day; filt, 
                                   areas, distance, feature_engineer, 
                                   N)
     spikes, beh, ripples, cells  = Load.load(animal, day)
+
+    # Save and load files
     savefile = get_alltimes_savefile(animal, day, N; params)
     loadfile = get_alltimes_savefile(animal, day, N; params, allowlowerhorizon=true)
 

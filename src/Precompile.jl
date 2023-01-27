@@ -17,7 +17,8 @@ module Precompile
                        "Markdown", "InteractiveUtils", "Polyester",
                        "Random", "Colors", "ColorSchemes", "ImageFiltering",
                        "ProtoStructs", "KernelDensity",
-                       "UMAP", "CausalityTools"
+                       "UMAP", "CausalityTools",
+                       "Term" # -- 27 jan 2023
                       ]   
     _GFA_data_dependencies = [_GFA_dependencies..., "Load", "SampleData"]
 

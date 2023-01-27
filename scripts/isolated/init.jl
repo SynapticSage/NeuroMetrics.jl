@@ -27,7 +27,10 @@ datasets = (("RY16",36,:ca1ref), ("RY22",21,:ca1ref),  #("super", 0, :ca1ref),
            )
 (animal, day, tet) = datasets[2]
 
-opt = Dict(:process_outoffield => true, :ploton=>true)
+opt = Dict(
+           :process_outoffield => false, # process out of field place fields?
+           :ploton=>true
+          )
 
 # Plotting turned on?
 if opt[:ploton] 
@@ -57,6 +60,7 @@ if init != 1; @warn("initial dataset is $init"); end
     # ACQUIRE DATA
     # ===================
     # Acquire data
+    @info "Loading $animal $day"
     @time spikes, beh, cells = Load.load(animal, day, data_source=["spikes","behavior", "cells"])
     GC.gc()
     beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes, on="time", transfer=["x","y","cuemem"], 
@@ -70,6 +74,7 @@ if init != 1; @warn("initial dataset is $init"); end
     ## MUNGE LFP ##
     # =============
     # Center and annotate
+    @info "Munging $animal $day"
     begin
         lfp.time = lfp.time .- Load.min_time_records[end]
         # TODO potential bug, 1st time runs, cuts trough-to-trough, second peak-to-peak
@@ -98,6 +103,7 @@ if init != 1; @warn("initial dataset is $init"); end
     # ISOLATED SPIKING
     # ===================
     #Munge.spiking.isolated(sp, lfp, include_samples=true)
+    @info "Isospikes $animal $day"
     Munge.spiking.isolated(spikes, lfp, include_samples=false)
 
     # ===================
@@ -130,6 +136,7 @@ if init != 1; @warn("initial dataset is $init"); end
     end
 
 
+    @info "Cycles $animal $day"
     @assert length(unique(lfp.cycle)) > 1
     cycles = Munge.lfp.get_cycle_table(lfp)
     Munge.lfp.annotate_cycles!(spikes, cycles)
@@ -144,9 +151,10 @@ if init != 1; @warn("initial dataset is $init"); end
 
     # SAVE THE DATA
     begin
+        @info "Saving $animal $day"
         filename = datadir("isolated","iso_animal=$(animal)_day=$(day)_tet=$(tet).jld2")
         !isdir(dirname(filename)) ? mkpath(dirname(filename)) : nothing
-        @save "$filename" {compress=true} animal day lfp spikes allspikes tsk cells beh cycles
+        @save "$filename"  animal day lfp spikes allspikes tsk cells beh cycles
     end
 
     Plot.setparentfolder("isolated")
