@@ -3,17 +3,9 @@ quickactivate(expanduser("~/Projects/goal-code"))
 using GoalFetchAnalysis
 import Load, Munge
 
-using Revise, ProgressMeter
-using CategoricalArrays
-using Statistics, NaNStatistics
+using Revise, ProgressMeter, CategoricalArrays, Statistics, NaNStatistics, VideoIO, GLMakie, ColorSchemes, Colors, DataFrames, DataFramesMeta, Printf, Infiltrator, ImageFiltering
 using StatsPlots: @df
-import StatsBase
-using VideoIO, GLMakie
-using ColorSchemes, Colors
-import ColorSchemeTools 
-using DataFrames, DataFramesMeta
-using Printf, Infiltrator
-using ImageFiltering
+import StatsBase, ColorSchemeTools 
 
 # --------------------------
 # PARAMS
@@ -64,11 +56,14 @@ begin
             x = sort(CategoricalArray(unique(skipmissing(beh[:,sym]))))
             y = @lift ismissing($bsym) ? zeros(size(x)) : Float64.($bsym .== levels(x))
         end
-        ax = stringtype ? 
-        Axis(Fig[i,3], xticks=levelcode.(x), yticks=[0,1], yticklabels=("off","on"), title=string(sym), 
-             xticklabels=levels(x)) :
-        Axis(Fig[i,3], xticks=x, yticks=[0,1], yticklabels=("off","on"), title=string(sym), 
-             )
+        ax = Axis(Fig[i,3], title=string(sym))
+        if stringtype
+            ax.xticks=(levelcode.(x), levels(x))
+            ax.yticks=(0:1, ["off","on"])
+        else
+            ax.xticks=x
+            ax.yticks=(0:1, ["off","on"])
+        end
         @infiltrate stringtype
         GLMakie.current_axis!(ax)
         GLMakie.barplot!(stringtype ? levelcode.(x) : x, y)
@@ -111,14 +106,24 @@ begin
         GLMakie.scatter!(vidax, Bx, By)
         GLMakie.scatter!(vidax, bx, by, color=RGBA(1,0.5,1,0.15), markersize=80)
         hatraj = @lift $b.hatraj === missing ? [""] : [uppercase($b.hatraj)]
-        a=GLMakie.annotations!(hatraj, [Point2f((135.0, 50.0))], color=:orange, textsize=40)
+        ymid = mean(vidax.yaxis.attributes[:limits][])
+        xmid = mean(vidax.xaxis.attributes[:limits][])
+        #a=GLMakie.annotations!(hatraj, [Point2f((135.0, 50.0))], color=:orange, fontsize=40)
+        cuemem_color = @lift if $b.cuemem == 1
+            :orange
+        elseif $b.cuemem == 0
+            :blue
+        else
+            :white
+        end
+        a=GLMakie.annotations!(hatraj, [Point2f((xmid, ymid))], color=cuemem_color, fontsize=40)
         animal_location = @lift [Point2f($b.x,$b.y)]
         speed = @lift round(abs($b.velVec),sigdigits=2)
         speedtext = @lift ["| v⃗ | $($speed)"]
-        vtext=GLMakie.annotations!(speedtext, animal_location, color=:hotpink, textsize=20, align=(:left,:top))
+        vtext=GLMakie.annotations!(speedtext, animal_location, color=:hotpink, fontsize=20, align=(:left,:top))
         smspeed = @lift round(abs($b.smoothvel),sigdigits=2)
         smspeedtext = @lift ["sm( v⃗ ) $($smspeed)"]
-        smvtext=GLMakie.annotations!(smspeedtext, animal_location, color=:pink, textsize=20, align=(:left,:top), offset=(0,30))
+        smvtext=GLMakie.annotations!(smspeedtext, animal_location, color=:pink, fontsize=20, align=(:left,:top), offset=(0,30))
     end
 
     begin

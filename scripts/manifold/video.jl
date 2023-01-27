@@ -48,11 +48,16 @@ emdfs = @subset(emdf,
 # Throw away unused partitions
 begin
 end
-beh.T_partition = Utils.searchsortedprevious.([sort(unique(emdfs.T_start))], beh.index)
+# Create a sorted set of partitions
+begin
+	keynames = [:min_dist, :n_neighbors, :metric, :area, :dim, :feature]
+		emdfs = groupby(emdfs, keynames)
+end
 beh.T_partition = Utils.searchsortedprevious.([sort(unique(emdfs.T_start))], beh.index)
 
 println("Number of embedding keys ", size(emdfs,1))
-println("Estimated number of manifolds to plot", size(emdfs,1)/maximum(emdfs[!,:T_partition]))
+#println("Estimated number of manifolds to plot ", size(emdfs,1)/maximum(emdfs[!,:T_partition]))
+println("Estimated number of manifolds to plot ", length(emdfs))
 
 # Align each manifold?
 
@@ -71,6 +76,7 @@ end
 # Setup observables
 # -----------------
 begin
+
     N = 4
     Fig = Figure(resolution=(1400,700))
     if opt[:visualize] == :video
@@ -132,8 +138,34 @@ begin
         GLMakie.scatter!(vidax, wellpoke, color=:orange, glowwidth=5, glowcolor=:orange, transparency=true)
     end
 
-    % Manifold
+    # Instatiate current overall manifold
     begin
+		# Plot a light grey of the total manis
+		partition = Dict()
+		maxes = Dict()
+		for (i, manis) in enumerate(emdfs)
+			maxes[i] = Axis3(Fig[i,3])
+			
+			partition[i] = @lift findfirst($t .>= manis.T_start .&& $t .< manis.T_end)		
+			e = []
+			for dim in range(1, manis.dim[1])
+				push!(e, @lift manis.value[$(partition[i])][:,dim])
+			end
+			black=RGBA(colorant"black", 0.01)
+			scatter!(e..., color=black, transparency=true)
+		end
+	end
+
+	# Record current manifold point
+	begin
+		# Plot current location of manis
+		m,M = Dict(),Dict()
+		for (i, manis) in enumerate(emdfs)
+			mani =  @lift manis[$(partition[i]), :]
+			mani_ind = @lift $mani.inds_of_t .== $b.index
+
+		end
+
     end
 
 end

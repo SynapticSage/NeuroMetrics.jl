@@ -104,7 +104,7 @@ module Utils
     function in_range(X::AbstractArray, range::Union{Tuple, Vector})
         X .≥ range[1] .&& X .< range[2]
     end
-    function in_range(X::Real, range::Union{Tuple, Vector})
+    function in_range(X::T where T<:Real, range::S where S<:Union{Tuple, Vector, SubArray{1}})
         X ≥ range[1] .&& X < range[2]
     end
     function not_in_range(X::Union{Real,AbstractArray}, range::Union{Tuple, Vector})
