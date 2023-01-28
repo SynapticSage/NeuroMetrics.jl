@@ -8,8 +8,9 @@ module Precompile
     _GFA_dependencies=["DataFrames","Plots", "Makie", "CairoMakie", "OhMyREPL",
                        "CSV", "HDF5", "NetCDF", "Arrow", "Revise", "Reexport",
                        "DataFramesMeta", "Statistics", "NaNStatistics",
-                       "ProgressMeter", "Glob", "Printf", "StatsPlots",
-                       "StatsBase", "Distributions", "Shuffle", "VideoIO",
+                       "ProgressMeter", "Glob", "Printf", 
+                       "StatsPlots", "StatsBase", "Distributions", 
+                       "Shuffle", "VideoIO",
                        "DataStructures", "Gadfly", "TableView", "LazyGrids",
                        "GeometricalPredicates", "RecipesBase", "Reexport",
                        "AxisArrays", "DimensionalData", "HypothesisTests",
@@ -17,8 +18,9 @@ module Precompile
                        "Markdown", "InteractiveUtils", "Polyester",
                        "Random", "Colors", "ColorSchemes", "ImageFiltering",
                        "ProtoStructs", "KernelDensity",
-                       "UMAP", "CausalityTools",
-                       "Term" # -- 27 jan 2023
+                       "UMAP", "Entropies", "CausalityTools"
+                       "Term", # -- 27 jan 2023
+                       "Images", "ImageSegmentation", "ImageTransformations", "ImageFiltering"
                       ]   
     _GFA_data_dependencies = [_GFA_dependencies..., "Load", "SampleData"]
 

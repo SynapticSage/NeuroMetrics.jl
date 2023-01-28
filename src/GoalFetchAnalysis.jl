@@ -60,5 +60,6 @@ module GoalFetchAnalysis
         @eval Main using Timeshift.checkpoint
     end
 
-
+    import Labels as labels
+    
 end
