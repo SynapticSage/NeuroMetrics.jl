@@ -1,30 +1,22 @@
 module nonlocal
 
-    using Timeshift
-    using Timeshift.types
-    using Timeshift.shiftmetrics
-    using Field.metrics
-    using Utils.namedtup
-    import Utils
-    import Table
+    using Timeshift, Timeshift.types, Timeshift.shiftmetrics,
+          Field.metrics, Utils.namedtup
+    import Utils, Table, Labels, Random
+    using DimensionalData, ProgressMeter, DataFrames, DataFramesMeta,
+          Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
+    using Plots, LazySets, Infiltrator
     using DataStructures: OrderedDict
-    using DimensionalData
-    using ProgressMeter
-    using DataFrames, DataFramesMeta
-    using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
-    using Plots
-    using LazySets
-    import Random
-    using Infiltrator
+    
 
     unfiltered_behavior = nothing
     current_metadata = nothing
-    function setunfilteredbeh(beh; metadata...) 
-        @eval(Munge.nonlocal, unfiltered_behavior = $beh)
-        @eval Munge.nonlocal, current_metadata = $metadata
+    function setunfilteredbeh(beh; mod=nonlocal, metadata...) 
+        @eval mod unfiltered_behavior = $beh
+        @eval mod current_metadata = $metadata
     end
-    clab = nothing
-    setclab(clabval) = @eval nonlocal clab = $clabval
+    cuemem_labels = Labels.cuemem
+    setclab(clabval) = @eval nonlocal cuemem_labels = $clabval
 
     export annotate_nonlocal_spikes!
     function annotate_nonlocal_spikes!(spikes::DataFrame, cells::DataFrame, unitshift::DimArray, shift::Union{<:Real, Symbol}=0;
@@ -112,7 +104,7 @@ module nonlocal
                           [:isolated,:nearestcyc,:meancyc,:velVec] .=> mean, (x->nrow(x)))
         if :period ∈ split
             # Calculate time animal spends in each cuemem segment
-            task_pers = Table.get_periods(unfiltered_behavior, [:period, :cuemem], 
+            task_pers = Table.get_periods(nonlocal.unfiltered_behavior, [:period, :cuemem], 
                                           timefract=:velVec => x->abs(x) > 2)
             # Total that time and register that column to the isolation summary
             task_pers = combine(groupby(task_pers, [:period, :cuemem]),
@@ -120,7 +112,7 @@ module nonlocal
             Utils.filtreg.register(task_pers, iso_sum, on="period", transfer=["timespent"])
         elseif :traj ∈ split
             # Calculate time animal spends in each cuemem segment
-            task_pers = Table.get_periods(unfiltered_behavior, [:traj, :cuemem], 
+            task_pers = Table.get_periods(nonlocal.unfiltered_behavior, [:traj, :cuemem], 
                                           timefract=:velVec => x->abs(x) > 2)
             # Total that time and register that column to the isolation summary
             task_pers = combine(groupby(task_pers, [:period, :cuemem]),
@@ -129,7 +121,7 @@ module nonlocal
         else
             @info "traj and period not in split"
                                 # Calculate time animal spends in each cuemem segment
-            task_pers = Table.get_periods(unfiltered_behavior, [:period, :cuemem], 
+            task_pers = Table.get_periods(nonlocal.unfiltered_behavior, [:period, :cuemem], 
                               timefract=:velVec => x->abs(x) > 2)
             dropmissing!(task_pers, :cuemem)
             # Total that time and register that column to the isolation summary
@@ -139,11 +131,13 @@ module nonlocal
             Utils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
         end
 
+        isempty(iso_sum) ? @error("iso_sum is innapropriately empty") : nothing
+
         # Acqruire events per time as events  / time spent
         iso_sum = transform(iso_sum, :x1 => :events)[:,Not(:x1)]
         iso_sum.events_per_time = iso_sum.events ./ (iso_sum.timespent)
-        iso_sum.cuearea = iso_sum.area .* "\n" .* getindex.([clab], iso_sum.cuemem)
-        iso_sum.cmlab = getindex.([clab], iso_sum.cuemem)
+        iso_sum.cuearea = iso_sum.area .* "\n" .* getindex.([cuemem_labels], iso_sum.cuemem)
+        iso_sum.cmlab = getindex.([cuemem_labels], iso_sum.cuemem)
         iso_sum.isolated_events_per_time = iso_sum.isolated_mean .* iso_sum.events_per_time
         iso_sum.iso_event_ratio = iso_sum.isolated_events_per_time ./ iso_sum.events_per_time
         iso_sum.event_iso_ratio = iso_sum.events_per_time ./ iso_sum.isolated_events_per_time 

@@ -46,8 +46,6 @@ if init != 1; @warn("initial dataset is $init"); end
 
     @info "loop" animal day tet
 
-    clab = OrderedDict(-1 => "nontask", 0 => "cue", 1=> "mem", missing=>"sleep")
-    Munge.nonlocal.setclab(clab)
     isonames =  OrderedDict(false => :adjacent, true=>:isolated)
     filt_desc = OrderedDict(:all => "> 2cm/s")
     save_kws = (;pfc_rate_analy=true)

@@ -79,10 +79,5 @@ module behavior
         wells = vcat(DataFrame(homeWell),arenaWells)
     end
 
-    # LABELING
-    corerr = Dict(0=>"correct", 1=>"error")
-    tsk = Dict(0=>"cue",     1=>"mem")
-    cortsk = OrderedDict([0,1]=>"CUE correct", [1,1]=>"MEM correct",
-                      [0,0]=>"CUE error",   [1,0]=>"MEM error")
 
 end

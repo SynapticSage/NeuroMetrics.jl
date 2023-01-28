@@ -13,9 +13,10 @@ using ProgressMeter, DimensionalData, Infiltrator,
       Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM,
       Plots, DataFrames, DataFramesMeta, LazySets, ElectronDisplay 
 using JLD2
+using REPLVim; @async REPLVim.serve()
 
-filename = datadir("isolated", "iso_animal=RY16_day=36_tet=ca1ref.jld2")
-@load "/home/ryoung/Projects/goal-code/data/isolated/iso_animal=RY16_day=36_tet=ca1ref.jld2"
+filename = datadir("isolated", "iso_animal=$(animal)_day=$(day)_tet=ca1ref.jld2")
+@load "/home/ryoung/Projects/goal-code/data/isolated/iso_animal=RY22_day=21_tet=ca1ref.jld2"
 Munge.nonlocal.setunfilteredbeh(Load.load_behavior(animal,day);
                                animal, day)
 
@@ -47,9 +48,12 @@ Load.register(beh, spikes, on="time", transfer=["velVec", "period","correct"])
 # - split by 1st and 2nd visit
 #
 
-
-
 # ==============================
+#    _  _        _    _     _       ____  ____ ___ _  _______ ____  
+#  _| || |_     / \  | |   | |     / ___||  _ \_ _| |/ / ____/ ___| 
+# |_  ..  _|   / _ \ | |   | |     \___ \| |_) | || ' /|  _| \___ \ 
+# |_      _|  / ___ \| |___| |___   ___) |  __/| || . \| |___ ___) |
+#   |_||_|   /_/   \_\_____|_____| |____/|_|  |___|_|\_\_____|____/ 
 # SHEER DIFFFERENT RATE 📈 OF EVENTS
 # (adjacent/isolated) over cue, mem, nontask
 # ==============================
@@ -77,67 +81,140 @@ sort!(iso_sum_celltype_per, [:area, :interneuron, :cuemem, :period])
 subset!(iso_sum_celltype_per, :events_per_time => x-> (!).(isinf.(x)))
 iso_sum_celltype_per
 
-# =========PLOTS =======================================
-begin
+# =========PLOTS === NOT SPLIT BY CELL TYPE ============
+#begin
     Plot.setfolder("MUA and isolated MUA")
     kws=(;legend_position=Symbol("outerbottomright"))
-    @df @subset(iso_sum,:area.=="CA1") bar(:cmlab, :timespent, ylabel="Time spent", group=:cuemem; kws...)
+    @df @subset(iso_sum,:area.=="CA1") bar(:cmlab, :timespent, ylabel="Time spent", group=:cuemem; kws..., 
+                                          legendtitle="Task")
     Plot.save((;desc="time spent"))
-    @df iso_sum bar(:cuearea, :events_per_time, ylabel="MUA events per second\n$(filt_desc[:all])", group=:cuemem; kws...)
+    @df iso_sum bar(:cuearea, :events_per_time, ylabel="MUA events per second\n$(filt_desc[:all])", group=:cuemem; kws..., 
+                   legendtitle="Task")
     Plot.save((;desc="MUA per second"))
-    @df iso_sum bar(:cuearea, :isolated_mean, ylabel="Isolated Spikes (sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:cmlab; kws...)
+    @df iso_sum bar(:cuearea, :isolated_mean, ylabel="Isolated Spikes (sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:cmlab; kws..., 
+                   legendtitle="Task")
     Plot.save((;desc="fraction of isolated spikes"))
-    @df iso_sum bar(:cuearea, :isolated_events_per_time, ylabel="Isolated MUA × sec⁻1\n(sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:cuemem; kws...)
+    @df iso_sum bar(:cuearea, :isolated_events_per_time, ylabel="Isolated MUA × sec⁻1\n(sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:cuemem; kws..., 
+                   legendtitle="Task")
     Plot.save((;desc="isolated spikes per second"))
+#end
+# ======================================================
+
+# =========PLOTS ===SPLIT BY INTERNEURON STATE =========
+begin
+    @df iso_sum_celltype bar(:cuearea, :events_per_time, ylabel="MUA events per second\n$(filt_desc[:all])", group=:interneuron; kws..., legendtitle="is interneuron?", alpha=0.5)
+    Plot.save((;desc="MUA per second, celltype"))
+    @df iso_sum_celltype bar(:cuearea, :isolated_mean, ylabel="Isolated Spikes / All spikes\nsign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:interneuron; kws..., legendtitle="is interneuron?", alpha=0.5)
+    Plot.save((;desc="fraction of isolated spikes, celltype"))
+    @df iso_sum_celltype bar(:cuearea, :isolated_events_per_time, ylabel="Isolated MUA × sec⁻1\n(sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:interneuron; kws..., legendtitle="is interneuron?", alpha=0.5)
+    Plot.save((;desc="isolated spikes per second, celltype"))
 end
 # ======================================================
 
-
-
-# =========PLOTS =======================================
-@df iso_sum_celltype bar(:cuearea, :events_per_time, ylabel="MUA events per second\n$(filt_desc[:all])", group=:interneuron; kws...)
-Plot.save((;desc="MUA per second, celltype"))
-@df iso_sum_celltype bar(:cuearea, :isolated_mean, ylabel="Isolated Spikes (sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:interneuron; kws...)
-Plot.save((;desc="fraction of isolated spikes, celltype"))
-@df iso_sum_celltype bar(:cuearea, :isolated_events_per_time, ylabel="Isolated MUA × sec⁻1\n(sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:interneuron; kws...)
-Plot.save((;desc="isolated spikes per second, celltype"))
-# ======================================================
-
-"""
-===========================
-Period-wise calculations
-===========================
-"""
+#    _  _     ____           _           _               _          
+#  _| || |_  |  _ \ ___ _ __(_) ___   __| |    __      _(_)___  ___ 
+# |_  ..  _| | |_) / _ \ '__| |/ _ \ / _` |____\ \ /\ / / / __|/ _ \
+# |_      _| |  __/  __/ |  | | (_) | (_| |_____\ V  V /| \__ \  __/
+#   |_||_|   |_|   \___|_|  |_|\___/ \__,_|      \_/\_/ |_|___/\___|
+#                                                                   
 
 # =========PLOTS =======================================
 # -------- mua per second ------------------------------
 Plot.setfolder("MUA and isolated MUA", "period-wise")
-@df @subset(iso_sum_celltype_per, :interneuron .== false) scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), :events_per_time, group=:correct, xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA events/time", xlabel="task", ylabel="events × time\$^{-1}\$, pyr cells", legend_title="correct/error", legend_position=:outerbottomright)
-@df @subset(iso_sum_celltype_per, :interneuron .== true) scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), :events_per_time, group=:correct, xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA events/time", xlabel="task", ylabel="events × time\$^{-1}\$, pyr cells", legend_title="correct/error", legend_position=:outerbottomright)
-Plot.save((;desc="mua-per-time",group=:correct,pyr=true))
+# PYRAMIDAL CELLS 🔺🔺
+begin
+    
+    @df @subset(iso_sum_celltype_per, :interneuron .== false) begin
+        scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), :events_per_time,
+                group=:correct,
+                xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA
+                events/time", xlabel="task", ylabel="events × time\$^{-1}\$,
+                pyr cells", legend_title="correct/error", alpha=0.5,
+                legend_position=:outerbottomright)
+    end
 
-@df @subset(iso_sum_celltype_per, :interneuron .== false) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :events_per_time, group=:correct, alpha=0.5, xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA events/time", xlabel="task", ylabel="events × time\$^{-1}\$, pyr cells", legend_title="correct/error", legend_position=:outerbottomright)
-Plot.save((;desc="mua-per-time",group=:correct,pyr=true,sep_groups=true))
+    @df @subset(iso_sum_celltype_per, :interneuron .== false) begin
+        scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), 
+                :events_per_time, group=:correct, alpha=0.5,
+                xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA
+                events/time", xlabel="task", ylabel="events × time\$^{-1}\$,
+                pyr cells", legend_title="correct/error",
+                legend_position=:outerbottomright)
+    end
+    Plot.save((;desc="mua-per-time",group=:correct,pyr=true))
 
-@df iso_sum_celltype_per scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), :events_per_time, group=:interneuron, alpha=0.5, xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA events/time", xlabel="task", ylabel="events × time\$^{-1}\$", legend_title="pyr/int", legend_position=:outerbottomright)
-Plot.save((;desc="mua-per-time",group=:interneuron))
+end
 
-@df iso_sum_celltype_per scatter(:cuemem .+ 0.25.*(:interneuron .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :events_per_time, group=:interneuron, alpha=0.5, xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA events/time", xlabel="task", ylabel="events × time\$^{-1}\$", legend_title="pyr/int", legend_position=:outerbottomright)
-Plot.save((;desc="mua-per-time",group=:interneuron,group_sep=true))
+# INTERNEURONS 🔵
+begin
+
+    @df @subset(iso_sum_celltype_per, :interneuron .== true) begin
+        scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1),
+                :events_per_time, group=:correct,
+                xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA
+                events/time", xlabel="task", ylabel="events × time\$^{-1}\$,
+                pyr cells", legend_title="correct/error",
+                legend_position=:outerbottomright)
+    end
+    Plot.save((;desc="mua-per-time",group=:correct,pyr=true,sep_groups=true))
+    
+end
+
+# PYRAMIDAL 🔺🔺 and INTERNEURON  🔵
+# ➡ each period sample
+begin
+    @df iso_sum_celltype_per begin
+        scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), 
+                :events_per_time, group=:interneuron, alpha=0.5,
+                xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA events/time",
+                xlabel="task", ylabel="events × time\$^{-1}\$",
+                legend_title="pyr/int", legend_position=:outerbottomright)
+    end
+    Plot.save((;desc="mua-per-time",group=:interneuron))
+
+    @df iso_sum_celltype_per begin
+        scatter(:cuemem .+ 0.25.*(:interneuron .- 0.5) .+ (randn(size(:cuemem)) .* 0.05),
+                :events_per_time, group=:interneuron, alpha=0.5,
+                xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA events/time", 
+                xlabel="task", ylabel="events × time\$^{-1}\$",
+                legend_title="Is Interneuron?",
+                legend_position=:outerbottomright)
+    end
+    Plot.save((;desc="mua-per-time",group=:interneuron,group_sep=true))
+end
 
 @subset!(iso_sum_celltype_per, :events_per_time .!= Inf)
 
-cpyr_ce = @df @subset(iso_sum_celltype_per, :area.=="CA1", :interneuron.==false) boxplot(:cuemem .+ 0.25.*(:correct .- 0.5), :events_per_time, group=:correct, alpha=0.5, title="ca1 pyr")
-cint_ce = @df @subset(iso_sum_celltype_per, :area.=="CA1", :interneuron.==true) boxplot(:cuemem .+ 0.25.*(:correct .- 0.5), :events_per_time, group=:correct, alpha=0.5, title="ca1 int")
-
-ppyr_ce = @df @subset(iso_sum_celltype_per, :area.=="PFC", :interneuron.==false) boxplot(:cuemem .+ 0.25.*(:correct .- 0.5), :events_per_time, group=:correct, alpha=0.5, title="pfc pyr")
-#pint_ce = @df @subset(iso_sum_celltype_per, :area.=="PFC", :interneuron.==true) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:correct, alpha=0.5, title="pfc int")
-pint_ce = Plot.create_blank_plot()
-
-plot(cpyr_ce, cint_ce, ppyr_ce, pint_ce, layout=grid(2,2))
+# PYRAMIDAL 🔺🔺 and INTERNEURON  🔵
+# ➡ summary of period-wise EVENTS-PER-TIME 📈
+begin
+    cpyr_ce = @df @subset(iso_sum_celltype_per, :area.=="CA1", :interneuron.==false) begin
+        boxplot(:cuemem .+ 0.25.*(:correct .- 0.5), :events_per_time,
+                group=:correct, alpha=0.5, title="ca1 pyr", 
+                xlabel="task (nontask cue mem)", ylabel="events per time", legendtitle="correct error"
+               )
+    end
+    cint_ce = @df @subset(iso_sum_celltype_per, :area.=="CA1", :interneuron.==true) begin
+        boxplot(:cuemem .+ 0.25.*(:correct .- 0.5), :events_per_time, group=:correct, alpha=0.5, title="ca1 int",
+                xlabel="task (nontask cue mem)", ylabel="events per time", legendtitle="correct error")
+    end
+    ppyr_ce = @df @subset(iso_sum_celltype_per, :area.=="PFC", :interneuron.==false) begin
+        boxplot(:cuemem .+ 0.25.*(:correct .- 0.5), :events_per_time, group=:correct, alpha=0.5, title="pfc pyr",
+                xlabel="task (nontask cue mem)", ylabel="events per time", legendtitle="correct error")
+    end
+    #pint_ce = @df @subset(iso_sum_celltype_per, :area.=="PFC", :interneuron.==true) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:correct, alpha=0.5, title="pfc int")
+    pint_ce = Plot.create_blank_plot()
+    plot(cpyr_ce, cint_ce, ppyr_ce, pint_ce, margin=30Plots.px, layout=grid(2,2), size=(1200,800))
+end
 
 # -------- percent isolated spikes ---------------------
-@df @subset(iso_sum_celltype_per, :interneuron .== false) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:correct, alpha=0.5, xtick=([-1,0,1],["nontask","cue","mem"]),title="Isolation", xlabel="task", ylabel="%percent isolated spikes", legend_title="correct/error", legend_position=:outerbottomright)
+@df @subset(iso_sum_celltype_per, :interneuron .== false) begin
+    scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05),
+            :isolated_mean, group=:correct, alpha=0.5,
+            xtick=([-1,0,1],["nontask","cue","mem"]),title="Isolation",
+            xlabel="task", ylabel="%percent isolated spikes",
+            legend_title="correct/error", legend_position=:outerbottomright)
+end
 
 Plot.save((;desc="isolation", group=:correct, group_sep=true, ))
 
