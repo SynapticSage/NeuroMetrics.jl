@@ -33,21 +33,29 @@ module Filt
     function TASK(x)
         (x.==0) .|| (x.==1)
     end
+    function HOME(X)
+        X .== "H"
+    end
+    function ARENA(X)
+        X .== "A"
+    end
     correct   = OrderedDict("correct" => CORRECT)
     incorrect = OrderedDict("correct" => INCORRECT)
     nontask   = OrderedDict("correct" => NONTASK)
     task      = OrderedDict("correct" => TASK)
+    home      = OrderedDict("correct" => HOME)
+    arena     = OrderedDict("correct" => ARENA)
     # Alias
     error     = incorrect
 
-    function MEM(x)
+    function MEMORY(x)
         x.==1
     end
     function CUE(x)
         x.==0
     end
     cue       = OrderedDict("cuemem" => CUE)
-    mem       = OrderedDict("cuemem" => MEM)
+    memory       = OrderedDict("cuemem" => MEMORY)
 
     notnan(x)       = OrderedDict(x  => x->((!).(isnan).(x)))
     minmax(x, m, M) = OrderedDict(x  => x-> x .>= m .&& x .<= M)
@@ -227,28 +235,77 @@ module Filt
     cellfilter!(df::DataFrame, pairs::Pair...) = filtergroup!(df, :unit, pairs...)
     cellfilter(df::DataFrame, pairs::Pair...) = filtergroup(df, :unit, pairs...)
 
+
+    # Basic conditions
+    conditions = (:all, :task, :correct, :error, :nontask, :memory, :cue,
+                  :firsthalf, :lasthalf, :evens, :odds, :arena, :home)
+    # Combination conditions
+    cuecorr_conditions = (:cue_correct, :cue_error, :mem_correct, :mem_error)
+    all_conditions = (conditions..., cuecorr_conditions...)
+
     # Create a set of predefined filter combinations
-    function get_filters()
-        initial = merge(speed_lib, spikecount)
+    """
+        get_filters(initial::Union{Vector, Tuple})::OrderedDict
+
+    get a dict with possible filtration options for the data based
+    on behavior. each points to a function that will fitler your
+    data frame for the condition indicated by the key name.
+
+    If a column that one of these filters looks for is not in the dataframe,
+    the function filtreg.filter() can either ignore or require it, e.g.
+    spikecount. Behavior dataframes do not have a spikecount, unless, they've
+    been munged to count some type of spiking event in the camera frame. The
+    filter function that uses these will default to skipping it.
+    
+    # Params
+    initial
+        these are initial conditions that setup the :all times filter.
+        each condition (e.g. :task, :correct etc) are also filtered
+        by these initial conditions.
+        default = (
+        speed_lib => liberal speed filter (>2cm/s),
+        spikecount => spike count > 50
+                  )
+    """
+    function get_filters(initial=(speed_lib, spikecount))
+        initial = merge(initial...)
         filters = OrderedDict{Symbol,Union{OrderedDict,Nothing}}()
+
         filters[:all]         = initial
-        filters[:task]        = merge(filters[:all], Filt.task)
-        filters[:correct]     = merge(filters[:all], Filt.correct)
-        filters[:error]       = merge(filters[:all], Filt.error)
-        filters[:nontask]     = merge(filters[:all], Filt.nontask)
-        filters[:memory]      = merge(filters[:all], Filt.mem)
-        filters[:cue]         = merge(filters[:all], Filt.cue)
-        filters[:cue_correct] = merge(filters[:all], Filt.cue)
-        filters[:cue_error]   = merge(filters[:all], Filt.cue, Filt.error)
-        filters[:mem_correct] = merge(filters[:all], Filt.mem, Filt.correct)
-        filters[:mem_error]   = merge(filters[:all], Filt.mem, Filt.error)
-        filters[:firsthalf]   = merge(filters[:all], Filt.firsthalf)
-        filters[:lasthalf]    = merge(filters[:all], Filt.lasthalf)
-        filters[:evens]       = merge(filters[:all], Filt.evens)
         filters[:odds]        = merge(filters[:all], Filt.odds)
+        for key in setdiff(conditions, [:all])
+            filters[key] = merge(filters[:all], getproperty(Filt, key))
+        end
+        for key in cuecorr_conditions
+            key1, key2 = Symbol.(split(string(key), "_"))
+            filters[key] = merge(filters[:all], 
+                                 getproperty(Filt, key1),
+                                 getproperty(Filt, key2)
+                                )
+        end
+
+        # HOME
+        for key in union(conditions, cuecorr_conditions)
+            newkey = Symbol("home_" * String(key))
+            filters[newkey] = merge(filters[key], filters[:arena])
+        end
+        # ARENA
+        for key in union(conditions, cuecorr_conditions)
+            newkey = Symbol("arena_" * String(key))
+            filters[newkey] = merge(filters[key], filters[:home])
+        end
+
         filters[:none]        = nothing
+
         filters
     end
+
+    home_conditions = [key for key in keys(get_filters())
+                       if occursin("home_",string(key))]
+    arena_conditions = [key for key in keys(get_filters())
+                       if occursin("home_",string(key))]
+
+
 
                                                               
     #            ,---.                         |    o          
@@ -257,27 +314,15 @@ module Filt
     #            `    `    `---'`---'`---^`---'`   '``   '`---|
     #                                                     `---'
 
-    function get_filters_precache()
-        initial = merge(speed_lib, spikecountcached, trajdiversitycached)
-        filters = OrderedDict{Symbol,Union{OrderedDict,Nothing}}()
-        filters[:all]         = initial
-        filters[:task]        = merge(filters[:all], Filt.task)
-        filters[:correct]     = merge(filters[:all], Filt.correct)
-        filters[:error]       = merge(filters[:all], Filt.error)
-        filters[:nontask]     = merge(filters[:all], Filt.nontask)
-        filters[:memory]      = merge(filters[:all], Filt.mem)
-        filters[:cue]         = merge(filters[:all], Filt.cue)
-        filters[:cue_correct] = merge(filters[:all], Filt.cue)
-        filters[:cue_error]   = merge(filters[:all], Filt.cue, Filt.error)
-        filters[:mem_correct] = merge(filters[:all], Filt.mem, Filt.correct)
-        filters[:mem_error]   = merge(filters[:all], Filt.mem, Filt.error)
-        filters[:firsthalf]   = merge(filters[:all], Filt.firsthalf)
-        filters[:lasthalf]    = merge(filters[:all], Filt.lasthalf)
-        filters[:evens]       = merge(filters[:all], Filt.evens)
-        filters[:odds]        = merge(filters[:all], Filt.odds)
-        filters[:none]        = nothing
-        filters
-    end
+    """
+        get_filters_precache
+
+    precached filters
+
+    See `get_filters`
+    """
+    get_filters_precache() = get_filters(initial=(speed_lib, spikecount,
+                                                  trajdiversitycached))
 
     function get_filters_desc()::OrderedDict
         filt_desc = OrderedDict(:all => "2cm/s")
