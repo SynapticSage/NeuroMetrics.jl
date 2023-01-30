@@ -95,7 +95,8 @@ module nonlocal
     # Returns
     A summary table
     """
-    function get_isolation_summary(spikes,split=[:cuemem]; unfiltered_behavior=unfiltered_behavior)
+    function get_isolation_summary(spikes,split=[:cuemem]; 
+            unfiltered_behavior=unfiltered_behavior, minvel=2)
         if unfiltered_behavior === nothing 
             @error("\nMust either pass in unfiltered behavior or\n"*
                  "set it in this module using `setunfilteredbeh`")
@@ -105,7 +106,7 @@ module nonlocal
         if :period ∈ split
             # Calculate time animal spends in each cuemem segment
             task_pers = Table.get_periods(nonlocal.unfiltered_behavior, [:period, :cuemem], 
-                                          timefract=:velVec => x->abs(x) > 2)
+                                          timefract=:velVec => x->abs(x) > minvel)
             # Total that time and register that column to the isolation summary
             task_pers = combine(groupby(task_pers, [:period, :cuemem]),
                                 [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
@@ -113,7 +114,7 @@ module nonlocal
         elseif :traj ∈ split
             # Calculate time animal spends in each cuemem segment
             task_pers = Table.get_periods(nonlocal.unfiltered_behavior, [:traj, :cuemem], 
-                                          timefract=:velVec => x->abs(x) > 2)
+                                          timefract=:velVec => x->abs(x) > minvel)
             # Total that time and register that column to the isolation summary
             task_pers = combine(groupby(task_pers, [:period, :cuemem]),
                                 [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
@@ -122,7 +123,7 @@ module nonlocal
             @info "traj and period not in split"
                                 # Calculate time animal spends in each cuemem segment
             task_pers = Table.get_periods(nonlocal.unfiltered_behavior, [:period, :cuemem], 
-                              timefract=:velVec => x->abs(x) > 2)
+                              timefract=:velVec => x->abs(x) > minvel)
             dropmissing!(task_pers, :cuemem)
             # Total that time and register that column to the isolation summary
             task_pers = combine(groupby(task_pers, [:cuemem]), 

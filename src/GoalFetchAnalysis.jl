@@ -61,5 +61,13 @@ module GoalFetchAnalysis
     end
 
     import Labels as labels
+
+    # EVERY time I import this, I check my tests to ensure
+    # I've broken nothing during development
+    # Run quick tests at startup to ensure library integrity
+    if isdir(projectdir("test")) && isfile(projectdir("test","runtests.jl")) && 
+        "USE_PLUTO" ∉ keys(ENV)
+        include(projectdir("test","runtests.jl"))
+    end
     
 end

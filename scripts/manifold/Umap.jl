@@ -1,51 +1,92 @@
-quickactivate(expanduser("~/Projects/goal-code"))
+#!/bin/sh
+#=
+export LD_LIBRARY_PATH=/home/ryoung/miniconda3/envs/conda_jl/lib/
+exec julia -J "/home/ryoung/Code/projects/goal-code/GFA-dependencies-sysimage.so" --project="/home/ryoung/Projects/goal-code/" "$0" -- $@
+=#
 
-using Infiltrator
-using DataStructures: OrderedDict
+using GoalFetchAnalysis
 using DrWatson
-using Serialization
-using Plots
-using ProgressMeter
-using PyCall
-using Distributed
-using ProgressMeter
-using ThreadSafeDicts
-using DataFramesMeta
-using Distances
-using StatsBase
-using SoftGlobalScope, Infiltrator
-using DimensionalData
-use_cuda = true
-if use_cuda
-    using PyCall
-    cuml = pyimport("cuml")
-    @pyimport gc
-    cuUMAP = cuml.manifold.umap.UMAP
-end
-using Munge.manifold
+using Revise
+#quickactivate(expanduser("~/Projects/goal-code"))
 
-# Disstributed computing
-#addprocs([("mingxin",1)])
-#addprocs(2)
-#pids = workers()
-@everywhere using DrWatson
-@everywhere quickactivate(expanduser("~/Projects/goal-code"))
-@everywhere using PyCall
-@everywhere using  UMAP
-@everywhere using DataFramesMeta
-@everywhere using GoalFetchAnalysis
-@everywhere import Munge
-import Utils.namedtup: ntopt_string
+# ----------------
+# Script options
+# ----------------
+using ArgParse
+function parse_commandline(args=nothing)
+    s = ArgParseSettings()
+    @add_arg_table s begin
+        "--animal", "-a"
+            help = "the animal to run default: the super animal"
+            arg_type = String
+            default = "super"
+        "--day", "-d"
+            help = "the day to run"
+            arg_type = Int
+            default = 0
+        "--dataset", "-D"
+             help = "dataset preset"
+             arg_type = Int
+             default = 0
+        "--splits", "-s"
+            help = "splits of the dataset"
+            default = 10
+            arg_type = Int
+        "--sps", "-S"
+            help = "samples per split"
+            default = 10
+            arg_type = Int
+    end
+    if args !== nothing
+        return parse_args(args, s)
+    else
+        return parse_args(s)
+    end
+end
+opt = parse_commandline()
+@info "Command line parsed" opt
+
+# FINISH loading libraries
+begin
+    using Plots: StatsBase
+    using Infiltrator, Serialization, Plots, ProgressMeter, PyCall, Distributed,
+          ProgressMeter, ThreadSafeDicts, DataFramesMeta, Distances, StatsBase,
+          SoftGlobalScope, Infiltrator, DimensionalData, Munge.manifold
+    using DataStructures: OrderedDict
+    import Utils.namedtup: ntopt_string
+    use_cuda = true
+    if use_cuda
+        using PyCall
+        cuml = pyimport("cuml")
+        gc = pyimport("gc")
+        cuUMAP = cuml.manifold.umap.UMAP
+    else
+        #import Distributed: @everywhere
+        #@everywhere quickactivate(expanduser("~/Projects/goal-code"))
+        #@everywhere using DrWatson, PyCall, UMAP, DataFramesMeta 
+                    #GoalFetchAnalysis
+        #@everywhere import Munge
+    end
+end
+
+global  animal, day, splits, sampspersplit = values(opt)
+global filt             = :task
+global areas            = (:ca1,:pfc)
+#distance        = :Mahalanobis
+global distance         = :many
+global feature_engineer = :many
+#datasets = (("RY22", 21, 10, 10), ("RY16", 36, 10, 10))
+#(animal, day, splits, sampspersplit) = datasets[1]
 
 # Load data
 # ----------------
-try
-animals = (("RY22", 21), ("RY16", 36))
-#for (animal, day) in datasets 
-(animal,day) = animals[2]
 
+try
+
+    println("Loading")
     @time global spikes, beh, ripples, cells = Load.load(animal, day)
 
+    println("Firing rate matrices")
     R = Dict(Symbol(lowercase(ar))=>Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
                     for ar in ("CA1","PFC"))
     zscoredimarray(x) = DimArray(hcat(zscore.(eachcol(x))...), x.dims)
@@ -54,13 +95,9 @@ animals = (("RY22", 21), ("RY16", 36))
 
     # Basic params
     # ----------------
-    global filt             = nothing
-    global areas            = (:ca1,:pfc)
-    #distance        = :Mahalanobis
-    global distance         = :many
-    global feature_engineer = :many
 
     # Filter
+    println("Filtration?")
     if filt !== nothing
         global filtstr = "filt=$filt"
         filters = Filt.get_filters()[filt]
@@ -75,7 +112,7 @@ animals = (("RY22", 21), ("RY16", 36))
 
     # Get sample runs
     # ----------------
-    global splits, sampspersplit = 10, 10
+    println("Generate partitions")
     nsamp = Int(round(size(beh,1)/splits));
     δi    = Int(round(nsamp/sampspersplit))
     global inds_of_t = []
@@ -85,9 +122,13 @@ animals = (("RY22", 21), ("RY16", 36))
         stop  = min(stop, size(beh,1))
         push!(inds_of_t, start:stop)
     end
+
+    println("Describ partitions")
     @info "coverage" nsamp/size(beh,1)*100
     global N = splits * sampspersplit
+
     global tag = "$(animal)$(day).$(N)seg"
+    println(tag)
 
     # Get embeddings
     # ----------------
@@ -98,7 +139,6 @@ animals = (("RY22", 21), ("RY16", 36))
     #n_neighborss = (5,50,150,400)
     min_dists, n_neighborss, metrics, dimset, features = [0.3], [5,150], [:CityBlock], 
                                                          [2,3], [:zscore]
-    #embedding,scores = Dict(), Dict()
     global embedding, scores = if isfile(path_manis(;filt,feature_engineer,tag))
         @info "loading prev data"
         data=load_manis(Main;filt,feature_engineer,tag);
@@ -113,11 +153,18 @@ animals = (("RY22", 21), ("RY16", 36))
     datasets = collect(Iterators.product(areas, dimset, 1:length(inds_of_t)))
     prog = Progress(prod(length.((params,datasets))); desc="creating embeddings")
 
-    #(min_dist, n_neighbors) = first(d
-
     trained_umap = em = sc = nothing
+
+    global steps, total = 0, len(params) * len(datasets) 
     for (metric,min_dist, n_neighbors, feature) in params
         for (area,dim,s) in datasets
+
+            gc.collect()
+            GC.gc(false)
+            gc.collect()
+            GC.gc(false)
+
+            global steps += 1
 
             # Pre - process : Make key, do we process?
             key = (;area,dim,s,min_dist,n_neighbors,metric,feature)
@@ -159,7 +206,7 @@ animals = (("RY22", 21), ("RY16", 36))
                 @debug "trust"
                 sc = cuml.metrics.trustworthiness(input', em, 
                                                   n_neighbors=n_neighbors)
-                #@infiltrate
+                @infiltrate
                 em, sc
             else # julia is suprisingly slow here
                 em = umap(input, dim; min_dist, n_neighbors, metric_str)
@@ -172,31 +219,22 @@ animals = (("RY22", 21), ("RY16", 36))
 
             embedding[key] = em'
             scores[key] = sc
-            trained_umap = em = sc = nothing
-            gc.collect()
+            #pydecref(em)
+            #pydecref(sc)
+            pydecref(trained_umap)
+            pydecref(fitter)
+            fitter = trained_umap = em = sc = nothing
             next!(prog)
         end
     end
 
 finally
+    @info "Quit, probably GPU issue" animal day steps total steps/total
     # Store them for later
     using Munge.manifold
     savefile = path_manis(;filt,feature_engineer,tag)
     @info "save info" filt festr diststr savefile
     save_manis(;embedding, scores, inds_of_t, filt, feature_engineer, use_cuda, tag, splits, sampspersplit, N)
-
     #exit()
 #end
 end
-
-#data=load_manis(Main;filt,feature_engineer,tag);
-
-
-#PL=@df sc scatter(:n_neighbors, :min_dist, :value;
-#                  label="",xlabel="neighbors",ylabel="mindist",xscale=:log10)
-#PL_nn=@df sc scatter(:n_neighbors, :value;
-#                  label="",xlabel="neighbors",ylabel="mindist",xscale=:log10)
-#PL_md=@df sc scatter(:min_dist, :value;
-#                  label="",xlabel="neighbors",ylabel="mindist",xscale=:log10)
-#scsum = sort(combine(groupby(sc, [:n_neighbors, :min_dist]),
-#                     :value=>median),:value_median)

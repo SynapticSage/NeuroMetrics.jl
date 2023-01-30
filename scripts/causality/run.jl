@@ -11,8 +11,7 @@ end
 ## ----------
 ## CONSTANTS
 ## ----------
-corerr,tsk,cortsk = Munge.behavior.cor, Munge.behavior.tsk, 
-              Munge.behavior.cortsk
+corerr,tsk,cortsk = Label.correct, Label.cuemem, Label.cortsk
 
 
 ## ----------

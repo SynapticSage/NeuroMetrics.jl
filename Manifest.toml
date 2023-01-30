@@ -67,6 +67,12 @@ git-tree-sha1 = "a3a402a35a2f7e0b87828ccabbd5ebfbebe356b4"
 uuid = "dce04be8-c92d-5529-be00-80e4d2c0e197"
 version = "2.3.0"
 
+[[deps.ArgParse]]
+deps = ["Logging", "TextWrap"]
+git-tree-sha1 = "3102bce13da501c9104df33549f511cd25264d7d"
+uuid = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
+version = "1.1.4"
+
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
 
@@ -822,6 +828,12 @@ version = "0.7.11"
 git-tree-sha1 = "5e1e4c53fa39afe63a7d356e30452249365fba99"
 uuid = "411431e0-e8b7-467b-b5e0-f676ba4f2910"
 version = "0.1.1"
+
+[[deps.Eyeball]]
+deps = ["AbstractTrees", "FoldingTrees", "InteractiveUtils", "REPL", "Statistics", "TerminalPager"]
+git-tree-sha1 = "58c25764e279b5e823596b63e26949676cfc2d9a"
+uuid = "ce36242b-ad83-4f84-8519-47cd8aeefd60"
+version = "0.4.7"
 
 [[deps.FFMPEG]]
 deps = ["FFMPEG_jll"]
@@ -3325,6 +3337,12 @@ deps = ["CodeTracking", "Dates", "Highlights", "InteractiveUtils", "Logging", "M
 git-tree-sha1 = "af539c0921d43b8cf24422324a4443ff9cbc1601"
 uuid = "22787eb5-b846-44ae-b979-8e399b8463ab"
 version = "1.2.0"
+
+[[deps.TerminalPager]]
+deps = ["Crayons", "REPL", "StringManipulation"]
+git-tree-sha1 = "da395bf4547bbcae8f3157445e8007874ee76df2"
+uuid = "0c614874-6106-40ed-a7c2-2f1cd0bff883"
+version = "0.4.0"
 
 [[deps.Test]]
 deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]

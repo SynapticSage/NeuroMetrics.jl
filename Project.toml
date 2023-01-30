@@ -4,6 +4,7 @@ authors = ["Ryan Young <ryoung-at-brandeis-dot-edu>"]
 
 [deps]
 AlgebraOfGraphics = "cbdf2221-f076-402e-a563-3d30da359d67"
+ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 Arrow = "69666777-d1a9-59fb-9406-91d4454c9d45"
 AutoSysimages = "4eb35182-e5c8-446d-8ecc-33e714a26cef"
 AxisArrays = "39de3d68-74b9-583c-8d2d-e117c070f3a9"
@@ -47,6 +48,7 @@ DrWatson = "634d3b9d-ee7a-5ddf-bec9-22491ea816e1"
 DynamicAxisWarping = "aaaaaaaa-4a10-5553-b683-e707b00e83ce"
 ElectronDisplay = "d872a56f-244b-5cc9-b574-2017b5b909a8"
 Entropies = "ed8fcbec-b94c-44b6-89df-898894ad9591"
+Eyeball = "ce36242b-ad83-4f84-8519-47cd8aeefd60"
 FixedPointNumbers = "53c48c17-4a7d-5ca2-90c5-79b7896eea93"
 Flux = "587475ba-b771-5e3f-ad9e-33799f191a9c"
 Fontconfig = "186bb1d3-e1f7-5a2c-a377-96d770f13627"
