@@ -19,11 +19,11 @@ function parse_commandline(args=nothing)
         "--animal", "-a"
             help = "the animal to run default: the super animal"
             arg_type = String
-            default = "super"
+            default = "RY16"
         "--day", "-d"
             help = "the day to run"
             arg_type = Int
-            default = 0
+            default = 36
         "--dataset", "-D"
              help = "dataset preset"
              arg_type = Int
@@ -51,7 +51,7 @@ begin
     using Plots: StatsBase
     using Infiltrator, Serialization, Plots, ProgressMeter, PyCall, Distributed,
           ProgressMeter, ThreadSafeDicts, DataFramesMeta, Distances, StatsBase,
-          SoftGlobalScope, Infiltrator, DimensionalData, Munge.manifold
+          SoftGlobalScope, Infiltrator, DimensionalData, Munge.manifold, DataFramesMeta
     using DataStructures: OrderedDict
     import Utils.namedtup: ntopt_string
     use_cuda = true
@@ -69,7 +69,9 @@ begin
     end
 end
 
-global  animal, day, splits, sampspersplit = values(opt)
+global  animal, day, dataset, splits, sampspersplit = opt["animal"], opt["day"],
+                                                      opt["dataset"], opt["splits"],
+                                                      opt["sps"]
 global filt             = :task
 global areas            = (:ca1,:pfc)
 #distance        = :Mahalanobis
@@ -127,7 +129,8 @@ try
     @info "coverage" nsamp/size(beh,1)*100
     global N = splits * sampspersplit
 
-    global tag = "$(animal)$(day).$(N)seg"
+    global tag 
+    tag = "$(animal)$(day).$(N)seg"
     println(tag)
 
     # Get embeddings
@@ -155,7 +158,7 @@ try
 
     trained_umap = em = sc = nothing
 
-    global steps, total = 0, len(params) * len(datasets) 
+    global steps, total = 0, (length(params) * length(datasets))
     for (metric,min_dist, n_neighbors, feature) in params
         for (area,dim,s) in datasets
 
@@ -206,7 +209,6 @@ try
                 @debug "trust"
                 sc = cuml.metrics.trustworthiness(input', em, 
                                                   n_neighbors=n_neighbors)
-                @infiltrate
                 em, sc
             else # julia is suprisingly slow here
                 em = umap(input, dim; min_dist, n_neighbors, metric_str)
@@ -228,7 +230,12 @@ try
         end
     end
 
+catch exception
+    print(exception)
 finally
+
+    println("Finally section")
+    println("Finally section")
     @info "Quit, probably GPU issue" animal day steps total steps/total
     # Store them for later
     using Munge.manifold
