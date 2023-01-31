@@ -83,82 +83,82 @@ global feature_engineer = :many
 # Load data
 # ----------------
 
+
+println("Loading")
+@time global spikes, beh, ripples, cells = Load.load(animal, day)
+
+println("Firing rate matrices")
+R = Dict(Symbol(lowercase(ar))=>Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
+                for ar in ("CA1","PFC"))
+zscoredimarray(x) = DimArray(hcat(zscore.(eachcol(x))...), x.dims)
+R = merge(R,Dict(Symbol("z"*string(k))=>zscoredimarray(v) for (k,v) in R))
+
+
+# Basic params
+# ----------------
+
+# Filter
+println("Filtration?")
+if filt !== nothing
+    global filtstr = "filt=$filt"
+    filters = Filt.get_filters()[filt]
+    global beh,spikes = Utils.filtreg.filterAndRegister(beh, spikes; filters, 
+    filter_skipmissingcols=true)
+else
+    global filtstr = "filt=nothing"
+end
+global festr   = feature_engineer === nothing ? "feature=nothing" : "feature=$feature_engineer"
+global diststr = distance === nothing ? "distance=euclidean" : lowercase("distance=$distance")
+@info "run info" filtstr festr diststr 
+
+# Get sample runs
+# ----------------
+println("Generate partitions")
+nsamp = Int(round(size(beh,1)/splits));
+δi    = Int(round(nsamp/sampspersplit))
+global inds_of_t = []
+for (split, samp) in Iterators.product(1:splits, 1:sampspersplit)
+    start = (split-1) * nsamp + (samp-1) * δi + 1
+    stop  = (split)   * nsamp + (samp-1) * δi + 1
+    stop  = min(stop, size(beh,1))
+    push!(inds_of_t, start:stop)
+end
+
+println("Describ partitions")
+@info "coverage" nsamp/size(beh,1)*100
+global N = splits * sampspersplit
+
+global tag 
+tag = "$(animal)$(day).$(N)seg"
+println(tag)
+
+# Get embeddings
+# ----------------
+
+#metrics      = unique((:CityBlock, :Euclidean,:Correlation,:Cosine))
+#dimset       = (2,   3)
+#min_dists    = (0.05,0.15,0.3)
+#n_neighborss = (5,50,150,400)
+min_dists, n_neighborss, metrics, dimset, features = [0.3], [5,150], [:CityBlock], 
+                                                     [2,3], [:zscore]
+global embedding, scores = if isfile(path_manis(;filt,feature_engineer,tag))
+    @info "loading prev data"
+    data=load_manis(Main;filt,feature_engineer,tag);
+    embedding, scores = data.embedding, data.scores
+else
+    embedding, scores = Dict(), Dict()
+end
+@info "length of dicts" length(embedding) length(scores)
+using Infiltrator
+
+params   = collect(Iterators.product(metrics,min_dists, n_neighborss,features))
+datasets = collect(Iterators.product(areas, dimset, 1:length(inds_of_t)))
+prog = Progress(prod(length.((params,datasets))); desc="creating embeddings")
+
+trained_umap = em = sc = nothing
+global steps, total = 0, (length(params) * length(datasets))
+
 try
-
-    println("Loading")
-    @time global spikes, beh, ripples, cells = Load.load(animal, day)
-
-    println("Firing rate matrices")
-    R = Dict(Symbol(lowercase(ar))=>Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
-                    for ar in ("CA1","PFC"))
-    zscoredimarray(x) = DimArray(hcat(zscore.(eachcol(x))...), x.dims)
-    R = merge(R,Dict(Symbol("z"*string(k))=>zscoredimarray(v) for (k,v) in R))
-
-
-    # Basic params
-    # ----------------
-
-    # Filter
-    println("Filtration?")
-    if filt !== nothing
-        global filtstr = "filt=$filt"
-        filters = Filt.get_filters()[filt]
-        global beh,spikes = Utils.filtreg.filterAndRegister(beh, spikes; filters, 
-        filter_skipmissingcols=true)
-    else
-        global filtstr = "filt=nothing"
-    end
-    global festr   = feature_engineer === nothing ? "feature=nothing" : "feature=$feature_engineer"
-    global diststr = distance === nothing ? "distance=euclidean" : lowercase("distance=$distance")
-    @info "run info" filtstr festr diststr 
-
-    # Get sample runs
-    # ----------------
-    println("Generate partitions")
-    nsamp = Int(round(size(beh,1)/splits));
-    δi    = Int(round(nsamp/sampspersplit))
-    global inds_of_t = []
-    for (split, samp) in Iterators.product(1:splits, 1:sampspersplit)
-        start = (split-1) * nsamp + (samp-1) * δi + 1
-        stop  = (split)   * nsamp + (samp-1) * δi + 1
-        stop  = min(stop, size(beh,1))
-        push!(inds_of_t, start:stop)
-    end
-
-    println("Describ partitions")
-    @info "coverage" nsamp/size(beh,1)*100
-    global N = splits * sampspersplit
-
-    global tag 
-    tag = "$(animal)$(day).$(N)seg"
-    println(tag)
-
-    # Get embeddings
-    # ----------------
-
-    #metrics      = unique((:CityBlock, :Euclidean,:Correlation,:Cosine))
-    #dimset       = (2,   3)
-    #min_dists    = (0.05,0.15,0.3)
-    #n_neighborss = (5,50,150,400)
-    min_dists, n_neighborss, metrics, dimset, features = [0.3], [5,150], [:CityBlock], 
-                                                         [2,3], [:zscore]
-    global embedding, scores = if isfile(path_manis(;filt,feature_engineer,tag))
-        @info "loading prev data"
-        data=load_manis(Main;filt,feature_engineer,tag);
-        embedding, scores = data.embedding, data.scores
-    else
-        embedding, scores = Dict(), Dict()
-    end
-    @info "length of dicts" length(embedding) length(scores)
-    using Infiltrator
-
-    params   = collect(Iterators.product(metrics,min_dists, n_neighborss,features))
-    datasets = collect(Iterators.product(areas, dimset, 1:length(inds_of_t)))
-    prog = Progress(prod(length.((params,datasets))); desc="creating embeddings")
-
-    trained_umap = em = sc = nothing
-
-    global steps, total = 0, (length(params) * length(datasets))
     for (metric,min_dist, n_neighbors, feature) in params
         for (area,dim,s) in datasets
 

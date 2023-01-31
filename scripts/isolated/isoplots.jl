@@ -1,4 +1,5 @@
-quickactivate(expanduser("~/Projects/goal-code/")); using GoalFetchAnalysis
+quickactivate(expanduser("~/Projects/goal-code/")); 
+using GoalFetchAnalysis
 using Timeshift, Plot, Timeshift.types, Timeshift.shiftmetrics, 
       Field.metrics, Plot.receptivefield, Utils.namedtup, 
       Munge.nonlocal, Munge.spiking, Filt
@@ -14,8 +15,6 @@ using ProgressMeter, DimensionalData, Infiltrator,
       Plots, DataFrames, DataFramesMeta, LazySets, ElectronDisplay 
 using JLD2
 using REPLVim; @async REPLVim.serve()
-
-
 
 filename = datadir("isolated", "iso_animal=$(animal)_day=$(day)_tet=ca1ref.jld2")
 jldopen(filename, "r") do storage
