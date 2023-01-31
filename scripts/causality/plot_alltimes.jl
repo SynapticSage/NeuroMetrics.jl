@@ -1,23 +1,17 @@
+
+
+
 #  ==================================
 # PLOT ALL TIMES 
 #  ==================================
 using DrWatson
-using Infiltrator
-using ThreadSafeDicts
-using JLD2, Serialization, CausalityTools, Entropies
-using DataFrames, DataFramesMeta
-using Statistics, NaNStatistics, HypothesisTests
+using Infiltrator, ThreadSafeDicts, JLD2, Serialization, CausalityTools,
+      Entropies, DataFrames, DataFramesMeta, Statistics, NaNStatistics,
+      HypothesisTests, Plots, StatsPlots, ColorSchemes
+using GoalFetchAnalysis, Plot, Munge, Munge.manifold, Munge.causal,
+       Munge.triggering, Utils.binning, Munge.causal, Plot.cause
 using DataStructures: OrderedDict
-using Plots, StatsPlots, ColorSchemes
-
-using GoalFetchAnalysis
 using Utils.namedtup: ntopt_string
-import Plot
-using Munge.manifold, Munge.causal, Munge.triggering
-using Utils.binning
-using Munge.causal
-import Munge
-using Plot.cause
 using Plot.cause: plotmeancause, plotmediancause, plotmedianplushist, 
                    plotcausediff, getdiff, getmean, getmedian, 
                    getcausedistovertime
@@ -46,12 +40,21 @@ arena_ca1pfc_color(i,n) = get(ColorSchemes.Blues, 0.10 + 0.85*(i/n))
 arena_pfcca1_color(i,n) = get(ColorSchemes.Reds,  0.10 + 0.85*(i/n))
 home_ca1pfc_color(i,n) = get(ColorSchemes.Greens, 0.10 + 0.85*(i/n))
 home_pfcca1_color(i,n) = get(ColorSchemes.Oranges,  0.10 + 0.85*(i/n))
+function link!(P::Plots.Plot)
+    if opt[:link] == :y
+        yl = Utils.plotutils.get_ylims(P)
+        yl = (minimum(yl[:,1]), maximum(yl[:,2]))
+        ylims!(P, yl )
+    end
+end
 
 ## ----------
 ## PARAMETERS
 ## ----------
-animal,day, filt, N="RY16",36,nothing,100
-animal,day, filt, N="RY22",21,nothing,100
+if !isdefined(Main,:animal)
+    animal,day, filt, N="RY22",21,nothing,100
+    animal,day, filt, N="RY16",36,nothing,100
+end
 spikes, beh, ripples, cells  = Load.load(animal, day)
 areas = (:ca1,:pfc)
 distance = :many
@@ -59,8 +62,7 @@ feature_engineer = :many # many | nothing
 esttype = :binned
 est, params = get_est_preset(esttype, horizon=1:60, thread=true, binning=7, window=1.25)
 manifold.load_manis_workspace(Main, animal, day; filt, 
-                              areas, distance, feature_engineer, 
-                              N)
+                              areas, distance, feature_engineer, N)
 storage = load_alltimes_savefile(animal, day, N; params)
 diffed, predasym = false, storage["predasym"]
 if opt[:diff] && !diffed
@@ -115,7 +117,6 @@ datasets = (("RY16", 36, 100), ("RY22", 21, 100))
 spikes, beh, ripples, cells  = Load.load(animal, day)
 storage = load_alltimes_savefile(animal, day, N; params)
 tagstr = "$animal.$day.$N"
-
 
 # ---------------
 # Embedding trust
@@ -381,10 +382,12 @@ if opt[:plot][:cond_causal]
 end
 
 #                                       
+# --------------------------------------
 # |   |,---.    |                  o    
 # |---||---|    |--- ,---.,---.    .    
 # |   ||   |    |    |    ,---|    |    
 # `   '`   '    `---'`    `---^    |    
+# --------------------------------------
 function get_ha_vals(set, f=nothing)
     sort([k for k in 
      collect(keys(H_ca1pfc))
@@ -398,7 +401,7 @@ end
 #                              `---'    
 if opt[:plot][:ha]
 
-    kws = (;bins=(60,200), fillrange=0, fillalpha=0.025, linewidth=2)
+    kws = (;bins=(60,200), fillrange=0, fillalpha=0.025, linewidth=2, link=opt[:link])
 
     Plot.setfolder("causality","HATRAJ_CAUSAL")
     begin
@@ -435,6 +438,7 @@ if opt[:plot][:ha]
             nothing
         end
         arena = plot(p1,p2, background_color=:seashell2)
+        link!(arena)
         Plot.save("arena flow")
 
         begin
@@ -474,7 +478,8 @@ if opt[:plot][:ha]
 
         (;arena, home)
     end
-    plot(home,arena, layout=Plots.grid(2,1), background_color=:seashell2) 
+    P=plot(home,arena, layout=Plots.grid(2,1), background_color=:seashell2) 
+    link!(P)
 
 
     Plot.setfolder("causality","HA_CAUSAL")
@@ -510,15 +515,20 @@ if opt[:plot][:ha]
         hline!([0];c=:black,linestyle=:dot,label="")
         nothing
     end
-    plot(p1, p2, background_color=:seashell2)
+    P=plot(p1, p2, background_color=:seashell2, link=opt[:link])
+    link!(P)
     Plot.save("home and arena flow summaries")
 
 
     # --------------------------
     # moving - home/arena - traj
     # --------------------------
-    function plot_movhatraj(correct::Int=1)
+    function plot_movhatraj(correct::Int=1; kws=kws)
         
+
+        if correct == 0
+            kws= (;kws..., fillalpha=0.25, fillstyle=:/)
+        end
 
         Plot.setfolder("causality","HATRAJ_moving_CAUSAL")
         background_color = if correct == 0
@@ -571,7 +581,7 @@ if opt[:plot][:ha]
             hline!([0];c=:black,linestyle=:dash,label="")
             nothing
         end
-        movingarena = plot(p1,p2; background_color)
+        movingarena = plot(p1,p2; background_color, link=opt[:link])
         Plot.save("moving arena flow")
 
         # MOVING HOME
@@ -608,7 +618,7 @@ if opt[:plot][:ha]
             hline!([0];c=:black,linestyle=:dash,label="")
             nothing
         end
-        movinghome = plot(p1,p2; background_color)
+        movinghome = plot(p1,p2; background_color, link=opt[:link])
         Plot.save("moving home flow")
 
         # ARENA STILL
@@ -645,7 +655,7 @@ if opt[:plot][:ha]
             hline!([0];c=:black,linestyle=:dash,label="")
             nothing
         end
-        stillarena = plot(p1,p2; background_color)
+        stillarena = plot(p1,p2; background_color, link=opt[:link])
         Plot.save("still arena flow")
 
         # HOME STILL
@@ -681,15 +691,18 @@ if opt[:plot][:ha]
             end
             hline!([0];c=:black,linestyle=:dash,label="")
         end
-        stillhome = plot(p1, p2; background_color)
+        stillhome = plot(p1, p2; background_color, link=opt[:link])
         Plot.save("still home flow")
 
-        alles = plot(movinghome, movingarena, stillhome, stillarena; size=(1200,800), layout=grid(2,2), background_color)
+        alles = plot(movinghome, movingarena, stillhome, stillarena; 
+                     size=(1200,800), layout=grid(2,2), background_color, link=opt[:link])
+        link!(alles)
         Plot.save("move+still home+arena flow summaries")
 
-        (;all=alles, movinghome, movingarena, stillhome, stillarena)
+        (;all=alles, movinghome, movingarena, stillhome, stillarena, link=opt[:link])
 
     end # plot_movhatraj (moving - home/arena - traj)
+
 
     C_movhatraj = plot_movhatraj(1)
     C_movhatraj.all
