@@ -1489,6 +1489,12 @@ git-tree-sha1 = "dc5a846040f1607740e29e582b6e66251b9ecf9d"
 uuid = "d3863d7c-f0c8-5437-a7b4-3ae773c01009"
 version = "0.10.9"
 
+[[deps.InteractiveCodeSearch]]
+deps = ["InteractiveUtils", "Pkg", "REPL"]
+git-tree-sha1 = "bfbec053916b24f243260979abb80e943a32753d"
+uuid = "54eb57ff-b09b-5185-b2f4-7a93509e494f"
+version = "0.3.2"
+
 [[deps.InteractiveErrors]]
 deps = ["AbstractTrees", "FoldingTrees", "InteractiveUtils", "IterTools", "REPL", "Requires"]
 git-tree-sha1 = "b3f0f21e450cd5194723b01e8f4dbc3f2d64439d"

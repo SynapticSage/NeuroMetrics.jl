@@ -278,6 +278,7 @@ module Filt
         end
         for key in cuecorr_conditions
             key1, key2 = Symbol.(split(string(key), "_"))
+            key1 = key1 == :mem ? :memory : key1
             filters[key] = merge(filters[:all], 
                                  getproperty(Filt, key1),
                                  getproperty(Filt, key2)

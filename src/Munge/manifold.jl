@@ -57,7 +57,7 @@ module manifold
 
     export save_manis
     function save_manis(;embedding, qlim=[0.02, 0.96], filt, 
-                         feature_engineer, distance=:many, tag="", data...)
+                         feature_engineer, distance=:many, tag, data...)
         # Filter
         inds = :inds in keys(data) ? data.inds : Dict()
         for key in keys(embedding)
@@ -73,19 +73,20 @@ module manifold
     end
 
     export load_manis
-    function load_manis(;feature_engineer, distance=:many, filt, tag="")
+    function load_manis(;feature_engineer, distance=:many, filt, tag)
+        @info "load_manis" feature_engineer distance filt tag
         savefile = path_manis(;feature_engineer, distance, filt, tag)
         if isfile(savefile)
             @info "load_manis located savefile" savefile
         else
-            @error "load_manis did not locate savefile" savefile
+            @error "load_manis did not locate savefile" savefile tag
         end
         data     = deserialize(savefile)
         data
     end
-    function load_manis(mod; feature_engineer, distance=:many, filt, tag="")
-        data = load_manis(;feature_engineer, distance=:many, filt, tag="")
-        dict.load_dict_to_module!(mod, data)
+    function load_manis(mod::Module; feature_engineer, distance=:many, filt, tag)
+        data = load_manis(;feature_engineer, distance=:many, filt, tag)
+        dict.load_dict_to_module!(mod, Dict(pairs(data)))
         data
     end
 
