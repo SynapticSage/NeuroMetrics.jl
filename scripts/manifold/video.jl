@@ -3,7 +3,7 @@ quickactivate(expanduser("~/Projects/goal-code"))
 using GoalFetchAnalysis, Munge.causal, Munge.manifold
 import Load, Munge
 
-using Revise, ProgressMeter, CategoricalArrays, Statistics, NaNStatistics, VideoIO, GLMakie, ColorSchemes, Colors, DataFrames, DataFramesMeta, Printf, Infiltrator, ImageFiltering
+using Revise, ProgressMeter, CategoricalArrays, Statistics, NaNStatistics, VideoIO, GLMakie, ColorSchemes, Colors, DataFrames, DataFramesMeta, Printf, Infiltrator, ImageFiltering, TextWrap
 using StatsPlots: @df
 import StatsBase, ColorSchemeTools 
 
@@ -11,12 +11,10 @@ import StatsBase, ColorSchemeTools
 ## ----------
 ## PARAMETERS
 ## ----------
-animal, day, filt, N = "RY16", 36, :all, 100
+animal, day, filt, N = "RY22", 21, :task, 4
 areas = (:ca1,:pfc)
 distance = :many
 feature_engineer = :many # many | nothing
-esttype = :binned
-est, params = get_est_preset(esttype, horizon=1:60, thread=true, binning=7, window=1.25)
 
 opt = Dict(
 :usevideo                      => false,
@@ -52,8 +50,9 @@ T = size(beh, 1)
 # Filter manifold
 emdfs = @subset(emdf, 
               :metric  .== Symbol("CityBlock"),
-              :feature .== Symbol("raw"),
+              :feature .== Symbol("zscore"),
               :dim .== 3)
+isempty(emdfs ) ? @error("emdfs is empty!") : nothing
 
 # Throw away unused partitions
 begin
@@ -61,8 +60,9 @@ end
 # Create a sorted set of partitions
 begin
 	keynames = [:min_dist, :n_neighbors, :metric, :area, :dim, :feature]
-		emdfs = groupby(emdfs, keynames)
+        emdfs = groupby(emdfs, keynames)
 end
+isempty(emdfs ) ? @error("emdfs is empty!") : nothing
 beh.T_partition = Utils.searchsortedprevious.([sort(unique(emdfs.T_start))], beh.index)
 
 println("Number of embedding keys ", size(emdfs,1))
@@ -149,46 +149,44 @@ begin
     end
 
     # Instatiate current overall manifold
-	m,M = Dict(),Dict()
-	partition = Dict()
-	maxes = Dict()
+    m,M = Dict(),Dict()
+    partition = Dict()
+    maxes = Dict()
 
     begin
 
-		# Plot a light grey of the total manis
-		for (i, manis) in enumerate(emdfs)
-			title = NamedTuple(col=>value for (col,value) 
-							   in zip(emdfs.cols, inv(emdfs.keymap)[i]))
-			title = TextWrap.wrap(replace(Utils.namedtup.tostring(title),","=>" "),
-								  width=40)
-			maxes[i] = Axis3(Fig[i,3], title=title, titlesize=8)
-			partition[i] = @lift findfirst($t .>= manis.T_start .&& $t .< manis.T_end)		
-			e = []
-			for dim in range(1, manis.dim[1])
-				push!(e, @lift manis.value[$(partition[i])][:,dim])
-			end
-			black=RGBA(colorant"black", 0.01)
-			scatter!(e..., color=black, transparency=true, markersize=4)
-		end
+        # Plot a light grey of the total manis
+        for (i, manis) in enumerate(emdfs)
+                title = NamedTuple(col=>value for (col,value) 
+                                                   in zip(emdfs.cols, inv(emdfs.keymap)[i]))
+                title = TextWrap.wrap(replace(Utils.namedtup.tostring(title),","=>" "),
+                                                          width=40)
+                maxes[i] = Axis3(Fig[i,3], title=title, titlesize=8)
+                part = @lift findfirst($t .>= manis.T_start .&& $t .< manis.T_end)		
+                partition[i] = @lift $part === nothing ? @error("partition missing") : $part
+                e = []
+                for dim in range(1, manis.dim[1])
+                        push!(e, @lift manis.value[$(partition[i])][:,dim])
+                end
+                black=RGBA(colorant"black", 0.01)
+                GLMakie.scatter!(e..., color=black, transparency=true, markersize=4)
+        end
 
-	end
-end
+    end
 
-	# Record current manifold point
-	begin
+    # Record current manifold point
+    begin
 
-		# Plot current location of manis
-		for (i, manis) in enumerate(emdfs)
-			mani     =  @lift manis[$(partition[i]), :]
-			mani_ind = @lift findfirst($mani.inds_of_t .== $b.index)
-			mani_start = @lift max($mani_ind-opt[:nback], $mani.T_end)
-			point = @lift Point3f($mani.value[$mani_ind,:])
-			points = @lift Point3f.(eachrow($mani.value[$mani_start:$mani_ind,:]))
-			GLMakie.scatter
-			s=scatter!(maxes[i], point, c=colorant"red", markersize=6, glowwidth=5, glowcolor=colorant"red", )
-			S=scatter!(maxes[i], point, c=colorant"red", markersize=6, glowwidth=5, glowcolor=colorant"red", )
-		end
-
+        # Plot current location of manis
+        for (i, manis) in enumerate(emdfs)
+                mani     =  @lift manis[$(partition[i]), :]
+                mani_ind = @lift findfirst($mani.inds_of_t .== $b.index)
+                mani_start = @lift max($mani_ind-opt[:nback], $mani.T_end)
+                point = @lift Point3f($mani.value[$mani_ind,:])
+                points = @lift Point3f.(eachrow($mani.value[$mani_start:$mani_ind,:]))
+                s=GLMakie.scatter!(maxes[i], point, c=colorant"red", markersize=6, glowwidth=5, glowcolor=colorant"red", )
+                S=GLMakie.scatter!(maxes[i], point, c=colorant"red", markersize=6, glowwidth=5, glowcolor=colorant"red", )
+        end
     end
 
 end

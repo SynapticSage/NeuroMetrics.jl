@@ -3,55 +3,15 @@
 export LD_LIBRARY_PATH=/home/ryoung/miniconda3/envs/conda_jl/lib/
 exec julia -J "/home/ryoung/Code/projects/goal-code/GFA-dependencies-sysimage.so" --project="/home/ryoung/Projects/goal-code/" "$0" -- $@
 =#
-
-using GoalFetchAnalysis
-using DrWatson
-using Revise
-#quickactivate(expanduser("~/Projects/goal-code"))
-
-# ----------------
-# Script options
-# ----------------
-using ArgParse
-function parse_commandline(args=nothing)
-    s = ArgParseSettings()
-    @add_arg_table s begin
-        "--animal", "-a"
-            help = "the animal to run default: the super animal"
-            arg_type = String
-            default = "RY16"
-        "--day", "-d"
-            help = "the day to run"
-            arg_type = Int
-            default = 36
-        "--dataset", "-D"
-             help = "dataset preset"
-             arg_type = Int
-             default = 0
-        "--splits", "-s"
-            help = "splits of the dataset"
-            default = 10
-            arg_type = Int
-        "--sps", "-S"
-            help = "samples per split"
-            default = 10
-            arg_type = Int
-    end
-    if args !== nothing
-        return parse_args(args, s)
-    else
-        return parse_args(s)
-    end
-end
-opt = parse_commandline()
-@info "Command line parsed" opt
+using GoalFetchAnalysis, Munge.manifold, DrWatson, Revise
+opt = Munge.manifold.parse()
 
 # FINISH loading libraries
 begin
     using Plots: StatsBase
     using Infiltrator, Serialization, Plots, ProgressMeter, PyCall, Distributed,
           ProgressMeter, ThreadSafeDicts, DataFramesMeta, Distances, StatsBase,
-          SoftGlobalScope, Infiltrator, DimensionalData, Munge.manifold, DataFramesMeta
+          SoftGlobalScope, Infiltrator, DimensionalData,  DataFramesMeta
     using DataStructures: OrderedDict
     import Utils.namedtup: ntopt_string
     use_cuda = true
@@ -60,25 +20,18 @@ begin
         cuml = pyimport("cuml")
         gc = pyimport("gc")
         cuUMAP = cuml.manifold.umap.UMAP
-    else
-        #import Distributed: @everywhere
-        #@everywhere quickactivate(expanduser("~/Projects/goal-code"))
-        #@everywhere using DrWatson, PyCall, UMAP, DataFramesMeta 
-                    #GoalFetchAnalysis
-        #@everywhere import Munge
     end
 end
 
-global  animal, day, dataset, splits, sampspersplit = opt["animal"], opt["day"],
-                                                      opt["dataset"], opt["splits"],
-                                                      opt["sps"]
-global filt             = :task
+for (key, value) in opt
+    if !(value isa Symbol)
+        @eval Main global $(Symbol(key)) = $value
+    else
+        value = String(value)
+        @eval Main global $(Symbol(key)) = Symbol($value)
+    end
+end
 global areas            = (:ca1,:pfc)
-#distance        = :Mahalanobis
-global distance         = :many
-global feature_engineer = :many
-#datasets = (("RY22", 21, 10, 10), ("RY16", 36, 10, 10))
-#(animal, day, splits, sampspersplit) = datasets[1]
 
 # Load data
 # ----------------
@@ -115,9 +68,9 @@ global diststr = distance === nothing ? "distance=euclidean" : lowercase("distan
 # ----------------
 println("Generate partitions")
 nsamp = Int(round(size(beh,1)/splits));
-δi    = Int(round(nsamp/sampspersplit))
+δi    = Int(round(nsamp/sps))
 global inds_of_t = []
-for (split, samp) in Iterators.product(1:splits, 1:sampspersplit)
+for (split, samp) in Iterators.product(1:splits, 1:sps)
     start = (split-1) * nsamp + (samp-1) * δi + 1
     stop  = (split)   * nsamp + (samp-1) * δi + 1
     stop  = min(stop, size(beh,1))
@@ -126,7 +79,7 @@ end
 
 println("Describ partitions")
 @info "coverage" nsamp/size(beh,1)*100
-global N = splits * sampspersplit
+global N = splits * sps
 
 global tag 
 tag = "$(animal)$(day).$(N)seg"
@@ -241,7 +194,7 @@ finally
     using Munge.manifold
     savefile = path_manis(;filt,feature_engineer,tag)
     @info "save info" filt festr diststr savefile
-    save_manis(;embedding, scores, inds_of_t, filt, feature_engineer, use_cuda, tag, splits, sampspersplit, N)
+    save_manis(;embedding, scores, inds_of_t, filt, feature_engineer, use_cuda, tag, splits, sps, N)
     #exit()
 #end
 end

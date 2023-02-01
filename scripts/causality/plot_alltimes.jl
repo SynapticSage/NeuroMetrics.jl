@@ -1,47 +1,79 @@
-
-
-
+#!/bin/sh
+#=
+exec julia -J "/home/ryoung/Code/projects/goal-code/GFA-dependencies-sysimage.so" --project="/home/ryoung/Projects/goal-code/" "$0" -- $@
+=#
 #  ==================================
-# PLOT ALL TIMES 
+#    _  _     ____  _     ___ _____      _    _     _     
+#  _| || |_  |  _ \| |   / _ \_   _|    / \  | |   | |    
+# |_  ..  _| | |_) | |  | | | || |     / _ \ | |   | |    
+# |_      _| |  __/| |__| |_| || |    / ___ \| |___| |___ 
+#   |_||_|   |_|   |_____\___/ |_|   /_/   \_\_____|_____|
+#                                                         
+#  _____ ___ __  __ _____ ____   
+# |_   _|_ _|  \/  | ____/ ___|  
+#   | |  | || |\/| |  _| \___ \  
+#   | |  | || |  | | |___ ___) | 
+#   |_| |___|_|  |_|_____|____/  
+#                                
+#
 #  ==================================
+#
+# @eval Base USER_ARGS = split("--animal RY36 --day 36 --filt all --N 100 --diff")
+
+# IMPORTS AND CONFIG OPTIONS
 using DrWatson
 using Infiltrator, ThreadSafeDicts, JLD2, Serialization, CausalityTools,
       Entropies, DataFrames, DataFramesMeta, Statistics, NaNStatistics,
-      HypothesisTests, Plots, StatsPlots, ColorSchemes
+      HypothesisTests, Plots, StatsPlots, ColorSchemes, ProgressMeter,
+      SoftGlobalScope, ElectronDisplay
 using GoalFetchAnalysis, Plot, Munge, Munge.manifold, Munge.causal,
-       Munge.triggering, Utils.binning, Munge.causal, Plot.cause
+       Munge.triggering, Utils.binning, Munge.causal, Plot.cause,
+       Labels
 using DataStructures: OrderedDict
 using Utils.namedtup: ntopt_string
 using Plot.cause: plotmeancause, plotmediancause, plotmedianplushist, 
                    plotcausediff, getdiff, getmean, getmedian, 
                    getcausedistovertime
+using ArgParse
+parser = causal.parse(return_parser=true)
+@add_arg_table parser begin
+    "--diff"
+        action=:store_true
+        help="Take the diff of the measurements"
+    "--save"
+        action=:store_true
+        help="Whether to save the plots"
+end
+opt = isdefined(Main, :USER_ARGS) ? 
+        parse_args(USER_ARGS, parser) : parse_args(parser)
+#opt = Dict(zip(Symbol.(collect(keys(opt))), values(opt)))
 
 # =============
 # Control panel
 # =============
-opt = Dict(
+opt = merge(opt, Dict(
     # What transformations on the data?
-    :diff => false,
-    :summaryget => getmean,
-    :link => :y,  # :none, :x, :xy, :y
+    "summaryget" => getmean,
+    "link" => :y,  # :none, :x, :xy, :y
     # What plots?
-    :ploton => true,
     :plot => Dict(
         :manifold_check => false,
         :gen_causal => false,
         :cond_causal => false,
         :cond_causal_earlintlate => false,
         :ha => true
-    )
+       )
+   )
 )
-summaryget = opt[:summaryget]
+summaryget = opt["summaryget"]
+animal, day, filt, N = opt["animal"], opt["day"], opt["filt"], opt["N"]
 
 arena_ca1pfc_color(i,n) = get(ColorSchemes.Blues, 0.10 + 0.85*(i/n))
 arena_pfcca1_color(i,n) = get(ColorSchemes.Reds,  0.10 + 0.85*(i/n))
 home_ca1pfc_color(i,n) = get(ColorSchemes.Greens, 0.10 + 0.85*(i/n))
 home_pfcca1_color(i,n) = get(ColorSchemes.Oranges,  0.10 + 0.85*(i/n))
 function link!(P::Plots.Plot)
-    if opt[:link] == :y
+    if opt["link"] == :y
         yl = Utils.plotutils.get_ylims(P)
         yl = (minimum(yl[:,1]), maximum(yl[:,2]))
         ylims!(P, yl )
@@ -49,12 +81,8 @@ function link!(P::Plots.Plot)
 end
 
 ## ----------
-## PARAMETERS
+## LOAD DATA
 ## ----------
-if !isdefined(Main,:animal)
-    animal,day, filt, N="RY22",21,nothing,100
-    animal,day, filt, N="RY16",36,nothing,100
-end
 spikes, beh, ripples, cells  = Load.load(animal, day)
 areas = (:ca1,:pfc)
 distance = :many
@@ -65,22 +93,20 @@ manifold.load_manis_workspace(Main, animal, day; filt,
                               areas, distance, feature_engineer, N)
 storage = load_alltimes_savefile(animal, day, N; params)
 diffed, predasym = false, storage["predasym"]
-if opt[:diff] && !diffed
+if opt["diff"] && !diffed
     Plot.setprepend("diff_")
+    @info "converting to diff..."
     predasym = getdiff(predasym)
+    @info "completed"
 end
-opt[:ploton] ? Plot.on() : Plot.off()
+if opt["summaryget"] !== getmean
+    opt["summaryget"] === getmedian ? Plot.appendtoappend("_median") : nothing
+end
+opt["save"] ? Plot.on() : Plot.off()
 
 Plot.setappend("$animal.$day.$N")
-if opt[:link] != :y
+if opt["link"] != :y
     Plot.appendtoappend(replace("_link=$link",":"=>""))
-end
-if opt[:summaryget] !== getmean
-    opt[:summaryget] === getmedian ? Plot.appendtoappend("_median") : nothing
-end
-if opt[:diff]
-    Plot.appendtoappend("_DIFF")
-    predasym = getdiff(predasym)
 end
 
 x_time = collect(1:last(params[:horizon])) .* 1/30
@@ -100,8 +126,8 @@ Hm_ca1pfc, Hm_pfcca1 =  predasym["props=[cuemem,correct,hatraj,moving]"]["ca1pfc
 ## ----------
 ## CONSTANTS
 ## ----------
-corerr,tsk,lab = Munge.behavior.corerr, Munge.behavior.tsk, 
-                 Munge.behavior.cortsk
+corerr,tsk,lab = Labels.corerr, Labels.tsk, 
+                 Labels.cortsk
 
 ## ----------
 ## PARAMETERS
@@ -243,7 +269,7 @@ if opt[:plot][:cond_causal]
     # --------------------------
     # C1. Jacknived flows
     # --------------------------
-    kws = (;link=opt[:link])
+    kws = (;link=opt["link"])
     Plot.setfolder("manifold","COND_CAUSAL", "jacknived flows")
     getjacknives(x) = leaveoneout(x; func=func_full)
     # How do those bins look on my image?
@@ -401,7 +427,7 @@ end
 #                              `---'    
 if opt[:plot][:ha]
 
-    kws = (;bins=(60,200), fillrange=0, fillalpha=0.025, linewidth=2, link=opt[:link])
+    kws = (;bins=(60,200), fillrange=0, fillalpha=0.025, linewidth=2, link=opt["link"])
 
     Plot.setfolder("causality","HATRAJ_CAUSAL")
     begin
@@ -515,7 +541,7 @@ if opt[:plot][:ha]
         hline!([0];c=:black,linestyle=:dot,label="")
         nothing
     end
-    P=plot(p1, p2, background_color=:seashell2, link=opt[:link])
+    P=plot(p1, p2, background_color=:seashell2, link=opt["link"])
     link!(P)
     Plot.save("home and arena flow summaries")
 
@@ -581,7 +607,7 @@ if opt[:plot][:ha]
             hline!([0];c=:black,linestyle=:dash,label="")
             nothing
         end
-        movingarena = plot(p1,p2; background_color, link=opt[:link])
+        movingarena = plot(p1,p2; background_color, link=opt["link"])
         Plot.save("moving arena flow")
 
         # MOVING HOME
@@ -618,7 +644,7 @@ if opt[:plot][:ha]
             hline!([0];c=:black,linestyle=:dash,label="")
             nothing
         end
-        movinghome = plot(p1,p2; background_color, link=opt[:link])
+        movinghome = plot(p1,p2; background_color, link=opt["link"])
         Plot.save("moving home flow")
 
         # ARENA STILL
@@ -655,7 +681,7 @@ if opt[:plot][:ha]
             hline!([0];c=:black,linestyle=:dash,label="")
             nothing
         end
-        stillarena = plot(p1,p2; background_color, link=opt[:link])
+        stillarena = plot(p1,p2; background_color, link=opt["link"])
         Plot.save("still arena flow")
 
         # HOME STILL
@@ -691,15 +717,15 @@ if opt[:plot][:ha]
             end
             hline!([0];c=:black,linestyle=:dash,label="")
         end
-        stillhome = plot(p1, p2; background_color, link=opt[:link])
+        stillhome = plot(p1, p2; background_color, link=opt["link"])
         Plot.save("still home flow")
 
         alles = plot(movinghome, movingarena, stillhome, stillarena; 
-                     size=(1200,800), layout=grid(2,2), background_color, link=opt[:link])
+                     size=(1200,800), layout=grid(2,2), background_color, link=opt["link"])
         link!(alles)
         Plot.save("move+still home+arena flow summaries")
 
-        (;all=alles, movinghome, movingarena, stillhome, stillarena, link=opt[:link])
+        (;all=alles, movinghome, movingarena, stillhome, stillarena, link=opt["link"])
 
     end # plot_movhatraj (moving - home/arena - traj)
 
