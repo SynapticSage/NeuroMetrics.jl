@@ -17,6 +17,7 @@ module manifold
     using DrWatson
     using Infiltrator
     using DataFrames, DataFramesMeta
+    using ArgParse
 
     import Utils
     import Load
@@ -25,6 +26,75 @@ module manifold
     import Filt
     import Utils.namedtup: ntopt_string
     import Utils: dict
+
+    """
+        parse(args=nothing; return_parser::Bool=false)
+
+    return command line parser for flags that control my manifold
+    related analyses
+    """
+    function parse(args=nothing; return_parser::Bool=false)
+        parser = ArgParseSettings()
+        default_splits = 10
+        default_sps = 10
+        default_N = -1
+        @add_arg_table parser begin
+            "--animal"
+                help = "the animal to run default: the super animal"
+                arg_type = String
+                default = "RY16"
+            "--day"
+                help = "the day to run"
+                arg_type = Int
+                default = 36
+            "--dataset"
+                 help = "dataset preset"
+                 arg_type = Int
+                 default = 0
+            "--splits", "-s"
+                help = "splits of the dataset"
+                default = default_splits
+                arg_type = Int
+            "--sps", "-S"
+                help = "samples per split"
+                default = default_sps
+                arg_type = Int
+            "--N"
+                help = "number of manis"
+                default = default_N
+                arg_type = Int
+            "--filt", "-f"
+                help = "type of dataset filter in Filt.jl"
+                arg_type = Symbol
+                default = :all
+            "--feature_engineer", "-F"
+                help = "types of features"
+                default = :many
+                arg_type = Symbol
+            "--distance", "-d"
+                help = "distance metric(s)"
+                default= :many
+                arg_type=Symbol
+        end
+        if return_parser
+            return parser
+        else
+            if args !== nothing
+                opt = postprocess(parse_args(args, parser))
+            else
+                opt = postprocess(parse_args(parser))
+            end
+            @info "parsed options" opt
+            return opt
+        end
+    end
+
+    function postprocess(opt::Dict)
+        if opt["N"] == -1
+            opt["N"] = opt["sps"] * opt["splits"]
+        end
+        opt
+    end
 
     export get_dim_subset
     function get_dim_subset(dict_of_embeds::Dict, dim::Int)::Dict

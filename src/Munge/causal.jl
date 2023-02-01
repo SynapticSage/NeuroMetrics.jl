@@ -16,11 +16,21 @@ module causal
     using JLD2
     using SoftGlobalScope
     using DrWatson
+    using ArgParse
 
     import ..Munge
     import Munge.manifold: make_embedding_df, EmbeddingFrameFetch
     import Utils
     import Table
+
+    function parse(args=nothing;return_parser=false)
+        parser = Munge.manifold.parse(return_parser=true)
+        if return_parser
+            parser
+        else
+            args === nothing ? parse_args(parser) : parse_args(parser, args)
+        end
+    end
 
     export get_est_preset
     function get_est_preset(esttype::Symbol; 
