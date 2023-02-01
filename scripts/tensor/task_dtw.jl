@@ -1,13 +1,8 @@
 
-using DynamicAxisWarping
-using GoalFetchAnalysis
-using Munge.tensor
-using Munge.spiking
-using Table
-using Missings
-using Plot.task
-using Infiltrator
-using RecipesBase
+using DynamicAxisWarping, GoalFetchAnalysis, Munge.tensor, Munge.spiking, Table
+using Missings, Plot.task, Infiltrator, RecipesBase, ProgressMeter, Plots, PyCall
+using Interpolations, NaNStatistics, Statistics, RollingFunctions
+using DataFrames
 
 @time spikes, beh, ripples, cells = Load.load("RY16", 36);
 tsk = Load.load_task("RY16",36);
@@ -76,84 +71,84 @@ end
 
 # APPROACH 2 : Included in DynamicAxisWarping.jl, Barycentric Averaging
 begin
-r=1
-P = []
-for i in 1:size(out,2)
-    p = plot()
-    [plot!(eachrow(m)...;linestyle=:dash,c=:black) for m in out[1:n,:]]
-    p
-    Q = dba(vec.([c[1] for c in collect((eachrow(out[:,i])))]), 
-            DTW(r;transportcost=1.5))
-    plot!(eachrow(reshape(Q[1],n,:))...)
-    push!(P,p)
-end
-plot!(P[1], title="Barycentric")
-plot!(P[2], title="Averaging\n=$r")
-plot!(P[4], title="(definitely\nflawed)")
-plot(P..., legend=:none, xticks=:none,yticks=:none)
+    r=1
+    P = []
+    for i in 1:size(out,2)
+        p = plot()
+        [plot!(eachrow(m)...;linestyle=:dash,c=:black) for m in out[1:n,:]]
+        p
+        Q = dba(vec.([c[1] for c in collect((eachrow(out[:,i])))]), 
+                DTW(r;transportcost=1.5))
+        plot!(eachrow(reshape(Q[1],n,:))...)
+        push!(P,p)
+    end
+    plot!(P[1], title="Barycentric")
+    plot!(P[2], title="Averaging\n=$r")
+    plot!(P[4], title="(definitely\nflawed)")
+    plot(P..., legend=:none, xticks=:none,yticks=:none)
 
-# APPROACH 3 : Included in DynamicAxisWarping.jl, Soft Barycentric Averaging
-bc = pyimport("tslearn.barycenters")
-γ = 1
-P = []
-for i in 1:size(out,2)
+    # APPROACH 3 : Included in DynamicAxisWarping.jl, Soft Barycentric Averaging
+    bc = pyimport("tslearn.barycenters")
+    γ = 1
+    P = []
+    for i in 1:size(out,2)
 
-    p=plotboundary(tsk)
-    data = out[:,i][1:n,:]
-    [plot!(eachrow(m)...;linestyle=:dash,c=:black) for m in data]
-    p
+        p=plotboundary(tsk)
+        data = out[:,i][1:n,:]
+        [plot!(eachrow(m)...;linestyle=:dash,c=:black) for m in data]
+        p
 
-    data = [Matrix(d') for d in data]
-    dba_vecs = vec.([c[1] for c in collect((eachrow(out[:,i])))])
-    #Q = dba(dba_vecs, SoftDTW(;γ,radius=r,transportcost=1.5))
-    @time Q = bc.softdtw_barycenter(data, γ)
-    #Q = reshape(Q,2,:)
-    Q = hcat([rollmedian(q,2) for q in eachcol(Q)]...)
-    plot!(eachcol(Q)...)
-    push!(P,p)
+        data = [Matrix(d') for d in data]
+        dba_vecs = vec.([c[1] for c in collect((eachrow(out[:,i])))])
+        #Q = dba(dba_vecs, SoftDTW(;γ,radius=r,transportcost=1.5))
+        @time Q = bc.softdtw_barycenter(data, γ)
+        #Q = reshape(Q,2,:)
+        Q = hcat([rollmedian(q,2) for q in eachcol(Q)]...)
+        plot!(eachcol(Q)...)
+        push!(P,p)
 
-end
-plot!(P[1], title="Barycentric")
-plot!(P[2], title="Averaging\n=$r")
-plot!(P[4], title="(definitely\nflawed)")
-plot(P..., legend=:none, xticks=:none,yticks=:none)
+    end
+    plot!(P[1], title="Barycentric")
+    plot!(P[2], title="Averaging\n=$r")
+    plot!(P[4], title="(definitely\nflawed)")
+    plot(P..., legend=:none, xticks=:none,yticks=:none)
 end
 
 
 # APPROACH 4 : Literal MEDIAN
 begin
-P = []
-templates = []
-for i in 1:size(out,2)
+    P = []
+    templates = []
+    for i in 1:size(out,2)
 
-    p=plot()
-    data = out[:,i][1:n,:]
-    maxdatalen = maximum([size(d,2) for  d in data])
-    [plot!(eachrow(m)...;linestyle=:dash,c=:black) for m in data]
-    p
+        p=plot()
+        data = out[:,i][1:n,:]
+        maxdatalen = maximum([size(d,2) for  d in data])
+        [plot!(eachrow(m)...;linestyle=:dash,c=:black) for m in data]
+        p
 
-    data = [Matrix(d') for d in data]
+        data = [Matrix(d') for d in data]
 
-    # Interpolate
-    for i in 1:length(data)
-        D = collect.(eachcol(data[i]))
-        D = interpolate.(D, [BSpline(Linear())])
-        D = hcat([d[LinRange(1,length(d), maxdatalen)]
-                  for d in D]...)
-        data[i]=D
+        # Interpolate
+        for i in 1:length(data)
+            D = collect.(eachcol(data[i]))
+            D = interpolate.(D, [BSpline(Linear())])
+            D = hcat([d[LinRange(1,length(d), maxdatalen)]
+                      for d in D]...)
+            data[i]=D
+        end
+
+        template = median(cat(data...;dims=3),dims=3)[:,:]
+        template = hcat([rollmedian(q,2) for q in eachcol(template)]...)
+        push!(templates, template)
+        plot!(eachcol(template)...)
+
+        push!(P,p)
     end
-
-    template = median(cat(data...;dims=3),dims=3)[:,:]
-    template = hcat([rollmedian(q,2) for q in eachcol(template)]...)
-    push!(templates, template)
-    plot!(eachcol(template)...)
-
-    push!(P,p)
-end
-plot!(P[1], title="Barycentric")
-plot!(P[2], title="Averaging\n=$r")
-plot!(P[4], title="(definitely\nflawed)")
-plot(P..., legend=:none, xticks=:none,yticks=:none)
+    plot!(P[1], title="Barycentric")
+    plot!(P[2], title="Averaging\n=$r")
+    plot!(P[4], title="(definitely\nflawed)")
+    plot(P..., legend=:none, xticks=:none,yticks=:none)
 end
 
 # APPLY TEMPLATES :: DO DTW
@@ -188,6 +183,7 @@ for i in 1:size(out,2)
     plot!(eachrow(templates[i]')...,linewidth=3,linestyle=:solid)
     p3=plot()
     [plot!(s,fillrange=0,legend=:none) for s in seq2]
+
     plot(p1,p2,p3, layout=[grid(1,2); grid(1,1)])
 
 end
