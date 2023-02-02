@@ -36,4 +36,3 @@ marginals_lowprior_shuffle = [
     ["stopWell"],
     ["x", "y", "currentHeadEgoAngle"],
     ["x", "y", "stopWell"],
-]
