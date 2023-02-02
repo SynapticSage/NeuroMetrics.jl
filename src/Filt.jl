@@ -322,8 +322,10 @@ module Filt
 
     See `get_filters`
     """
-    get_filters_precache() = get_filters(initial=(speed_lib, spikecount,
-                                                  trajdiversitycached))
+    get_filters_precache() = get_filters(
+                                         (speed_lib, spikecount,
+                                          trajdiversitycached)
+                                        )
 
     function get_filters_desc()::OrderedDict
         filt_desc = OrderedDict(:all => "2cm/s")

@@ -178,13 +178,14 @@ module manifold
         embedding_overall = embedding_overall === nothing ?
             typeof(data[:embedding])() : embedding_overall
         embedding_overall = merge(embedding_overall, data[:embedding])
-        @time spikes, beh, ripples, cells = Load.load(animal,day)
+        # @time spikes, beh, ripples, cells = Load.load(animal,day)
+        beh = Load.load_behavior(animal,day)
 
         # Filter
-        filters = Filt.get_filters()
-        if Symbol(filt) in keys(filters)
-            beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes; filter_skipmissingcols=true, filters=filters[Symbol(filt)])
-        end
+        # filters = Filt.get_filters()
+        # if Symbol(filt) in keys(filters)
+        #     beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes; filter_skipmissingcols=true, filters=filters[Symbol(filt)])
+        # end
 
         embedding = embedding_overall
 
@@ -218,6 +219,7 @@ module manifold
     function make_embedding_df(embedding::Dict, inds_of_t::Vector, 
             score::Dict, beh::DataFrame; vars=[])::DataFrame
 
+        #@infiltrate
         df = Table.to_dataframe(embedding, explode=false)
         sc = Table.to_dataframe(score)
 
@@ -235,10 +237,13 @@ module manifold
         df[!, :T_partition] = df[!,:s]
         df[!, :T_start], df[!, :T_end] = first.(df[!, :inds_of_t]),
                                          last.(df[!, :inds_of_t])
-        df[!, :time] = getindex.([beh], df[!,:inds_of_t],[:time])
+        df[!, :time] = getindex.([beh], df[!,:inds_of_t],[:time]) # TODO
         for var in vars
             df[!, var] = getindex.([beh], df[!,:inds_of_t], [var])
         end
+
+        # TODO set quantile axis limits
+        #@infiltrate
 
         df
     end
