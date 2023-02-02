@@ -34,17 +34,17 @@ module Filt
         (x.==0) .|| (x.==1)
     end
     function HOME(X)
-        X .== "H"
+        X .== 'H'
     end
     function ARENA(X)
-        X .== "A"
+        X .== 'A'
     end
     correct   = OrderedDict("correct" => CORRECT)
     incorrect = OrderedDict("correct" => INCORRECT)
     nontask   = OrderedDict("correct" => NONTASK)
     task      = OrderedDict("correct" => TASK)
-    home      = OrderedDict("correct" => HOME)
-    arena     = OrderedDict("correct" => ARENA)
+    home      = OrderedDict("ha" => HOME)
+    arena     = OrderedDict("ha" => ARENA)
     # Alias
     error     = incorrect
 
@@ -267,7 +267,8 @@ module Filt
         spikecount => spike count > 50
                   )
     """
-    function get_filters(initial=(speed_lib, spikecount))
+    function get_filters(initial=(speed_lib, spikecount);
+                        keyfilter=nothing, keyfilterstr=nothing)
         initial = merge(initial...)
         filters = OrderedDict{Symbol,Union{OrderedDict,Nothing}}()
 
@@ -298,7 +299,15 @@ module Filt
 
         filters[:none]        = nothing
 
-        filters
+        if keyfilter !== nothing
+            K = filter(keyfilter, keys(filters))
+            OrderedDict(k=>filters[k] for k in K)
+        elseif keyfilterstr !==nothing
+            K = Symbol.(filter(keyfilterstr, String.(collect(keys(filters)))))
+            OrderedDict(k=>filters[k] for k in K)
+        else
+            filters
+        end
     end
 
     home_conditions = [key for key in keys(get_filters())
@@ -322,9 +331,10 @@ module Filt
 
     See `get_filters`
     """
-    get_filters_precache() = get_filters(
+    get_filters_precache(;kws...) = get_filters(
                                          (speed_lib, spikecount,
-                                          trajdiversitycached)
+                                          trajdiversitycached);
+                                         kws...
                                         )
 
     function get_filters_desc()::OrderedDict
