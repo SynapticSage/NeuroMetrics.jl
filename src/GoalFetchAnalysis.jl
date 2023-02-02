@@ -1,5 +1,6 @@
 module GoalFetchAnalysis
 
+    using Revise
     import Distributed: @everywhere
     @everywhere using DrWatson
     #push!(LOAD_PATH, @__DIR__)
@@ -62,12 +63,26 @@ module GoalFetchAnalysis
 
     import Labels as labels
 
+    # ------
+    # REVISE.jl
+    # ------
     # EVERY time I import this, I check my tests to ensure
     # I've broken nothing during development
     # Run quick tests at startup to ensure library integrity
-    if isdir(projectdir("test")) && isfile(projectdir("test","runtests.jl")) && 
-        "USE_PLUTO" ∉ keys(ENV)
-        include(projectdir("test","runtests.jl"))
+    function check_dir_is_watched(dir)
+        dir = srcdir(dir)
+        watched = keys(Revise.watched_files)
+        if endswith(dir, '/')
+            dir = dir[1:end-1]
+        end
+        dir_in_watched = dir ∈ watched
+        !(dir_in_watched) ? @warn("dir=$dir not in watched") : nothing
+        dir_in_watched
     end
     
+    #if isdir(projectdir("test")) && isfile(projectdir("test","runtests.jl")) && 
+    #   "USE_PLUTO" ∉ keys(ENV)
+    #   include(projectdir("test","runtests.jl"))
+    #end
+
 end

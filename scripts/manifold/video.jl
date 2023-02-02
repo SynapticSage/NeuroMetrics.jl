@@ -11,7 +11,7 @@ import StatsBase, ColorSchemeTools
 ## ----------
 ## PARAMETERS
 ## ----------
-animal, day, filt, N = "RY22", 21, :task, 4
+animal, day, filt, N = "RY22", 21, :all, 5
 areas = (:ca1,:pfc)
 distance = :many
 feature_engineer = :many # many | nothing
@@ -49,7 +49,7 @@ T = size(beh, 1)
 
 # Filter manifold
 emdfs = @subset(emdf, 
-              :metric  .== Symbol("CityBlock"),
+              :metric  .== Symbol("Euclidean"),
               :feature .== Symbol("zscore"),
               :dim .== 3)
 isempty(emdfs ) ? @error("emdfs is empty!") : nothing
@@ -184,8 +184,12 @@ begin
                 mani_start = @lift max($mani_ind-opt[:nback], $mani.T_end)
                 point = @lift Point3f($mani.value[$mani_ind,:])
                 points = @lift Point3f.(eachrow($mani.value[$mani_start:$mani_ind,:]))
-                s=GLMakie.scatter!(maxes[i], point, c=colorant"red", markersize=6, glowwidth=5, glowcolor=colorant"red", )
-                S=GLMakie.scatter!(maxes[i], point, c=colorant"red", markersize=6, glowwidth=5, glowcolor=colorant"red", )
+                s=GLMakie.scatter!(maxes[i], point, c=colorant"red",
+                                   markersize=6, glowwidth=5,
+                                   glowcolor=colorant"red", )
+                S=GLMakie.scatter!(maxes[i], point, c=colorant"red",
+                                   markersize=6, glowwidth=5,
+                                   glowcolor=colorant"red", )
         end
     end
 

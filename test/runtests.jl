@@ -11,11 +11,7 @@ dirs = srcdir.(dirs)
 # If not, you may have either a compile fail or a flaw in the DAG-like
 # dependency structure
 for dir in dirs
-    if endswith(dir, '/')
-        dir = dir[1:end-1]
-    end
-    dir_in_watched = dir ∈ watched
-    !(dir_in_watched) ? @warn("dir=$dir not in watched") : nothing
+    dir_in_watched = GoalFetchAnalysis.check_dir_is_watched(dir)
     @test dir_in_watched
 end
 
