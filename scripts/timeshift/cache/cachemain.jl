@@ -1,51 +1,31 @@
-using Markdown
-using InteractiveUtils
 
-using DrWatson, Revise
+using Markdown, InteractiveUtils, DrWatson, Revise
 quickactivate(expanduser("~/Projects/goal-code"))
-using PlutoUI
-PlutoUI.TableOfContents(title="Caching Mains and Shuffles")
 
-using DataFrames, DataFramesMeta
+using DataFrames, DataFramesMeta, KernelDensity, Distributions, Plots,
+      StatsPlots, Measures, Distributions, ProgressMeter, ProgressLogging,
+      ThreadSafeDicts, NaNStatistics, Infiltrator, TimerOutputs, Serialization
+
 using DataStructures: OrderedDict
-using KernelDensity, Distributions
-using Plots, StatsPlots, Measures, Distributions
-using ProgressMeter, ProgressLogging
 using Combinatorics: powerset
 import Base.Threads: @spawn
-using ThreadSafeDicts, NaNStatistics
-using Infiltrator
-using TimerOutputs
-using Serialization
 
-using GoalFetchAnalysis 
-using Timeshift
+using GoalFetchAnalysis , Timeshift, Timeshift.types
+import Load, Filt, Munge
 using Timeshift.dataframe: info_to_dataframe
 using Field.recon_process: get_shortcutnames, inv_shortcutnames
-import Load
-import Filt
-import Munge
-filts = Filt.get_filters_precache()
-#get_shortcutnames(items)  = [replace(item, recon_process.var_shortcut_names...)
-#                         for item in items]
 
-# source:  https://github.com/fonsp/Pluto.jl/issues/115  
-function ingredients(path::String)
-    # this is from the Julia source code (evalfile in base/loading.jl)
-    # but with the modification that it returns the module instead of the last object
-    name = Symbol(basename(path))
-    m = Module(name)
-    Core.eval(m,
-        Expr(:toplevel,
-             :(eval(x) = $(Expr(:core, :eval))($name, x)),
-             :(include(x) = $(Expr(:top, :include))($name, x)),
-             :(include(mapexpr::Function, x) = $(Expr(:top, :include))(mapexpr, $name, x)),
-             :(include($path))))
-    m
-end
-sets = ingredients(scriptsdir("timeshift", "TimeShift_setsOfInterest.jl"))
+filts    = Filt.get_filters_precache()
+sets = include(scriptsdir("timeshift","sets_of_interest.jl"))
 prop_set = sets.marginals_superhighprior_shuffle
 
+PROPS = ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
+IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
+widths = 5.0f0
+thresh = 1.5f0
+shifts=-1f0:0.025f0:1f0
+shifts = shifts .* 2f0
+datasets = (("RY16",36,nothing), ("RY16",36, :adj),("RY16",36, :iso),)
 
 function get_key(;shifts, kws...)
     (;kws..., grid=:adaptive,
@@ -73,19 +53,10 @@ end
 #    end
 #    docontinue
 #end
- PROPS = ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
- IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
- widths = 5.0f0
- thresh = 1.5f0
-
-using Timeshift.types
-shifts=-1f0:0.025f0:1f0
-shifts = shifts .* 2f0
+#
 
 I = OrderedDict{NamedTuple, Any}()
 F = OrderedDict{NamedTuple, Any}()
-
-datasets = (("RY16",36, :adj),("RY16",36, :iso),)
 (animal, day, frac) = first(datasets)
 
 @showprogress "animal" for (animal, day, frac) in datasets #Load.animal_set

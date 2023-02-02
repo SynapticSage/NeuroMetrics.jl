@@ -11,7 +11,7 @@ import StatsBase, ColorSchemeTools
 ## ----------
 ## PARAMETERS
 ## ----------
-animal, day, filt, N = "RY22", 21, :all, 5
+animal, day, filt, N = "RY16", 36, :all, 5
 areas = (:ca1,:pfc)
 distance = :many
 feature_engineer = :many # many | nothing
@@ -27,6 +27,7 @@ opt = Dict(
 manifold.load_manis_workspace(Main, animal, day; filt, 
       areas, distance, feature_engineer, 
       N)
+
 spikes, beh, ripples, cells  = Load.load(animal, day)
 storage = load_alltimes_savefile(animal, day, N; params)
 tsk = Load.load_task(animal, day)
@@ -87,7 +88,7 @@ end
 # -----------------
 begin
 
-    N = 4
+    N = length(emdfs)
     Fig = Figure(resolution=(1400,700))
     if opt[:visualize] == :video
     t = Observable(Int(1000))
