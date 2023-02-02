@@ -18,6 +18,7 @@ module manifold
     using Infiltrator
     using DataFrames, DataFramesMeta
     using ArgParse
+    using Statistics
 
     import Utils
     import Load
@@ -217,7 +218,8 @@ module manifold
 
     export make_embedding_df
     function make_embedding_df(embedding::Dict, inds_of_t::Vector, 
-            score::Dict, beh::DataFrame; vars=[])::DataFrame
+            score::Dict, beh::DataFrame; vars=[],
+            quantile_bounds=(0.001, 0.999))::DataFrame
 
         #@infiltrate
         df = Table.to_dataframe(embedding, explode=false)
@@ -243,7 +245,15 @@ module manifold
         end
 
         # TODO set quantile axis limits
-        #@infiltrate
+        df.bounds = Vector{Tuple}(undef, size(df,1))
+        for row in eachrow(df)
+            if !(quantile_bounds isa Vector{Tuple})
+                qb = fill(quantile_bounds, row.dim,1)
+            else
+                qb = quantile_bounds
+            end
+            row.bounds = ([quantile(v, q) for (v,q) in zip(eachcol(row.value), qb)]...,)
+        end
 
         df
     end
