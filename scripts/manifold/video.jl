@@ -52,7 +52,7 @@ T = size(beh, 1)
 emdfs = @subset(emdf, 
               :metric  .== Symbol("Euclidean"),
               :feature .== Symbol("zscore"),
-              :dim .== 3)
+              :dim .== 2)
 isempty(emdfs ) ? @error("emdfs is empty!") : nothing
 
 # Throw away unused partitions
@@ -88,16 +88,18 @@ end
 # -----------------
 begin
 
+    GLMakie.closeall()
     N = length(emdfs)
+    Ncol = 5
     Fig = Figure(resolution=(1400,700))
     if opt[:visualize] == :video
     t = Observable(Int(1000))
     elseif opt[:visualize] == :slider
-    sl_t = Slider(Fig[1:N, 4], 
+    sl_t = Slider(Fig[1:N, Ncol], 
                   range = 1:size(beh,1), 
                   horizontal=false, 
                   startvalue=1000)
-    sl_phi = Slider(Fig[1:N, 4], 
+    sl_phi = Slider(Fig[1:N, Ncol], 
                   range = 1:size(beh,1), 
                   horizontal=false, 
                   startvalue=1000)
@@ -154,6 +156,7 @@ begin
     partition = Dict()
     maxes = Dict()
 
+    # BACKGROUND MANI
     begin
 
         # Plot a light grey of the total manis
@@ -162,7 +165,8 @@ begin
                                                    in zip(emdfs.cols, inv(emdfs.keymap)[i]))
                 title = TextWrap.wrap(replace(Utils.namedtup.tostring(title),","=>" "),
                                                           width=40)
-                maxes[i] = Axis3(Fig[i,3], title=title, titlesize=8)
+                AxisT = manis.dim[1] == 3 ? Axis3 : Axis
+                maxes[i] = AxisT(Fig[i,3:Ncol-1], title=title, titlesize=8)
                 part = @lift findfirst($t .>= manis.T_start .&& $t .< manis.T_end)		
                 partition[i] = @lift $part === nothing ? @error("partition missing") : $part
                 e = []
@@ -171,26 +175,29 @@ begin
                 end
                 black=RGBA(colorant"black", 0.01)
                 GLMakie.scatter!(e..., color=black, transparency=true, markersize=4)
+                bounds = collect(Iterators.flatten([collect.(manis.bounds)...]))
+                limits!(maxes[i], bounds...)
         end
 
     end
 
     # Record current manifold point
     begin
-
         # Plot current location of manis
         for (i, manis) in enumerate(emdfs)
                 mani     =  @lift manis[$(partition[i]), :]
                 mani_ind = @lift findfirst($mani.inds_of_t .== $b.index)
-                mani_start = @lift max($mani_ind-opt[:nback], $mani.T_end)
-                point = @lift Point3f($mani.value[$mani_ind,:])
-                points = @lift Point3f.(eachrow($mani.value[$mani_start:$mani_ind,:]))
+                mani_start = @lift min($mani_ind-opt[:nback], $mani.T_end)
+                PointT = mani[].dim[1] == 3 ? Point3f : Point2f
+                point = @lift PointT($mani.value[$mani_ind,:])
+                points = @lift PointT.(eachrow($mani.value[$mani_start:$mani_ind,:]))
                 s=GLMakie.scatter!(maxes[i], point, c=colorant"red",
-                                   markersize=6, glowwidth=5,
+                                   markersize=5, glowwidth=5,
                                    glowcolor=colorant"red", )
-                S=GLMakie.scatter!(maxes[i], point, c=colorant"red",
-                                   markersize=6, glowwidth=5,
+                S=GLMakie.scatter!(maxes[i], points, c=colorant"darkred",
+                                   markersize=5, glowwidth=5,
                                    glowcolor=colorant"red", )
+                S=GLMakie.lines!(maxes[i], points, c=colorant"darkred")
         end
     end
 

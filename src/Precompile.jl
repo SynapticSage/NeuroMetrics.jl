@@ -18,7 +18,7 @@ module Precompile
                        "ColorSchemes", "ProtoStructs", "KernelDensity", "UMAP",
                        "Entropies", "CausalityTools", "Term", "Images",
                        "ImageSegmentation", "ImageTransformations",
-                       "ImageFiltering"]   
+                       "ImageFiltering", "ArgParse"]   
     _GFA_data_dependencies = [_GFA_dependencies..., "Load", "SampleData"]
 
     using PackageCompiler

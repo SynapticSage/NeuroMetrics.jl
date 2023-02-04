@@ -1,25 +1,17 @@
-using GoalFetchAnalysis
-using Serialization
-using Plots
-using Timeshift.shiftmetrics
-using Field.metrics
-using Timeshift
-using DimensionalData
-using Statistics, NaNStatistics, Bootstrap
+using GoalFetchAnalysis, Serialization, Plots, Timeshift.shiftmetrics,
+      Field.metrics, Timeshift, DimensionalData, Statistics, NaNStatistics,
+      Bootstrap, StatsBase, ProgressMeter, DataFramesMeta, SoftGlobalScope
 import Plot
-using StatsBase
-using ProgressMeter
-using DataFramesMeta
-using SoftGlobalScope
+
 theme(:bright)
+opt = argparse
+bins = 25
+if !isdefined(Main,:F) || F===nothing
+    global F = load_fields()
+end
 
-shifts=-2.0f0:0.05f0:2.0f0
-
-#3savefile = "/home/ryoung/Projects/goal-code/data/timeshift/fixed_shifts_$shifts.serial"
-
-F = load_fields()
-#F,I,shifts = deserialize(savefile);
-
+possible_filts = map(k->k.datacut, collect(keys(F)))
+comparisons = Filt.get_comparisons(possible_filts)
 
 datasets = 
 (
@@ -34,7 +26,7 @@ datasets =
  ("super", 0, nothing),
 )
 datasets = [dataset for dataset in datasets if dataset[1] == "RY16"]
-datasets= [(d..., frac) for d in datasets for frac in [ :iso, :adj]]
+datasets= [(d..., frac) for d in datasets for frac in [nothing]]
 
 # If this doesn't work subfunctions may not be scoped right and may need SoftGlobalScope
 animal, day, brain_area, frac = datasets[end]
@@ -43,9 +35,9 @@ animal, day, brain_area, frac = datasets[end]
 @softscope for (i,(animal,day,brain_area,frac)) in collect(enumerate(datasets))
     
     @info "loop" i animal day brain_area frac
-    if frac != :adj
-        continue
-    end
+    # if frac != :adj
+    #     continue
+    # end
 
     @info "loop_engage" i animal day brain_area frac
     #if brain_area === nothing
@@ -56,13 +48,13 @@ animal, day, brain_area, frac = datasets[end]
     # = PREPLOT ACTIONS =#
     cells = Load.load_cells(animal, day)
 
-    keyz = Dict(key.datacut=>key for key in filter(k->k.animal==animal && 
+    keyz = Dict(key.datacut=>key for key in Base.filter(k->k.animal==animal && 
                                                    k.day == day, keys(F)))
 
     if frac == :iso || frac == :adj
-        @eval Plot parent_folder = ["timeshift", "central_plot_collection.jl","isoadj"]
+        @eval Plot parent_folder = ["timeshift", "main.jl","isoadj"]
     else
-        @eval Plot parent_folder = ["timeshift", "central_plot_collection.jl"]
+        @eval Plot parent_folder = ["timeshift", "main.jl"]
     end
     Plot.setappend(frac == :iso || frac == :adj ?
                    (;frac,animal,day, brain_area) : (;animal,day,brain_area))
@@ -98,7 +90,6 @@ animal, day, brain_area, frac = datasets[end]
     This tracks changes in the tau best shift
     """
 
-    bins = 25
     Plot.setfolder("histograms, best shift")
     for k in (:all, :nontask, :cue, :mem_error, :cue_error, :task,:memory, :mem_correct, :cue_correct)
         key = keyz[k]
@@ -120,10 +111,8 @@ animal, day, brain_area, frac = datasets[end]
         Plot.save(k)
     end
 
-   bins = 25
    Plot.setfolder("tracking change in τ best_shift")
-   for (k1, k2) in zip((:nontask, :cue, :mem_error, :cue_error),
-                       (:task,:memory, :mem_correct, :cue_correct))
+   for (k1, k2) in comparisons
    @info "keys" k1 k2
        key1,key2 = keyz[k1],keyz[k2]
        k1s, k2s = replace.(string.([k1,k2]),"_" => "\\;")
@@ -176,8 +165,7 @@ animal, day, brain_area, frac = datasets[end]
    statfunc = mean
    Plot.setfolder("comparison of bps via statfunc=$statfunc")
    P=[]
-   for (k1, k2) in zip((:nontask, :cue, :mem_error, :cue_error, :error),
-                       (:task,:memory, :mem_correct, :cue_correct, :correct))
+   for (k1, k2) in comparisons
        @info "keys" k1 k2
        key1,key2 = keyz[k1],keyz[k2]
        f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
@@ -251,8 +239,7 @@ animal, day, brain_area, frac = datasets[end]
    statfunc = mean
    Plot.setfolder("comparison of norm_bps via statfunc=$statfunc")
    P=[]
-   for (k1, k2) in zip((:nontask, :cue, :mem_error, :cue_error, :error),
-                       (:task,:memory, :mem_correct, :cue_correct, :correct))
+   for (k1, k2) in comparisons
        @info "keys" k1 k2
        key1,key2 = keyz[k1],keyz[k2]
        f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
@@ -332,8 +319,7 @@ animal, day, brain_area, frac = datasets[end]
    Obtain delta heatmaps
    """
    Plot.setfolder("delta in bps heatmap - difference index")
-   for (k1, k2) in zip((:nontask, :cue, :correct, :mem_correct),
-                       (:task,:memory, :error, :mem_error),)
+   for (k1, k2) in comparisons
        key1,key2 = keyz[k1],keyz[k2]
        f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
        D = intersect(f1.dims[1],f2.dims[1])
@@ -357,9 +343,7 @@ animal, day, brain_area, frac = datasets[end]
    """
 
    Plot.setfolder("delta in bps heatmap - difference index - norm01")
-   for (k1, k2) in zip((:task,:memory, :error, :mem_error), (:nontask, :cue,
-                                                             :correct,
-                                                             :mem_correct),)
+   for (k1, k2) in comparisons
        key1,key2 = keyz[k1],keyz[k2]
        f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
        D = intersect(f1.dims[1],f2.dims[1])
@@ -380,9 +364,7 @@ animal, day, brain_area, frac = datasets[end]
    end
 
    Plot.setfolder("delta in bps heatmap -- raw")
-   for (k1, k2) in zip((:task,:memory, :error, :mem_error), (:nontask, :cue,
-                                                             :correct,
-                                                             :mem_correct),)
+   for (k1, k2) in comparisons
        key1,key2 = keyz[k1],keyz[k2]
        f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
        D = intersect(f1.dims[1],f2.dims[1])
@@ -402,9 +384,7 @@ animal, day, brain_area, frac = datasets[end]
    end
 
    Plot.setfolder("delta in bps heatmap - difference index - norm01")
-   for (k1, k2) in zip((:task,:memory, :error, :mem_error), (:nontask, :cue,
-                                                             :correct,
-                                                             :mem_correct),)
+   for (k1, k2) in comparisons
        key1,key2 = keyz[k1],keyz[k2]
        f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
        D = intersect(f1.dims[1],f2.dims[1])
@@ -425,9 +405,7 @@ animal, day, brain_area, frac = datasets[end]
    end
 
    Plot.setfolder("delta in bps heatmap - norm01 => diff => norm01")
-   for (k1, k2) in zip((:task,:memory, :error, :mem_error), (:nontask, :cue,
-                                                             :correct,
-                                                             :mem_correct),)
+   for (k1, k2) in comparisons
        key1,key2 = keyz[k1],keyz[k2]
        f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
        D = intersect(f1.dims[1],f2.dims[1])

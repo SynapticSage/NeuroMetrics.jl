@@ -41,7 +41,7 @@ module Filt
     end
     correct   = OrderedDict("correct" => CORRECT)
     incorrect = OrderedDict("correct" => INCORRECT)
-    nontask   = OrderedDict("correct" => NONTASK)
+    nontask   = OrderedDict("correct" => NONTASK, "cuemem" => NONTASK)
     task      = OrderedDict("correct" => TASK)
     home      = OrderedDict("ha" => HOME)
     arena     = OrderedDict("ha" => ARENA)
@@ -456,5 +456,44 @@ module Filt
     stores the fields required to precache
     """
     precache_field_reqs = Dict(:trajdiversity_cache => [:period])
+
+    # Comparisons
+    comparisons = (
+       (:nontask, :task), (:cue, :memory), (:mem_error, :mem_correct),
+       (:cue_error, :cue_correct), (:error, :correct), (:home, :arena)
+      )
+    """
+    Obtain a list of comparison
+    """
+    function get_comparisons(possible_filts::Union{Nothing,Vector{Symbol},Vector{String}}=nothing; strfilter=nothing)
+        if possible_filts === nothing
+            possible_filts = keys(get_filters())
+        else
+            if eltype(possible_filts) == Symbol
+                possible_filts = String.(possible_filts)
+            end
+        end
+        C = collect(comparisons)
+        custom_append!(c1, c2) = if c1 ∈ possible_filts && c2 ∈ possible_filts
+            push!(C, (Symbol(c1), Symbol(c2)))
+        else
+            @info "skipping $c1 $c2" c1∈possible_filts c2∈possible_filts
+        end
+        for (c1,c2) in comparisons
+            c1, c2 = String.((c1, c2))
+            if occursin(c1, "home") || occursin(c2, "arena")
+                continue
+            end
+            if c1 != "nontask"
+                custom_append!("arena_"*c1, "arena_"*c2)
+                custom_append!("home_"*c1, "home_"*c2)
+                custom_append!("arena_"*c1, "home_"*c1)
+            end
+            if c2 != "nontask"
+                custom_append!("arena_"*c2, "home_"*c2)
+            end
+        end
+        C
+    end
 
 end

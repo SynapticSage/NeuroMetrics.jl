@@ -227,12 +227,17 @@ module manifold
 
         alignkeys = [k for k in (:animal, :day, :n_neighbors, :feature, :metric, :filt, :s, :area, :dim)
                      if k ∈ propertynames(df) && k ∈ propertynames(sc)]
+        df = subset(df, :area => a -> (!).(ismissing.(a)))
         E, S = groupby(df, alignkeys), 
-                 groupby(sc, alignkeys)
+               groupby(sc, alignkeys)
         for key in keys(E)
             key = NamedTuple(key)
             e, s = E[key], S[key]
-            e.score = s.value
+            try
+                e.score = s.value
+            catch
+                @warn "key failed" key
+            end
         end
 
         df[!, :inds_of_t] = inds_of_t[df[!,:s]]

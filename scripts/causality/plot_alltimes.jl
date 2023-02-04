@@ -25,7 +25,7 @@ using DrWatson
 using Infiltrator, ThreadSafeDicts, JLD2, Serialization, CausalityTools,
       Entropies, DataFrames, DataFramesMeta, Statistics, NaNStatistics,
       HypothesisTests, Plots, StatsPlots, ColorSchemes, ProgressMeter,
-      SoftGlobalScope, ElectronDisplay
+      SoftGlobalScope, ElectronDisplay, ArgParse
 using GoalFetchAnalysis, Plot, Munge, Munge.manifold, Munge.causal,
        Munge.triggering, Utils.binning, Munge.causal, Plot.cause,
        Labels
@@ -34,8 +34,8 @@ using Utils.namedtup: ntopt_string
 using Plot.cause: plotmeancause, plotmediancause, plotmedianplushist, 
                    plotcausediff, getdiff, getmean, getmedian, 
                    getcausedistovertime
-using ArgParse
-parser = causal.parse(return_parser=true)
+parser = causal.argparse(return_parser=true)
+
 @add_arg_table parser begin
     "--diff"
         action=:store_true
@@ -44,9 +44,9 @@ parser = causal.parse(return_parser=true)
         action=:store_true
         help="Whether to save the plots"
 end
+
 opt = isdefined(Main, :USER_ARGS) ? 
         parse_args(USER_ARGS, parser) : parse_args(parser)
-#opt = Dict(zip(Symbol.(collect(keys(opt))), values(opt)))
 
 # =============
 # Control panel

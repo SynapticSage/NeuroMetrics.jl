@@ -23,7 +23,7 @@ module causal
     import Utils
     import Table
 
-    function parse(args=nothing;return_parser=false)
+    function argparse(args=nothing;return_parser=false)
         parser = Munge.manifold.parse(return_parser=true)
         if return_parser
             parser

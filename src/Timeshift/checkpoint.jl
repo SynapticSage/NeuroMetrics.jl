@@ -6,6 +6,7 @@ module checkpoint
     import Arrow
     using Infiltrator
     using DataStructures: OrderedDict
+    using ArgParse
 
     import Timeshift
     import ..Timeshift: DictOfShiftOfUnit
@@ -341,7 +342,96 @@ module checkpoint
         end
         answer
     end
+    export argparse
+    """
+        argparse(args=nothing; return_parser::Bool=false)
 
+    return command line parser for flags that control my manifold
+    related analyses
+    """
+    function argparse(mod::Module, pos...; kws...)
+        @eval mod begin
+            if isdefined(mod, :USER_ARGS)
+                argparse(mod.USER_ARGS, $(pos)...; $(kws)...) 
+            else
+                argparse($(pos)...; $(kws)...)
+            end
+        end
+    end
+    function argparse(args=nothing; return_parser::Bool=false)
+        parser = ArgParseSettings()
+        @add_arg_table parser begin
+
+            # TIMESHIFTING PARAMS
+            "--init_shift", "-i"
+                help="Intitial explored shift"
+                default=-2.0f0
+                arg_type=Float32
+            "--final_shift", "-f"
+                help="Final explored shift"
+                arg_type=Float32
+                default=2.0f0
+            "--period_shift", "-p"
+                help="Period of shift"
+                arg_type=Float32
+                default=0.05f0
+
+            # ADAPTIVE GRIDING 
+            # Width of field params
+            "--width", "-w"
+                help="Default field spacing widths"
+                default=[5.0f0]
+                arg_type=Vector{Float32}
+            "--thresh", "-t"
+                help="Threshold of seconds of time to accumulate per adaptive bin"
+                default=[1.5f0] # seconds
+                arg_type=Vector{Float32}
+            "--props", "-P"
+                help="Which properties to use in the receptive fields"
+                default=["x", "y"]
+                arg_type=Vector{String}
+
+            # SPIKE FILTErings
+            "--spike_filt", "-S"
+                help="filtration options for spikes"
+                default=""
+                arg_type=String
+
+            # CONSTRAINTS: Some scripts operate on all of these
+            "--animal", "-A"
+                help = "the animal to run default: the super animal"
+                arg_type = String
+                default = "RY16"
+            "--day", "-D"
+                help = "the day to run"
+                arg_type = Int
+                default = 36
+            "--dataset"
+                # In the future, I'm intending this to point into a GoalFetch module
+                 help = "dataset preset"
+                 arg_type = Int
+                 default = 0
+        end
+        if return_parser
+            return parser
+        else
+            if args !== nothing
+                opt = postprocess(parse_args(args, parser))
+            else
+                opt = postprocess(parse_args(parser))
+            end
+            @info "parsed options" opt
+            return opt
+        end
+    end
+    function postprocess(opt)
+        if opt["spike_filt"] == ""
+            opt["spike_filt"] = nothing
+        else
+            opt["spike_filt"] = Symbol(spike_filt)
+        end
+        opt
+    end
 
     # ===================
     # Old Ways

@@ -12,8 +12,9 @@ opt = Munge.manifold.parse()
 #dimset       = (2,   3)
 #min_dists    = (0.05,0.15,0.3)
 #n_neighborss = (5,50,150,400)
-min_dists, n_neighborss, metrics, dimset, features = [0.3], [5], [:Euclidean], 
+min_dists, n_neighborss, metrics, dimset, features = [0.3], [5,50], [:Euclidean], 
                                                      [2,3], [:zscore]
+
 
 # FINISH loading libraries
 begin
@@ -148,7 +149,7 @@ exception_triggered = false
 try
 
     for (metric,min_dist, n_neighbors, feature) in params
-        for (area,dim,s) in datasets
+        for (rate_data,dim,s) in datasets
 
             gc.collect()
             GC.gc(false)
@@ -158,7 +159,7 @@ try
             global steps += 1
 
             # Pre - process : Make key, do we process?
-            key = (;area,dim,s,min_dist,n_neighbors,metric,feature)
+            key = (;rate_data,dim,s,min_dist,n_neighbors,metric,feature)
             if key ∈ keys(embedding) && !(embedding[key] isa Future)
                 @info "skipping" key
                 next!(prog)
@@ -167,7 +168,7 @@ try
                 @info key
             end
             
-            area = feature == :zscore ? Symbol("z"*string(area)) : area;
+            area = feature == :zscore ? Symbol("z"*string(rate_data)) : rate_data;
 
             # Pre - process : Do we obtain a distance function?
             @debug "Getting distance metric"
