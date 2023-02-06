@@ -9,7 +9,7 @@ module crossval
     using CategoricalArrays
     using DataFrames
     import DIutils
-    using Table: DFColVars
+    import DIutils.Table: DFColVars
 
     in_range = DIutils.in_range
 

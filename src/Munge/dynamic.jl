@@ -7,7 +7,7 @@ module dynamic
     using DynamicAxisWarping
     using GoalFetchAnalysis
     using Munge.spiking
-    using Table
+    using DIutils.Table
     using Missings
     using Plot.task
     using Infiltrator

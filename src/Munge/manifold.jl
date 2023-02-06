@@ -20,12 +20,11 @@ module manifold
     using ArgParse
     using Statistics
 
-    import DIutils
     import Load
     using DIutils.Table 
     import Filt
     import DIutils.namedtup: ntopt_string
-    import DIutils: dict
+    using DIutils
 
     """
         parse(args=nothing; return_parser::Bool=false)
