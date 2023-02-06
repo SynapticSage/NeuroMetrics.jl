@@ -41,14 +41,14 @@ for (key, value) in opt
         @eval Main global $(Symbol(key)) = Symbol($value)
     end
 end
-global areas            = (:ca1,:pfc)
+#global areas            = (:ca1,:pfc)
 
 # Load data
 # ----------------
 
 
 println("Loading")
-@time global spikes, beh, ripples, cells = Load.load(animal, day)
+@time global spikes, beh, ripples, cells = Load.load(opt["animal"], opt["day"])
 beh.index = 1:size(beh,1)
 
 # ----------------
@@ -76,10 +76,25 @@ global diststr = distance === nothing ? "distance=euclidean" : lowercase("distan
 # ------------
 println("Firing rate matrices")
 function get_R(beh, spikes)
+    
     R = Dict(
-             Symbol(lowercase(ar))=>Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
+             Symbol(lowercase(ar)) =>
+             Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
                     for ar in ("CA1","PFC")
-            )
+    )
+    cells, spikes = Utils.filtreg.register(cells, spikes; on="unit", transfer=["celltype"])
+    R = merge(R, 
+              Dict(
+                  Symbol(lowercase(ar) * "_" * String(ct)) => 
+                  (sub=@subset(spikes, :area .== ar, :celltype .== ct);
+                   if !isempty(sub)
+                       Munge.spiking.torate(sub, beh)
+                   else
+                       []
+                   end
+                  ) for ar in ("CA1","PFC"), ct in (:pyr,:int)
+              )
+    )
     zscoredimarray(x) = DimArray(hcat(zscore.(eachcol(x))...), x.dims)
     merge(R,Dict(Symbol("z"*string(k))=>zscoredimarray(v) for (k,v) in R))
 end
@@ -139,7 +154,7 @@ end
 # Setup loop variables and progress measures
 # ----------------
 params   = collect(Iterators.product(metrics,min_dists, n_neighborss,features))
-datasets = collect(Iterators.product(areas, dimset, 1:length(inds_of_t)))
+datasets = collect(Iterators.product(keys(R), dimset, 1:length(inds_of_t)))
 prog = Progress(prod(length.((params,datasets))); desc="creating embeddings")
 global steps, total = 0, (length(params) * length(datasets))
 
@@ -149,7 +164,7 @@ exception_triggered = false
 try
 
     for (metric,min_dist, n_neighbors, feature) in params
-        for (rate_data,dim,s) in datasets
+        for (dataset,dim,s) in datasets
 
             gc.collect()
             GC.gc(false)
@@ -159,7 +174,7 @@ try
             global steps += 1
 
             # Pre - process : Make key, do we process?
-            key = (;rate_data,dim,s,min_dist,n_neighbors,metric,feature)
+            key = (;dataset,dim,s,min_dist,n_neighbors,metric,feature)
             if key ∈ keys(embedding) && !(embedding[key] isa Future)
                 @info "skipping" key
                 next!(prog)
@@ -168,14 +183,14 @@ try
                 @info key
             end
             
-            area = feature == :zscore ? Symbol("z"*string(rate_data)) : rate_data;
+            dataset = feature == :zscore ? Symbol("z"*string(dataset)) : dataset;
 
             # Pre - process : Do we obtain a distance function?
             @debug "Getting distance metric"
             metric_str = if distance == :Mahalanobis
                 @info "transforming Mahalanobis"
-                Q = Rtrain[area]' * Rtrain[area];
-                dist_func = getproperty(Distances, distance)(Matrix(Q[area]));
+                Q = Rtrain[dataset]' * Rtrain[dataset];
+                dist_func = getproperty(Distances, distance)(Matrix(Q[dataset]));
             elseif !use_cuda
                 @info "transforming $distance"
                 dist_func = getproperty(Distances, distance)
@@ -183,11 +198,11 @@ try
                 lowercase(string(metric))
             end
 
-            train = Matrix(Rtrain[area]'); # train on everything with filters
+            train = Matrix(Rtrain[dataset]'); # train on everything with filters
             #train = Matrix(Rtrain[area]'[:, # train on just this set of indices (dynamic manifold)
                                          # Rtrain_matching[area, inds_of_t[s]]
                                         # ]); 
-            input = Matrix(R[area]'[:, # test on this set minus filters
+            input = Matrix(R[dataset]'[:, # test on this set minus filters
                                     inds_of_t[s]
                                    ]);
             # input = Matrix(R[area]'); # test on everything minus filters

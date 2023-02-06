@@ -52,7 +52,7 @@ T = size(beh, 1)
 emdfs = @subset(emdf, 
               :metric  .== Symbol("Euclidean"),
               :feature .== Symbol("zscore"),
-              :dim .== 2)
+              :dim .== 3)
 isempty(emdfs ) ? @error("emdfs is empty!") : nothing
 
 # Throw away unused partitions
@@ -62,6 +62,9 @@ end
 begin
 	keynames = [:min_dist, :n_neighbors, :metric, :area, :dim, :feature]
         emdfs = groupby(emdfs, keynames)
+        # if any(size.(collect(emdfs),[1])) > 1
+        #     @error("you should filter such that each group has 1 entry")
+        # end
 end
 isempty(emdfs ) ? @error("emdfs is empty!") : nothing
 beh.T_partition = Utils.searchsortedprevious.([sort(unique(emdfs.T_start))], beh.index)
@@ -157,29 +160,31 @@ begin
     maxes = Dict()
 
     # BACKGROUND MANI
-    begin
-
-        # Plot a light grey of the total manis
-        for (i, manis) in enumerate(emdfs)
-                title = NamedTuple(col=>value for (col,value) 
-                                                   in zip(emdfs.cols, inv(emdfs.keymap)[i]))
-                title = TextWrap.wrap(replace(Utils.namedtup.tostring(title),","=>" "),
-                                                          width=40)
-                AxisT = manis.dim[1] == 3 ? Axis3 : Axis
-                maxes[i] = AxisT(Fig[i,3:Ncol-1], title=title, titlesize=8)
-                part = @lift findfirst($t .>= manis.T_start .&& $t .< manis.T_end)		
-                partition[i] = @lift $part === nothing ? @error("partition missing") : $part
-                e = []
-                for dim in range(1, manis.dim[1])
-                        push!(e, @lift manis.value[$(partition[i])][:,dim])
-                end
-                black=RGBA(colorant"black", 0.01)
-                GLMakie.scatter!(e..., color=black, transparency=true, markersize=4)
-                bounds = collect(Iterators.flatten([collect.(manis.bounds)...]))
-                limits!(maxes[i], bounds...)
+    # Plot a light grey of the total manis
+    for (i, manis) in enumerate(emdfs)
+        try
+            title = NamedTuple(col=>value for (col,value) 
+                                               in zip(emdfs.cols, inv(emdfs.keymap)[i]))
+            title = TextWrap.wrap(replace(Utils.namedtup.tostring(title),","=>" "),
+                                                      width=40)
+            AxisT = manis.dim[1] == 3 ? Axis3 : Axis
+            maxes[i] = AxisT(Fig[i,3:Ncol-1], title=title, titlesize=8)
+            part = @lift findfirst($t .>= manis.T_start .&& $t .< manis.T_end)		
+            partition[i] = @lift $part === nothing ? @error("partition missing") : $part
+            e = []
+            for dim in range(1, manis.dim[1])
+                push!(e, @lift manis.value[$(partition[i])][:,dim])
+            end
+            black=RGBA(colorant"black", 0.01)
+            GLMakie.scatter!(e..., color=black, transparency=true, markersize=4)
+            bounds = collect(Iterators.flatten([collect.(manis.bounds[part[]])...]))
+            limits!(maxes[i], bounds...)
+            manis.score
+        catch
+            @info i
         end
-
     end
+
 
     # Record current manifold point
     begin

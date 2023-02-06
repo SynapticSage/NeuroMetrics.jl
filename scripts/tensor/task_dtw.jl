@@ -218,6 +218,7 @@ znorm2(x) = (x = x.- mean(x,dims=2); x ./= std(x,dims=2))
         [(rows_of_slices...,) for rows_of_slices in s3]
     end
 end
+
 P = []
 @showprogress for i in 1:size(out,2)
     data = reshape.(out[:,i], 2,:)

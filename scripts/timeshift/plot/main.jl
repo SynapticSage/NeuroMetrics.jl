@@ -32,6 +32,41 @@ datasets= [(d..., frac) for d in datasets for frac in [nothing]]
 animal, day, brain_area, frac = datasets[end]
 #include(expanduser("~/tmp2.jl"))
 
+function prep(f::AbstractDict, k::Symbol)
+    key = keyz[k]
+    prep(F[key])
+end
+prep(f::ShiftedFields) = prep(matrixform(f))
+function prep(f::DimArray)    
+    push_dims!(f)
+    push_celltable!(f, cells)
+    pop_metric!(f, :unit)
+    push_metric!(f, metrics.bitsperspike)
+    push_metric!(f, metrics.totalcount)
+    push_metric!(f, metrics.maxrate)
+    push_shiftmetric!(f, best_tau!; metric=:bitsperspike)
+    push_metric!(f, metrics.bitsperspikeold)
+    push_shiftmetric!(f, best_tau!; metric=:bitsperspikeold)
+    f = f[vec(all(f[:totalcount] .> 50, dims=2) .&&
+              any(f[:bitsperspike] .> 0.5, dims=2)) ,:]
+    if brain_area !== nothing
+        f = f[vec(all(f[:area] .== brain_area, dims=2)), :]
+    end
+    f
+end
+  
+function doheat(f,key)
+    inds = sortperm(f[:bestshift_bitsperspike][:,1])
+    bps  = f[:bitsperspike][inds, :]
+    XX = hcat([Utils.norm_extrema(b) for b in eachrow(bps)]...)'
+    heatmap(shifts, collect(1:size(XX,1)), XX, title="$(key.datacut)", size=2 .* (600,800))
+end
+
+# FAILED SYMBOLS
+# │  (Symbol) k1 = arena_mem_error
+# │  (Symbol) k2 = arena_mem_correct
+
+
 @softscope for (i,(animal,day,brain_area,frac)) in collect(enumerate(datasets))
     
     @info "loop" i animal day brain_area frac
@@ -46,9 +81,8 @@ animal, day, brain_area, frac = datasets[end]
     #end
 
     # = PREPLOT ACTIONS =#
-    cells = Load.load_cells(animal, day)
-
-    keyz = Dict(key.datacut=>key for key in Base.filter(k->k.animal==animal && 
+    global cells = Load.load_cells(animal, day)
+    global keyz = Dict(key.datacut=>key for key in Base.filter(k->k.animal==animal && 
                                                    k.day == day, keys(F)))
 
     if frac == :iso || frac == :adj
@@ -59,30 +93,6 @@ animal, day, brain_area, frac = datasets[end]
     Plot.setappend(frac == :iso || frac == :adj ?
                    (;frac,animal,day, brain_area) : (;animal,day,brain_area))
 
-    function prep(f)    
-        push_dims!(f)
-        push_celltable!(f, cells)
-        pop_metric!(f, :unit)
-        push_metric!(f, metrics.bitsperspike)
-        push_metric!(f, metrics.totalcount)
-        push_metric!(f, metrics.maxrate)
-        push_shiftmetric!(f, best_tau!; metric=:bitsperspike)
-        push_metric!(f, metrics.bitsperspikeold)
-        push_shiftmetric!(f, best_tau!; metric=:bitsperspikeold)
-        f = f[vec(all(f[:totalcount] .> 50, dims=2) .&&
-                  any(f[:bitsperspike] .> 0.5, dims=2)) ,:]
-        if brain_area !== nothing
-            f = f[vec(all(f[:area] .== brain_area, dims=2)), :]
-        end
-        f
-    end
-      
-    function doheat(f,key)
-        inds = sortperm(f[:bestshift_bitsperspike][:,1])
-        bps  = f[:bitsperspike][inds, :]
-        XX = hcat([Utils.norm_extrema(b) for b in eachrow(bps)]...)'
-        heatmap(shifts, collect(1:size(XX,1)), XX, title="$(key.datacut)", size=2 .* (600,800))
-    end
     # = --------------------------------------------------------------- =#
 
 
@@ -92,9 +102,8 @@ animal, day, brain_area, frac = datasets[end]
 
     Plot.setfolder("histograms, best shift")
     for k in (:all, :nontask, :cue, :mem_error, :cue_error, :task,:memory, :mem_correct, :cue_correct)
-        key = keyz[k]
+        f   = prep(F, k)
         k  = string(k)
-        f   = prep(matrixform(F[key]))
         @info "$key" #length(unique(f[:unit]))
 
         vals = f[shift=At(0)][:bestshift_bitsperspike]
@@ -114,9 +123,8 @@ animal, day, brain_area, frac = datasets[end]
    Plot.setfolder("tracking change in τ best_shift")
    for (k1, k2) in comparisons
    @info "keys" k1 k2
-       key1,key2 = keyz[k1],keyz[k2]
        k1s, k2s = replace.(string.([k1,k2]),"_" => "\\;")
-       f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]));
+       f1, f2 = prep(F, k1), prep(F, k1);
        u = intersect(f1.dims[1], f2.dims[1])
 
        vals = f1[unit=At(u)][:bestshift_bitsperspike],
@@ -167,8 +175,7 @@ animal, day, brain_area, frac = datasets[end]
    P=[]
    for (k1, k2) in comparisons
        @info "keys" k1 k2
-       key1,key2 = keyz[k1],keyz[k2]
-       f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
+       f1, f2 = prep(F, k1), prep(F, k2)
        u = intersect(f1.dims[1], f2.dims[1])
        f1,f2 = f1[unit=At(u)], f2[unit=At(u)]
 
@@ -241,8 +248,7 @@ animal, day, brain_area, frac = datasets[end]
    P=[]
    for (k1, k2) in comparisons
        @info "keys" k1 k2
-       key1,key2 = keyz[k1],keyz[k2]
-       f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
+       f1, f2 = prep(F, k1), prep(F, k2)
        u = intersect(f1.dims[1], f2.dims[1])
        f1,f2 = f1[unit=At(u)], f2[unit=At(u)]
 
@@ -320,8 +326,7 @@ animal, day, brain_area, frac = datasets[end]
    """
    Plot.setfolder("delta in bps heatmap - difference index")
    for (k1, k2) in comparisons
-       key1,key2 = keyz[k1],keyz[k2]
-       f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
+       f1, f2 = prep(F, k1), prep(F, k2)
        D = intersect(f1.dims[1],f2.dims[1])
        R, L = [], []
        for d in D
@@ -344,8 +349,7 @@ animal, day, brain_area, frac = datasets[end]
 
    Plot.setfolder("delta in bps heatmap - difference index - norm01")
    for (k1, k2) in comparisons
-       key1,key2 = keyz[k1],keyz[k2]
-       f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
+       f1, f2 = prep(F, k1), prep(F, k2)
        D = intersect(f1.dims[1],f2.dims[1])
        R, L = [], []
        for d in D
@@ -365,8 +369,7 @@ animal, day, brain_area, frac = datasets[end]
 
    Plot.setfolder("delta in bps heatmap -- raw")
    for (k1, k2) in comparisons
-       key1,key2 = keyz[k1],keyz[k2]
-       f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
+       f1, f2 = prep(F, k1), prep(F, k2)
        D = intersect(f1.dims[1],f2.dims[1])
        R, L = [], []
        for d in D
@@ -385,8 +388,7 @@ animal, day, brain_area, frac = datasets[end]
 
    Plot.setfolder("delta in bps heatmap - difference index - norm01")
    for (k1, k2) in comparisons
-       key1,key2 = keyz[k1],keyz[k2]
-       f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
+       f1, f2 = prep(F, k1), prep(F, k2)
        D = intersect(f1.dims[1],f2.dims[1])
        R, L = [], []
        for d in D
@@ -406,8 +408,7 @@ animal, day, brain_area, frac = datasets[end]
 
    Plot.setfolder("delta in bps heatmap - norm01 => diff => norm01")
    for (k1, k2) in comparisons
-       key1,key2 = keyz[k1],keyz[k2]
-       f1, f2 = prep(matrixform(F[key1])), prep(matrixform(F[key2]))
+       f1, f2 = prep(F, k1), prep(F, k2)
        D = intersect(f1.dims[1],f2.dims[1])
        R, L = [], []
        for d in D
@@ -430,8 +431,7 @@ animal, day, brain_area, frac = datasets[end]
    k = first(keys(keyz))
    H=[]
    for k in keys(keyz)
-       key = keyz[k]
-       f   = prep(matrixform(F[key]))
+       f   = prep(F, k)
        shifts = vec(f.dims[2].val.data)
        inds = sortperm(f[:bestshift_bitsperspike][:,1])
        bps  = f[:bitsperspike][inds, :]
@@ -449,8 +449,7 @@ animal, day, brain_area, frac = datasets[end]
    k = first(keys(keyz))
    H=[]
    for k in keys(keyz)
-       key = keyz[k]
-       f   = prep(matrixform(F[key]))
+       f   = prep(F, k)
        shifts = vec(f.dims[2].val.data)
        inds = sortperm(f[:bestshift_bitsperspike][:,1])
        bps  = f[:bitsperspike][inds, :]
@@ -468,8 +467,7 @@ animal, day, brain_area, frac = datasets[end]
     k = first(keys(keyz))
     H=[]
     for k in keys(keyz)
-        key = keyz[k]
-        f   = prep(matrixform(F[key]))
+        f   = prep(F, k)
         shifts = vec(f.dims[2].val.data)
         inds = sortperm(f[:bestshift_bitsperspike][:,1])
         bps  = f[:bitsperspike][inds, :]

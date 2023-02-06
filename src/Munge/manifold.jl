@@ -173,7 +173,7 @@ module manifold
     individual samples in rows and properties in columns.
     """
     function load_manis_workspace(animal::String, day; 
-        filt, areas, distance, feature_engineer, N, trans=:Matrix, embedding_overall=nothing, kws...)
+        filt, distance, feature_engineer, N, trans=:Matrix, embedding_overall=nothing, kws...)
         data = load_manis(;feature_engineer, filt, distance, tag="$(animal)$(day).$(N)seg")
 
         embedding_overall = embedding_overall === nothing ?
@@ -191,7 +191,10 @@ module manifold
         embedding = embedding_overall
 
         transform(em) = if trans == :DimArray
-            (em=em';DimArray(em, (Dim{:time}(beh.time[1:size(em,1)]), Dim{:comp}(1:size(em,2)))))
+            (em=em';DimArray(em, 
+                             (Dim{:time}(beh.time[1:size(em,1)]),
+                              Dim{:comp}(1:size(em,2)))
+            ))
         elseif trans == :Dataset
             (em=em';Dataset(eachcol(em)...))
         else
@@ -225,9 +228,22 @@ module manifold
         df = Table.to_dataframe(embedding, explode=false)
         sc = Table.to_dataframe(score)
 
-        alignkeys = [k for k in (:animal, :day, :n_neighbors, :feature, :metric, :filt, :s, :area, :dim)
+        alignkeys = [k for k in (:animal, :day, :n_neighbors, :feature, :metric, :filt, :s, :dataset, :dim)
                      if k ∈ propertynames(df) && k ∈ propertynames(sc)]
-        df = subset(df, :area => a -> (!).(ismissing.(a)))
+        df = subset(df, :dataset => a -> (!).(ismissing.(a)))
+        assignarea(x::Symbol) = begin
+            x = String(x)
+            if occursin(x, "ca1")
+                :ca1
+            elseif occursin(x, "pfc")
+                :pfc
+            else
+                :none
+            end
+        end
+        if :area ∉ propertynames(df) && :dataset ∈ propertynames(df)
+            df[!, :area]  = assignarea.(df[!, :dataset])
+        end
         E, S = groupby(df, alignkeys), 
                groupby(sc, alignkeys)
         for key in keys(E)
@@ -357,7 +373,5 @@ module manifold
     Base.iterate(em::EmbeddingFrameFetch) = em[1], 1
     Base.iterate(em::EmbeddingFrameFetch, count) = count != length(em) ? 
                                             (em[count+1], count+1) : nothing
-
-
 
 end
