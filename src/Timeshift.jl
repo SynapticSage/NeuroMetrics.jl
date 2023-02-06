@@ -11,10 +11,8 @@ module Timeshift
     import Field
     import Field: adaptive, fixed
     import Field.preset: field_presets, return_preset_funcs
-    import Table
     import Filt
-    import Utils
-    import Utils: filtreg
+    using DIutils
 
     # Julia packages
     using DataStructures
@@ -39,7 +37,7 @@ module Timeshift
     end
 
     function isminutes(X::DataFrame)
-        Utils.dextrema(X.time)[1] < 1440.0 # assumes less than 24 hour recording
+        DIutils.dextrema(X.time)[1] < 1440.0 # assumes less than 24 hour recording
     end
 
     function ensureTimescale!(X::DataFrame; kws...)

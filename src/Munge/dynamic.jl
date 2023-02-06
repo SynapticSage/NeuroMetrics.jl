@@ -127,7 +127,7 @@ module dynamic
                         on=:time)::DataFrame
         wgf = combine(groupby(wg, :s1), first)
         wgf.time
-        matches = Utils.searchsortednearest.([data[!,on]], wgf[!,on])
+        matches = DIutils.searchsortednearest.([data[!,on]], wgf[!,on])
         data = data[matches,:]
         hcat(data, wgf[!,[:warpgroup, :warpexample, :time_template_zerod, :time_zerod,:s1]])
     end

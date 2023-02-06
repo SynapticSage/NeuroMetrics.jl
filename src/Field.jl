@@ -4,23 +4,16 @@ module Field
     export ReceptiveField
 
     # Julia Packages
-    using DataFrames
-    using ImageFiltering
+    using DataFrames, ImageFiltering, DataStructures, Statistics, NaNStatistics, 
+          Infiltrator, LazySets, Statistics
     import DataStructures: OrderedDict
-    using DataStructures
-    using Statistics
-    using NaNStatistics
-    using Infiltrator
     using GeometricalPredicates: inpolygon
-    using LazySets
-    using Statistics
-    using Utils.binning: return_vals
 
     # Goal Vector Libraries
     using DrWatson
-    import Utils
-    import Table
+    using DIutils
     import Load
+    import DIutils.binning: return_vals
 
     rateConversion = 30
     export rateConversion
@@ -46,7 +39,7 @@ module Field
         join(M, " ")
     end
     function Table.to_dataframe(F::ReceptiveField, pos...; kws...)
-        F = Utils.to_dict(F)
+        F = DIutils.to_dict(F)
         grid  = pop!(F, :grid_centers)
         props = pop!(F, :props)
         F = NamedTuple(F)
@@ -74,7 +67,7 @@ module Field
     end
     
     function isminutes(df::DataFrame)
-        Utils.dextrema(df.time)[1] < 1440.0 # assumes less than 24 hour recording
+        DIutils.dextrema(df.time)[1] < 1440.0 # assumes less than 24 hour recording
     end
 
     function ensureTimescale!(df::DataFrame; kws...)

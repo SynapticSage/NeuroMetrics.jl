@@ -1,8 +1,8 @@
 module nonlocal
 
     using Timeshift, Timeshift.types, Timeshift.shiftmetrics,
-          Field.metrics, Utils.namedtup
-    import Utils, Table, Labels, Random
+          Field.metrics, DIutils.namedtup
+    import DIutils, Table, Labels, Random
     using DimensionalData, ProgressMeter, DataFrames, DataFramesMeta,
           Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
     using Plots, LazySets, Infiltrator
@@ -52,9 +52,9 @@ module nonlocal
                          for r in eachrow(spu)] # the transform not guarenteeed same size
             U = shift0[unit=At(unit)]
             hull = [VPolygon(U[:hullseg_grid][i])
-                    for i in 1:length(U[:hullseg_grid])][Utils.na, :]
+                    for i in 1:length(U[:hullseg_grid])][DIutils.na, :]
             #hullT = [VPolygon(trans(U[:hullseg_grid][i]))
-            #        for i in 1:length(U[:hullseg_grid])][Utils.na, :]
+            #        for i in 1:length(U[:hullseg_grid])][DIutils.na, :]
             if isempty(hull)
                 @warn "no hull"
                 continue
@@ -110,7 +110,7 @@ module nonlocal
             # Total that time and register that column to the isolation summary
             task_pers = combine(groupby(task_pers, [:period, :cuemem]),
                                 [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
-            Utils.filtreg.register(task_pers, iso_sum, on="period", transfer=["timespent"])
+            DIutils.filtreg.register(task_pers, iso_sum, on="period", transfer=["timespent"])
         elseif :traj ∈ split
             # Calculate time animal spends in each cuemem segment
             task_pers = Table.get_periods(nonlocal.unfiltered_behavior, [:traj, :cuemem], 
@@ -118,7 +118,7 @@ module nonlocal
             # Total that time and register that column to the isolation summary
             task_pers = combine(groupby(task_pers, [:period, :cuemem]),
                                 [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
-            Utils.filtreg.register(task_pers, iso_sum, on="traj", transfer=["timespent"])
+            DIutils.filtreg.register(task_pers, iso_sum, on="traj", transfer=["timespent"])
         else
             @info "traj and period not in split"
                                 # Calculate time animal spends in each cuemem segment
@@ -129,7 +129,7 @@ module nonlocal
             task_pers = combine(groupby(task_pers, [:cuemem]), 
                                 [:δ,:frac] =>
                                 ((x,y)->sum(x.*y)) => :timespent)
-            Utils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
+            DIutils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
         end
 
         isempty(iso_sum) ? @error("iso_sum is innapropriately empty") : nothing

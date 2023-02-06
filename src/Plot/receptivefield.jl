@@ -3,26 +3,18 @@
 """
 module receptivefield
 
-    using Plots, LaTeXStrings, Measures
-    using DataFramesMeta
-    using Statistics
-    using ProgressMeter
-    using NaNStatistics
-    import TextWrap
-    using Infiltrator
-    using Interpolations
-    using ImageFiltering
-    using Measures
-    using Colors
+    using Plots, LaTeXStrings, Measures, DataFramesMeta, Statistics,
+          ProgressMeter, NaNStatistics, TextWrap, Infiltrator
+          ImageFiltering, Measures, Colors, Interpolations,
+          Memoization
+    import Random
 
     import ..Plot
     using Field
     using Field: ReceptiveField, ReceptiveFields
-    using Utils.binning
-    import Utils
+    using DIutils.binning
+    import DIutils
 
-    import Random
-    using Memoization
     function clear_memoize_receptivefield!() 
         Memoization.empty_cache!(upsample)
         Memoization.empty_cache!(gaussianfilt)

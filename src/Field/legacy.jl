@@ -4,7 +4,7 @@ module legacy
     using DataStructures: OrderedDict
     import GeometricalPredicates
 
-    import Utils
+    import DIutils
     import Load
 
     # ------------- LEGACY CODE ---------------------------------------------
@@ -19,7 +19,7 @@ module legacy
         grid = OrderedDict{String,Any}()
         thing = dropmissing(thing);
         for prop in props
-            grid[prop] = extrema(Utils.skipnan(thing[!, prop]));
+            grid[prop] = extrema(DIutils.skipnan(thing[!, prop]));
         end
 
         range_func_hist(start, stop, i) = collect(start : (stop-start)/resolution[i] : stop)
@@ -199,7 +199,7 @@ module legacy
     module hist
 
         using ..legacy
-        import Utils
+        import DIutils
 
         using DataFrames
         using StatsBase: fit
@@ -285,7 +285,7 @@ module legacy
         using KernelDensitySJ
         #using Infiltrator
         #using DrWatson
-        import Utils
+        import DIutils
 
         function KDE(data, props; bandwidth=:silverman)
             data = dropmissing(data[:,props])
@@ -345,8 +345,8 @@ module legacy
             #    throw(ArgumentError("type of hist should match type of kde\n...type(hist)=$(supertype(typeof(hist))) != $(supertype(typeof(kde)))"))
             #end
             if kde isa AbstractArray
-                area_hist = sum(Utils.skipnan(hist))
-                area_kde  = sum(Utils.skipnan(kde))
+                area_hist = sum(DIutils.skipnan(hist))
+                area_kde  = sum(DIutils.skipnan(kde))
                 kde = (area_hist/area_kde) .* kde;
             elseif kde isa Dict
                 @inbounds for key in keys(kde)

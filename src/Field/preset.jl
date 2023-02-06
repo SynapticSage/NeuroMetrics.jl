@@ -1,7 +1,7 @@
 module preset
 
     import Field: adaptive, metrics#, fixed 
-    import Utils: binning
+    import DIutils: binning
 
     export field_presets, return_preset_funcs
 

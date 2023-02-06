@@ -100,7 +100,7 @@ module old_rf
         if all(isnan.(FF)) || isempty(FF)
             return Plots.plot()
         end
-        ylims = quantile(Utils.skipnan(vec(FF)), quant)
+        ylims = quantile(DIutils.skipnan(vec(FF)), quant)
         if grid == []; extrakwargs = (xticks=[], yticks=[])
         else; extrakwargs = ()
         end
@@ -127,7 +127,7 @@ module old_rf
         if all(isnan.(FF)) || isempty(FF)
             return Plots.plot()
         end
-        clims = quantile(Utils.skipnan(vec(FF)), quant)
+        clims = quantile(DIutils.skipnan(vec(FF)), quant)
         if grid == []; 
             extrakwargs = (xticks=[], yticks=[])
             grid = (); pos = ();

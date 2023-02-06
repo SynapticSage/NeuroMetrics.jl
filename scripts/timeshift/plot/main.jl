@@ -165,8 +165,7 @@ end
                        [future/past, nonlocal/locl]);
                         
         plot(plot_histdist, plot_histdist_cdf,
-             b_fp,b_lc,
-              layout=[grid(2,1) grid(2,1)])
+             b_fp, b_lc, layout=[grid(2,1) grid(2,1)])
               
         Plot.save((;k1,k2))
    end

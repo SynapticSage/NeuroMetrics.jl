@@ -2,7 +2,7 @@ module makie_observable
 using Infiltrator
 
     using DataFramesMeta
-    import Utils
+    import DIutils
     export select_range, select_est_range, select_time, 
            select_prob, select_prob4, select_events, get_color
 
@@ -23,7 +23,7 @@ using Infiltrator
         data
     end
     function select_est_range(t, T, tr, Δt; data::DataFrame=DataFrame(), Δ_bounds=nothing)
-        I = Utils.searchsortednearest(data.time, T[t])
+        I = DIutils.searchsortednearest(data.time, T[t])
         if I != 1 && !(isnan(I))
             Δ = -Int(round(Δ_bounds[1]/Δt)) : Int(round(Δ_bounds[2]/Δt))
             center_time = data.time[I]
@@ -38,7 +38,7 @@ using Infiltrator
     end
     function select_time(t, T; data::DataFrame=DataFrame(), Δ_bounds=nothing)
         time  = T[t]
-        I = Utils.searchsortednearest(beh.time, time)
+        I = DIutils.searchsortednearest(beh.time, time)
         data = data[I, :]
         data.time = 0
         data

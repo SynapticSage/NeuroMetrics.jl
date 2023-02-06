@@ -4,7 +4,7 @@ module operation
     using DataFrames, DataFramesMeta
     using StatsBase, StatsPlots
     using Infiltrator
-    import Utils
+    import DIutils
     import Table
     using ProgressMeter
 
@@ -69,9 +69,9 @@ module operation
         insig_of_interest = subset(bonf_cells_are_sig, :sig => x -> x .== shufcorr_frac)
 
         # Select out those cells from the dataframes, signal and shuffle
-        C = Utils.ismember(Is.unit, sig_of_interest.unit)
+        C = DIutils.ismember(Is.unit, sig_of_interest.unit)
         Ic_sig   = Is[C, :]
-        C = Utils.ismember(Ss.unit, insig_of_interest.unit)
+        C = DIutils.ismember(Ss.unit, insig_of_interest.unit)
         Sc_insig = Ss[C, :]
 
         # Get the mean signal curve and mean correction curve
@@ -138,7 +138,7 @@ Examine fields that are significant
         end
         Isc = combine(groups, identity)
         if removenan
-            Isc = Isc[Utils.notisnan(Isc[!,value]),:]
+            Isc = Isc[DIutils.notisnan(Isc[!,value]),:]
         else
             Isc
         end

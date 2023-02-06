@@ -1,10 +1,7 @@
 module operation
 
-    using Statistics
-    using NaNStatistics
-    using Bootstrap
-    using DataStructures
-    using Utils
+    using Statistics, NaNStatistics, Bootstrap, DataStructures
+    using ..Field.DIutils
 
     """
     field_operation
@@ -150,10 +147,10 @@ module operation
     meethods for squeezing field objects and field dicts
     """
     function squeeze(field::AbstractArray)
-        return Utils.squeeze(field)
+        return DIutils.squeeze(field)
     end
     function squeeze(fields::Dict)
-        return Dict(key=>Utils.squeeze(field) for (key,field) in fields)
+        return Dict(key=>DIutils.squeeze(field) for (key,field) in fields)
     end
     function squeeze(field::NamedTuple)
         field = Dict(pairs(field))

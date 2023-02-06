@@ -8,10 +8,10 @@ module crossval
     using ScientificTypes
     using CategoricalArrays
     using DataFrames
-    import Utils
+    import DIutils
     using Table: DFColVars
 
-    in_range = Utils.in_range
+    in_range = DIutils.in_range
 
 
     function _tk(type::String, fold::Int)
@@ -46,7 +46,7 @@ module crossval
         beh.type[test, :]  .= "test"
 
         beh, data = raw.register(beh, data; on="time", transfer="type")
-        nonmatchingepochs = (!).(Utils.ismember(data.epoch, unique(beh.epoch)))
+        nonmatchingepochs = (!).(DIutils.ismember(data.epoch, unique(beh.epoch)))
         data.type[nonmatchingepochs] .= ""
 
         return beh[beh.type .== "train", :], 
@@ -76,7 +76,7 @@ module crossval
             kws...)
 
         if cv !== CrossValidation.KFold
-            G = Utils.findgroups((beh[:,col] for col in stratify_cols)...)
+            G = DIutils.findgroups((beh[:,col] for col in stratify_cols)...)
             if cv === CrossValidation.StratifiedKFold
                 @info "Stratified K-fold random=$shuffle"
                 cv = cv(G; n_folds, shuffle)
@@ -109,7 +109,7 @@ module crossval
 
     function unpack_cv_as_df(cvresult; shift_scale=:minutes)
         K = keys(cvresult)
-        df_k = Utils.namedtupkeys_to_df(K)
+        df_k = DIutils.namedtupkeys_to_df(K)
         n_folds = maximum(df_k.fold)
         result = DataFrame()
         for fold in 1:n_folds

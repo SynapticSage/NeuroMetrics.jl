@@ -20,7 +20,7 @@ module causal
 
     import ..Munge
     import Munge.manifold: make_embedding_df, EmbeddingFrameFetch
-    import Utils
+    import DIutils
     import Table
 
     function argparse(args=nothing;return_parser=false)
@@ -58,14 +58,14 @@ module causal
                                   valuesX, valuesY; prop=:area)::Dict
 
         kz = keys(embeddings)
-        kz = unique(Utils.namedtup.pop.(kz,[:area]))
+        kz = unique(DIutils.namedtup.pop.(kz,[:area]))
 
         results = Dict{NamedTuple, Tuple}()
         for k in kz
             # For right now, these pairing dimensions are hard-coded
             kX, kY = (;k..., area=valuesX), (;k..., area=valuesY)
-            kX = Utils.bestpartialmatch(keys(embeddings),kX)
-            kY = Utils.bestpartialmatch(keys(embeddings),kY)
+            kX = DIutils.bestpartialmatch(keys(embeddings),kX)
+            kY = DIutils.bestpartialmatch(keys(embeddings),kY)
             results[k] = (embeddings[kX], embeddings[kY])
         end
         results
@@ -215,7 +215,7 @@ module causal
         # condition on
         data_vars = replace(hcat([data[!,var] for var in data_vars]...),
                             NaN=>-1,missing=>-1)
-        groupinds = Utils.findgroups(data_vars)
+        groupinds = DIutils.findgroups(data_vars)
         groupsfulllist    = OrderedDict(data_vars[findfirst(groupinds.==k),:]=>k
                           for k in unique(groupinds))
 
@@ -330,7 +330,7 @@ module causal
         M = maximum(out)
         vals = vec(sum(Matrix(out .* (10 .^ (1:size(out,2)))'),dims=2))
         sout = sort(unique(vals))
-        convert(Vector{Int16}, Utils.searchsortednearest.([sout], vals))
+        convert(Vector{Int16}, DIutils.searchsortednearest.([sout], vals))
     end
 
 
@@ -525,7 +525,7 @@ module causal
             horizons = _find_horizon_values(;constraint=last(params[:horizon]))
             possparams = [(setindex!(copy(params), 1:horizon, :horizon))
                       for horizon in horizons]
-            paramstrs = Utils.namedtup.tostring.(NamedTuple.(possparams),keysort=true)
+            paramstrs = DIutils.namedtup.tostring.(NamedTuple.(possparams),keysort=true)
             files = [datadir("manifold", "causal", "pa_cause_$(paramstr)_$tagstr.jld2")
                     for paramstr in paramstrs]
             exists = isfile.(files)
@@ -537,7 +537,7 @@ module causal
             end
         end
         if isempty(filename)
-            paramstr = Utils.namedtup.tostring(NamedTuple(params); keysort=true)
+            paramstr = DIutils.namedtup.tostring(NamedTuple(params); keysort=true)
             filename = datadir("manifold","causal", "pa_cause_$(paramstr)_$tagstr.jld2")
         end
         filename
@@ -556,7 +556,7 @@ module causal
     """
     function get_trigger_savefile(animal, day, N, props; params=(;)) 
         tagstr = "$animal$day.$(N)seg"
-        paramstr = Utils.namedtup.tostring(pop!(params,:thread))
+        paramstr = DIutils.namedtup.tostring(pop!(params,:thread))
         datadir("manifold","causal",
                 "local_grid_cause_props=$(join(props,","))_$(paramstr)_$tagstr.jld2")
     end

@@ -1,18 +1,13 @@
 module checkpoint
 
-    using Serialization
-    using DataFrames
-    using DrWatson
+    using Serialization, DataFrames, DrWatson, Infiltrator, ArgParse
     import Arrow
-    using Infiltrator
     using DataStructures: OrderedDict
-    using ArgParse
 
-    import Timeshift
-    import ..Timeshift: DictOfShiftOfUnit
+    import ..Timeshift
+    import ..Timeshift.DIutils.Table: to_dataframe, DictOfShiftOfUnit
     import Field: ReceptiveField
     import Field.metrics: metric_ban, apply_metric_ban, unstackMetricDF
-    import Table: to_dataframe
     import Load: save_table_at_path
 
     export ts_plotdir

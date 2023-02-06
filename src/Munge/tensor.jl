@@ -23,7 +23,7 @@ module tensor
     using TensorToolbox
     using CategoricalArrays
 
-    import Utils
+    import DIutils
 
     export tensorize, tensorize_continuous
     export quantilize, relativize, equalize, gravity, digitize
@@ -158,7 +158,7 @@ module tensor
         X = clean(X, dims)
         # Rank bin anything requested
         for (dim,bin) in zip(dims, bins)
-            X[!,dim] = Utils.binning.digitize(X[!,dim], bin)
+            X[!,dim] = DIutils.binning.digitize(X[!,dim], bin)
         end
         X
     end
@@ -185,8 +185,8 @@ module tensor
     function clean(X::DataFrame, dims::Vector{<:SymStr}=All())::DataFrame
         # Clean
         X = dropmissing(X, [dims...])
-        notisnan = hcat(Utils.notisnan.(eachcol(X[!,dims]))...)
-        notisnan = Utils.squeeze(all(notisnan, dims=2))
+        notisnan = hcat(DIutils.notisnan.(eachcol(X[!,dims]))...)
+        notisnan = DIutils.squeeze(all(notisnan, dims=2))
         X = X[notisnan, :]
     end
 

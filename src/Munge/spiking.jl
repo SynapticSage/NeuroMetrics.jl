@@ -2,7 +2,7 @@ module spiking
 
     import Munge
     using StatsBase
-    import Utils: binning
+    import DIutils: binning
     using DataFrames
     using ImageFiltering
     using DimensionalData
@@ -12,7 +12,7 @@ module spiking
     using Infiltrator
     using TensorToolbox
     using Table
-    import Utils
+    import DIutils
 
     import Field: ReceptiveField
 
@@ -247,7 +247,7 @@ module spiking
     function isolated(spikes::DataFrame,  theta::Union{DataFrame,Nothing}; 
                       cycle=:cycle, refreshcyc=false, kws...)
         if refreshcyc || !hasproperty(spikes, Symbol(cycle)) 
-            Utils.filtreg.register(theta, spikes; on="time", transfer=[String(cycle)])
+            DIutils.filtreg.register(theta, spikes; on="time", transfer=[String(cycle)])
         end
         prog = Progress(length(unique(spikes.unit)); desc="Adding isolation stats")
         combine(groupby(spikes, :unit), 

@@ -12,14 +12,12 @@ module fixed
     using Statistics
 
     using ..Field
-    import ..Field: ReceptiveField
-    import ..Field: get_boundary, resolution_to_width, return_vals
+    import ..Field: ReceptiveField, get_boundary, resolution_to_width,
+                     return_vals
     import ..Field.metrics: MetricSet
-    import Utils
-    import Table
-    import Table: CItype, CItype_plusNull
-    import Utils.filtreg: filterAndRegister
-    using Utils.binning
+    using DIutils, DIutils.binning 
+    using DIutils.Table: CItype, CItype_plusNull
+    import DIutils.filtreg: filterAndRegister
 
     struct GridFixed <: Field.Grid
         props::Array{String}
@@ -209,7 +207,7 @@ module fixed
 
     # Helper fucntions
     function vector_dist(vals::Array, center::Array)::Vector{Float32}
-        sqrt.(sum((vals .- center[Utils.na, :]).^2,dims=2)[:,1])
+        sqrt.(sum((vals .- center[DIutils.na, :]).^2,dims=2)[:,1])
     end
     function inside(vals::Array, center::Array, radius::Float32)::BitVector
         vector_dist(vals, center) .< radius

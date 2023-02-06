@@ -6,7 +6,7 @@ module shiftmetrics
     using Statistics
     using AxisArrays
     using DimensionalData
-    import Utils
+    import DIutils
 
     FieldObj = Union{ShiftedField, ShiftedFields}
     TableObj = Union{DataFrame,GroupedDataFrame, AbstractDataFrame}
@@ -214,12 +214,12 @@ module shiftmetrics
         end
         rows = unique([:unit, othercols..., sortby...])
         if !(isempty(rangenorm))
-            normfunc = x->Utils.norm_extrema(x, rangenorm)
+            normfunc = x->DIutils.norm_extrema(x, rangenorm)
             sfm = combine(groupby(sfm, :unit), stat => normfunc => stat,
                          rows .=> rows, :shift => :shift)
         end
         if percentnorm !== nothing
-            normfunc = x->Utils.norm_percent(x, percentnorm)
+            normfunc = x->DIutils.norm_percent(x, percentnorm)
             sfm = combine(groupby(sfm, :unit), stat => normfunc => stat,
                          rows .=> rows, :shift => :shift)
         end

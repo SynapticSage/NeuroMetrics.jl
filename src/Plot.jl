@@ -1,13 +1,8 @@
 module Plot
 
-using DrWatson
-using Reexport
-using Plots
-using Infiltrator
-using RecipesBase
-using Measures
-using Utils
-using Infiltrator
+using DrWatson, Reexport, Plots, Infiltrator, RecipesBase, Measures,
+      Infiltrator
+using DIutils
 
 parent_folder = []
 folder_args   = []
@@ -66,9 +61,9 @@ function save(desc::String; rmexist=nothing)
                    "{"=>"", "}" => "")
     folder = plotsdir(parent_folder..., folder_args...)
     append_string = append isa NamedTuple ? 
-             Utils.namedtup.ntopt_string(append) : append
+             DIutils.namedtup.ntopt_string(append) : append
     prepend_string = prepend isa NamedTuple ? 
-             Utils.namedtup.ntopt_string(prepend) : prepend
+             DIutils.namedtup.ntopt_string(prepend) : prepend
     names = [join([prepend_string, desc, append_string, ext], ".") for ext in exts]
     names = [startswith(name,".") ? name[2:end] : name  for name in names]
     names = replace.(names, ".."=>".")

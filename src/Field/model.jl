@@ -5,7 +5,7 @@ module model
     using DataFrames
     import Plots
 
-    import Table, Utils
+    using DIutils
     import ..Field #valid if a module has already nested this!
     operation = Field.operation
 
@@ -21,7 +21,7 @@ module model
         spikes = copy(spikes)
 
         # Map each spike to its behavioral bin
-        nearest_points = Utils.searchsortednearest
+        nearest_points = DIutils.searchsortednearest
         spikes[!,"nearest"] = nearest_points.([behavior.time], spikes.time)
 
         # Filter out spikes that do not match the tolerance

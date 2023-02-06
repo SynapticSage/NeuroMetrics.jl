@@ -11,7 +11,7 @@ module Shuf
     using Filt
     SplitType = Union{Vector{Symbol}, Symbol, String, Vector{String}}
     defaultFilters = merge(Filt.speed_lib)
-    using Utils
+    using DIutils
 
     distribution_based = [:addSampleOfDist, :jitterBy, :jitterAllSpikes]
     function isaDistributionShuffle(shuffle_func::Symbol)
@@ -125,7 +125,7 @@ module Shuf
         if has_post
             @info "adding shuffle post function"
             shufpostfunc = settings[:shufpostfunc]
-            settings = Utils.namedtup.pop(settings, :shufpostfunc)
+            settings = DIutils.namedtup.pop(settings, :shufpostfunc)
             postpartial(pos...; newkws...) = transform!(func(pos...; newkws...),
                                                     shufpostfunc)
         else

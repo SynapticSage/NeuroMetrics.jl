@@ -10,8 +10,8 @@ module GoalFetchAnalysis
     ## General
     #include(srcdir("Load.jl"))
     #using .Load   # Loading/saving/manipulating raw data
-    #include(srcdir("Utils.jl"))
-    #using .Utils # General utilites
+    #include(srcdir("DIutils.jl"))
+    #using .DIutils # General utilites
     #include(srcdir("Filt.jl"))
     #import .Filt
     #include(srcdir("Shuffle.jl"))
@@ -32,8 +32,8 @@ module GoalFetchAnalysis
     #include(srcdir("Plot.jl"))
     #import .Plot
 
-    export Utils, Table
-    import DIutils as Utils
+    export DIutils, Table
+    import DIutils as DIutils
     import DIutils.Table as Table
 
     import Load, Filt, Shuf
@@ -41,7 +41,7 @@ module GoalFetchAnalysis
     import Munge
     import Timeshift
 
-    export Utils
+    export DIutils
     export Table 
     export Filt
     export Load
@@ -51,9 +51,9 @@ module GoalFetchAnalysis
     export Munge
     export Plot
 
-    filtreg = Utils.filtreg
+    filtreg = DIutils.filtreg
 
-    #Utils.plot.set_theme_timebased(23)
+    #DIutils.plot.set_theme_timebased(23)
     import Plots
     Plots.theme(:bright)
 

@@ -2,11 +2,11 @@ module chrono
 
     using DataFrames
     using Statistics, NaNStatistics
-    import Utils
+    import DIutils
     export isminutes, ensureTimescale, ensureTimescale!
 
     function isminutes(X::DataFrame)
-        Utils.dextrema(X.time)[1] < 1440.0 # assumes less than 24 hour recording
+        DIutils.dextrema(X.time)[1] < 1440.0 # assumes less than 24 hour recording
     end
 
     function isminutes(X::DataFrame, data::Symbol)

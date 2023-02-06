@@ -6,18 +6,12 @@ module Load
 
     using DataFrames
     import CSV, Arrow
-    using Statistics
-    using Dates
-    using Printf
-    using ProgressMeter
-    using Glob
-    using Colors
-    using Infiltrator
+    using Statistics, Dates, Printf, ProgressMeter, Glob, Colors,
+          Infiltrator
 
     # Fetch maze internal imports
-    import Utils
-    import Table
-    using Table: get_periods
+    using DIutils
+    import DIutils.Table: get_periods
     __revise_mode__ = :eval
 
     load_default="arrow"

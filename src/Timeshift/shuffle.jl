@@ -4,19 +4,14 @@ module shuffle
     import Field
     import Field.preset: field_presets, return_preset_funcs
     import Field: adaptive
-    import Shuf
-    import Utils: filtreg
+    import DIutils: filtreg
     import Filt
-    import Dates
-    using DrWatson
-    using Serialization
+    import Shuf
 
-    using ThreadSafeDicts
-    using DataFrames
-    using DataStructures
-    using ProgressMeter
-    using LoopVectorization
-    using Infiltrator
+    using DrWatson, Serialization
+    using ThreadSafeDicts, DataFrames, DataStructures
+    using ProgressMeter, LoopVectorization, Infiltrator
+    import Dates
 
     export get_field_shift_shuffles
 

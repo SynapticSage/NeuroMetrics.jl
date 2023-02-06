@@ -1,16 +1,13 @@
 module types
 
-    import Field
-    import Field.metrics: metric_ban, apply_metric_ban, unstackMetricDF
-    import Table: to_dataframe, vec_arrayofarrays!
+    import ..Field
+    import ..Field.metrics: metric_ban, apply_metric_ban, unstackMetricDF
+    import ..Field.Table: to_dataframe, vec_arrayofarrays!
     import ..Timeshift: AbsDictOfShiftOfUnit, DictOfShiftOfUnit
-    import Utils
+    import ..Field: DIutils
 
-    using DataFrames
+    using DataFrames, Missings, DimensionalData, Infiltrator
     using DataStructures: OrderedDict
-    using Missings
-    using DimensionalData
-    using Infiltrator
 
     export ShiftedField, ShiftedFields
     export getshifts, getunits
@@ -205,7 +202,7 @@ module types
         M = matrixform(sfs)
         grid = M[1,1].grid
         val = M[1,1].rate
-        selector = [Utils.na, Utils.na, (Colon() for i in 1:ndims(val))...]
+        selector = [DIutils.na, DIutils.na, (Colon() for i in 1:ndims(val))...]
         results = []
         for mm in eachrow(M)
             res = cat([getproperty(m,:rate) for m in mm]...; dims=4)
@@ -222,7 +219,7 @@ module types
 
     function tensorform(fields::DimArray)::DimArray
         propsel(m) = getproperty(m, :rate)
-        selector = [Utils.na, Utils.na, (Colon() 
+        selector = [DIutils.na, DIutils.na, (Colon() 
                     for i in 1:ndims(propsel(first(fields))))...]
         grid = first(fields).grid
         results = []

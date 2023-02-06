@@ -15,7 +15,7 @@ module tensop
     using TensorToolbox
     #axisnames
 
-    import Utils
+    import DIutils
 
 
     function tdtw(templates::DimArray, X::DimArray; kws...)

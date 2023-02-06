@@ -4,7 +4,7 @@ module Keys
     using DataFrames
     using Infiltrator
     using DataStructures: OrderedDict
-    import Utils
+    import DIutils
     export pluto_executekey, pluto_keyselector
     #=
     Methods for dealing with keys that summarize
@@ -137,7 +137,7 @@ module Keys
         soft_settings = NamedTuple(Dict(k=>actuals[v] for (k,v) in specification))
         
         find_this = (;hard_settings..., soft_settings...)
-        key=Utils.namedtup.bestpartialmatch(keys(data), find_this;
+        key=DIutils.namedtup.bestpartialmatch(keys(data), find_this;
                                   nothing_means_removekey=true)
         return_findthis ? (key, find_this) : key
     end

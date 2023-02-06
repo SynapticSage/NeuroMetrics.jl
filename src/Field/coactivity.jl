@@ -6,7 +6,7 @@ using Infiltrator
 using ProgressMeter
 using Polyester
 
-import Utils
+import DIutils
 
     function get_coactive_events(u1::SubDataFrame, u2::SubDataFrame; 
             thresh=0.020, chunk=5000)
@@ -14,11 +14,11 @@ import Utils
         diffs  = Array{Float32}([])
         e1 = [extrema(u1.time)...]
         e2 = [extrema(u2.time)...]
-        if any(Utils.in_range(e1, e2)) && any(Utils.in_range(e2,e1))
+        if any(DIutils.in_range(e1, e2)) && any(DIutils.in_range(e2,e1))
             for t = 1:chunk:length(u1.time)
                 events_n1 = u1.time[t:min(t+chunk,length(u1.time))]
                 e = extrema(events_n1)
-                events_n2 = u2.time[Utils.in_range(u2.time,
+                events_n2 = u2.time[DIutils.in_range(u2.time,
                                                    [e[1]-thresh, e[2]+thresh])]
                 Δ = abs.(events_n1 .- events_n2[:,:]')
                 hits = findall(Δ .< thresh)

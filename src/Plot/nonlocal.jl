@@ -4,7 +4,7 @@ module nonlocal
     using StatsPlots
     using Plots
     using Infiltrator
-    import Utils
+    import DIutils
 
     export get_cycle_example
     """
@@ -72,7 +72,7 @@ module nonlocal
              for cycle in S_cycle_set]
         sa_label = [(tmp=gs[(; cycle)]; u=unique(tmp.cycle); u[1]) for cycle in
              cycles if (; cycle) ∈ keys(gs)]
-        sr_label = relativecycles[Utils.searchsortednearest.([cycles], sa_label)]
+        sr_label = relativecycles[DIutils.searchsortednearest.([cycles], sa_label)]
         @assert(length(S) == length(sa_label))
         
         L_cycle_set = [cycle for cycle in cycles if (; cycle) ∈ keys(gl)]
@@ -80,7 +80,7 @@ module nonlocal
                 for cycle in L_cycle_set]
         la_label = [(tmp=gl[(; cycle)]; unique(tmp.cycle)[1]) for cycle in
              cycles if (; cycle) ∈ keys(gl)]
-        lr_label = relativecycles[Utils.searchsortednearest.([cycles], la_label)]
+        lr_label = relativecycles[DIutils.searchsortednearest.([cycles], la_label)]
         @assert(length(L) == length(la_label))
 
         S, L = hcat(S...), hcat(L...)
@@ -111,7 +111,7 @@ module nonlocal
         cyclim = (minimum(l.time) - 1/1500, maximum(l.time) + 1/1500)
         ϵ = 2*mean(diff(L.time))
 
-        range_error = !all(Utils.in_range(s.time, cyclim .+ (-ϵ,ϵ)))
+        range_error = !all(DIutils.in_range(s.time, cyclim .+ (-ϵ,ϵ)))
         if range_error
             @warn("spike times not within range of their corresponding cycle")
         end

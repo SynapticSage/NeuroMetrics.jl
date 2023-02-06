@@ -1,6 +1,6 @@
 module recon
 
-    import Utils
+    import DIutils
     include("./operation.jl")  #valid if a module has already nested this!
     using NaNStatistics
 
@@ -27,7 +27,7 @@ module recon
             RateProb = nansum(RateProb; dims=dim)
             Prob     = nansum(Prob;     dims=dim)
         end
-        return Utils.squeeze(RateProb./Prob)
+        return DIutils.squeeze(RateProb./Prob)
     end
 
     #"""
@@ -68,7 +68,7 @@ module recon
                                   reconstructed_field::AbstractArray;
                                   L::Int=2, reduce::Bool=true, 
                                   debug::Bool=false)
-        ex = extrema(Utils.skipnan(vec(field)))
+        ex = extrema(DIutils.skipnan(vec(field)))
         Δ = diff([ex...])
         ε = vec(field) .- vec(reconstructed_field)
         if all(isnan.(ε))
@@ -88,8 +88,8 @@ module recon
         end
         if debug
             p = Plots.plot(
-                           Plots.heatmap(Utils.squeeze(field), title="marginal"),
-                           Plots.heatmap(Utils.squeeze(reconstructed_field), title="recon. marginal"),
+                           Plots.heatmap(DIutils.squeeze(field), title="marginal"),
+                           Plots.heatmap(DIutils.squeeze(reconstructed_field), title="recon. marginal"),
                 title="error=$ε")
             return p
         end

@@ -2,25 +2,18 @@ module metrics
 
     import ..Field
     import ..Field: ReceptiveField
-    import Table
-    import Table: vec_arrayofarrays!
-    import Utils
-    using Utils.binning
+    using DIutils
+    import DIutils.Table as Table
+    import DIutils.Table: vec_arrayofarrays!
     import Load.utils: register
     import Load: keep_overlapping_times
 
-    using StatsBase
+    using StatsBase, NaNStatistics, DataFrames, DataFramesMeta
+    using DimensionalData, Images, ImageSegmentation, LazySets
+    using Infiltrator, LazyGrids, MATLAB, ProgressMeter
     using Entropies: Probabilities
-    using NaNStatistics
-    using DataFrames, DataFramesMeta
     import DataStructures: OrderedDict
-    using DimensionalData
-    using Images, ImageSegmentation, LazySets
     import TextWrap
-    using Infiltrator
-    using LazyGrids
-    using MATLAB
-    using ProgressMeter
 
     export MetricSet
     export bitsperspike, bitspersecond, coherence, totalcount, maxrate,
@@ -268,7 +261,7 @@ module metrics
     function push_dims!(R::DimArray{ReceptiveField}, values::AbstractVector; dim, metric::Symbol)
         N = dim isa Symbol ? name(R.dims) : (1:ndims(R))
         n = findfirst(N.==dim)
-        values = Utils.permutevec(values, n)
+        values = DIutils.permutevec(values, n)
         values = values .* ones(size(R))
         for (r, v) in zip(R, values)
             push_metric!(r, metric, v)
@@ -443,7 +436,7 @@ module metrics
             subject = rate[ind]
 
             # OBTAIN INDICES OF INTERACTION
-            interactions = collect(Tuple(ind))[Utils.na,:] .+ interaction_mat
+            interactions = collect(Tuple(ind))[DIutils.na,:] .+ interaction_mat
             interactions[:,1] = max.(1, min.(size(rate,1), interactions[:,1]))
             interactions[:,2] = max.(1, min.(size(rate,2), interactions[:,2]))
 
@@ -490,7 +483,7 @@ module metrics
             subject = rate[ind]
 
             # OBTAIN INDICES OF INTERACTION
-            interactions = collect(Tuple(ind))[Utils.na,:] .+ interaction_mat
+            interactions = collect(Tuple(ind))[DIutils.na,:] .+ interaction_mat
             interactions[:,1] = max.(1, min.(size(rate,1), interactions[:,1]))
             interactions[:,2] = max.(1, min.(size(rate,2), interactions[:,2]))
 
@@ -553,7 +546,7 @@ module metrics
         all_possible_neighbors = [x for x in collect(all_possible_neighbors)
                                     if x != (0,0)]
         all_possible_neighbors = vcat(all_possible_neighbors...)
-        vcat([collect(x)[Utils.na, :] for x in all_possible_neighbors]...)
+        vcat([collect(x)[DIutils.na, :] for x in all_possible_neighbors]...)
     end
 
     #                                                                  

@@ -7,10 +7,9 @@ This module allows for taking samples when data crosses into a radii of measurem
 module triggering
 
     using DataFrames
-    using Utils.binning
-    using Table: CItype
     using Infiltrator
-    import Utils
+    using DIutils
+    using DIutils.Table: CItype
 
     WindowType = Union{Real, Tuple{<:Real,<:Real}}
     """
@@ -38,7 +37,7 @@ module triggering
         window_centroids = g.X[1][g.occ.inds[state],"time"] # grabs all of the precomputed times the dataset crossed into the state
         windows_of_data = Vector{Vector{DataFrame}}(undef, size(window_centroids,1))
         for (t,trig) in enumerate(eachrow(window_centroids))
-            times = Utils.in_range(g.X[1].time, g.win .* (-1,1) .+ trig)
+            times = DIutils.in_range(g.X[1].time, g.win .* (-1,1) .+ trig)
             windows_of_data[t] =  [x[times, :] for x in g.X]
         end
         (g.grididx[state], windows_of_data)
@@ -47,7 +46,7 @@ module triggering
     #    window_centroids = X[g.occ.inds[state],"time"]
     #    windows_of_data = Vector{DataFrame}(undef, sizewindow_centroids,1)
     #    for trig in eachrow(window_centroids)
-    #        times = Utils.in_range(X.time, g.win .* (-1,1) .+ trig)
+    #        times = DIutils.in_range(X.time, g.win .* (-1,1) .+ trig)
     #        push!(windows_of_data, X[times, :])
     #    end
     #    windows_of_data

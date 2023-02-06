@@ -20,13 +20,12 @@ module manifold
     using ArgParse
     using Statistics
 
-    import Utils
+    import DIutils
     import Load
-    import Table: CItype
-    import Table
+    using DIutils.Table 
     import Filt
-    import Utils.namedtup: ntopt_string
-    import Utils: dict
+    import DIutils.namedtup: ntopt_string
+    import DIutils: dict
 
     """
         parse(args=nothing; return_parser::Bool=false)
@@ -132,7 +131,7 @@ module manifold
         # Filter
         inds = :inds in keys(data) ? data.inds : Dict()
         for key in keys(embedding)
-            inds[key] = Utils.clean.inds_quantile_filter_dims(
+            inds[key] = DIutils.clean.inds_quantile_filter_dims(
                                 embedding[key], qlim)
         end
         desc_vars = (;feature_engineer, distance, filt)
@@ -185,7 +184,7 @@ module manifold
         # Filter
         # filters = Filt.get_filters()
         # if Symbol(filt) in keys(filters)
-        #     beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes; filter_skipmissingcols=true, filters=filters[Symbol(filt)])
+        #     beh, spikes = DIutils.filtreg.filterAndRegister(beh, spikes; filter_skipmissingcols=true, filters=filters[Symbol(filt)])
         # end
 
         embedding = embedding_overall

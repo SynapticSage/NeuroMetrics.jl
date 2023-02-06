@@ -1,21 +1,18 @@
 module lfp_decode
 
+    using DataFrames, LoopVectorization, Infiltrator, ProgressMeter,
+          Statistics, NaNStatistics
+    using LazyGrids: ndgrid
+    using ..Munge
+    import Load
+    import Table
+    import DIutils
+
     export velocity_filter_ripples, get_theta_cycles, 
            curate_lfp_theta_cycle_and_phase, annotate_ripples_to_lfp,
            annotate_vector_info
     export separate_theta_ripple_and_non_decodes
     export velocity_filter_ripples
-
-    using DataFrames
-    using LoopVectorization
-    using Infiltrator
-    using ProgressMeter
-    using LazyGrids: ndgrid
-    using Statistics, NaNStatistics
-    using ..Munge
-    import Load
-    import Table
-    import Utils
 
 
     function velocity_filter_ripples(beh::DataFrame, ripples::DataFrame)
@@ -83,17 +80,17 @@ module lfp_decode
         # Cycle time based decode values
         #vecOfRow(df) = [d[1] for d in eachcol(DataFrame(df))]
         match(time, col::Vector{Symbol}) = begin
-            res = beh[Utils.searchsortednearest.([beh.time], time),col]
+            res = beh[DIutils.searchsortednearest.([beh.time], time),col]
             res = [ComplexF64(x[1]+x[2]im) for x in eachrow(Matrix(res))]
         end
 
         """
         """
         function matchdxy(time::Real) 
-            I =  Utils.searchsortednearest(T, time)
+            I =  DIutils.searchsortednearest(T, time)
             D = replace(dat[:,:,I], NaN=>0)
-            xi = argmax(Utils.squeeze(maximum(D, dims=2)), dims=1)
-            yi = argmax(Utils.squeeze(maximum(D, dims=1)), dims=1)
+            xi = argmax(DIutils.squeeze(maximum(D, dims=2)), dims=1)
+            yi = argmax(DIutils.squeeze(maximum(D, dims=1)), dims=1)
             ComplexF64(x[xi][1] + y[yi][1]im)
         end
         # Phase based decode values
@@ -111,8 +108,8 @@ module lfp_decode
         end
         X, Y = ndgrid(x, y)
         function meandxy(start::Real, stop::Real)
-            I1,I₂ = Utils.searchsortednearest(T, start),
-                    Utils.searchsortednearest(T, stop)
+            I1,I₂ = DIutils.searchsortednearest(T, start),
+                    DIutils.searchsortednearest(T, stop)
             D = replace(dat[:,:,I1:I₂], NaN=>0)
             sD = mean(D)
             xm  = mean(X.*D)/sD
@@ -128,7 +125,7 @@ module lfp_decode
             end
         end
 
-        subset!(cycles, :time => x->abs.(x .- T[Utils.searchsortednearest.([T], x)]) .< 2)
+        subset!(cycles, :time => x->abs.(x .- T[DIutils.searchsortednearest.([T], x)]) .< 2)
         removal_list = [:act0, :act1, :dec0, :dec1, :act01, :dec01]
         remove = [elem for elem in removal_list if elem in propertynames(cycles)]
         @debug remove
@@ -155,7 +152,7 @@ module lfp_decode
         end
         cycles[!,:dec_ϕdu] = cycles.dec_ϕu - cycles.dec_ϕd
 
-        subset!(ripples, :time => x->abs.(x .- T[Utils.searchsortednearest.([T], x)]) .< 2)
+        subset!(ripples, :time => x->abs.(x .- T[DIutils.searchsortednearest.([T], x)]) .< 2)
         removal_list = [:act0, :act1, :dec0, :dec1, :act01, :dec01]
         remove = [elem for elem in removal_list if elem in propertynames(ripples)]
         @debug remove
@@ -185,7 +182,7 @@ module lfp_decode
         dat = Float32.(dat)
         theta, ripple, non = copy(dat), repeat(copy(dat), outer=(1,1,1,4)), copy(dat)
         @time Threads.@threads for (t,time) in collect(enumerate(T))
-            I = Utils.searchsortednearest(lfp.time, time)
+            I = DIutils.searchsortednearest(lfp.time, time)
             θ, ρ, n  = view(theta, :, :, t), view(ripple, :, :, t, :),
                        view(non, :, :, t)
             not_a_theta_cycle = lfp.cycle[I] == -1
@@ -212,14 +209,14 @@ module lfp_decode
                         Q = [nanquantile(vec(ρ), q) 
                              for q in quantile_range]
                         #@infiltrate
-                        ρ[Utils.not_in_range(ρ, Q)] .= NaN
+                        ρ[DIutils.not_in_range(ρ, Q)] .= NaN
                     end
                 else
                     ρ .= NaN
                     if quantile_range != (0,1)
                         Q = [nanquantile(vec(n), q) 
                              for q in quantile_range]
-                        n[Utils.not_in_range(n, Q)] .= NaN
+                        n[DIutils.not_in_range(n, Q)] .= NaN
                     end
                 end
             else # THETA CYCLE
@@ -228,7 +225,7 @@ module lfp_decode
                 elseif quantile_range != (0,1)
                     Q = [nanquantile(vec(θ), q) 
                          for q in quantile_range]
-                    θ[Utils.not_in_range(θ, Q)] .= NaN
+                    θ[DIutils.not_in_range(θ, Q)] .= NaN
                 end
                 ρ .= NaN
                 n .= NaN
@@ -244,8 +241,8 @@ module lfp_decode
         sweep = (a,b)->isnan(b) ? a : nanmean(cat(a, b, dims=3), dims=3)
         lfp = groupby(lfp,:cycle)
         @time Threads.@threads for group in lfp
-            cycStart, cycStop = Utils.searchsortednext(T, group.time[1]),
-                                Utils.searchsortednext(T, group.time[end])
+            cycStart, cycStop = DIutils.searchsortednext(T, group.time[1]),
+                                DIutils.searchsortednext(T, group.time[end])
             cycle = cycStart:cycStop
             if cycle == 1:1 || group.cycle[1] == -1 || ismissing(group.cycle[1])
                 continue
@@ -260,8 +257,8 @@ module lfp_decode
         if doRipplePhase
             lfp = groupby(lfp, :rip_id)
             @time @Threads.threads for group in lfp
-                cycStart, cycStop = Utils.searchsortednext(T, group.time[1]),
-                                    Utils.searchsortednext(T, group.time[end])
+                cycStart, cycStop = DIutils.searchsortednext(T, group.time[1]),
+                                    DIutils.searchsortednext(T, group.time[end])
                 local cycle = cycStart:cycStop
                 if cycle == 1:1 || group.cycle[1] == -1 ||
                    ismissing(group.cycle[1])
@@ -322,7 +319,7 @@ module lfp_decode
         function imatchdxy(I::Real) 
             D = replace(dat[:,:,I], NaN=>0)
             xi = argmax(maximum(D, dims=2), dims=1)
-            yi = argmax(Utils.squeeze(maximum(D, dims=1)), dims=1)
+            yi = argmax(DIutils.squeeze(maximum(D, dims=1)), dims=1)
             Float32.([x[xi][1], y[yi][1]])
         end
 
@@ -351,7 +348,7 @@ module lfp_decode
             row.decii = cat(NaN + (NaN)im, row.decii; dims=1)
             row.time = T[Tind]
             row.trajtime = T[Tind] .- minimum(T[Tind])
-            row.trajreltime = Utils.searchsortednearest.([beh.time], T[Tind])
+            row.trajreltime = DIutils.searchsortednearest.([beh.time], T[Tind])
             row.trajreltime = beh[row.trajreltime, :trajreltime]
             cumchange = mean(cumsum(diff(row.trajreltime)))
             if cumchange > 0
@@ -442,7 +439,7 @@ module lfp_decode
         # Start of the decode change vector, the reference point
         reference_vectors = cat(E[!, reference_point[vector]]...,dims=2)'
         # Well record registered to the decode time
-        registration = Utils.searchsortednearest.([wellrecord.time],
+        registration = DIutils.searchsortednearest.([wellrecord.time],
                                                  E[!,reference_time[vector]]);
         wellrec =  Matrix(wellrecord[registration,[:x,:y]])
         # Vector from the well to the reference point

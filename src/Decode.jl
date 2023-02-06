@@ -11,7 +11,7 @@ module Decode
     using DIutils
     import Load
 
-    searchsortednearest = Utils.searchsortednearest
+    searchsortednearest = DIutils.searchsortednearest
     export searchsortednearest
 
     function movingmean(dat)
@@ -25,7 +25,7 @@ module Decode
 
     function quantile_threshold(dat, thresh=nothing; sample_dim=3,
                                                      nan_replace_val=1)
-        m = [quantile(Utils.skipnan(vec(d)), thresh) 
+        m = [quantile(DIutils.skipnan(vec(d)), thresh) 
              for d in eachslice(dat, dims=sample_dim)]
         m = reshape(m, (1,1,length(m)))
         sz = size(dat)

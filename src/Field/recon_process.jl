@@ -8,7 +8,7 @@ module recon_process
     using NaNStatistics
 
     using ..Field
-    import Table
+    import DIutils: Table
 
     function selectind(D::Dict, ind::Int=1)
         K = Tuple(keys(D))

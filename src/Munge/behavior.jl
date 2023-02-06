@@ -9,7 +9,7 @@ module behavior
     using Infiltrator
     using DataStructures: OrderedDict
 
-    import Utils, Load
+    import DIutils, Load
 
     function annotate_pastFutureGoals(beh::DataFrame; doPrevPast::Bool=false)
 
