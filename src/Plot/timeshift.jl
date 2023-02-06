@@ -2,8 +2,7 @@ module timeshift
 
 
     import Shuffle
-    import Table
-    import Utils
+    using DIUtils
     import Timeshift: ShiftedField, ShiftedFields, AbsDictOfShiftOfUnit,
                       DictOfShiftOfUnit
     using Plots

@@ -17,7 +17,7 @@ module raster
     #using DrWatson
     using ProgressMeter, Debugger
     using Measures
-    import Table
+    import DIutils.Table as Table
 
     __revise_mode__ = :eval
 

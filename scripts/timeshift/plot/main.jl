@@ -67,6 +67,7 @@ end
 # │  (Symbol) k2 = arena_mem_correct
 
 
+(i,(animal,day,brain_area,frac)) = first(collect(enumerate(datasets)))
 @softscope for (i,(animal,day,brain_area,frac)) in collect(enumerate(datasets))
     
     @info "loop" i animal day brain_area frac

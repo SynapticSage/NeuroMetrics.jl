@@ -32,11 +32,12 @@ module GoalFetchAnalysis
     #include(srcdir("Plot.jl"))
     #import .Plot
 
-    import Utils
-    import Table
+    export Utils, Table
+    import DIutils as Utils
+    import DIutils.Table as Table
+
     import Load, Filt, Shuf
     import Field
-    #import Decode
     import Munge
     import Timeshift
 

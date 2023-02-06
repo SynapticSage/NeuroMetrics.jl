@@ -8,9 +8,8 @@ module Decode
     using Revise
     __revise_mode__ = :evalassign
 
-    using Utils
+    using DIutils
     import Load
-    import Table
 
     searchsortednearest = Utils.searchsortednearest
     export searchsortednearest
