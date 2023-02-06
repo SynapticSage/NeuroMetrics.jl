@@ -8,7 +8,7 @@ module triggering
 
     using DataFrames
     using Infiltrator
-    using DIutils
+    using DIutils, DIutils.binning
     using DIutils.Table: CItype
 
     WindowType = Union{Real, Tuple{<:Real,<:Real}}

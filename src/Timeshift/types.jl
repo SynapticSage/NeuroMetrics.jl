@@ -2,9 +2,10 @@ module types
 
     import ..Field
     import ..Field.metrics: metric_ban, apply_metric_ban, unstackMetricDF
-    import ..Field.Table: to_dataframe, vec_arrayofarrays!
     import ..Timeshift: AbsDictOfShiftOfUnit, DictOfShiftOfUnit
-    import ..Field: DIutils
+    import DIutils
+    import DIutils.Table: to_dataframe, vec_arrayofarrays!
+    import DIutils: Table
 
     using DataFrames, Missings, DimensionalData, Infiltrator
     using DataStructures: OrderedDict
@@ -126,7 +127,7 @@ module types
     end
     OrderedDict(SF::ShiftedField) = OrderedDict(zip(SF.keys, SF.values))
     Base.Dict(SF::ShiftedField)   = OrderedDict(zip(SF.keys, SF.values))
-    to_dataframe(SF::ShiftedField; kws...) = to_dataframe(Dict(SF); 
+    Table.to_dataframe(SF::ShiftedField; kws...) = Table.to_dataframe(Dict(SF); 
                                                           key_name=["shift","property"],
                                                          kws...)
     function Base.getindex(SF::ShiftedField, shift::T where T<:Real)
@@ -151,7 +152,7 @@ module types
                 fields[unit]  = SF
                 metrics[unit] = SF.metrics
             end
-            new(collect(values(fields)), collect(keys(fields)), to_dataframe(metrics))
+            new(collect(values(fields)), collect(keys(fields)), Table.to_dataframe(metrics))
         end
     end
 
@@ -176,7 +177,7 @@ module types
 
     OrderedDict(SF::ShiftedFields)   = OrderedDict(zip(SF.keys, SF.values))
     Base.Dict(SF::ShiftedFields)     = OrderedDict(zip(SF.keys, SF.values))
-    to_dataframe(SFs::ShiftedFields; kws...) = to_dataframe(Dict(SFs);
+    Table.to_dataframe(SFs::ShiftedFields; kws...) = Table.to_dataframe(Dict(SFs);
                                                            kws...)
 
     """

@@ -8,19 +8,12 @@ module adaptive
     using DIutils, DIutils.binning
     import Filt
 
-    using DataStructures
-    using DataFrames
+    using DataStructures, DataFrames
     import Load.utils: filterAndRegister, register
     import Base
-    using LoopVectorization
-    using ProgressLogging, ProgressMeter
+    using LoopVectorization, ProgressLogging, ProgressMeter, ProgressLogging,
+          RecipesBase, Statistics, Polyester, ThreadSafeDicts, Infiltrator
     using Entropies: Probabilities
-    using ProgressLogging
-    using RecipesBase
-    using Statistics
-    using Polyester
-    using ThreadSafeDicts
-    using Infiltrator
 
     export GridAdaptive
     export AdaptiveOcc

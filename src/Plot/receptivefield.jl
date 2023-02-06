@@ -7,6 +7,7 @@ module receptivefield
           ProgressMeter, NaNStatistics, TextWrap, Infiltrator
           ImageFiltering, Measures, Colors, Interpolations,
           Memoization
+    using DIutils.binning
     import Random
 
     import ..Plot
