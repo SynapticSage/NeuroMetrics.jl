@@ -1,16 +1,11 @@
 module lfp
 
-    using DataFrames
-    using Statistics
-    using DirectionalStatistics
-    using ImageFiltering
-    using Table
-    using Infiltrator
-    using MATLAB
-    using LazyGrids
-    using ProgressMeter
+    using DataFrames, Statistics, DirectionalStatistics, ImageFiltering
+    using DIutils.Table, Infiltrator, MATLAB, LazyGrids, ProgressMeter
 
-    mat"addpath(genpath('/usr/local/chronux_2_12/'))"
+    function __init__()
+        mat"addpath(genpath('/usr/local/chronux_2_12/'))"
+    end
 
     export coherence
     function coherence(lf1::DataFrame, lf2::DataFrame; average=false, 

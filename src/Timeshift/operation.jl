@@ -5,7 +5,7 @@ module operation
     using StatsBase, StatsPlots
     using Infiltrator
     import DIutils
-    import Table
+    import DIutils: Table
     using ProgressMeter
 
 

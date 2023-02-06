@@ -21,7 +21,7 @@ module causal
     import ..Munge
     import Munge.manifold: make_embedding_df, EmbeddingFrameFetch
     import DIutils
-    import Table
+    import DIutils: Table
 
     function argparse(args=nothing;return_parser=false)
         parser = Munge.manifold.parse(return_parser=true)

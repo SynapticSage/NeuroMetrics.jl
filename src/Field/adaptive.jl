@@ -5,8 +5,7 @@ module adaptive
     import ..Field: get_boundary, resolution_to_width, return_vals
     import ..Field.metrics: MetricSet, push_metric!, pop_metric!
     import ..Field: metrics
-    using DIutils
-    using Diutils.binning
+    using DIutils, DIutils.binning
     import Filt
 
     using DataStructures
@@ -190,7 +189,7 @@ module adaptive
     ## --------
     ## UTILITIES
     ## --------
-    function DIutils.to_dict(F::AdaptiveRF)
+    function DIutils.dict.to_dict(F::AdaptiveRF)
         FF = Dict{Symbol,Any}()
         FF[:count] = F.count
         FF[:rate] = F.rate

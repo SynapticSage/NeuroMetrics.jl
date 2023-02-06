@@ -11,7 +11,7 @@ module spiking
     using ProgressMeter
     using Infiltrator
     using TensorToolbox
-    using Table
+    using DIutils: Table
     import DIutils
 
     import Field: ReceptiveField

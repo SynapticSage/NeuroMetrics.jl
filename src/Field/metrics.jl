@@ -2,7 +2,7 @@ module metrics
 
     import ..Field
     import ..Field: ReceptiveField
-    using DIutils
+    using DIutils, DIutils.binning
     import DIutils.Table as Table
     import DIutils.Table: vec_arrayofarrays!
     import Load.utils: register

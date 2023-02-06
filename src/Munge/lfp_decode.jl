@@ -5,8 +5,8 @@ module lfp_decode
     using LazyGrids: ndgrid
     using ..Munge
     import Load
-    import Table
     import DIutils
+    import DIutils: Table
 
     export velocity_filter_ripples, get_theta_cycles, 
            curate_lfp_theta_cycle_and_phase, annotate_ripples_to_lfp,
