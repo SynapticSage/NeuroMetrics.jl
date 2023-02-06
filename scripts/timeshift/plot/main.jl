@@ -55,7 +55,7 @@ function prep(f::DimArray)
     f
 end
   
-function doheat(f,key)
+function doheat(f,key::NamedTuple)
     inds = sortperm(f[:bestshift_bitsperspike][:,1])
     bps  = f[:bitsperspike][inds, :]
     XX = hcat([Utils.norm_extrema(b) for b in eachrow(bps)]...)'
@@ -437,7 +437,7 @@ end
        bps  = f[:bitsperspike][inds, :]
        XX = hcat([Utils.norm_extrema(b) for b in eachrow(bps)]...)'
        h=heatmap(shifts, collect(1:size(XX,1)), XX; label="",
-       title="$(key.datacut)", size=(600,1200), c=:hot, clim=(0.3,1))
+                 title="$(keyz[k].datacut)", size=(600,1200), c=:hot, clim=(0.3,1))
        vline!([0],c=:pink,linestyle=:dash, linewidth=3,label="")
        Plot.save((;k))
        push!(H,h)
@@ -455,7 +455,7 @@ end
        bps  = f[:bitsperspike][inds, :]
        XX = hcat([Utils.norm_percent(b,0.5) for b in eachrow(bps)]...)'
        h=heatmap(shifts, collect(1:size(XX,1)), XX; label="",
-        title="$(key.datacut)", size=(600,1200), c=:hot, clim=(0.3,1))
+                 title="$(keyz[k].datacut)", size=(600,1200), c=:hot, clim=(0.3,1))
         vline!([0],c=:pink,linestyle=:dash, linewidth=3,label="")
         Plot.save((;k))
         push!(H,h)
@@ -473,7 +473,7 @@ end
         bps  = f[:bitsperspike][inds, :]
         XX = hcat([b for b in eachrow(bps)]...)'
         h=heatmap(shifts, collect(1:size(XX,1)), XX; label="",
-        title="$(key.datacut)", size=(600,1200), c=:hot, clim=(0.3,1))
+                  title="$(keyz[k].datacut)", size=(600,1200), c=:hot, clim=(0.3,1))
         vline!([0],c=:pink,linestyle=:dash, linewidth=3,label="")
         Plot.save((;k))
         push!(H,h)

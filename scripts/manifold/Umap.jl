@@ -49,6 +49,7 @@ end
 
 println("Loading")
 @time global spikes, beh, ripples, cells = Load.load(opt["animal"], opt["day"])
+cells, spikes = Utils.filtreg.register(cells, spikes; on="unit", transfer=["celltype"])
 beh.index = 1:size(beh,1)
 
 # ----------------
@@ -82,7 +83,6 @@ function get_R(beh, spikes)
              Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
                     for ar in ("CA1","PFC")
     )
-    cells, spikes = Utils.filtreg.register(cells, spikes; on="unit", transfer=["celltype"])
     R = merge(R, 
               Dict(
                   Symbol(lowercase(ar) * "_" * String(ct)) => 
@@ -95,8 +95,9 @@ function get_R(beh, spikes)
                   ) for ar in ("CA1","PFC"), ct in (:pyr,:int)
               )
     )
+    R = Dict(k=>v for (k,v) in R if v != [])
     zscoredimarray(x) = DimArray(hcat(zscore.(eachcol(x))...), x.dims)
-    merge(R,Dict(Symbol("z"*string(k))=>zscoredimarray(v) for (k,v) in R))
+    merge(R,Dict(Symbol("z"*string(k))=>zscoredimarray(v) for (k,v) in R if v != []))
 end
 R      = get_R(beh, spikes)
 # Rtrain = get_R(behTrain, spikesTrain)
@@ -163,7 +164,9 @@ exception_triggered = false
 
 try
 
+    (metric,min_dist, n_neighbors, feature) = first(params)
     for (metric,min_dist, n_neighbors, feature) in params
+        (dataset,dim,s) = first(datasets)
         for (dataset,dim,s) in datasets
 
             gc.collect()
