@@ -1,10 +1,11 @@
 module checkpoint
 
-    using Serialization, DataFrames, DrWatson, Infiltrator, ArgParse
+    using Serialization, DataFrames, DrWatson, Infiltrator, ArgParse, JLD2
     import Arrow
     using DataStructures: OrderedDict
 
     import ..Timeshift
+    import ..Timeshift: DIutils
     import ..Timeshift.DIutils.Table: to_dataframe, DictOfShiftOfUnit
     import Field: ReceptiveField
     import Field.metrics: metric_ban, apply_metric_ban, unstackMetricDF
@@ -56,8 +57,7 @@ module checkpoint
     fieldspath(;kws...)   = path("fields"; kws...)
     shufflefieldspath(;kws...)   = path("shufflefields"; kws...)
 
-    storekeys(store::String;kws...) = keys(deserialize(path(store;
-                                                                 kws...)))
+    storekeys(store::String;kws...) = keys(de_save_data(path(store; kws...)))
     mainskeys(;kws)    = storekeys("mains";kws...)
     shuffleskeys(;kws) = storekeys("shuffles";kws...)
     fieldskeys(;kws)   = storekeys("fields";kws...)
@@ -69,11 +69,11 @@ module checkpoint
         else
             name = path(store)
             if overwrite
-                serialize(name, data)
+                _save_data(name, data)
             else
                 store = load_store(store)
                 data  = merge(store, data)
-                serialize(name, data)
+                _save_data(name, data)
             end
         end
     end
@@ -86,7 +86,7 @@ module checkpoint
         else
             name = path(store;archive)
             println("Loading $name")
-            D = deserialize(name)
+            D = _load_data(name)
         end
     end
     load_mains(;kws...)         = load_store("mains"; kws...)
@@ -135,7 +135,7 @@ module checkpoint
         name = mainspath()
         if isfile(name) && !(overwrite)
             @info "Preloading existing $name"
-            D = deserialize(name)
+            D = _load_data(name)
         else
             D = Dict()
         end
@@ -144,7 +144,7 @@ module checkpoint
         if keytype(D) == Any
             D = Dict{NamedTuple, Any}(key=>value for (key, value) in D)
         end
-        serialize(name, D)
+        _save_data(name, D)
     end
     function save_mains(M::DataFrame)
         name = mainspath() * "_dataframe.arrow"
@@ -192,7 +192,7 @@ module checkpoint
         name = fieldspath(;archive)
         if isfile(name) && !(overwrite)
             @info "Preloading existing $name"
-            D = deserialize(name)
+            D = _load_data(name)
         else
             D = Dict()
         end
@@ -201,7 +201,7 @@ module checkpoint
         if keytype(D) == Any
             D = Dict{NamedTuple, Any}(key=>value for (key, value) in D)
         end
-        serialize(name, D)
+        _save_data(name, D)
     end
     function save_fields(F::DataFrame)
         name = fieldspath() * "_dataframe.arrow"
@@ -217,13 +217,13 @@ module checkpoint
         S = collect_examples(S, x->hasproperty(x, :shuffle), num_examples)
         if isfile(name) && !(overwrite)
             @info "Preloading existing $name"
-            D = deserialize(name)
+            D = _load_data(name)
         else
             D = Dict()
         end
         D = merge(D, S)
         @info "Saving $name"
-        serialize(name, D)
+        _save_data(name, D)
     end
     
     function collect_examples(S::AbstractDict, key_lambda::Function,
@@ -250,13 +250,13 @@ module checkpoint
         S = cut_the_fat(S)
         if isfile(name) && !(overwrite)
             @info "Preloading existing $name"
-            D = deserialize(name)
+            D = _load_data(name)
         else
             D = Dict()
         end
         D = merge(D, S)
         @info "Saving $name"
-        serialize(name, D)
+        _save_data(name, D)
     end
     function save_shuffles(S::DataFrame)
         name = shufflespath() * "_dataframe.arrow"
@@ -273,8 +273,8 @@ module checkpoint
         storepath = path(store)
         archivepath = path(store; archive)
         @info "Loading archive=$storepath and archivepath=$archivepath"
-        store, archive = deserialize(storepath), 
-                         overwrite ? OrderedDict() : deserialize(archivepath)
+        store, archive = _load_data(storepath), 
+                         overwrite ? OrderedDict() : _load_data(archivepath)
         matches = match(keys(store), keysearch)
         @infiltrate
         if !(isempty(matches))
@@ -287,9 +287,9 @@ module checkpoint
             store = typeof(store)(key=>value for (key,value) in store)
             Base.rehash!(store)
             @info("Serializing archive")
-            serialize(archivepath, archive)
+            _save_data(archivepath, archive)
             @info("Serializing store")
-            serialize(storepath, store)
+            _save_data(storepath, store)
         else
             @info "No matches"
         end
@@ -298,8 +298,8 @@ module checkpoint
     function unarchive(store::String, keysearch::NamedTuple; archive="archive")
         storepath   = path(store)
         archivepath = path(store; archive)
-        store, archive = deserialize(storepath), 
-                         deserialize(archivepath) 
+        store, archive = _load_data(storepath), 
+                         _load_data(archivepath) 
         matches = match(keys(store), keysearch)
         @info "Matches" matches
         for key in matches
@@ -308,9 +308,9 @@ module checkpoint
         end
         @infiltrate
         @info("Serializing archive")
-        serialize(archivepath, archive)
+        _save_data(archivepath, archive)
         @info("Serializing store")
-        serialize(storepath, store)
+        _save_data(storepath, store)
         nothing
 
     end
@@ -337,6 +337,7 @@ module checkpoint
         end
         answer
     end
+
     export argparse
     """
         argparse(args=nothing; return_parser::Bool=false)
@@ -428,6 +429,30 @@ module checkpoint
         opt
     end
 
+    function _save_data(name::String, obj::AbstractDict)
+        jldopen(name, "w"; compress=true) do storage
+            for (k,v) in obj
+                storage[k] = v
+            end
+        end
+    end
+    function _save_data(name::String, obj)
+        jldopen(name, "w"; compress=true) do storage
+            storage["OBJ"] = obj
+        end
+    end
+
+    function _load_data(name::String)
+        jldopen(name, "r"; compress=true) do storage
+            if length(keys(storage)) == 1 && "OBJ" ∈ keys(storage)
+                obj = storage["OBJ"] 
+            else
+                obj = Dict(k=>storage[k] for k in keys(storage))
+            end
+        end
+        obj
+    end
+
     # ===================
     # Old Ways
     # ==================
@@ -475,7 +500,7 @@ module checkpoint
 
     #    name = _pathshiftdat(;kws...)
     #    if isfile(name)
-    #        D = deserialize(name)
+    #        D = _load_data(name)
     #    else
     #        D = Dict()
     #    end
@@ -503,12 +528,12 @@ module checkpoint
     #             :metric   => metric,
     #             :fieldkws => kws)
     #    D = overwrite ? merge(D, d) : merge(d, D)
-    #    serialize(name, D)
+    #    _save_data(name, D)
     #end
     #function loadshifts(;kws...)::Dict
     #    name = _pathshiftdat(;kws...)
     #    println(name)
-    #    deserialize(name)
+    #    _load_data(name)
     #end
 
 end

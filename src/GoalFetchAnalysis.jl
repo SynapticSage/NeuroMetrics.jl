@@ -32,17 +32,15 @@ module GoalFetchAnalysis
     #include(srcdir("Plot.jl"))
     #import .Plot
 
-    export DIutils, Table
-    import DIutils as DIutils
+    import DIutils 
     import DIutils.Table as Table
+    export DIutils, Table
 
     import Load, Filt, Shuf
     import Field
     import Munge
     import Timeshift
 
-    export DIutils
-    export Table 
     export Filt
     export Load
     export Field
@@ -85,5 +83,7 @@ module GoalFetchAnalysis
     #   "USE_PLUTO" ∉ keys(ENV)
     #   include(projectdir("test","runtests.jl"))
     #end
+    export pushover
+    pushover = DIutils.pushover
 
 end

@@ -214,7 +214,7 @@ try
             @time em, sc = if use_cuda # 1000x faster
                 @debug "fitter"
 
-                dim = 3
+                #dim = 3
                 fitter=cuUMAP(n_neighbors=n_neighbors, min_dist=min_dist, 
                               n_components=dim, metric=metric_str, local_connectivity=dim,
                               target_metric="euclidean", n_epochs=1500);

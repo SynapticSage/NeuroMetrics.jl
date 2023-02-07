@@ -13,6 +13,7 @@ module Timeshift
     import Field.preset: field_presets, return_preset_funcs
     import Filt
     using DIutils
+    Utils = DIutils # for compat with old checkpoint files
 
     # Julia packages
     using DataStructures

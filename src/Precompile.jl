@@ -5,20 +5,21 @@ module Precompile
     # Uses https://github.com/JuliaLang/PackageCompiler.jl to speed up use of my library
     # Spends less time in precompile when a function/module is first called
 
-    _GFA_dependencies=["DataFrames","Plots", "Makie", "CairoMakie", "OhMyREPL",
-                       "CSV", "HDF5", "NetCDF", "Arrow", "Revise", "Reexport",
+    _GFA_dependencies=["DataFrames","Plots", "Makie", "OhMyREPL",
+                       "CSV", "HDF5", "NetCDF", "Arrow", "Revise", 
+                       #"Reexport","CairoMakie", 
                        "DataFramesMeta", "Statistics", "NaNStatistics",
                        "ProgressMeter", "Glob", "Printf", "StatsPlots",
                        "StatsBase", "Distributions", "Shuffle", "VideoIO",
                        "DataStructures", "Gadfly", "TableView", "LazyGrids",
-                       "GeometricalPredicates", "RecipesBase", "Reexport",
-                       "AxisArrays", "DimensionalData", "HypothesisTests",
+                       "GeometricalPredicates", "RecipesBase",
+                       "DimensionalData", "HypothesisTests",
                        "LoopVectorization", "Infiltrator", "Markdown",
                        "InteractiveUtils", "Polyester", "Random", "Colors",
-                       "ColorSchemes", "ProtoStructs", "KernelDensity", "UMAP",
+                       "ColorSchemes", "ProtoStructs", "KernelDensity", # "UMAP",
                        "Entropies", "CausalityTools", "Term", "Images",
                        "ImageSegmentation", "ImageTransformations",
-                       "ImageFiltering", "ArgParse"]   
+                       "ImageFiltering", "ArgParse", "DIutils"]   
     _GFA_data_dependencies = [_GFA_dependencies..., "Load", "SampleData"]
 
     using PackageCompiler

@@ -19,6 +19,7 @@ module Munge
     include(srcdir("Munge","manifold.jl"))
     include(srcdir("Munge","causal.jl"))
     include(srcdir("Munge","triggering.jl"))
+    include("Munge/isolated.jl")
     #include(srcdir("Munge","dynamic.jl"))
     @reexport using .chrono
     @reexport using .behavior

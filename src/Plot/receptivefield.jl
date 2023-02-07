@@ -3,18 +3,18 @@
 """
 module receptivefield
 
-    using Plots, LaTeXStrings, Measures, DataFramesMeta, Statistics,
-          ProgressMeter, NaNStatistics, TextWrap, Infiltrator
-          ImageFiltering, Measures, Colors, Interpolations,
-          Memoization
-    using DIutils.binning
-    import Random
-
     import ..Plot
     using Field
     using Field: ReceptiveField, ReceptiveFields
     using DIutils.binning
     import DIutils
+
+    using Plots, LaTeXStrings, Measures, DataFramesMeta, Statistics,
+          ProgressMeter, NaNStatistics, TextWrap, Infiltrator,
+          ImageFiltering, Measures, Colors, Interpolations,
+          Memoization
+    import Random
+
 
     function clear_memoize_receptivefield!() 
         Memoization.empty_cache!(upsample)
