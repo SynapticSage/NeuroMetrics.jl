@@ -1,33 +1,49 @@
-quickactivate(expanduser("~/Projects/goal-code/")); using GoalFetchAnalysis
-using Infiltrator
-using DataStructures: OrderedDict
-using DimensionalData
-import DimensionalData: Between
-using ProgressMeter
-using DataFrames, DataFramesMeta
-using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
-using Plots
-using LazySets
+begin
+    quickactivate(expanduser("~/Projects/goal-code/")); 
+    using GoalFetchAnalysis
+    using Infiltrator, DimensionalData, ProgressMeter, DataFrames, DataFramesMeta,
+          Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM, Plots,
+          LazySets, JLD2
+    import DimensionalData: Between
+    using DataStructures: OrderedDict
 
-using Timeshift
-using Timeshift.types
-using Timeshift.shiftmetrics
-using Field.metrics
-using Plot
-using Plot.receptivefield
-using Utils.namedtup
-using Munge.timeshift: getshift
-using Munge.nonlocal
-using Utils.statistic: pfunc
-import Plot
-using Munge.spiking
-using Filt
+    using Timeshift, Timeshift.types, Timeshift.shiftmetrics, Field.metrics, Plot,
+          Plot.receptivefield, DIutils.namedtup, Munge.nonlocal, Munge.spiking, Filt
+          
+    import GoalFetchAnalysis.Munge.isolated: parser
+    import Plot
+    using Munge.timeshift: getshift
+    using DIutils.statistic: pfunc
+    Plot.off()
+    opt = parser()
+end
 
-Plot.off()
 
+
+jldopen(path_iso(opt),"r") do storage
+    DIutils.dict.load_dict_to_module!(Main, Dict(k=>storage[k] for k in keys(storage)))
+end
 
 cycles.time = (cycles.stop - cycles.start)/2 + cycles.start
-Utils.filtreg.register(cycles, spikes; on="time", transfer=["cycle"])
+DIutils.filtreg.register(cycles, spikes; on="time", transfer=["cycle"])
+
+"""
+Check that cycle labels match in our 3 relvent data sources
+"""
+using Blink, Interact
+colors = theme_palette(:auto)
+
+    using Colors
+@manipulate for Nstart=1:30:(size(cycles,1)-30), Nstop=30:30:(size(cycles,1))
+    cycs = (collect.(zip(cycles.start, cycles.stop))[1:Nstart])
+    icycs = cycles.cycle[1:Nstart]
+    p=plot()
+    Plots.vspan!(cycs, legend=false, alpha=0.1)
+    @df @subset(spikes, :cycle .>= 1, :cycle .<= Nstart) begin
+        scatter!(:time, :unit, c=colors[:cycle], markerstrokecolor=colorant"black")
+    end
+    p
+end
 
 
 """

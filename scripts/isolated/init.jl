@@ -1,28 +1,20 @@
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code/"));
 
-using GoalFetchAnalysis
-using Timeshift, Timeshift.types, Timeshift.shiftmetrics
-using Field.metrics
-using Plot, Plot.receptivefield
-using Munge.spiking, Munge.nonlocal
-using Munge.timeshift: getshift
-using Utils.namedtup 
-using Utils.statistic: pfunc
-using Filt
+using GoalFetchAnalysis, Timeshift, Timeshift.types, Timeshift.shiftmetrics,
+      Field.metrics, Plot, Plot.receptivefield, Munge.spiking, Munge.nonlocal,
+      DIutils.namedtup , Filt, Munge.isolated
+import DIutils.statistic: pfunc
+import Munge.timeshift: getshift
 
-using DataStructures: OrderedDict
-using DimensionalData
+using DimensionalData, ProgressMeter, DataFrames, DataFramesMeta, Statistics,
+      NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM, Plots, LazySets,
+      JLD2, Infiltrator
+import DataStructures: OrderedDict
 import DimensionalData: Between
-using ProgressMeter
-using DataFrames, DataFramesMeta
-using Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
-using Plots
-using LazySets
-using JLD2
-using Infiltrator
 
-datasets = (("RY16",36,:ca1ref), ("RY22",21,:ca1ref),  #("super", 0, :ca1ref),
+datasets = (
+            ("RY16",36,:ca1ref), ("RY22",21,:ca1ref),  #("super", 0, :ca1ref),
             ("RY16",36,:default),("RY22",21,:default), #("super", 0, :default)
            )
 (animal, day, tet) = datasets[2]
@@ -150,7 +142,7 @@ if init != 1; @warn("initial dataset is $init"); end
     # SAVE THE DATA
     begin
         @info "Saving $animal $day"
-        filename = datadir("isolated","iso_animal=$(animal)_day=$(day)_tet=$(tet).jld2")
+        filename = path_iso(animal, day, tet)
         !isdir(dirname(filename)) ? mkpath(dirname(filename)) : nothing
         @save "$filename"  animal day lfp spikes allspikes tsk cells beh cycles
     end
