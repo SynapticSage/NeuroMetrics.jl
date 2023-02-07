@@ -4,7 +4,8 @@ quickactivate(expanduser("~/Projects/goal-code"))
 
 using DataFrames, DataFramesMeta, KernelDensity, Distributions, Plots,
       StatsPlots, Measures, Distributions, ProgressMeter, ProgressLogging,
-      ThreadSafeDicts, NaNStatistics, Infiltrator, TimerOutputs, Serialization
+      ThreadSafeDicts, NaNStatistics, Infiltrator, TimerOutputs, Serialization,
+      DIutils
 
 using DataStructures: OrderedDict
 using Combinatorics: powerset
@@ -28,9 +29,9 @@ prop_set = sets.marginals_superhighprior_shuffle
 PROPS = ["x", "y", "currentHeadEgoAngle", "currentPathLength", "stopWell"]
 IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
 
-WIDTHS = opt["width"]
-thresh = opt["thresh"]
-shifts= opt["init_shift"]:opt["period_shift"]:opt["final_shift"]
+WIDTHS = opts["width"]
+thresh = opts["thresh"]
+shifts= opts["init_shift"]:opts["period_shift"]:opts["final_shift"]
 datasets = (("RY16",36,nothing), ("RY22", 21, nothing)) #, ("RY16",36, :adj),("RY16",36, :iso),)
 
 function get_key(;shifts, kws...)
@@ -41,7 +42,7 @@ end
 function keymessage(I::AbstractDict, key)
    @info key
    docontinue=false
-   if Utils.namedtup.orderlessmatch(key, keys(I))
+   if DIutils.namedtup.orderlessmatch(key, keys(I))
        if I[key] isa Task && !(istaskfailed(I[key]))
            #@info "task key=$key already exists"
            printstyled("SKIPPING...\n", blink=true)
@@ -103,7 +104,7 @@ F = OrderedDict{NamedTuple, Any}()
                                  transfer=["trajreltime","epoch"],
                                  on="time")
         trajperiod = Table.get_periods(beh, :period)
-        spike_trajs = Utils.searchsortedprevious.([trajperiod.start], spikes.time)
+        spike_trajs = DIutils.searchsortedprevious.([trajperiod.start], spikes.time)
         spikes.trajstart, spikes.trajdel = eachcol(trajperiod[spike_trajs,[:start, :δ]])
         mean.(map(x-> x.>0 .* x .< spikes.trajdel, [spikes.time .- spikes.trajstart]))
     end
@@ -122,34 +123,29 @@ F = OrderedDict{NamedTuple, Any}()
     key=(;)
     result_dict = OrderedDict{Real, Any}()
     spikes = dropmissing(spikes, :trajreltime)
-    @showprogress "widths" for widths ∈ WIDTHS
-        @showprogress "Datacut iteration" for datacut ∈ datacuts
-            #[:all, :cue, :memory, :task, :nontask]
-            finished_batch = false
-            @showprogress "Props" for props ∈ prop_set
-                try
-                    marginal = get_shortcutnames(props)
-                    key      = get_key(;marginal, datacut, shifts, widths, thresh,
-                                        animal, day, frac)
-                    filt = filts[datacut]
-                    @info filt filts[datacut]
-                    if keymessage(I, key); continue; end
-                    @time tmp = Timeshift.shifted_fields(beh, spikes,
-                                shifts, props; fieldpreset=:yartsev,
-                                               shiftbeh=false,
-                                               widths, filters=filt, thresh)
-                    tmp = Timeshift.DictOfShiftOfUnit{ keytype(tmp)}(tmp)
-                    F[key] = ShiftedFields(tmp)
-                    I[key] = F[key].metrics
-                catch exception
-                    @info "exception" exception
-                end
-            end
+    iter = Iterators.product(WIDTHS, thresh, datacuts, prop_set)
+    @showprogress "cuts and params" for (widths, thresh, datacut, props) ∈ iter
+        try
+            marginal = get_shortcutnames(props)
+            key      = get_key(;marginal, datacut, shifts, widths, thresh,
+                                animal, day, frac)
+            filt = filts[datacut]
+            @info filt filts[datacut]
+            if keymessage(I, key); continue; end
+            @time tmp = Timeshift.shifted_fields(beh, spikes,
+                        shifts, props; fieldpreset=:yartsev,
+                                       shiftbeh=false,
+                                       widths, filters=filt, thresh)
+            tmp = Timeshift.DictOfShiftOfUnit{ keytype(tmp)}(tmp)
+            F[key] = ShiftedFields(tmp)
+            I[key] = F[key].metrics
+        catch exception
+            @infiltrate
+            @info "exception" exception
         end
-        #Timeshift.save_mains(I)
-        #Timeshift.save_mains(F)
     end
 end
+pushover("Finished cachemain.jl",title="Timeshift")
 
 #savefile = datadir("timeshift","fixed_shifts_$shifts.serial")
 #serialize(savefile, (;F,I,shifts))

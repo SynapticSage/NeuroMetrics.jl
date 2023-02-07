@@ -1,7 +1,9 @@
-using GoalFetchAnalysis, Serialization, Plots, Timeshift.shiftmetrics,
-      Field.metrics, Timeshift, DimensionalData, Statistics, NaNStatistics,
-      Bootstrap, StatsBase, ProgressMeter, DataFramesMeta, SoftGlobalScope
-import Plot
+@time begin
+    using GoalFetchAnalysis, Serialization, Plots, Timeshift.shiftmetrics,
+          Field.metrics, Timeshift, DimensionalData, Statistics, NaNStatistics,
+          Bootstrap, StatsBase, ProgressMeter, DataFramesMeta, SoftGlobalScope
+    import Plot
+end
 
 theme(:bright)
 opt = argparse
