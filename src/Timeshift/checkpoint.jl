@@ -203,8 +203,8 @@ module checkpoint
         end
         _save_data(name, D)
     end
-    function save_fields(F::DataFrame)
-        name = fieldspath() * "_dataframe.arrow"
+    function save_fields(F::DataFrame; archive::String="")
+        name = fieldspath(;archive) * "_dataframe.arrow"
         Arrow.write(name, F)
     end
 
@@ -429,16 +429,25 @@ module checkpoint
         opt
     end
 
-    function _save_data(name::String, obj::AbstractDict)
+    function _save_data(name::String, 
+            obj::AbstractDict{Union{String,Symbol}, T} where T<:Any)
         jldopen(name, "w"; compress=true) do storage
             for (k,v) in obj
-                storage[k] = v
+                try
+                    storage[k] = v
+                catch
+                    @infiltrate
+                end
             end
         end
     end
     function _save_data(name::String, obj)
         jldopen(name, "w"; compress=true) do storage
-            storage["OBJ"] = obj
+            try
+                storage["OBJ"] = obj
+            catch
+                @infiltrate
+            end
         end
     end
 
