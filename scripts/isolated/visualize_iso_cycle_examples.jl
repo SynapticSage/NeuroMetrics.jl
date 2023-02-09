@@ -10,40 +10,63 @@ begin
     using Timeshift, Timeshift.types, Timeshift.shiftmetrics, Field.metrics, Plot,
           Plot.receptivefield, DIutils.namedtup, Munge.nonlocal, Munge.spiking, Filt
           
-    import GoalFetchAnalysis.Munge.isolated: parser
+    using GoalFetchAnalysis.Munge.isolated
     import Plot
     using Munge.timeshift: getshift
+    using DIutils
     using DIutils.statistic: pfunc
     Plot.off()
     opt = parser()
+    pushover("visualize iso example ready")
 end
 
-
-
+cycles = spikes = lfp = beh = DataFrame()
 jldopen(path_iso(opt),"r") do storage
     DIutils.dict.load_dict_to_module!(Main, Dict(k=>storage[k] for k in keys(storage)))
 end
 
-cycles.time = (cycles.stop - cycles.start)/2 + cycles.start
-DIutils.filtreg.register(cycles, spikes; on="time", transfer=["cycle"])
+# cycles.time = (cycles.stop - cycles.start)/2 + cycles.start
+cycles.time = cycles.start
+DIutils.filtreg.register(cycles, spikes; on="time", transfer=["cycle"], match=:prev)
+DIutils.filtreg.register(cycles, lfp; on="time",    transfer=["cycle"], match=:prev)
 
-"""
-Check that cycle labels match in our 3 relvent data sources
-"""
+#Check that cycle labels match in our 3 relvent data sources
 using Blink, Interact
 colors = theme_palette(:auto)
-
-    using Colors
-@manipulate for Nstart=1:30:(size(cycles,1)-30), Nstop=30:30:(size(cycles,1))
-    cycs = (collect.(zip(cycles.start, cycles.stop))[1:Nstart])
-    icycs = cycles.cycle[1:Nstart]
-    p=plot()
-    Plots.vspan!(cycs, legend=false, alpha=0.1)
-    @df @subset(spikes, :cycle .>= 1, :cycle .<= Nstart) begin
-        scatter!(:time, :unit, c=colors[:cycle], markerstrokecolor=colorant"black")
+using Colors
+function getcol(x)
+    if ismissing(x)
+        RGBA(NaN, NaN, NaN, NaN)
+    else
+        colors[mod(x,length(colors))+1]
     end
-    p
 end
+
+w = Window()
+R = collect(zip(1:30:(size(cycles,1)-30), 30:30:(size(cycles,1))))
+ui = @manipulate for selector=1:length(R)
+
+    Nstart,Nstop = R[selector]
+    cycs = cycles[Nstart:Nstop, :]
+    spans = collect.(zip(cycs.start, cycs.stop))
+    icycs = cycs.cycle
+    p=plot(size=(2000,1000))
+    sp = @subset(spikes, :cycle .>= minimum(icycs), :cycle .<= maximum(icycs))
+
+    if !isempty(sp)
+        @df sp begin
+            scatter!(:time, :unit, c=getcol.(:cycle), markerstrokecolor=colorant"black")
+        end
+    end
+
+    [(Plots.vspan!(span, legend=false, alpha=0.1, c=getcol.(icyc)); 
+      Plots.annotate!(span[1], ylims()[mod(icyc,2)+1], text(icyc)))
+     for (icyc, span) in zip(icycs, spans)]
+
+    p
+
+end
+body!(w, ui)
 
 
 """

@@ -443,12 +443,16 @@ module checkpoint
     end
 
     function _load_data(name::String)
-        jldopen(name, "r"; compress=true) do storage
-            if length(keys(storage)) == 1 && "OBJ" ∈ keys(storage)
-                obj = storage["OBJ"] 
+        storage = jldopen(name, "r"; compress=true)
+        @infiltrate
+        try
+            obj = if length(keys(storage)) == 1 && "OBJ" ∈ keys(storage)
+                storage["OBJ"] 
             else
-                obj = Dict(k=>storage[k] for k in keys(storage))
+                Dict(k=>storage[k] for k in keys(storage))
             end
+        finally
+            close(storage)
         end
         obj
     end

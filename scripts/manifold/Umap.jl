@@ -23,7 +23,7 @@ begin
           ProgressMeter, ThreadSafeDicts, DataFramesMeta, Distances, StatsBase,
           SoftGlobalScope, Infiltrator, DimensionalData,  DataFramesMeta
     using DataStructures: OrderedDict
-    import Utils.namedtup: ntopt_string
+    import DIutils.namedtup: ntopt_string
     use_cuda = true
     if use_cuda
         using PyCall
@@ -49,7 +49,7 @@ end
 
 println("Loading")
 @time global spikes, beh, ripples, cells = Load.load(opt["animal"], opt["day"])
-cells, spikes = Utils.filtreg.register(cells, spikes; on="unit", transfer=["celltype"])
+cells, spikes = DIutils.filtreg.register(cells, spikes; on="unit", transfer=["celltype"])
 beh.index = 1:size(beh,1)
 
 # ----------------
@@ -64,7 +64,7 @@ if filt !== nothing
     global filtstr = "filt=$filt"
     filters = Filt.get_filters()[filt]
     global behTrain, spikesTrain =
-                        Utils.filtreg.filterAndRegister(copy(behTrain), copy(spikesTrain); filters,
+                        DIutils.filtreg.filterAndRegister(copy(behTrain), copy(spikesTrain); filters,
                                                        filter_skipmissingcols=true)
 else
     global filtstr = "filt=nothing"
@@ -101,7 +101,7 @@ function get_R(beh, spikes)
 end
 R      = get_R(beh, spikes)
 # Rtrain = get_R(behTrain, spikesTrain)
-Rtrain_inds = Dict(k=>Utils.searchsortednearest.([beh.time], behTrain.time) for (k,_) in R)
+Rtrain_inds = Dict(k=>DIutils.searchsortednearest.([beh.time], behTrain.time) for (k,_) in R)
 Rtrain = Dict(
               k=>v[inds,:] for ((k,v),(k,inds)) in zip(R,Rtrain_inds)
              )
@@ -175,9 +175,9 @@ try
             GC.gc(false)
 
             global steps += 1
+            key = (;dataset,dim,s,min_dist,n_neighbors,metric,feature)
 
             # Pre - process : Make key, do we process?
-            key = (;dataset,dim,s,min_dist,n_neighbors,metric,feature)
             if key ∈ keys(embedding) && !(embedding[key] isa Future)
                 @info "skipping" key
                 next!(prog)
@@ -186,7 +186,9 @@ try
                 @info key
             end
             
-            dataset = feature == :zscore ? Symbol("z"*string(dataset)) : dataset;
+            if feature == :zscore && !(startswith(string(dataset), "z"))
+                continue
+            end
 
             # Pre - process : Do we obtain a distance function?
             @debug "Getting distance metric"
@@ -205,19 +207,18 @@ try
             #train = Matrix(Rtrain[area]'[:, # train on just this set of indices (dynamic manifold)
                                          # Rtrain_matching[area, inds_of_t[s]]
                                         # ]); 
-            input = Matrix(R[dataset]'[:, # test on this set minus filters
-                                    inds_of_t[s]
-                                   ]);
-            # input = Matrix(R[area]'); # test on everything minus filters
+            # input = Matrix(R[dataset]'[:, # test on this set minus filters
+            #                         inds_of_t[s]
+            #                        ]);
+            input = Matrix(R[dataset]'); # test on everything minus filters
 
             @debug "Processing"
             @time em, sc = if use_cuda # 1000x faster
                 @debug "fitter"
 
-                #dim = 3
                 fitter=cuUMAP(n_neighbors=n_neighbors, min_dist=min_dist, 
                               n_components=dim, metric=metric_str, local_connectivity=dim,
-                              target_metric="euclidean", n_epochs=1500);
+                              target_metric="euclidean", n_epochs=10_000);
                 # local_connectivity: int (optional, default 1)
                 #     The local connectivity required -- i.e. the number of nearest
                 #     neighbors that should be assumed to be connected at a local level.
@@ -225,27 +226,18 @@ try
                 #     locally. In practice this should be not more than the local intrinsic
                 #     dimension of the manifold.
                 # n_epochs larger = more accurate, 500 for small, 200 for large
-                randsamp(x,n) = x[:,Random.randperm(size(x,2))[1:n]]
                 @debug "fit"
                 T = train
                 trained_umap = fitter.fit(T');
                 @debug "transform"
+                # randsamp(x,n) = x[:,Random.randperm(size(x,2))[1:n]]
                 # I = randsamp(input, 50_000)
                 I = input
                 em = trained_umap.transform(I');
                 @debug "trust"
                 sc = cuml.metrics.trustworthiness(I', em, n_neighbors=n_neighbors)
-                # KEEP THIS HERE FOR INTRA-SCRIPT TESTING
-                # k,w=0.5,20;
-                # import Random
-                # E = em[Random.randperm(size(em,1))[1:14_000],:];
-                # begin
-                #     s=scatter(eachcol(E)...; alpha=0.1 * k, markersize=2);
-                #     plot!(eachcol(E)..., alpha=0.01 * k); ylims!(-w, w);
-                #     xlims!(-w,w); zlims!(-w,w);
-                #     s
-                # end
                 # t=@task Plot.stereoscopicgif( eachcol(E)... ;deltaangle=5, xlims=(-w,w), ylim=(-w,w), zlim=(-w,w), alphaasync =0.1*k)
+                
                 em, sc
             else # julia is suprisingly slow here
                 em = umap(input, dim; min_dist, n_neighbors, metric_str)

@@ -1,21 +1,21 @@
+begin
+    using Markdown, InteractiveUtils, DrWatson, Revise
+    quickactivate(expanduser("~/Projects/goal-code"))
 
-using Markdown, InteractiveUtils, DrWatson, Revise
-quickactivate(expanduser("~/Projects/goal-code"))
+    using DataFrames, DataFramesMeta, KernelDensity, Distributions, Plots,
+          StatsPlots, Measures, Distributions, ProgressMeter, ProgressLogging,
+          ThreadSafeDicts, NaNStatistics, Infiltrator, TimerOutputs, Serialization,
+          DIutils
 
-using DataFrames, DataFramesMeta, KernelDensity, Distributions, Plots,
-      StatsPlots, Measures, Distributions, ProgressMeter, ProgressLogging,
-      ThreadSafeDicts, NaNStatistics, Infiltrator, TimerOutputs, Serialization,
-      DIutils
+    using DataStructures: OrderedDict
+    using Combinatorics: powerset
+    import Base.Threads: @spawn
 
-using DataStructures: OrderedDict
-using Combinatorics: powerset
-import Base.Threads: @spawn
-
-using GoalFetchAnalysis , Timeshift, Timeshift.types
-import Load, Filt, Munge
-using Timeshift.dataframe: info_to_dataframe
-using Field.recon_process: get_shortcutnames, inv_shortcutnames
-
+    using GoalFetchAnalysis , Timeshift, Timeshift.types
+    import Load, Filt, Munge
+    using Timeshift.dataframe: info_to_dataframe
+    using Field.recon_process: get_shortcutnames, inv_shortcutnames
+end
 opts = argparse()
 
 keyfilterstr= k->!occursin("half",k) && !occursin("odds",k) # skip crossval
