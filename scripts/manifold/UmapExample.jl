@@ -237,6 +237,23 @@ em = trained_umap.transform(I');
 using Plot.manifold
 maniplot(em; by=beh.stopWell, llim=30)
 
+using Blink, Interact
+if isdefined(Main, :w); close(w); end
+M = Dict()
+@showprogress for θ=0:5:360, ρ=0:5:360, origin=0:10:100
+    🔑 = (θ, ρ, origin)
+    M[🔑] = 🔑 ∉ keys(M) ? Plot.manifold.maniplot(em; by=beh.cuemem, size=(1200,1200),
+                                llim=30, camera=(θ,ρ), origin) : 
+                            M[🔑]
+end
+ui= @manipulate for θ=0:5:360, ρ=0:5:360, origin=0:10:100
+    🔑 = (θ, ρ, origin)
+    M[🔑]
+end
+w=Window()
+body!(w, ui)
+
+
 
 B = groupby(beh, [:epoch, :period])
 P = []
@@ -253,4 +270,4 @@ for (i,b) in enumerate(B)
     )
 end
 plot(P[1:10]...)
-    
+        
