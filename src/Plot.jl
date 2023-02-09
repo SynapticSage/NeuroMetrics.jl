@@ -158,4 +158,7 @@ include(srcdir("Plot", "nonlocal.jl"))
 include(srcdir("Plot", "lfplot.jl"))
 @reexport using .lfplot
 
+include(srcdir("Plot", "manifold.jl"))
+@reexport using .manifold
+
 end
