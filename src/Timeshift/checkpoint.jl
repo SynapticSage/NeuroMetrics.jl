@@ -430,10 +430,11 @@ module checkpoint
     end
 
     function _save_data(name::String, 
-            obj::AbstractDict{Union{String,Symbol}, T} where T<:Any)
+            obj::AbstractDict{Union{String,Symbol,NamedTuple}, T} where T<:Any)
         jldopen(name, "w"; compress=true) do storage
             for (k,v) in obj
                 try
+                    k = String(k)
                     storage[k] = v
                 catch
                     @infiltrate
@@ -453,12 +454,17 @@ module checkpoint
 
     function _load_data(name::String)
         storage = jldopen(name, "r"; compress=true)
-        @infiltrate
+        obj = nothing
         try
             obj = if length(keys(storage)) == 1 && "OBJ" ∈ keys(storage)
                 storage["OBJ"] 
             else
-                Dict(k=>storage[k] for k in keys(storage))
+                Dict(
+                     if startswith(k, "(")
+                         eval(Meta.parse(k))
+                     else
+                         k
+                     end => storage[k] for k in keys(storage))
             end
         finally
             close(storage)

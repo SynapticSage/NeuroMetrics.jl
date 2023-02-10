@@ -132,33 +132,34 @@ end
 #include(srcdir("Plot", "raster.jl"))
 #@reexport using .raster
 
+ include("Plot/timeshift.jl")
+ include("Plot/receptivefield.jl")
+ include("Plot/table.jl")
+ include("Plot/task.jl")
+ include("Plot/cause.jl")
+ include("Plot/nonlocal.jl")
+ include("Plot/lfplot.jl")
+ include("Plot/manifold.jl")
+ export timeshift, receptivefield, table, task, 
+        cause, nonlocal, lfplot, manifold
 
-
-include(srcdir("Plot", "timeshift.jl"))
-@reexport using .timeshift
-
-include(srcdir("Plot", "receptivefield.jl"))
-@reexport using .receptivefield
-
-include(srcdir("Plot", "table.jl"))
-@reexport using .table
-
-#include(srcdir("Plot", "notebook_compareTS.jl"))
-#@reexport using .notebook_compareTS
-
-include(srcdir("Plot", "task.jl"))
-@reexport using .task
-
-include(srcdir("Plot", "cause.jl"))
-@reexport using .cause
-
-include(srcdir("Plot", "nonlocal.jl"))
-@reexport using .nonlocal
-
-include(srcdir("Plot", "lfplot.jl"))
-@reexport using .lfplot
-
-include(srcdir("Plot", "manifold.jl"))
-@reexport using .manifold
+# include(srcdir("Plot", "timeshift.jl"))
+# @reexport using .timeshift
+# include(srcdir("Plot", "receptivefield.jl"))
+# @reexport using .receptivefield
+# include(srcdir("Plot", "table.jl"))
+# @reexport using .table
+# #include(srcdir("Plot", "notebook_compareTS.jl"))
+# #@reexport using .notebook_compareTS
+# include(srcdir("Plot", "task.jl"))
+# @reexport using .task
+# include(srcdir("Plot", "cause.jl"))
+# @reexport using .cause
+# include(srcdir("Plot", "nonlocal.jl"))
+# @reexport using .nonlocal
+# include(srcdir("Plot", "lfplot.jl"))
+# @reexport using .lfplot
+# include(srcdir("Plot", "manifold.jl"))
+# @reexport using .manifold
 
 end

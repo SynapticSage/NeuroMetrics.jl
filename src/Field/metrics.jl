@@ -4,7 +4,7 @@ module metrics
     import ..Field: ReceptiveField
     using DIutils, DIutils.binning
     import DIutils.Table as Table
-    import DIutils.Table: vec_arrayofarrays!
+    import DIutils.Table.columntype: vec_arrayofarrays!
     import Load.utils: register
     import Load: keep_overlapping_times
 

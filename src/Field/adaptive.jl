@@ -2,7 +2,7 @@ module adaptive
 
     using ..Field
     import ..Field: ReceptiveField
-    import ..Field: get_boundary, resolution_to_width, return_vals
+    import DIutils.binning: get_boundary, resolution_to_width, return_vals
     import ..Field.metrics: MetricSet, push_metric!, pop_metric!
     import ..Field: metrics
     using DIutils, DIutils.binning

@@ -1,8 +1,7 @@
 module lfp
 
     using DataFrames, Statistics, DirectionalStatistics, ImageFiltering
-    using DIutils.Table, Infiltrator, MATLAB, LazyGrids, ProgressMeter
-
+    using DIutils.Table, DIutils, Infiltrator, MATLAB, LazyGrids, ProgressMeter, DSP
     function __init__()
         mat"addpath(genpath('/usr/local/chronux_2_12/'))"
     end
@@ -74,19 +73,47 @@ module lfp
 
     execute bandpass on an lfp dataframe
     """
-    function bandpass(df::DataFrame, low, high; order=5)
+    function bandpass(df::DataFrame, low, high; order=5, smoothkws...)
         # Butterworth and hilbert the averaged raw (averaging introduces higher
         # freequency changes)
         df = copy(df)
         filt = DSP.analogfilter(DSP.Bandpass(low, high, fs=1/median(diff(df.time))),
-                         DSP.Butterworth(order))
+                                DSP.Butterworth(order))
         df.raw =  Float64.(df.raw)
         df.raw = DSP.filtfilt(filt.p, df.raw)
         hilb   = DSP.hilbert(df.raw)
         df.amp, df.phase = abs.(hilb), angle.(hilb)
         # Find higher variance tetrodes
-        if !(isempty(kws))
-            df = Table.smooth.gauss(df, kws...)
+        if !(isempty(smoothkws))
+            df = Table.smooth.gauss(df, smoothkws...)
+        end
+        df
+    end
+
+    """
+        bandpass
+
+    execute bandstop on an lfp dataframe
+    """
+    function bandstop(df::DataFrame, low, high; field::Symbol=:broadraw, order=5, 
+            scale::Union{Nothing,Symbol}, smoothkws...)
+        # Butterworth and hilbert the averaged raw (averaging introduces higher
+        # frequency changes)
+        df = copy(df)
+        filt = DSP.analogfilter(DSP.Bandstop(low, high, fs=1/median(diff(df.time))),
+                                DSP.Butterworth(order))
+        df[!,field] =  Float64.(df[!,field])
+        df[!,field] = abs.(DSP.filtfilt(filt.p, df[!,field]))
+        if field == :raw
+            hilb   = DSP.hilbert(df[!,field])
+            df.amp, df.phase = abs.(hilb), angle.(hilb)
+        end
+        if scale !== nothing
+            df[!,field] = diff(collect(extrema(df[!,scale]))) * DIutils.nannorm_extrema(df[!,field], (-1,1))
+        end
+        # Find higher variance tetrodes
+        if !(isempty(smoothkws))
+            df = Table.smooth.gauss(df, smoothkws...)
         end
         df
     end

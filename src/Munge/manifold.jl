@@ -172,6 +172,7 @@ module manifold
     """
     function load_manis_workspace(animal::String, day; 
         filt, distance, feature_engineer, N, trans=:Matrix, embedding_overall=nothing, kws...)
+
         data = load_manis(;feature_engineer, filt, distance, tag="$(animal)$(day).$(N)seg")
 
         embedding_overall = embedding_overall === nothing ?
@@ -222,7 +223,6 @@ module manifold
             score::Dict, beh::DataFrame; vars=[],
             quantile_bounds=(0.001, 0.999))::DataFrame
 
-        #@infiltrate
         df = Table.to_dataframe(embedding, explode=false)
         sc = Table.to_dataframe(score)
 
@@ -246,8 +246,8 @@ module manifold
                groupby(sc, alignkeys)
         for key in keys(E)
             key = NamedTuple(key)
-            e, s = E[key], S[key]
             try
+                e, s = E[key], S[key]
                 e.score = s.value
             catch
                 @warn "key failed" key

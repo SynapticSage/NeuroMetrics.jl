@@ -152,6 +152,6 @@ pushover("Finished cachemain.jl",title="Timeshift")
 #(F,I,shifts) = deserialize(savefile);
 
 overwrite = true
-archive = isempty(setdiff(unique([d[3] for d in datasets]), [:adj,:iso])) ? "iso" : ""
-checkpoint.save_fields(F; overwrite, archive);
+archivestr = isempty(setdiff(unique([d[3] for d in datasets]), [:adj,:iso])) ? "iso" : ""
+checkpoint.save_fields(F; overwrite, archive=archivestr);
 

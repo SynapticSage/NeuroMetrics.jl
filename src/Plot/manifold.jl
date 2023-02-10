@@ -16,6 +16,11 @@ module manifold
 
     # KEEP THISHERE FOR INTRA-SCRIPT TESTING @userplot ManiPlot
     @userplot ManiPlot
+    """
+        `maniplot`
+
+    manifold plot. plots a NxDim manifold
+    """
     @recipe function maniplot(plt::ManiPlot; n=14_000, kalpha=0.5, 
             llim=nothing, origin=nothing, 
             by=nothing, byaxis=false,
@@ -30,7 +35,6 @@ module manifold
                     e .< quantile(e, quantfilt))
                   for e in eachcol(em) ]
             qs = hcat(qs...)
-            @infiltrate
             qs = findall(vec(all(qs, dims=2)))
             em = em[qs, :]
             by = by !== nothing ? by[qs, :] : nothing
@@ -64,7 +68,6 @@ module manifold
             E
         end
         if llim !== nothing
-            #@info llim
             ylims := (origin[1]-llim[1], origin[1]+llim[1])
             xlims := (origin[2]-llim[2], origin[2]+llim[2])
             zlims := (origin[3]-llim[3], origin[3]+llim[3])

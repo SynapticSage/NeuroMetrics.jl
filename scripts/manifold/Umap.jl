@@ -12,9 +12,11 @@ opt = Munge.manifold.parse()
 #dimset       = (2,   3)
 #min_dists    = (0.05,0.15,0.3)
 #n_neighborss = (5,50,150,400)
-min_dists, n_neighborss, metrics, dimset, features = [0.3], [5,50], [:Euclidean], 
+min_dists, n_neighborss, metrics, dimset, features = [0.5], [400], [:Euclidean], 
                                                      [2,3], [:zscore]
-
+ function keyfunc(;dataset,dim,s,min_dist,n_neighbors,metric,feature)
+    (;dataset,dim,s,min_dist,n_neighbors,metric,feature)
+end
 
 # FINISH loading libraries
 begin
@@ -175,8 +177,7 @@ try
             GC.gc(false)
 
             global steps += 1
-            key = (;dataset,dim,s,min_dist,n_neighbors,metric,feature)
-
+            key = keyfunc(;dataset,dim,s,min_dist,n_neighbors,metric,feature)
             # Pre - process : Make key, do we process?
             if key ∈ keys(embedding) && !(embedding[key] isa Future)
                 @info "skipping" key
@@ -263,7 +264,6 @@ catch exception
     exception_triggered = true
     print(exception)
 finally
-
     println("Finally section")
     if exception_triggered
         @info "Quit, probably GPU issue" animal day steps total steps/total
@@ -274,7 +274,16 @@ finally
     using Munge.manifold
     savefile = path_manis(;filt,feature_engineer,tag)
     @info "save info" filt festr diststr savefile
-    save_manis(;embedding, scores, inds_of_t, filt, feature_engineer, use_cuda, tag, splits, sps, N)
-    #exit()
-#end
+    try
+        save_manis(;embedding, scores, inds_of_t, filt, feature_engineer, use_cuda,
+                   tag, splits, sps, N)
+        printstyled("FINISHED UMAP.JL"; blink=true, color=:green)
+    catch
+        printstyled("FAILED SAVE UMAP.JL"; blink=true, color=:light_red, reverse=true)
+    finally
+        keyset = [keyfunc(;metric,min_dist,n_neighbors, feature, dataset,dim,s)  for
+         (metric,min_dist, n_neighbors, feature) in params, (dataset,dim,s) in datasets]
+        failed_keys = [k for k in keyset if k ∉ keys(embedding)]
+        @info "failed keys => $failed_keys"
+    end
 end

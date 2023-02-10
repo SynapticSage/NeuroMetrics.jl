@@ -74,11 +74,7 @@ if init != 1; @warn("initial dataset is $init"); end
     begin
         @assert length(unique(lfp.cycle)) > 1
         #sp = @subset(spikes, :tetrode .== 6);
-        @df lfp[1:2500,:] begin
-            Plots.plot(:time, :raw, label="raw")
-            Plots.plot!(:time, mod2pi.(:phase) .+100,label="phase")
-            Plots.plot!(:time, 10*:cycle, label="cycle labels")
-        end
+        cycleplot(lfp)
     end
 
     # Transfer lfp phase to spikes (for phase locking measurements)

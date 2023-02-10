@@ -11,7 +11,7 @@ import StatsBase, ColorSchemeTools
 ## ----------
 ## PARAMETERS
 ## ----------
-animal, day, filt, N = "RY16", 36, :all, 5
+animal, day, filt, N = "RY16", 36, :task, 5
 areas = (:ca1,:pfc)
 distance = :many
 feature_engineer = :many # many | nothing
@@ -25,11 +25,10 @@ opt = Dict(
 
 # Load all requisite vars
 manifold.load_manis_workspace(Main, animal, day; filt, 
-      areas, distance, feature_engineer, 
-      N)
+      distance, feature_engineer, N)
 
 spikes, beh, ripples, cells  = Load.load(animal, day)
-storage = load_alltimes_savefile(animal, day, N; params)
+#storage = load_alltimes_savefile(animal, day, N; params)
 tsk = Load.load_task(animal, day)
 wells             = Munge.behavior.get_wells_df(animal, day, 2; task=tsk, beh)
 boundary          = Munge.task.get_boundary(tsk)
@@ -51,6 +50,7 @@ T = size(beh, 1)
 # Filter manifold
 emdfs = @subset(emdf, 
               :metric  .== Symbol("Euclidean"),
+              :n_neighbors .== 400,
               :feature .== Symbol("zscore"),
               :dim .== 3)
 isempty(emdfs ) ? @error("emdfs is empty!") : nothing
@@ -60,14 +60,14 @@ begin
 end
 # Create a sorted set of partitions
 begin
-	keynames = [:min_dist, :n_neighbors, :metric, :area, :dim, :feature]
-        emdfs = groupby(emdfs, keynames)
-        # if any(size.(collect(emdfs),[1])) > 1
-        #     @error("you should filter such that each group has 1 entry")
-        # end
+    beh.T_partition = DIutils.searchsortedprevious.([sort(unique(emdfs.T_start))], beh.index)
+    keynames = [:min_dist, :n_neighbors, :metric, :dataset, :dim, :feature]
+    emdfs = groupby(emdfs, keynames)
+    # if any(size.(collect(emdfs),[1])) > 1
+    #     @error("you should filter such that each group has 1 entry")
+    # end
+    isempty(emdfs ) ? @error("emdfs is empty!") : nothing
 end
-isempty(emdfs ) ? @error("emdfs is empty!") : nothing
-beh.T_partition = Utils.searchsortedprevious.([sort(unique(emdfs.T_start))], beh.index)
 
 println("Number of embedding keys ", size(emdfs,1))
 #println("Estimated number of manifolds to plot ", size(emdfs,1)/maximum(emdfs[!,:T_partition]))
@@ -155,9 +155,9 @@ begin
     end
 
     # Instatiate current overall manifold
-    m,M = Dict(),Dict()
+    m,M       = Dict(),Dict()
     partition = Dict()
-    maxes = Dict()
+    maxes     = Dict()
 
     # BACKGROUND MANI
     # Plot a light grey of the total manis
@@ -165,18 +165,17 @@ begin
         try
             title = NamedTuple(col=>value for (col,value) 
                                                in zip(emdfs.cols, inv(emdfs.keymap)[i]))
-            title = TextWrap.wrap(replace(Utils.namedtup.tostring(title),","=>" "),
-                                                      width=40)
+            title = TextWrap.wrap(replace(DIutils.namedtup.tostring(title),","=>" "), width=40)
             AxisT = manis.dim[1] == 3 ? Axis3 : Axis
             maxes[i] = AxisT(Fig[i,3:Ncol-1], title=title, titlesize=8)
             part = @lift findfirst($t .>= manis.T_start .&& $t .< manis.T_end)		
             partition[i] = @lift $part === nothing ? @error("partition missing") : $part
-            e = []
+            ez = []
             for dim in range(1, manis.dim[1])
-                push!(e, @lift manis.value[$(partition[i])][:,dim])
+                push!(ez, @lift manis.value[$(partition[i])][:,dim])
             end
             black=RGBA(colorant"black", 0.01)
-            GLMakie.scatter!(e..., color=black, transparency=true, markersize=4)
+            GLMakie.scatter!(ez..., color=black, transparency=true, markersize=4)
             bounds = collect(Iterators.flatten([collect.(manis.bounds[part[]])...]))
             limits!(maxes[i], bounds...)
             manis.score

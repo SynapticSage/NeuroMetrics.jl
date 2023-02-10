@@ -52,7 +52,8 @@ module GoalFetchAnalysis
     filtreg = DIutils.filtreg
 
     #DIutils.plot.set_theme_timebased(23)
-    import Plots
+    #import Plots
+    include("Plot.jl")
     Plots.theme(:bright)
 
     function import_timeshift()

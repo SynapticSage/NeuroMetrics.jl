@@ -176,7 +176,7 @@ GC.gc(false)
 
 dim         = 3
 n_neighbors = 400
-dataset     = :zpfc
+dataset     = :zca1
 min_dist = 0.5
 key = (;dataset,dim,s,min_dist,n_neighbors,metric,feature)
 
@@ -205,7 +205,9 @@ input = Matrix(R[dataset]'); # test on everything minus filters
 @debug "Processing"
 @debug "fitter"
 
-fitter=cuUMAP(n_neighbors=n_neighbors, min_dist=min_dist, n_components=dim, metric=metric_str, local_connectivity=1, target_metric="euclidean", n_epochs=1_000);
+fitter = cuUMAP(n_neighbors=n_neighbors, min_dist=min_dist, n_components=dim,
+              metric=metric_str, local_connectivity=1,
+              target_metric="euclidean", n_epochs=1_000);
 
 # local_connectivity: int (optional, default 1)
 #     The local connectivity required -- i.e. the number of nearest

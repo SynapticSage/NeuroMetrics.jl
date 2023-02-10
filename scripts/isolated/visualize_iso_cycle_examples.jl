@@ -4,6 +4,7 @@ begin
     using Infiltrator, DimensionalData, ProgressMeter, DataFrames, DataFramesMeta,
           Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM, Plots,
           LazySets, JLD2
+    import Random
     import DimensionalData: Between
     using DataStructures: OrderedDict
 
@@ -11,13 +12,14 @@ begin
           Plot.receptivefield, DIutils.namedtup, Munge.nonlocal, Munge.spiking, Filt
           
     using GoalFetchAnalysis.Munge.isolated
-    import Plot
     using Munge.timeshift: getshift
     using DIutils
+    import Plot
     using DIutils.statistic: pfunc
     Plot.off()
     opt = parser()
-    pushover("visualize iso example ready")
+    @info "visualize iso options" opt
+    DIutils.pushover("visualize iso example ready")
 end
 
 cycles = spikes = lfp = beh = DataFrame()
@@ -29,6 +31,9 @@ end
 cycles.time = cycles.start
 DIutils.filtreg.register(cycles, spikes; on="time", transfer=["cycle"], match=:prev)
 DIutils.filtreg.register(cycles, lfp; on="time",    transfer=["cycle"], match=:prev)
+lfp = Munge.lfp.bandstop(lfp, 55, 65; field=:broadraw, scale=:raw)
+using Plot.lfplot
+cycleplot(lfp; otherfields=[:broadraw])
 
 #Check that cycle labels match in our 3 relvent data sources
 using Blink, Interact
@@ -68,12 +73,6 @@ ui = @manipulate for selector=1:length(R)
 end
 body!(w, ui)
 
-
-"""
-# ==========================================
-# Visualize isolated spiking events per cell
-# ==========================================
-# """
 # In this section, I'm visualizing events to make sure nothing is insance
 #
 # Ideal algo
@@ -86,6 +85,14 @@ body!(w, ui)
 # - theta
 # - cycle cuts
 # - spike raster
+
+
+#   _  _     ___           _       _           _ 
+# _| || |_  |_ _|___  ___ | | __ _| |_ ___  __| |
+#|_  ..  _|  | |/ __|/ _ \| |/ _` | __/ _ \/ _` |
+#|_      _|  | |\__ \ (_) | | (_| | ||  __/ (_| |
+#  |_||_|   |___|___/\___/|_|\__,_|\__\___|\__,_|
+#                                                
 
 isospikes = @subset(spikes, 
                     :isolated, 
@@ -110,8 +117,8 @@ gs, gl, gc = groupby(isospikes,:cycle), groupby(lfp,:cycle), groupby(cycles,:cyc
 end
 dropmissing(cycles, :isounits)
 
-function plot_cycle()
-end
+# function plot_cycle()
+# end
 
 # --------------------------------
 # ACTUAL ISOLATED SPIKING EXAMPLES
@@ -139,8 +146,16 @@ res = [st.rangeerror for st in STATS]
 for (rs, pc) in zip(res, pcs)
     display(plot(pc, background_color = rs ? :lightpink : :white))
 end
-# --------------------------------------
 
+
+
+# --------------------------------------
+#    _  _        _       _  _                      _    
+#  _| || |_     / \   __| |(_) __ _  ___ ___ _ __ | |_  
+# |_  ..  _|   / _ \ / _` || |/ _` |/ __/ _ \ '_ \| __| 
+# |_      _|  / ___ \ (_| || | (_| | (_|  __/ | | | |_  
+#   |_||_|   /_/   \_\__,_|/ |\__,_|\___\___|_| |_|\__| 
+#                        |__/                           
 # --------------------------------------
 Plot.setfolder("examples, adjacent cycles, indiv")
 begin
