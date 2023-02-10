@@ -4,7 +4,7 @@ module lfp_decode
           Statistics, NaNStatistics
     using LazyGrids: ndgrid
     using ..Munge
-    import Load
+    import DI
     import DIutils
     import DIutils: Table
 
@@ -16,12 +16,12 @@ module lfp_decode
 
 
     function velocity_filter_ripples(beh::DataFrame, ripples::DataFrame)
-        beh, ripples = Load.register(beh, ripples; transfer=["velVec"], on="time")
+        beh, ripples = DI.register(beh, ripples; transfer=["velVec"], on="time")
         ripples = ripples[abs.(ripples.velVec) .< 2, :]
     end
 
     function get_theta_cycles(lfp::DataFrame, beh::DataFrame)
-        beh, lfp = Load.register(beh, lfp; transfer=["velVec"], on="time")
+        beh, lfp = DI.register(beh, lfp; transfer=["velVec"], on="time")
         lfp = Munge.lfp.annotate_cycles(lfp, method="peak-to-peak")
         lfp.phase = Munge.lfp.phase_to_radians(lfp.phase)
         cycles = Table.get_periods(lfp, "cycle", 
@@ -59,7 +59,7 @@ module lfp_decode
                 lfp
             end
         end
-        lfp = Load.registerEventsToContinuous(ripples, lfp, 
+        lfp = DI.registerEventsToContinuous(ripples, lfp, 
                                  on="time", 
                                  eventStart="start", 
                                  eventStop="stop", 
@@ -290,7 +290,7 @@ module lfp_decode
         end
         transfer = String.([:traj, :correct, :stopWell, :futureStopWell, :pastStopWell,
                             :stopWell])
-        _, E = Load.register(beh, E, on="time", transfer=transfer)
+        _, E = DI.register(beh, E, on="time", transfer=transfer)
         groups = groupby(E, :traj)
         for group in groups
             group[!,:cycle_traj] = replace(group[!,cycle_unit],-1=>missing)
@@ -325,7 +325,7 @@ module lfp_decode
 
         E.midpoint = vec(mean([E.start E.stop],dims=2))
         E.time     = E.midpoint
-        _, E = Load.register(beh,E,on="time",transfer=["traj"])
+        _, E = DI.register(beh,E,on="time",transfer=["traj"])
 
         #c⃗ iⱼ, trajreltime, time
         E.deci        = Vector{Vector}(undef,size(E,1))

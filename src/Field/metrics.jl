@@ -5,8 +5,8 @@ module metrics
     using DIutils, DIutils.binning
     import DIutils.Table as Table
     import DIutils.Table.columntype: vec_arrayofarrays!
-    import Load.utils: register
-    import Load: keep_overlapping_times
+    import DI.utils: register
+    import DI: keep_overlapping_times
 
     using StatsBase, NaNStatistics, DataFrames, DataFramesMeta
     using DimensionalData, Images, ImageSegmentation, LazySets

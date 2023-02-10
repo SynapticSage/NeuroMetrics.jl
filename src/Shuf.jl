@@ -8,9 +8,9 @@ module Shuf
     using Infiltrator
     import Shuffle: shuffle!
 
-    using Filt
+    using DI.Filt
     SplitType = Union{Vector{Symbol}, Symbol, String, Vector{String}}
-    defaultFilters = merge(Filt.speed_lib)
+    defaultFilters = merge(DI.Filt.speed_lib)
     using DIutils
 
     distribution_based = [:addSampleOfDist, :jitterBy, :jitterAllSpikes]

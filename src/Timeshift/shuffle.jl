@@ -5,7 +5,7 @@ module shuffle
     import Field.preset: field_presets, return_preset_funcs
     import Field: adaptive
     import DIutils: filtreg
-    import Filt
+    import DI: Filt
     import Shuf
 
     using DrWatson, Serialization

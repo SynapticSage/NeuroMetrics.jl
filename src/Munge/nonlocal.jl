@@ -2,7 +2,8 @@ module nonlocal
 
     using Timeshift, Timeshift.types, Timeshift.shiftmetrics,
           Field.metrics, DIutils.namedtup
-    import DIutils, Labels, Random
+    import DIutils, Random
+    import DI: Labels
     import DIutils: Table
     using DimensionalData, ProgressMeter, DataFrames, DataFramesMeta,
           Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM

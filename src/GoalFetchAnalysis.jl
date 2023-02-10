@@ -1,3 +1,4 @@
+__precompile__(false)
 module GoalFetchAnalysis
 
     using Revise
@@ -8,8 +9,8 @@ module GoalFetchAnalysis
     @everywhere push!(LOAD_PATH, srcdir())
 
     ## General
-    #include(srcdir("Load.jl"))
-    #using .Load   # Loading/saving/manipulating raw data
+    #include(srcdir("DI.jl"))
+    #using .DI   # Loading/saving/manipulating raw data
     #include(srcdir("DIutils.jl"))
     #using .DIutils # General utilites
     #include(srcdir("Filt.jl"))
@@ -36,13 +37,14 @@ module GoalFetchAnalysis
     import DIutils.Table as Table
     export DIutils, Table
 
-    import Load, Filt, Shuf
+    import DI, Shuf
     import Field
     import Munge
     import Timeshift
+    Filt, Labels = DI.Filt, DI.Labels
 
-    export Filt
-    export Load
+    export Filt, Labels
+    export DI
     export Field
     export Timeshift
     export Decode
@@ -53,8 +55,8 @@ module GoalFetchAnalysis
 
     #DIutils.plot.set_theme_timebased(23)
     #import Plots
-    include("Plot.jl")
-    Plots.theme(:bright)
+    # include("Plot.jl")
+    # Plots.theme(:bright)
 
     function import_timeshift()
         @eval Main using Timeshift

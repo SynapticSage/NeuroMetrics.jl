@@ -20,7 +20,7 @@ module manifold
     using ArgParse
     using Statistics
 
-    import Load
+    import DI
     using DIutils.Table 
     import Filt
     import DIutils.namedtup: ntopt_string
@@ -178,8 +178,8 @@ module manifold
         embedding_overall = embedding_overall === nothing ?
             typeof(data[:embedding])() : embedding_overall
         embedding_overall = merge(embedding_overall, data[:embedding])
-        # @time spikes, beh, ripples, cells = Load.load(animal,day)
-        beh = Load.load_behavior(animal,day)
+        # @time spikes, beh, ripples, cells = DI.load(animal,day)
+        beh = DI.load_behavior(animal,day)
 
         # Filter
         # filters = Filt.get_filters()

@@ -5,7 +5,7 @@ module legacy
     import GeometricalPredicates
 
     import DIutils
-    import Load
+    import DI
 
     # ------------- LEGACY CODE ---------------------------------------------
     function getSettings(thing, props;
@@ -60,7 +60,7 @@ module legacy
             end
             augmented_props = [filter_props..., props...]
             @debug "augmented_props=$augmented_props"
-            tmp, data = Load.filterAndRegister(beh, data; filters=filters,
+            tmp, data = DI.filterAndRegister(beh, data; filters=filters,
                                               transfer=augmented_props,
                                               on="time")
             @assert length(unique(data.velVec)) > 1 "Empty data!"
@@ -73,7 +73,7 @@ module legacy
                 end
             elseif behfilter isa Dict
                     @debug "replacing behavior with custom filter"
-                beh = Load.filterTables(beh; filters=behfilter,
+                beh = DI.filterTables(beh; filters=behfilter,
                                        lookupcols=nothing)[1]
             end
         end

@@ -1,3 +1,4 @@
+__precompile__(false)
 module Field
 
     export get_fields
@@ -12,7 +13,7 @@ module Field
     # Goal Vector Libraries
     using DrWatson
     using DIutils
-    import Load
+    import DI
     import DIutils.binning: return_vals
 
     rateConversion = 30

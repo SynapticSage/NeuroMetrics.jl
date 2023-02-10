@@ -6,10 +6,10 @@ module adaptive
     import ..Field.metrics: MetricSet, push_metric!, pop_metric!
     import ..Field: metrics
     using DIutils, DIutils.binning
-    import Filt
+    import DI: Filt
 
     using DataStructures, DataFrames
-    import Load.utils: filterAndRegister, register
+    import DI.utils: filterAndRegister, register
     import Base
     using LoopVectorization, ProgressLogging, ProgressMeter, ProgressLogging,
           RecipesBase, Statistics, Polyester, ThreadSafeDicts, Infiltrator

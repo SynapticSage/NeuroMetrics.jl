@@ -9,7 +9,7 @@ module Decode
     __revise_mode__ = :evalassign
 
     using DIutils
-    import Load
+    import DI
 
     searchsortednearest = DIutils.searchsortednearest
     export searchsortednearest

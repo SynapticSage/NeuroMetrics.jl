@@ -22,7 +22,7 @@ module Precompile
                        "ImageFiltering", "ArgParse", 
                        #"DIutils"
                       ]   
-    _GFA_data_dependencies = [_GFA_dependencies..., "Load", "SampleData"]
+    _GFA_data_dependencies = [_GFA_dependencies..., "DI", "SampleData"]
 
     using PackageCompiler
     function precompile_GFA_dependencies(;incremental::Bool=true)

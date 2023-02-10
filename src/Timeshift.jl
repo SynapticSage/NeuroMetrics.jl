@@ -1,3 +1,4 @@
+__precompile__(false)
 module Timeshift
 
     __revise_mode__ = :eval
@@ -11,7 +12,7 @@ module Timeshift
     import Field
     import Field: adaptive, fixed
     import Field.preset: field_presets, return_preset_funcs
-    import Filt
+    import DI: Filt
     using DIutils
     Utils = DIutils # for compat with old checkpoint files
 

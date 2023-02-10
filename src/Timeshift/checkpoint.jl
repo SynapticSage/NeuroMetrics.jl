@@ -9,7 +9,7 @@ module checkpoint
     import ..Timeshift.DIutils.Table: to_dataframe, DictOfShiftOfUnit
     import Field: ReceptiveField
     import Field.metrics: metric_ban, apply_metric_ban, unstackMetricDF
-    import Load: save_table_at_path
+    import Filt: save_table_at_path
 
     export ts_plotdir
     export save_mains, save_shuffles, save_fields
@@ -44,7 +44,7 @@ module checkpoint
     function saveTauMax_cellTable(imaxdf::DataFrame, animal::String, day::Int,
         tag::String)
         tag = "$(tag)_tauMax"
-        Load.save_cell_taginfo(imaxdf, animal, day, tag)
+        Filt.save_cell_taginfo(imaxdf, animal, day, tag)
     end
 
     function path(store::String; archive="", kws...)

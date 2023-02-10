@@ -9,7 +9,7 @@ module behavior
     using Infiltrator
     using DataStructures: OrderedDict
 
-    import DIutils, Load
+    import DIutils, DI
 
     function annotate_pastFutureGoals(beh::DataFrame; doPrevPast::Bool=false)
 
@@ -62,8 +62,8 @@ module behavior
 
     export get_wells_df
     function get_wells_df(animal,day,epoch;task=nothing,beh=nothing)
-        task = task === nothing ? Load.load_task(animal, day) : task
-        beh = beh === nothing ? Load.load_behavior(animal, day) : beh
+        task = task === nothing ? DI.load_task(animal, day) : task
+        beh = beh === nothing ? DI.load_behavior(animal, day) : beh
         beh = dropmissing(beh, :stopWell)
         wells = task[(task.name.=="welllocs") .& (task.epoch .== epoch), :]
         wellrange = maximum(skipmissing(beh.stopWell))
