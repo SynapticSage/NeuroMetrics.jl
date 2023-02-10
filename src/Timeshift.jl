@@ -9,10 +9,10 @@ module Timeshift
     using DataStructures: OrderedDict
 
     # Parent libary
-    import Field
-    import Field: adaptive, fixed
-    import Field.preset: field_presets, return_preset_funcs
-    import DI: Filt
+    import ..GoalFetchAnalysis: Field
+    import GoalFetchAnalysis.Field: adaptive, fixed
+    import GoalFetchAnalysis.Field.preset: field_presets, return_preset_funcs
+    import GoalFetchAnalysis.DI: Filt
     using DIutils
     Utils = DIutils # for compat with old checkpoint files
 
@@ -225,22 +225,13 @@ module Timeshift
         return result_dict
     end
 
-    using Reexport
-    include(srcdir("Timeshift", "checkpoint.jl"))
-    @reexport using .checkpoint
-    include(srcdir("Timeshift", "dataframe.jl"))
-    @reexport using .dataframe
-    include(srcdir("Timeshift", "operation.jl"))
-    @reexport using .operation
-    include(srcdir("Timeshift", "shuffle.jl"))
-    @reexport using .shuffle
-    include(srcdir("Timeshift", "crossval.jl"))
-    @reexport using .crossval
-    include(srcdir("Timeshift", "Keys.jl"))
-    @reexport using .Keys
-    include(srcdir("Timeshift", "types.jl"))
-    @reexport using .types
-    include(srcdir("Timeshift", "shiftmetrics.jl"))
-    @reexport using .shiftmetrics
+    include("Timeshift/checkpoint.jl")
+    include("Timeshift/dataframe.jl")
+    include("Timeshift/operation.jl")
+    include("Timeshift/shuffle.jl")
+    include("Timeshift/crossval.jl")
+    include("Timeshift/Keys.jl")
+    include("Timeshift/types.jl")
+    include("Timeshift/shiftmetrics.jl")
 
 end

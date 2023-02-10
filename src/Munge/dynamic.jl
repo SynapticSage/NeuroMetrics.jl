@@ -5,8 +5,7 @@ dynamic time warp to tabular data
 module dynamic
 
     using DynamicAxisWarping
-    using GoalFetchAnalysis
-    using Munge.spiking
+    using ..Munge: spiking
     using DIutils.Table
     using Missings
     using Plot.task

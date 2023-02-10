@@ -5,11 +5,12 @@ module checkpoint
     using DataStructures: OrderedDict
 
     import ..Timeshift
-    import ..Timeshift: DIutils
-    import ..Timeshift.DIutils.Table: to_dataframe, DictOfShiftOfUnit
-    import Field: ReceptiveField
-    import Field.metrics: metric_ban, apply_metric_ban, unstackMetricDF
-    import Filt: save_table_at_path
+    import ..Timeshift: DictOfShiftOfUnit
+    import DIutils
+    import DIutils.Table: to_dataframe
+    import ..Timeshift.Field: ReceptiveField
+    import ..Timeshift.Field.metrics: metric_ban, apply_metric_ban, unstackMetricDF
+    import DI: save_table_at_path
 
     export ts_plotdir
     export save_mains, save_shuffles, save_fields

@@ -6,7 +6,7 @@ module GoalFetchAnalysis
     @everywhere using DrWatson
     #push!(LOAD_PATH, @__DIR__)
     __revise_mode__ = :eval
-    @everywhere push!(LOAD_PATH, srcdir())
+    #@everywhere push!(LOAD_PATH, srcdir())
 
     ## General
     #include(srcdir("DI.jl"))
@@ -37,10 +37,14 @@ module GoalFetchAnalysis
     import DIutils.Table as Table
     export DIutils, Table
 
-    import DI, Shuf
-    import Field
-    import Munge
-    import Timeshift
+    import DI
+    import DI: Filt
+    export DI, Filt
+
+    include("Shuf.jl")
+    include("Field.jl")
+    include("Munge.jl")
+    include("Timeshift.jl")
     Filt, Labels = DI.Filt, DI.Labels
 
     export Filt, Labels
@@ -53,10 +57,9 @@ module GoalFetchAnalysis
 
     filtreg = DIutils.filtreg
 
-    #DIutils.plot.set_theme_timebased(23)
-    #import Plots
-    # include("Plot.jl")
-    # Plots.theme(:bright)
+    # DIutils.plot.set_theme_timebased(23)
+    include("Plot.jl")
+    Plots.theme(:bright)
 
     function import_timeshift()
         @eval Main using Timeshift

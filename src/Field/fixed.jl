@@ -1,15 +1,9 @@
 module fixed
 
-    using DataStructures
-    using DataFrames
-    import Base
-    using LoopVectorization
-    using Infiltrator
-    using ProgressMeter
+    using DataStructures, DataFrames, Base, LoopVectorization,
+          Infiltrator, ProgressMeter, ProgressLogging, RecipesBase,
+          Statistics
     using Entropies: Probabilities
-    using ProgressLogging
-    using RecipesBase
-    using Statistics
 
     using ..Field
     import ..Field: ReceptiveField, get_boundary, resolution_to_width,

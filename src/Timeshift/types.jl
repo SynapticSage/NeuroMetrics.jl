@@ -4,7 +4,8 @@ module types
     import ..Field.metrics: metric_ban, apply_metric_ban, unstackMetricDF
     import ..Timeshift: AbsDictOfShiftOfUnit, DictOfShiftOfUnit
     import DIutils
-    import DIutils.Table: to_dataframe, vec_arrayofarrays!
+    import DIutils.Table: to_dataframe 
+    import DIutils.Table.columntype: vec_arrayofarrays!
     import DIutils: Table
 
     using DataFrames, Missings, DimensionalData, Infiltrator

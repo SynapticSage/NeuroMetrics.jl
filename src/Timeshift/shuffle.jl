@@ -1,12 +1,12 @@
 module shuffle
 
     import ..Timeshift
-    import Field
-    import Field.preset: field_presets, return_preset_funcs
-    import Field: adaptive
+    import ..Field
+    import ..Field.preset: field_presets, return_preset_funcs
+    import ..Field: adaptive
     import DIutils: filtreg
     import DI: Filt
-    import Shuf
+    import ...Shuf
 
     using DrWatson, Serialization
     using ThreadSafeDicts, DataFrames, DataStructures

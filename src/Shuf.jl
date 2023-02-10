@@ -8,6 +8,7 @@ module Shuf
     using Infiltrator
     import Shuffle: shuffle!
 
+    import DI
     using DI.Filt
     SplitType = Union{Vector{Symbol}, Symbol, String, Vector{String}}
     defaultFilters = merge(DI.Filt.speed_lib)

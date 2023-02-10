@@ -6,7 +6,7 @@ module legacy
     using ProgressMeter
 
     import ..Timeshift: σ
-    import Field
+    import ..Timeshift: Field
 
     """
         get_field_shift

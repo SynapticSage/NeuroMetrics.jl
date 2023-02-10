@@ -81,27 +81,14 @@ module Field
 
 
     # Field-related submodules
-    using Reexport
-    #include(srcdir("Field","operation.jl"))
-    #@reexport using .operation
-    #include(srcdir("Field","model.jl"))
-    #@reexport using .model
-    include(srcdir("Field","fit.jl"))
-    @reexport using .fit
-    include(srcdir("Field","metrics.jl"))
-    import .metrics
-    #include(srcdir("Field","recon.jl"))
-    #import .recon
-    include(srcdir("Field","recon_process.jl"))
-    import .recon_process
-    include(srcdir("Field","adaptive.jl"))
-    @reexport using .adaptive
+    include("Field/fit.jl")
+    include("Field/metrics.jl")
+    include("Field/recon_process.jl")
+    include("Field/adaptive.jl")
     #include(srcdir("Field","fixed.jl"))
     #@reexport using .fixed
-    include(srcdir("Field","preset.jl"))
-    @reexport using .preset
-    include(srcdir("Field","coactivity.jl"))
-    @reexport using .coactivity
+    include("Field/preset.jl")
+    include("Field/coactivity.jl")
 
     """
         Base.:∈

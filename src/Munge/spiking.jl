@@ -1,6 +1,6 @@
 module spiking
 
-    import Munge
+    import ..Munge
     using StatsBase
     import DIutils: binning
     using DataFrames
