@@ -36,14 +36,14 @@ using Munge.manifold
 @everywhere import Munge
 import Utils.namedtup: ntopt_string
 
-# Load data
+# DI data
 # ----------------
 try
 animals = (("RY22", 21), ("RY16", 36))
 #for (animal, day) in datasets 
 (animal,day) = animals[2]
 
-    @time spikes, beh, ripples, cells = Load.load(animal, day)
+    @time spikes, beh, ripples, cells = DI.load(animal, day)
     R = Dict(Symbol(lowercase(ar))=>Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
                     for ar in ("CA1","PFC"))
     zscoredimarray(x) = DimArray(hcat(zscore.(eachcol(x))...), x.dims)

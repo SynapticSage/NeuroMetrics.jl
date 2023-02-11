@@ -11,8 +11,8 @@ using  StatsPlots
 # iso spikes
 beh.index = 1:size(beh,1)
 Utils.filtreg.register(beh,spikes,on="time",transfer=["index"])
-lfp = Load.load_lfp("RY16", 36, tet=5);
-lfp.time = lfp.time .- Load.min_time_records[1]
+lfp = DI.load_lfp("RY16", 36, tet=5);
+lfp.time = lfp.time .- DI.min_time_records[1]
 lfp = Munge.lfp.annotate_cycles(lfp)
 Munge.spiking.isolated(spikes, lfp, include_samples=false)
 spikes.super_isolated = spikes.isolated  .&& spikes.phase .> 3.14

@@ -1,12 +1,12 @@
 using Plots
-import Utils
-import Plot: stereoplot, setfolder
-import Plot
-import Utils: plotutils
+import DIutils
+import GoalFetchAnalysis.Plot: stereoplot, setfolder
+import GoalFetchAnalysis.Plot
+import DIutils: plotutils
 using Random
 using SoftGlobalScope
 using Serialization
-using Munge.manifold
+using GoalFetchAnalysis.Munge.manifold
 using ElectronDisplay
 @eval Plot exts = ["png"]
 
@@ -16,7 +16,7 @@ desc = desc_manis(;desc_vars...)
 qlim = [0.02, 0.96]
 @info desc_vars
         for key in keys(embedding)
-            inds[key] = Utils.clean.inds_quantile_filter_dims(
+            inds[key] = DIutils.clean.inds_quantile_filter_dims(
                                 embedding[key], qlim)
         end
 
@@ -68,7 +68,7 @@ combos = Iterators.product( (:cuemem, :correct, :stopWell, :startWell),
         stereoplot(eachcol(em)...; alpha, theta=i, c)
         next!(prog)
     end
-    giffile = plotsdir("manifold","manifold_$desc", string(bfield), Utils.namedtup.ntopt_string(key) * ".gif")
+    giffile = plotsdir("manifold","manifold_$desc", string(bfield), DIutils.namedtup.ntopt_string(key) * ".gif")
     mkpath(dirname(giffile))
     gif(anim, giffile)
 end

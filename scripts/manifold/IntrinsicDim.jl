@@ -10,9 +10,9 @@ using ThreadSafeDicts
 using DataFramesMeta
 pids = workers()
 
-# Load data
+# DI data
 # ----------------
-@time spikes, beh, ripples, cells = Load.load("RY16", 36);
+@time spikes, beh, ripples, cells = DI.load("RY16", 36);
 
 @everywhere areas=(:ca1,:pfc)
 R  = Dict()

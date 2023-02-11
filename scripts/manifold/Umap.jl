@@ -3,7 +3,9 @@
 export LD_LIBRARY_PATH=/home/ryoung/miniconda3/envs/conda_jl/lib/
 exec julia -J "/home/ryoung/Code/projects/goal-code/GFA-dependencies-sysimage.so" --project="/home/ryoung/Projects/goal-code/" "$0" -- $@
 =#
-using GoalFetchAnalysis, Munge.manifold, DrWatson, Revise
+using GoalFetchAnalysis, 
+      GoalFetchAnalysis.Munge.manifold, 
+      DrWatson, Revise
 opt = Munge.manifold.parse()
 
 # Sets to explore
@@ -45,12 +47,12 @@ for (key, value) in opt
 end
 #global areas            = (:ca1,:pfc)
 
-# Load data
+# DI data
 # ----------------
 
 
 println("Loading")
-@time global spikes, beh, ripples, cells = Load.load(opt["animal"], opt["day"])
+@time global spikes, beh, ripples, cells = DI.load(opt["animal"], opt["day"])
 cells, spikes = DIutils.filtreg.register(cells, spikes; on="unit", transfer=["celltype"])
 beh.index = 1:size(beh,1)
 

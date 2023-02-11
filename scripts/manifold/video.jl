@@ -1,7 +1,7 @@
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
 using GoalFetchAnalysis, Munge.causal, Munge.manifold
-import Load, Munge
+import DI, Munge
 
 using Revise, ProgressMeter, CategoricalArrays, Statistics, NaNStatistics, VideoIO, GLMakie, ColorSchemes, Colors, DataFrames, DataFramesMeta, Printf, Infiltrator, ImageFiltering, TextWrap
 using StatsPlots: @df
@@ -23,17 +23,17 @@ opt = Dict(
 :nback => 10)
 
 
-# Load all requisite vars
+# DI all requisite vars
 manifold.load_manis_workspace(Main, animal, day; filt, 
       distance, feature_engineer, N)
 
-spikes, beh, ripples, cells  = Load.load(animal, day)
+spikes, beh, ripples, cells  = DI.load(animal, day)
 #storage = load_alltimes_savefile(animal, day, N; params)
-tsk = Load.load_task(animal, day)
+tsk = DI.load_task(animal, day)
 wells             = Munge.behavior.get_wells_df(animal, day, 2; task=tsk, beh)
 boundary          = Munge.task.get_boundary(tsk)
-video             = Load.video.load_videocollection(animal, day)
-TS = [Load.video.load_videots(animal, day, i) for i in 1:8]
+video             = DI.video.load_videocollection(animal, day)
+TS = [DI.video.load_videots(animal, day, i) for i in 1:8]
 exampframe = video[0.0]
 xax, yax = collect.(exampframe.dims)
 if (:index ∉ propertynames(beh))

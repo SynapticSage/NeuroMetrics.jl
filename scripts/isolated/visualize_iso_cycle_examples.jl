@@ -1,26 +1,24 @@
-begin
-    quickactivate(expanduser("~/Projects/goal-code/")); 
-    using GoalFetchAnalysis
-    using Infiltrator, DimensionalData, ProgressMeter, DataFrames, DataFramesMeta,
-          Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM, Plots,
-          LazySets, JLD2
-    import Random
-    import DimensionalData: Between
-    using DataStructures: OrderedDict
+#quickactivate(expanduser("~/Projects/goal-code/")); 
+using GoalFetchAnalysis
+using Infiltrator, DimensionalData, ProgressMeter, DataFrames, DataFramesMeta,
+      Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM, Plots,
+      LazySets, JLD2
+import Random
+import DimensionalData: Between
+using DataStructures: OrderedDict
 
-    using Timeshift, Timeshift.types, Timeshift.shiftmetrics, Field.metrics, Plot,
-          Plot.receptivefield, DIutils.namedtup, Munge.nonlocal, Munge.spiking, Filt
-          
-    using GoalFetchAnalysis.Munge.isolated
-    using Munge.timeshift: getshift
-    using DIutils
-    import Plot
-    using DIutils.statistic: pfunc
-    Plot.off()
-    opt = parser()
-    @info "visualize iso options" opt
-    DIutils.pushover("visualize iso example ready")
-end
+using Timeshift, Timeshift.types, Timeshift.shiftmetrics, Field.metrics, Plot,
+      Plot.receptivefield, DIutils.namedtup, Munge.nonlocal, Munge.spiking,
+      Plot.lfplot
+using DI
+using GoalFetchAnalysis.Munge.isolated
+using Munge.timeshift: getshift
+using DIutils
+using DIutils.statistic: pfunc
+Plot.off()
+opt = parser()
+@info "visualize iso options" opt
+DIutils.pushover("visualize iso example ready")
 
 cycles = spikes = lfp = beh = DataFrame()
 jldopen(path_iso(opt),"r") do storage
@@ -32,7 +30,6 @@ cycles.time = cycles.start
 DIutils.filtreg.register(cycles, spikes; on="time", transfer=["cycle"], match=:prev)
 DIutils.filtreg.register(cycles, lfp; on="time",    transfer=["cycle"], match=:prev)
 lfp = Munge.lfp.bandstop(lfp, 55, 65; field=:broadraw, scale=:raw)
-using Plot.lfplot
 cycleplot(lfp; otherfields=[:broadraw])
 
 #Check that cycle labels match in our 3 relvent data sources

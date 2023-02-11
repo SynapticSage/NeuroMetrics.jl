@@ -44,12 +44,12 @@ for (key, value) in opt
 end
 #global areas            = (:ca1,:pfc)
 
-# Load data
+# DI data
 # ----------------
 
 
 println("Loading")
-@time global spikes, beh, ripples, cells = Load.load(opt["animal"], opt["day"])
+@time global spikes, beh, ripples, cells = DI.load(opt["animal"], opt["day"])
 cells, spikes = DIutils.filtreg.register(cells, spikes; on="unit", transfer=["celltype"])
 beh.index = 1:size(beh,1)
 

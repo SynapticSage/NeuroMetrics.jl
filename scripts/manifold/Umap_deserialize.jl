@@ -34,7 +34,7 @@ using DimensionalData
 @everywhere import Munge
 import Utils.namedtup: ntopt_string
 
-# Load data
+# DI data
 # ----------------
 datasets = ( ("RY16", 36),)
 #datasets = ( ("RY22", 21),)
@@ -57,7 +57,7 @@ using Munge.manifold
 load_manis(Main; feature_engineer, filt, distance, tag="$(animal)$(day).$(N)seg")
 embedding_overall = merge(embedding_overall, embedding)
 filters = Filt.get_filters()
-@time global spikes, beh, ripples, cells = Load.load(animal,day)
+@time global spikes, beh, ripples, cells = DI.load(animal,day)
 if Symbol(filt) in keys(filters)
     global beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes; filter_skipmissingcols=true, filters=filters[Symbol(filt)])
 end

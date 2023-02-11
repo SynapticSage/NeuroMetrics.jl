@@ -1,7 +1,7 @@
 
 using Images
 using Makie, GLMakie
-video = Load.video.load_videocollection("RY16", 36)
+video = DI.video.load_videocollection("RY16", 36)
 times = beh.time[1:size(em,1)]
 
 t = 10000
