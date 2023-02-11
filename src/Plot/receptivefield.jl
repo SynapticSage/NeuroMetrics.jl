@@ -4,8 +4,8 @@
 module receptivefield
 
     import ..Plot
-    using Field
-    using Field: ReceptiveField, ReceptiveFields
+    using ...Field
+    using ...Field: ReceptiveField, ReceptiveFields
     using DIutils.binning
     import DIutils
 

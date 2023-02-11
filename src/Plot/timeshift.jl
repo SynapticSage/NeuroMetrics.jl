@@ -3,8 +3,8 @@ module timeshift
 
     import Shuffle
     using DIutils
-    import Timeshift: ShiftedField, ShiftedFields, AbsDictOfShiftOfUnit,
-                      DictOfShiftOfUnit
+    import ...Timeshift:  AbsDictOfShiftOfUnit, DictOfShiftOfUnit
+    import ...Timeshift.types: ShiftedField, ShiftedFields
     using Plots
     using Infiltrator
     using StatsPlots: @df

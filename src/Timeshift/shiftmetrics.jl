@@ -1,12 +1,10 @@
 module shiftmetrics
 
-    import ..Timeshift: ShiftedFields, ShiftedField, DictOfShiftOfUnit
-    using DataFrames
-    using Infiltrator
-    using Statistics
-    using AxisArrays
-    using DimensionalData
+    using DataFrames, Infiltrator, Statistics, AxisArrays, DimensionalData
+
     import DIutils
+    import ..Timeshift: DictOfShiftOfUnit
+    import ..Timeshift.types: ShiftedFields, ShiftedField
 
     FieldObj = Union{ShiftedField, ShiftedFields}
     TableObj = Union{DataFrame,GroupedDataFrame, AbstractDataFrame}

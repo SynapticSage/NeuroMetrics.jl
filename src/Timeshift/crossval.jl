@@ -10,6 +10,7 @@ module crossval
     using DataFrames
     import DIutils
     import DIutils.Table: DFColVars
+    import DIutils: filtreg
 
     in_range = DIutils.in_range
 
@@ -20,7 +21,7 @@ module crossval
 
     function get_field_crossval_jl(beh::DataFrame, data::DataFrame, 
             shifts::Union{StepRangeLen,Vector{<:Real}};
-            cv::T=StatifiedCV(nfolds=2), 
+            cv::T = StratifiedCV(nfolds=2), 
             stratify_cols::Union{Nothing,Union{String},String}=nothing,
             kws...) where T <: ResamplingStrategy
 
@@ -45,7 +46,7 @@ module crossval
         beh.type[train, :] .= "train"
         beh.type[test, :]  .= "test"
 
-        beh, data = raw.register(beh, data; on="time", transfer="type")
+        beh, data = filtreg.register(beh, data; on="time", transfer="type")
         nonmatchingepochs = (!).(DIutils.ismember(data.epoch, unique(beh.epoch)))
         data.type[nonmatchingepochs] .= ""
 

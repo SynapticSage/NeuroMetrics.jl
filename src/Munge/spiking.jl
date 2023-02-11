@@ -1,8 +1,6 @@
 module spiking
 
-    import ..Munge
     using StatsBase
-    import DIutils: binning
     using DataFrames
     using ImageFiltering
     using DimensionalData
@@ -11,10 +9,12 @@ module spiking
     using ProgressMeter
     using Infiltrator
     using TensorToolbox
+
+    import DIutils: binning
     using DIutils: Table
     import DIutils
-
-    import Field: ReceptiveField
+    import ..Munge
+    import ...Field: ReceptiveField
 
     export torate, rate_todataframe
 

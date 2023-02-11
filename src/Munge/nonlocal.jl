@@ -1,15 +1,18 @@
 module nonlocal
 
-    using Timeshift, Timeshift.types, Timeshift.shiftmetrics,
-          Field.metrics, DIutils.namedtup
-    import DIutils, Random
-    import DI: Labels
-    import DIutils: Table
     using DimensionalData, ProgressMeter, DataFrames, DataFramesMeta,
           Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM
     using Plots, LazySets, Infiltrator
     using DataStructures: OrderedDict
     
+    using DIutils.namedtup
+    import DIutils, Random
+    import DI: Labels
+    import DIutils: Table
+    using ...Field: metrics
+    using ...Timeshift
+    using ...Timeshift.types
+    using ...Timeshift.shiftmetrics
 
     unfiltered_behavior = nothing
     current_metadata = nothing

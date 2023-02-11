@@ -45,7 +45,7 @@ module GoalFetchAnalysis
     include("Field.jl")
     include("Munge.jl")
     include("Timeshift.jl")
-    Filt, Labels = DI.Filt, DI.Labels
+    #Filt, Labels = DI.Filt, DI.Labels
 
     export Filt, Labels
     export DI
@@ -59,14 +59,16 @@ module GoalFetchAnalysis
 
     # DIutils.plot.set_theme_timebased(23)
     include("Plot.jl")
+    import Plots
     Plots.theme(:bright)
 
-    function import_timeshift()
-        @eval Main using Timeshift
-        @eval Main using Timeshift.checkpoint
-    end
+    # function import_timeshift()
+    #     @eval Main using Timeshift
+    #     @eval Main using Timeshift.checkpoint
+    # end
 
-    import Labels as labels
+    #import Labels as labels
+    labels = DI.Labels
 
     # ------
     # REVISE.jl

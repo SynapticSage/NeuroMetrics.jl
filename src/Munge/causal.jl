@@ -19,7 +19,7 @@ module causal
     using ArgParse
 
     import ..Munge
-    import Munge.manifold: make_embedding_df, EmbeddingFrameFetch
+    import ..Munge.manifold: make_embedding_df, EmbeddingFrameFetch
     import DIutils
     import DIutils: Table
 

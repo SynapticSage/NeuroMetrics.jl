@@ -21,10 +21,10 @@ module manifold
     using Statistics
 
     import DI
-    using DIutils.Table 
-    import Filt
-    import DIutils.namedtup: ntopt_string
+    import DI: Filt
     using DIutils
+    using DIutils.Table 
+    import DIutils.namedtup: ntopt_string
 
     """
         parse(args=nothing; return_parser::Bool=false)
