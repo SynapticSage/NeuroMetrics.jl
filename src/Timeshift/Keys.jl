@@ -90,7 +90,7 @@ module Keys
     function _correct_mains(D::Dict{<:NamedTuple, <:Any})
         kD = keys(D)
         @showprogress for (i,nt_key) in enumerate(kD)
-            @info "key=$key \n i=$i"
+            @info "key=$nt_key \n i=$i"
             @infiltrate
             value = pop!(D, nt_key)
             nt_key = Dict(zip(keys(nt_key), values(nt_key)))

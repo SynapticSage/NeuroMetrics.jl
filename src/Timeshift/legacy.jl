@@ -5,6 +5,7 @@ module legacy
     using ThreadSafeDicts
     using ProgressMeter
 
+    import ...Field
     import ..Timeshift: σ
     import ..Timeshift: Field
 

@@ -1,8 +1,7 @@
-__precompile__(false)
 module GoalFetchAnalysis
 
     using Revise
-    import Distributed: @everywhere
+    # import Distributed: @everywhere
     @everywhere using DrWatson
     #push!(LOAD_PATH, @__DIR__)
     __revise_mode__ = :eval
@@ -38,13 +37,14 @@ module GoalFetchAnalysis
     export DIutils, Table
 
     import DI
-    import DI: Filt
+    import DI: Filt, Labels
     export DI, Filt
 
     include("Shuf.jl")
     include("Field.jl")
     include("Munge.jl")
     include("Timeshift.jl")
+    include("Decode.jl")
     #Filt, Labels = DI.Filt, DI.Labels
 
     export Filt, Labels
@@ -93,5 +93,7 @@ module GoalFetchAnalysis
     #end
     export pushover
     pushover = DIutils.pushover
+
+    include("Precompile.jl")
 
 end

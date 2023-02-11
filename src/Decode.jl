@@ -33,14 +33,10 @@ module Decode
         return reshape(dat, sz)
     end
 
-    include(srcdir("Decode","checkpoint.jl"))
-    @reexport using .checkpoint
-    include(srcdir("Decode","makie_observable.jl"))
-    @reexport using .makie_observable
-    include(srcdir("Decode","plot.jl"))
-    @reexport import .plot
-    include(srcdir("Decode","bayes.jl"))
-    @reexport import .bayes
+    include("Decode/checkpoint.jl")
+    include("Decode/makie_observable.jl")
+    include("Decode/plot.jl")
+    include("Decode/bayes.jl")
 
 
 end

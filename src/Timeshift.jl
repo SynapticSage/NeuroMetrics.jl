@@ -27,8 +27,8 @@ module Timeshift
     export Field
     export get_field_shift
     export shifted_fields
-    export getshifts, getunits
-    export ShiftedField, ShiftedFields, DictOfShiftOfUnit
+    # export getshifts, getunits
+    export DictOfShiftOfUnit
     export shift_func!, reset_shift!
 
     if !isdefined(Timeshift, :DictOfShiftOfUnit)
