@@ -153,7 +153,7 @@ module spiking
             grid = minimum(spikes.time):binsize:maximum(spikes.time)
         end
         dims = dims isa Vector ? dims : [dims]
-        T =  Munge.tensorize(spikes, dims, :time)
+        T =  Munge.tensor.tensorize(spikes, dims, :time)
         M = Array{DimArray}(undef, size(T)...)
         prog = Progress(length(T); desc="Executing count of $dims")
         for ind in eachindex(T)

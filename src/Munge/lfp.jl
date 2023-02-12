@@ -109,13 +109,22 @@ module lfp
             df.amp, df.phase = abs.(hilb), angle.(hilb)
         end
         if scale !== nothing
-            df[!,field] = diff(collect(extrema(df[!,scale]))) * DIutils.nannorm_extrema(df[!,field], (-1,1))
+            df[!,field] = diff(collect(extrema(df[!,scale]))) .* DIutils.nannorm_extrema(df[!,field], (-1,1))
         end
         # Find higher variance tetrodes
         if !(isempty(smoothkws))
             df = Table.smooth.gauss(df, smoothkws...)
         end
         df
+    end
+
+    """
+    smooth field of an lfp dataframe
+    """
+    function smooth(lf::DataFrame, field; ker=5)
+        ker = Kernel.gaussian((ker,))
+        lf[!, "smooth"*string(field)] = imfilter(lf[!,field], ker)
+        lf
     end
 
     """

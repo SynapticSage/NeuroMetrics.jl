@@ -1,14 +1,13 @@
 @time begin
     using GoalFetchAnalysis, Serialization, 
-          Plots, Timeshift.shiftmetrics,
-          Field.metrics, Timeshift, DimensionalData, Statistics, NaNStatistics,
+          Plots, .Timeshift.shiftmetrics, .Munge.timeshift, .Timeshift.checkpoint,
+          .Field.metrics, .Timeshift, DimensionalData, Statistics, NaNStatistics,
           Bootstrap, StatsBase, ProgressMeter, DataFramesMeta, SoftGlobalScope,
           Infiltrator
-    import Plot
 end
 
 theme(:bright)
-opt = argparse
+opt = argparse()
 bins = 25
 if !isdefined(Main,:F) || F===nothing
     global F = load_fields()
@@ -36,34 +35,36 @@ datasets= [(d..., frac) for d in datasets for frac in [nothing]]
 animal, day, brain_area, frac = datasets[end]
 #include(expanduser("~/tmp2.jl"))
 
-function prep(f::AbstractDict, k::Symbol)
-    key = keyz[k]
-    prep(F[key])
-end
-prep(f::ShiftedFields) = prep(matrixform(f))
-function prep(f::DimArray)    
-    push_dims!(f)
-    push_celltable!(f, cells)
-    pop_metric!(f, :unit)
-    push_metric!(f, metrics.bitsperspike)
-    push_metric!(f, metrics.totalcount)
-    push_metric!(f, metrics.maxrate)
-    push_shiftmetric!(f, best_tau!; metric=:bitsperspike)
-    push_metric!(f, metrics.bitsperspikeold)
-    push_shiftmetric!(f, best_tau!; metric=:bitsperspikeold)
-    f = f[vec(all(f[:totalcount] .> 50, dims=2) .&&
-              any(f[:bitsperspike] .> 0.5, dims=2)) ,:]
-    if brain_area !== nothing
-        f = f[vec(all(f[:area] .== brain_area, dims=2)), :]
+begin
+    function prep(f::AbstractDict, k::Symbol)
+        key = keyz[k]
+        prep(F[key])
     end
-    f
-end
-  
-function doheat(f,key::NamedTuple)
-    inds = sortperm(f[:bestshift_bitsperspike][:,1])
-    bps  = f[:bitsperspike][inds, :]
-    XX = hcat([DIutils.norm_extrema(b) for b in eachrow(bps)]...)'
-    heatmap(shifts, collect(1:size(XX,1)), XX, title="$(key.datacut)", size=2 .* (600,800))
+    prep(f::ShiftedFields) = prep(matrixform(f))
+    function prep(f::DimArray)    
+        push_dims!(f)
+        push_celltable!(f, cells)
+        pop_metric!(f, :unit)
+        push_metric!(f, metrics.bitsperspike)
+        push_metric!(f, metrics.totalcount)
+        push_metric!(f, metrics.maxrate)
+        push_shiftmetric!(f, best_tau!; metric=:bitsperspike)
+        push_metric!(f, metrics.bitsperspikeold)
+        push_shiftmetric!(f, best_tau!; metric=:bitsperspikeold)
+        f = f[vec(all(f[:totalcount] .> 50, dims=2) .&&
+                  any(f[:bitsperspike] .> 0.5, dims=2)) ,:]
+        if brain_area !== nothing
+            f = f[vec(all(f[:area] .== brain_area, dims=2)), :]
+        end
+        f
+    end
+      
+    function doheat(f,key::NamedTuple)
+        inds = sortperm(f[:bestshift_bitsperspike][:,1])
+        bps  = f[:bitsperspike][inds, :]
+        XX = hcat([DIutils.norm_extrema(b) for b in eachrow(bps)]...)'
+        heatmap(shifts, collect(1:size(XX,1)), XX, title="$(key.datacut)", size=2 .* (600,800))
+    end
 end
 
 # FAILED SYMBOLS
@@ -87,7 +88,7 @@ end
         #end
 
         # = PREPLOT ACTIONS =#
-        global cells = Load.load_cells(animal, day)
+        global cells = DI.load_cells(animal, day)
         global keyz = Dict(key.datacut=>key for key in Base.filter(k->k.animal==animal && 
                                                        k.day == day, keys(F)))
 
@@ -110,7 +111,7 @@ end
         for k in (:all, :nontask, :cue, :mem_error, :cue_error, :task,:memory, :mem_correct, :cue_correct)
             f   = prep(F, k)
             k  = string(k)
-            @info "$key" #length(unique(f[:unit]))
+            @info "$k" #length(unique(f[:unit]))
 
             vals = f[shift=At(0)][:bestshift_bitsperspike]
             edges = LinRange(minimum(f[:shift]), maximum(f[:shift]), bins+1)

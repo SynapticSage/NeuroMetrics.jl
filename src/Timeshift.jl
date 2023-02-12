@@ -10,7 +10,7 @@ module Timeshift
 
     # Parent libary
     import ..GoalFetchAnalysis: Field
-    import GoalFetchAnalysis.Field: adaptive, fixed
+    import GoalFetchAnalysis.Field: adaptive
     import GoalFetchAnalysis.Field.preset: field_presets, return_preset_funcs
     import GoalFetchAnalysis.DI: Filt
     using DIutils

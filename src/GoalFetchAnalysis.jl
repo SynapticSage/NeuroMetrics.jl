@@ -15,17 +15,18 @@ module GoalFetchAnalysis
 
     include("Shuf.jl")
     include("Field.jl")
-    include("Munge.jl")
     include("Timeshift.jl")
+    include("Munge.jl")
     include("Plot.jl")
+    # incldue("Decode.jl")
 
     export Filt, Labels
     export DI
     export Field
     export Timeshift
-    export Decode
     export Munge
     export Plot
+    # export Decode
 
     filtreg = DIutils.filtreg
 

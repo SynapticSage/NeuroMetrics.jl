@@ -1,6 +1,6 @@
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
-using GoalFetchAnalysis, Munge.causal, Munge.manifold
+using GoalFetchAnalysis, .Munge.causal, .Munge.manifold
 import DI, Munge
 
 using Revise, ProgressMeter, CategoricalArrays, Statistics, NaNStatistics, VideoIO, GLMakie, ColorSchemes, Colors, DataFrames, DataFramesMeta, Printf, Infiltrator, ImageFiltering, TextWrap

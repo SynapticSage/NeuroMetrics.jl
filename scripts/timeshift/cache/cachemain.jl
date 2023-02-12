@@ -11,10 +11,10 @@ begin
     using Combinatorics: powerset
     import Base.Threads: @spawn
 
-    using GoalFetchAnalysis , Timeshift, Timeshift.types
-    import Load, Filt, Munge
-    using Timeshift.dataframe: info_to_dataframe
-    using Field.recon_process: get_shortcutnames, inv_shortcutnames
+    using GoalFetchAnalysis , .Timeshift, .Timeshift.types, .Timeshift.checkpoint
+    import DI: Filt
+    using .Timeshift.dataframe: info_to_dataframe
+    using .Field.recon_process: get_shortcutnames, inv_shortcutnames
 end
 opts = argparse()
 

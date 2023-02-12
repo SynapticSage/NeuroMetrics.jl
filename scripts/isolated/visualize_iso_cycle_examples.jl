@@ -16,55 +16,65 @@ opt = parser()
 @info "visualize iso options" opt
 DIutils.pushover("visualize iso example ready")
 
+
 cycles = spikes = lfp = beh = DataFrame()
 jldopen(path_iso(opt),"r") do storage
     DIutils.dict.load_dict_to_module!(Main, Dict(k=>storage[k] for k in keys(storage)))
 end
+lfcopy= copy(lfp)
 
 # cycles.time = (cycles.stop - cycles.start)/2 + cycles.start
-cycles.time = cycles.start
-DIutils.filtreg.register(cycles, spikes; on="time", transfer=["cycle"], match=:prev)
-DIutils.filtreg.register(cycles, lfp; on="time",    transfer=["cycle"], match=:prev)
-lfp = Munge.lfp.bandstop(lfp, 55, 65; field=:broadraw, scale=:raw)
-cycleplot(lfp; otherfields=[:broadraw])
-
-#Check that cycle labels match in our 3 relvent data sources
-using Blink, Interact
-colors = theme_palette(:auto)
-using Colors
-function getcol(x)
-    if ismissing(x)
-        RGBA(NaN, NaN, NaN, NaN)
-    else
-        colors[mod(x,length(colors))+1]
-    end
+begin
+    cycles.time = cycles.start
+    DIutils.filtreg.register(cycles, spikes; on="time", transfer=["cycle"], match=:prev)
+    DIutils.filtreg.register(cycles, lfp; on="time",    transfer=["cycle"], match=:prev)
+    #lfp = Munge.lfp.bandstop(lfp, 58, 62; field=:broadraw, scale=:raw)
+    lfp=Munge.lfp.smooth(lfp, :broadraw; ker=7.5)
+    cycleplot(lfp; otherfield=:broadraw)
+    cycleplot(lfp; otherfield=:smoothbroadraw)
 end
 
-w = Window()
-R = collect(zip(1:30:(size(cycles,1)-30), 30:30:(size(cycles,1))))
-ui = @manipulate for selector=1:length(R)
+lfp[!,:broadraw] = lfp[!,:smoothbroadraw]
 
-    Nstart,Nstop = R[selector]
-    cycs = cycles[Nstart:Nstop, :]
-    spans = collect.(zip(cycs.start, cycs.stop))
-    icycs = cycs.cycle
-    p=plot(size=(2000,1000))
-    sp = @subset(spikes, :cycle .>= minimum(icycs), :cycle .<= maximum(icycs))
-
-    if !isempty(sp)
-        @df sp begin
-            scatter!(:time, :unit, c=getcol.(:cycle), markerstrokecolor=colorant"black")
+#Check that cycle labels match in our 3 relvent data sources
+begin
+    using Blink, Interact
+    colors = theme_palette(:auto)
+    using Colors
+    function getcol(x)
+        if ismissing(x)
+            RGBA(NaN, NaN, NaN, NaN)
+        else
+            colors[mod(x,length(colors))+1]
         end
     end
 
-    [(Plots.vspan!(span, legend=false, alpha=0.1, c=getcol.(icyc)); 
-      Plots.annotate!(span[1], ylims()[mod(icyc,2)+1], text(icyc)))
-     for (icyc, span) in zip(icycs, spans)]
+    w = Window()
+    R = collect(zip(1:30:(size(cycles,1)-30), 30:30:(size(cycles,1))))
+    ui = @manipulate for selector=eachindex(R)
 
-    p
+        Nstart,Nstop = R[selector]
+        cycs = cycles[Nstart:Nstop, :]
+        spans = collect.(zip(cycs.start, cycs.stop))
+        icycs = cycs.cycle
+        p=plot(size=(2000,1000))
+        sp = @subset(spikes, :cycle .>= minimum(icycs), :cycle .<= maximum(icycs))
 
+        if !isempty(sp)
+            @df sp begin
+                scatter!(:time, :unit, c=getcol.(:cycle), markerstrokecolor=colorant"black")
+            end
+        end
+
+        [(Plots.vspan!(span, legend=false, alpha=0.1, c=getcol.(icyc)); 
+          Plots.annotate!(span[1], ylims()[mod(icyc,2)+1], text(icyc)))
+         for (icyc, span) in zip(icycs, spans)]
+
+        p
+
+    end
+    body!(w, ui)
 end
-body!(w, ui)
 
 # In this section, I'm visualizing events to make sure nothing is insance
 #
@@ -134,11 +144,11 @@ begin
         Plot.save((;cycle=stats.cycle, units=stats.unit))
     end
 end
-pcs = [st.plotcycstat for st in STATS]
-res = [st.rangeerror for st in STATS]
-for (rs, pc) in zip(res, pcs)
-    display(plot(pc, background_color = rs ? :lightpink : :white))
-end
+# pcs = [st.plotcycstat for st in STATS]
+# res = [st.rangeerror for st in STATS]
+# for (rs, pc) in zip(res, pcs)
+#     display(plot(pc, background_color = rs ? :lightpink : :white))
+# end
 
 
 

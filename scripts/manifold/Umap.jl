@@ -7,6 +7,11 @@ using GoalFetchAnalysis,
       GoalFetchAnalysis.Munge.manifold, 
       DrWatson, Revise
 opt = Munge.manifold.parse()
+filt = opt["filt"]
+feature_engineer = opt["feature_engineer"]
+distance = opt["distance"]
+sps = opt["sps"]
+splits = opt["splits"]
 
 # Sets to explore
 # ---------------
@@ -64,17 +69,17 @@ global behTrain = behTest = beh
 
 # Filter
 println("Filtration?")
-if filt !== nothing
-    global filtstr = "filt=$filt"
-    filters = Filt.get_filters()[filt]
+if opt["filt"] !== nothing
+    global filtstr = "filt=$(opt["filt"])"
+    filters = Filt.get_filters()[opt["filt"]]
     global behTrain, spikesTrain =
                         DIutils.filtreg.filterAndRegister(copy(behTrain), copy(spikesTrain); filters,
                                                        filter_skipmissingcols=true)
 else
     global filtstr = "filt=nothing"
 end
-global festr   = feature_engineer === nothing ? "feature=nothing" : "feature=$feature_engineer"
-global diststr = distance === nothing ? "distance=euclidean" : lowercase("distance=$distance")
+global festr   = opt["feature_engineer"] === nothing ? "feature=nothing" : "feature=$(opt["feature_engineer"])"
+global diststr = opt["distance"] === nothing ? "distance=euclidean" : lowercase("distance=$(opt["distance"])")
 @info "run info" filtstr festr diststr 
 
 # Firing Rates
@@ -113,10 +118,10 @@ Rtrain = Dict(
 # Get sample runs
 # ----------------
 println("Generate partitions")
-nsamp = Int(round(size(beh,1)/splits));
-δi    = Int(round(nsamp/sps))
+nsamp = Int(round(size(beh,1)/opt["splits"]));
+δi    = Int(round(nsamp/opt["sps"]))
 global inds_of_t = []
-for (split, samp) in Iterators.product(1:splits, 1:sps)
+for (split, samp) in Iterators.product(1:opt["splits"], 1:opt["sps"])
     start = (split-1) * nsamp + (samp-1) * δi + 1
     stop  = (split)   * nsamp + (samp-1) * δi + 1
     stop  = min(stop, size(beh,1))
@@ -125,10 +130,9 @@ end
 
 println("Describ partitions")
 @info "coverage" nsamp/size(beh,1)*100
-global N = splits * sps
+global N = opt["splits"] * opt["sps"]
 
-global tag 
-tag = "$(animal)$(day).$(N)seg"
+global tag = "$(opt["animal"])$(opt["day"]).$(N)seg"
 println(tag)
 
 # Find the indices in the training sets that match each partition
@@ -195,13 +199,13 @@ try
 
             # Pre - process : Do we obtain a distance function?
             @debug "Getting distance metric"
-            metric_str = if distance == :Mahalanobis
+            metric_str = if opt["distance"] == :Mahalanobis
                 @info "transforming Mahalanobis"
                 Q = Rtrain[dataset]' * Rtrain[dataset];
-                dist_func = getproperty(Distances, distance)(Matrix(Q[dataset]));
+                dist_func = getproperty(Distances, opt["distance"])(Matrix(Q[dataset]));
             elseif !use_cuda
-                @info "transforming $distance"
-                dist_func = getproperty(Distances, distance)
+                @info "transforming $(opt["distance"])"
+                dist_func = getproperty(Distances, opt["distance"])
             else
                 lowercase(string(metric))
             end
@@ -243,7 +247,8 @@ try
                 
                 em, sc
             else # julia is suprisingly slow here
-                em = umap(input, dim; min_dist, n_neighbors, metric_str)
+                import UMAP
+                em = UMAP.umap(input, dim; min_dist, n_neighbors, metric_str)
                 skmani = pyimport("sklearn.manifold")
                 @time sc = skmani.trustworthiness(input', em, 
                                                n_neighbors=n_neighbors, 
@@ -268,9 +273,9 @@ catch exception
 finally
     println("Finally section")
     if exception_triggered
-        @info "Quit, probably GPU issue" animal day steps total steps/total
+        @info "Quit, probably GPU issue" opt steps total steps/total
     else
-        @info "Finished! 😺" animal day steps total steps/total
+        @info "Finished! 😺" opt steps total steps/total
     end
     # Store them for later
     using Munge.manifold
