@@ -1,4 +1,3 @@
-__precompile__(false)
 module Plot
 
 using DrWatson, Reexport, Plots, Infiltrator, RecipesBase, Measures,

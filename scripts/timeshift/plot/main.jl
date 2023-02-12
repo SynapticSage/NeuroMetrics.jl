@@ -1,5 +1,6 @@
 @time begin
-    using GoalFetchAnalysis, Serialization, Plots, Timeshift.shiftmetrics,
+    using GoalFetchAnalysis, Serialization, 
+          Plots, Timeshift.shiftmetrics,
           Field.metrics, Timeshift, DimensionalData, Statistics, NaNStatistics,
           Bootstrap, StatsBase, ProgressMeter, DataFramesMeta, SoftGlobalScope,
           Infiltrator

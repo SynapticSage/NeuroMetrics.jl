@@ -19,7 +19,9 @@ module manifold
     """
         `maniplot`
 
-    manifold plot. plots a NxDim manifold
+    manifold plot. plots a NxDim manifold. optionally color it by another
+    vector series `by`. the color series is allowed to have an axis allocated
+    (usually the 2nd if you're allocating it)
     """
     @recipe function maniplot(plt::ManiPlot; n=14_000, kalpha=0.5, 
             llim=nothing, origin=nothing, 

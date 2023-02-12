@@ -1,4 +1,3 @@
-__precompile__(false)
 module Munge
 
     using Revise
@@ -22,7 +21,7 @@ module Munge
     include("Munge/triggering.jl")
     include("Munge/isolated.jl")
     #include(srcdir("Munge","dynamic.jl"))
-    #include("Munge/nonlocal.jl")
+    include("Munge/nonlocal.jl")
 
 end
 

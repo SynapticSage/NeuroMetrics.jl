@@ -1,20 +1,16 @@
 #quickactivate(expanduser("~/Projects/goal-code/")); 
-using GoalFetchAnalysis
+using GoalFetchAnalysis,
+     .Timeshift, .Timeshift.types, .Timeshift.shiftmetrics,
+     .Field.metrics,
+     .Plot, .Plot.receptivefield, .Munge.spiking, .Munge.isolated,
+     .Plot.lfplot, .DIutils, .DIutils.namedtup, .DI, .Munge.nonlocal
+using .Munge.timeshift: getshift
+using .DIutils.statistic: pfunc
 using Infiltrator, DimensionalData, ProgressMeter, DataFrames, DataFramesMeta,
       Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM, Plots,
-      LazySets, JLD2
-import Random
+      LazySets, JLD2, Random
 import DimensionalData: Between
 using DataStructures: OrderedDict
-
-using Timeshift, Timeshift.types, Timeshift.shiftmetrics, Field.metrics, Plot,
-      Plot.receptivefield, DIutils.namedtup, Munge.nonlocal, Munge.spiking,
-      Plot.lfplot
-using DI
-using GoalFetchAnalysis.Munge.isolated
-using Munge.timeshift: getshift
-using DIutils
-using DIutils.statistic: pfunc
 Plot.off()
 opt = parser()
 @info "visualize iso options" opt

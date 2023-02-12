@@ -1,10 +1,62 @@
 module GoalFetchAnalysis
 
-    using Revise
-    # import Distributed: @everywhere
-    @everywhere using DrWatson
-    #push!(LOAD_PATH, @__DIR__)
+    using Revise, DrWatson
     __revise_mode__ = :eval
+    import Plots
+    Plots.theme(:bright)
+
+    import DIutils 
+    import DIutils.Table as Table
+    export DIutils, Table
+
+    import DI
+    import DI: Filt, Labels
+    export DI, Filt
+
+    include("Shuf.jl")
+    include("Field.jl")
+    include("Munge.jl")
+    include("Timeshift.jl")
+    include("Plot.jl")
+
+    export Filt, Labels
+    export DI
+    export Field
+    export Timeshift
+    export Decode
+    export Munge
+    export Plot
+
+    filtreg = DIutils.filtreg
+
+    #import Labels as labels
+    labels = DI.Labels
+
+    # ------
+    # REVISE.jl
+    # ------
+    # EVERY time I import this, I check my tests to ensure
+    # I've broken nothing during development
+    # Run quick tests at startup to ensure library integrity
+    function check_dir_is_watched(dir)
+        dir = srcdir(dir)
+        watched = keys(Revise.watched_files)
+        if endswith(dir, '/')
+            dir = dir[1:end-1]
+        end
+        dir_in_watched = dir ∈ watched
+        !(dir_in_watched) ? @warn("dir=$dir not in watched") : nothing
+        dir_in_watched
+    end
+    export pushover
+    pushover = DIutils.pushover
+
+    include("Precompile.jl")
+
+end
+
+    # import Distributed: @everywhere
+    #push!(LOAD_PATH, @__DIR__)
     #@everywhere push!(LOAD_PATH, srcdir())
 
     ## General
@@ -32,68 +84,15 @@ module GoalFetchAnalysis
     #include(srcdir("Plot.jl"))
     #import .Plot
 
-    import DIutils 
-    import DIutils.Table as Table
-    export DIutils, Table
-
-    import DI
-    import DI: Filt, Labels
-    export DI, Filt
-
-    include("Shuf.jl")
-    include("Field.jl")
-    include("Munge.jl")
-    include("Timeshift.jl")
-    include("Decode.jl")
-    #Filt, Labels = DI.Filt, DI.Labels
-
-    export Filt, Labels
-    export DI
-    export Field
-    export Timeshift
-    export Decode
-    export Munge
-    export Plot
-
-    filtreg = DIutils.filtreg
-
+    
+    #if isdir(projectdir("test")) && isfile(projectdir("test","runtests.jl")) && 
+    #   "USE_PLUTO" ∉ keys(ENV)
+    #   include(projectdir("test","runtests.jl"))
+    #end
     # DIutils.plot.set_theme_timebased(23)
-    include("Plot.jl")
-    import Plots
-    Plots.theme(:bright)
 
     # function import_timeshift()
     #     @eval Main using Timeshift
     #     @eval Main using Timeshift.checkpoint
     # end
 
-    #import Labels as labels
-    labels = DI.Labels
-
-    # ------
-    # REVISE.jl
-    # ------
-    # EVERY time I import this, I check my tests to ensure
-    # I've broken nothing during development
-    # Run quick tests at startup to ensure library integrity
-    function check_dir_is_watched(dir)
-        dir = srcdir(dir)
-        watched = keys(Revise.watched_files)
-        if endswith(dir, '/')
-            dir = dir[1:end-1]
-        end
-        dir_in_watched = dir ∈ watched
-        !(dir_in_watched) ? @warn("dir=$dir not in watched") : nothing
-        dir_in_watched
-    end
-    
-    #if isdir(projectdir("test")) && isfile(projectdir("test","runtests.jl")) && 
-    #   "USE_PLUTO" ∉ keys(ENV)
-    #   include(projectdir("test","runtests.jl"))
-    #end
-    export pushover
-    pushover = DIutils.pushover
-
-    include("Precompile.jl")
-
-end
