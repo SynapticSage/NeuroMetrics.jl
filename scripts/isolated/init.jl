@@ -1,17 +1,22 @@
-using DrWatson
-quickactivate(expanduser("~/Projects/goal-code/"));
+begin
+    #Imports
+    #-------
+    using DrWatson
+    quickactivate(expanduser("~/Projects/goal-code/"));
 
-using GoalFetchAnalysis, Timeshift, Timeshift.types, Timeshift.shiftmetrics,
-      Field.metrics, Plot, Plot.receptivefield, Munge.spiking, Munge.nonlocal,
-      DIutils.namedtup , Filt, Munge.isolated
-import DIutils.statistic: pfunc
-import Munge.timeshift: getshift
+    using GoalFetchAnalysis, .Timeshift, .Timeshift.types, .Timeshift.shiftmetrics,
+          .Field.metrics, .Plot, .Plot.receptivefield, .Munge.spiking, .Munge.nonlocal,
+          .DIutils.namedtup , .Munge.isolated, .Timeshift.checkpoint, .Plot.lfplot
+    Filt = DI.Filt
+    import DIutils.statistic: pfunc
+    import .Munge.timeshift: getshift
 
-using DimensionalData, ProgressMeter, DataFrames, DataFramesMeta, Statistics,
-      NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM, Plots, LazySets,
-      JLD2, Infiltrator
-import DataStructures: OrderedDict
-import DimensionalData: Between
+    using DimensionalData, ProgressMeter, DataFrames, DataFramesMeta, Statistics,
+          NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM, Plots, LazySets,
+          JLD2, Infiltrator
+    import DataStructures: OrderedDict
+    import DimensionalData: Between
+end
 
 datasets = (
             ("RY16",36,:ca1ref), ("RY22",21,:ca1ref),  #("super", 0, :ca1ref),
@@ -51,14 +56,14 @@ if init != 1; @warn("initial dataset is $init"); end
     # ===================
     # Acquire data
     @info "Loading $animal $day"
-    @time spikes, beh, cells = Load.load(animal, day, data_source=["spikes","behavior", "cells"])
+    @time spikes, beh, cells = DI.load(animal, day, data_source=["spikes","behavior", "cells"])
     GC.gc()
-    beh, spikes = Utils.filtreg.filterAndRegister(beh, spikes, on="time", transfer=["x","y","cuemem"], 
+    beh, spikes = DIutils.filtreg.filterAndRegister(beh, spikes, on="time", transfer=["x","y","cuemem"], 
     filters=filt[datacut], filter_skipmissingcols=true)
     allspikes = copy(spikes)
-    beh2 = Load.load_behavior(animal,day)
+    beh2 = DI.load_behavior(animal,day)
     Munge.nonlocal.setunfilteredbeh(beh2)
-    lfp = Load.load_lfp(animal, day, tet=tet);
+    lfp = DI.load_lfp(animal, day, tet=tet);
 
     # =============
     ## MUNGE LFP ##
@@ -66,7 +71,7 @@ if init != 1; @warn("initial dataset is $init"); end
     # Center and annotate
     @info "Munging $animal $day"
     begin
-        lfp.time = lfp.time .- Load.min_time_records[end]
+        lfp.time = lfp.time .- DI.min_time_records[end]
         # TODO potential bug, 1st time runs, cuts trough-to-trough, second peak-to-peak
         lfp = Munge.lfp.annotate_cycles(lfp, method="peak-to-peak") 
     end
@@ -79,7 +84,7 @@ if init != 1; @warn("initial dataset is $init"); end
 
     # Transfer lfp phase to spikes (for phase locking measurements)
     begin
-        Utils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
+        DIutils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
         @assert !all(ismissing.(spikes.phase))
     end
     ##
@@ -129,7 +134,7 @@ if init != 1; @warn("initial dataset is $init"); end
 
     # ENSURING NO SLEEP :: Usually taken care of
     begin
-        tsk = Load.load_task(animal, day)
+        tsk = DI.load_task(animal, day)
         tsk = DataFrame(unique(eachrow(tsk[:,[:start,:end,:task]])))
         tsk = subset(tsk, :task=>t->t .!= "sleep")
         ismissing.(spikes.velVec)
@@ -150,7 +155,7 @@ if init != 1; @warn("initial dataset is $init"); end
     # All spikes, no cell grouping
     begin
         spikes = :phase ∈ propertynames(spikes) ? spikes[!,Not(:phase)] : spikes
-        Utils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
+        DIutils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
         SP = subset(dropmissing(spikes,:isolated),:velVec => v->abs.(v) .> 3)
         SP.pyrint = replace(SP.meanrate .> 4, 0=>"pyr",1=>"int")
         P=[]
@@ -160,7 +165,7 @@ if init != 1; @warn("initial dataset is $init"); end
                       legend_title=:isolated, ylabel="fraction",
                       title="PL of $(sp.area[1]) to $tet tetrode"
                      )
-            lfp.phase_digitize = Int8.(Utils.binning.digitize(lfp.phase, 80+1))
+            lfp.phase_digitize = Int8.(DIutils.binning.digitize(lfp.phase, 80+1))
             p2=@df combine(groupby(lfp, :phase_digitize), 
                            :phase=>x->maximum(abs.(x)).*mode(sign.(x)),
                     :raw => mean, renamecols=false) plot(:phase, :raw; xlabel="phase", c=:black, linewidth=2)

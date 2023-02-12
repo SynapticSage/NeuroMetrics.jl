@@ -1,110 +1,144 @@
-"""
-===========================
-PFC FIRING DURING CA1 ISOLATION VERSUS ADJACENT
-===========================
-"""
+begin
+    using GoalFetchAnalysis, DrWatson
+    using .Timeshift, .Plot, .Timeshift.types, .Timeshift.shiftmetrics, 
+          .Field.metrics, .Plot.receptivefield, .DIutils.namedtup, 
+          .Munge.nonlocal, .Munge.spiking, 
+    Filt = DI.Filt
+    using .Munge.timeshift: getshift
+    using .DIutils.statistic: pfunc
+    filt_desc = Filt.get_filters_desc()
 
-using Infiltrator
-
-function get_pos_labels(group; grouping, labels)
-    p = []
-    grouping = !(grouping isa Vector) ? [grouping] : grouping
-    for g in grouping
-        push!(p, Symbol(g) => group[1, g])
-    end
-    for (k,lab) in labels
-        push!(p, Symbol(String(k) * "_label") => lab[group[1, k]])
-    end
-    #:cuemem => group.cuemem[1],
-    #:cuemem_label => clab[group.cuemem[1]],
-    p
+    using DataStructures: OrderedDict
+    import DimensionalData: Between
+    using ProgressMeter, DimensionalData, Infiltrator,
+          Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM, Plots, DataFrames, DataFramesMeta, LazySets, ElectronDisplay 
+    using JLD2
 end
 
-function get_pfcrate_samples_at_spike(spikes, R; grouping=[], labels=Dict())
-    pfc_rate_isoAdjacent_meanOfTimes = DataFrame()
-    spikes = grouping == [] ? spikes : dropmissing(spikes, grouping)
-    @time @showprogress for group in groupby(spikes, [:isolated,grouping...])
-        #@info "samples" size(group.time)
-        sample = [R[time=B, unit=At(pfc_units)]
-                    for B in Between.(group.time.-0.015, group.time.+0.015)]
-        sample = [s for s in sample if !isempty(s)]
-        sample = vcat(sample...)
-        unit = repeat(vec(pfc_units)', size(sample,1))
-        append!(pfc_rate_isoAdjacent_meanOfTimes,
-        DataFrame(OrderedDict(
-            :unit => vec(unit),
-            :rate => vec(sample),
-            get_pos_labels(group; grouping=[:isolated, grouping...], labels)...
-           )))
-    end
-    #@time pfc_rate_isoAdjacent_meanOfTimes.rankrate = sortperm(pfc_rate_isoAdjacent_meanOfTimes.rate)
-    pfc_rate_isoAdjacent_meanOfTimes
+filename = datadir("isolated", "iso_animal=$(animal)_day=$(day)_tet=ca1ref.jld2")
+jldopen(filename, "r") do storage
+    DIutils.dict.load_keysvals_to_module!(Main, keys(storage), 
+                                        [storage[key] for key in keys(storage)])
 end
 
-function compute_differences_df(pfc_rate_isoAdjacent; 
-        grouping=[], 
-        addsamps=false,
-        labels=Dict())
-    D = DataFrame()
-    grouping = Symbol.(grouping)
-    groups = groupby(pfc_rate_isoAdjacent, grouping)
-    @info "groups" length(groups)
-    for group in groups
-         adjacent_spikes = @subset(group,:isolated.==0).rate
-         iso_spikes      = @subset(group,:isolated.==1).rate
-         #radjacent_spikes = @subset(group,:isolated.==0).rankrate
-         #riso_spikes      = @subset(group,:isolated.==1).rankrate
-         zadjacent_spikes = zscore(@subset(group,:isolated.==0).rate)
-         ziso_spikes      = zscore(@subset(group,:isolated.==1).rate)
-         test = missing
-         pval = missing
-         rtest = missing
-         rpval = missing
-         try
-             test =  UnequalVarianceTTest(iso_spikes, adjacent_spikes)
-             pval = pvalue(test,tail=:right)
-             #rtest =  UnequalVarianceTTest(riso_spikes, radjacent_spikes)
-             #rpval = pvalue(rtest,tail=:right)
-         catch
-            continue
-         end
-         sampgroups = addsamps ? [
-            :samp_iso => [iso_spikes],
-            :samp_adj => [adjacent_spikes],
-           ] : []
-         
-         append!(D, OrderedDict(
-            :diff            => mean(iso_spikes) - mean(adjacent_spikes),
-            #:rankdiff        => median(riso_spikes) - median(radjacent_spikes),
-            :zdiff           => mean(ziso_spikes) - mean(zadjacent_spikes),
-            :zdiv            => mean(ziso_spikes)/mean(zadjacent_spikes),
-            :div             => mean(iso_spikes)/mean(adjacent_spikes),
-            :iso_spikes      => mean(iso_spikes),
-            :adjacent_spikes => mean(adjacent_spikes),
-            :pval => pval,
-            :test => test,
-            :rpval => rpval,
-            :rtest => rtest,
-            get_pos_labels(group; grouping, labels)...,
-            sampgroups...
-           ))
+
+
+
+# ================================================
+# PFC FIRING DURING CA1 ISOLATION VERSUS ADJACENT
+# ================================================
+
+# -------------------- HELPER FUNCTIONS --------------------------------
+begin
+    function get_pos_labels(group; grouping, labels)
+        p = []
+        grouping = !(grouping isa Vector) ? [grouping] : grouping
+        for g in grouping
+            push!(p, Symbol(g) => group[1, g])
+        end
+        for (k,lab) in labels
+            push!(p, Symbol(String(k) * "_label") => lab[group[1, k]])
+        end
+        #:cuemem => group.cuemem[1],
+        #:cuemem_label => clab[group.cuemem[1]],
+        p
     end
-    D
+
+    """
+            get_pfcrate_samples_at_spike
+
+    gets the pfc rate at the time of each spike event
+    """
+    function get_pfcrate_samples_at_spike(spikes, R; grouping=[], labels=Dict())
+        pfc_rate_isoAdjacent_meanOfTimes = DataFrame()
+        spikes = grouping == [] ? spikes : dropmissing(spikes, grouping)
+        @time @showprogress for group in groupby(spikes, [:isolated,grouping...])
+            #@info "samples" size(group.time)
+            sample = [R[time=B, unit=At(pfc_units)]
+                        for B in Between.(group.time.-0.015, group.time.+0.015)]
+            sample = [s for s in sample if !isempty(s)]
+            sample = vcat(sample...)
+            unit = repeat(vec(pfc_units)', size(sample,1))
+            append!(pfc_rate_isoAdjacent_meanOfTimes,
+            DataFrame(OrderedDict(
+                :unit => vec(unit),
+                :rate => vec(sample),
+                get_pos_labels(group; grouping=[:isolated, grouping...], labels)...
+               )))
+        end
+        pfc_rate_isoAdjacent_meanOfTimes
+    end
+
+    function compute_differences_df(pfc_rate_isoAdjacent; 
+            grouping=[], 
+            addsamps=false,
+            labels=Dict())
+        D = DataFrame()
+        grouping = Symbol.(grouping)
+        groups = groupby(pfc_rate_isoAdjacent, grouping)
+        @info "groups" length(groups)
+        for group in groups
+             adjacent_spikes = @subset(group,:isolated.==0).rate
+             iso_spikes      = @subset(group,:isolated.==1).rate
+             #radjacent_spikes = @subset(group,:isolated.==0).rankrate
+             #riso_spikes      = @subset(group,:isolated.==1).rankrate
+             zadjacent_spikes = zscore(@subset(group,:isolated.==0).rate)
+             ziso_spikes      = zscore(@subset(group,:isolated.==1).rate)
+             test = missing
+             pval = missing
+             rtest = missing
+             rpval = missing
+             try
+                 test =  UnequalVarianceTTest(iso_spikes, adjacent_spikes)
+                 pval = pvalue(test,tail=:right)
+                 #rtest =  UnequalVarianceTTest(riso_spikes, radjacent_spikes)
+                 #rpval = pvalue(rtest,tail=:right)
+             catch
+                continue
+             end
+             sampgroups = addsamps ? [
+                :samp_iso => [iso_spikes],
+                :samp_adj => [adjacent_spikes],
+               ] : []
+             
+             append!(D, OrderedDict(
+                :diff            => mean(iso_spikes) - mean(adjacent_spikes),
+                #:rankdiff        => median(riso_spikes) - median(radjacent_spikes),
+                :zdiff           => mean(ziso_spikes) - mean(zadjacent_spikes),
+                :zdiv            => mean(ziso_spikes)/mean(zadjacent_spikes),
+                :div             => mean(iso_spikes)/mean(adjacent_spikes),
+                :iso_spikes      => mean(iso_spikes),
+                :adjacent_spikes => mean(adjacent_spikes),
+                :pval => pval,
+                :test => test,
+                :rpval => rpval,
+                :rtest => rtest,
+                get_pos_labels(group; grouping, labels)...,
+                sampgroups...
+               ))
+        end
+        D
+    end
 end
+# -------------------- HELPER FUNCTIONS --------------------------------
 
-"""
-ARE PFC rates higher in isolated spiking?
-"""
+# Q : ARE PFC rates higher in isolated spiking?
+#
+# In other words, take a window around the time of an isolated spike ....
+# during that window (the bin size of rate) is PFC firing elevated?
+#
+# In a sense, this is a WEAKER question than /is it more predictive/
 
-pfc_rate_isoAdjacent_meanOfTimes = get_pfcrate_samples_at_spike(spikes, R;
-                                                                grouping=[],
-                                                                labels=[])
+begin
+    pfc_rate_isoAdjacent_meanOfTimes = get_pfcrate_samples_at_spike(spikes, R;
+                                                                    grouping=[],
+                                                                    labels=[])
 
-#transform!(pfc_rate_isoAdjacent_meanOfTimes, DataFrames.All(), :isolated => (x->[isonames[xx] for xx in x]) => :isolated_label)
-@subset!(pfc_rate_isoAdjacent_meanOfTimes, :isolated .== 0 .|| :isolated .== 1)
-srt = UnequalVarianceTTest(@subset(pfc_rate_isoAdjacent_meanOfTimes,:isolated.==0).rate,
-                           @subset(pfc_rate_isoAdjacent_meanOfTimes,:isolated.==1).rate)
-
+    #transform!(pfc_rate_isoAdjacent_meanOfTimes, DataFrames.All(), :isolated => (x->[isonames[xx] for xx in x]) => :isolated_label)
+    @subset!(pfc_rate_isoAdjacent_meanOfTimes, :isolated .== 0 .|| :isolated .== 1)
+    srt = UnequalVarianceTTest(@subset(pfc_rate_isoAdjacent_meanOfTimes,:isolated.==0).rate,
+                               @subset(pfc_rate_isoAdjacent_meanOfTimes,:isolated.==1).rate)
+end
 
 # =========PLOTS =======================================
 Plot.setfolder( "isolated_ca1_rate_pfc")
@@ -114,11 +148,11 @@ Plot.setfolder( "isolated_ca1_rate_pfc")
 Plot.save((;save_kws...,desc="meanmean_pfc_cell_rate"))
 # ======================================================
 
-#"""
-#===========================
+# ===========================
 #Mean of rates, per cell x time
 #===========================
-#"""
+# This splits by cell, is it true for certain cells?
+#
 #
 #D = compute_differences_df(pfc_rate_isoAdjacent_meanOfTimes; grouping=[], 
 #                           labels=Dict(:isolated=>isonames))

@@ -1,26 +1,28 @@
 quickactivate(expanduser("~/Projects/goal-code/")); 
-using GoalFetchAnalysis
-using Timeshift, Plot, Timeshift.types, Timeshift.shiftmetrics, 
-      Field.metrics, Plot.receptivefield, Utils.namedtup, 
-      Munge.nonlocal, Munge.spiking, Filt
-using Munge.timeshift: getshift
-using Utils.statistic: pfunc
-import Plot
-filt_desc = Filt.get_filters_desc()
+begin
+    using GoalFetchAnalysis
+    using .Timeshift, .Plot, .Timeshift.types, .Timeshift.shiftmetrics, 
+          .Field.metrics, .Plot.receptivefield, .DIutils.namedtup, 
+          .Munge.nonlocal, .Munge.spiking, 
+    Filt = DI.Filt
+    using .Munge.timeshift: getshift
+    using .DIutils.statistic: pfunc
+    filt_desc = Filt.get_filters_desc()
 
-using DataStructures: OrderedDict
-import DimensionalData: Between
-using ProgressMeter, DimensionalData, Infiltrator,
-      Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM,
-      Plots, DataFrames, DataFramesMeta, LazySets, ElectronDisplay 
-using JLD2
-using REPLVim; @async REPLVim.serve()
+    using DataStructures: OrderedDict
+    import DimensionalData: Between
+    using ProgressMeter, DimensionalData, Infiltrator,
+          Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM, Plots, DataFrames, DataFramesMeta, LazySets, ElectronDisplay 
+    using JLD2
 
-filename = datadir("isolated", "iso_animal=$(animal)_day=$(day)_tet=ca1ref.jld2")
-jldopen(filename, "r") do storage
-    Utils.dict.load_keysvals_to_module!(Main, keys(storage), 
-                                        [storage[key] for key in keys(storage)])
+    # Data
+    filename = datadir("isolated", "iso_animal=$(animal)_day=$(day)_tet=ca1ref.jld2")
+    jldopen(filename, "r") do storage
+        DIutils.dict.load_keysvals_to_module!(Main, keys(storage), 
+                                            [storage[key] for key in keys(storage)])
+    end
 end
+
 
 Munge.nonlocal.setunfilteredbeh(Load.load_behavior(animal,day);
                                animal, day)
@@ -515,7 +517,7 @@ Plot.setfolder( "svm")
         svc_mdl = MLJLIBSVMInterface.SVC(degree=Int32(4));
         svc = machine(svc_mdl, XX, y);
         res, df = eva(cv, svc)
-        ld = Utils.mlj.measureidxDict(df)
+        ld = DIutils.mlj.measureidxDict(df)
         xtick = (collect(values(ld)), getindex.([cmt],collect(keys(ld))))
         @df df  begin
             scatter(:idxmeasure .+ 0.1 .* randn(size(:idxmeasure)),
