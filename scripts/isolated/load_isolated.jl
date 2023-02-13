@@ -2,7 +2,8 @@ begin
     using GoalFetchAnalysis
     using .Timeshift, .Plot, .Timeshift.types, .Timeshift.shiftmetrics, 
           .Field.metrics, .Plot.receptivefield, .DIutils.namedtup, 
-          .Munge.isolated, .Munge.nonlocal, .Munge.spiking, .Plot.lfplot
+          .Munge.isolated, .Munge.nonlocal, .Munge.spiking, .Plot.lfplot,
+          .DIutils.arr
     Filt = DI.Filt
     using .Munge.timeshift: getshift
     using .DIutils.statistic: pfunc
@@ -18,13 +19,13 @@ begin
     # Data
     data = load_iso(opt)
     lfp       = data["lfp"]; @assert(lfp isa DataFrame)
-    spikes    = data["spikes"] ; @assert(lfp isa DataFrame)
-    allspikes = data["allspikes"]; @assert(lfp isa DataFrame)
-    tsk       = data["tsk"]; @assert(lfp isa DataFrame)
-    cells     = data["cells"]; @assert(lfp isa DataFrame)
-    beh       = data["beh"]; @assert(lfp isa DataFrame)
-    cycles    = data["cycles"]; @assert(lfp isa DataFrame)
-    
+    spikes    = data["spikes"] ; @assert(spikes isa DataFrame)
+    allspikes = data["allspikes"]; @assert(allspikes isa DataFrame)
+    tsk       = data["tsk"]; @assert(tsk isa DataFrame)
+    cells     = data["cells"]; @assert(cells isa DataFrame)
+    beh       = data["beh"]; @assert(beh isa DataFrame)
+    cycles    = data["cycles"]; @assert(cycles isa DataFrame)
+
 end
 
 clab = OrderedDict(-1 => "nontask", 0 => "cue", 1=> "mem", missing=>"sleep")

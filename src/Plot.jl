@@ -96,9 +96,10 @@ function save(folder::String, plot::Plots.Plot, pos...; kws...)
     plot
 end
 
-function create_blank_plot()
-    plot(legend=false, grid=false, framestyle=:none, background_color_inside=:match)
+function create_blank_plot(pos...;kws...)
+    plot(pos...;legend=false, grid=false, framestyle=:none, background_color_inside=:match, kws...)
 end
+blank(pos...;kws...) = create_blank_plot(pos...;kws...)
 
 
 # -----------------
