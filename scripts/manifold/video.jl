@@ -1,12 +1,13 @@
-using DrWatson
-quickactivate(expanduser("~/Projects/goal-code"))
-using GoalFetchAnalysis, .Munge.causal, .Munge.manifold
-import DI, Munge
+begin
+    using DrWatson
+    quickactivate(expanduser("~/Projects/goal-code"))
+    using GoalFetchAnalysis, .Munge.causal, .Munge.manifold
+    import DI, Munge
 
-using Revise, ProgressMeter, CategoricalArrays, Statistics, NaNStatistics, VideoIO, GLMakie, ColorSchemes, Colors, DataFrames, DataFramesMeta, Printf, Infiltrator, ImageFiltering, TextWrap
-using StatsPlots: @df
-import StatsBase, ColorSchemeTools 
-
+    using Revise, ProgressMeter, CategoricalArrays, Statistics, NaNStatistics, VideoIO, GLMakie, ColorSchemes, Colors, DataFrames, DataFramesMeta, Printf, Infiltrator, ImageFiltering, TextWrap
+    using StatsPlots: @df
+    import StatsBase, ColorSchemeTools 
+end
 
 ## ----------
 ## PARAMETERS

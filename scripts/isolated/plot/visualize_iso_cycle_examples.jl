@@ -1,38 +1,9 @@
-#quickactivate(expanduser("~/Projects/goal-code/")); 
-using GoalFetchAnalysis,
-     .Timeshift, .Timeshift.types, .Timeshift.shiftmetrics,
-     .Field.metrics,
-     .Plot, .Plot.receptivefield, .Munge.spiking, .Munge.isolated,
-     .Plot.lfplot, .DIutils, .DIutils.namedtup, .DI, .Munge.nonlocal
-using .Munge.timeshift: getshift
-using .DIutils.statistic: pfunc
-using Infiltrator, DimensionalData, ProgressMeter, DataFrames, DataFramesMeta,
-      Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM, Plots,
-      LazySets, JLD2, Random
-import DimensionalData: Between
-using DataStructures: OrderedDict
-Plot.off()
-opt = parser()
-@info "visualize iso options" opt
-DIutils.pushover("visualize iso example ready")
 
-
-cycles = spikes = lfp = beh = DataFrame()
-jldopen(path_iso(opt),"r") do storage
-    DIutils.dict.load_dict_to_module!(Main, Dict(k=>storage[k] for k in keys(storage)))
+if !(:lfp in names(Main))
+    include("../load_isolated.jl")
 end
-lfcopy= copy(lfp)
 
 # cycles.time = (cycles.stop - cycles.start)/2 + cycles.start
-begin
-    cycles.time = cycles.start
-    DIutils.filtreg.register(cycles, spikes; on="time", transfer=["cycle"], match=:prev)
-    DIutils.filtreg.register(cycles, lfp; on="time",    transfer=["cycle"], match=:prev)
-    #lfp = Munge.lfp.bandstop(lfp, 58, 62; field=:broadraw, scale=:raw)
-    lfp=Munge.lfp.smooth(lfp, :broadraw; ker=7.5)
-    cycleplot(lfp; otherfield=:broadraw)
-    cycleplot(lfp; otherfield=:smoothbroadraw)
-end
 
 lfp[!,:broadraw] = lfp[!,:smoothbroadraw]
 

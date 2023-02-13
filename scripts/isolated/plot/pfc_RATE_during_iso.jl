@@ -1,28 +1,7 @@
-begin
-    using GoalFetchAnalysis, DrWatson
-    using .Timeshift, .Plot, .Timeshift.types, .Timeshift.shiftmetrics, 
-          .Field.metrics, .Plot.receptivefield, .DIutils.namedtup, 
-          .Munge.nonlocal, .Munge.spiking, 
-    Filt = DI.Filt
-    using .Munge.timeshift: getshift
-    using .DIutils.statistic: pfunc
-    filt_desc = Filt.get_filters_desc()
 
-    using DataStructures: OrderedDict
-    import DimensionalData: Between
-    using ProgressMeter, DimensionalData, Infiltrator,
-          Statistics, NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM, Plots, DataFrames, DataFramesMeta, LazySets, ElectronDisplay 
-    using JLD2
+if !(:lfp in names(Main))
+    include("../load_isolated.jl")
 end
-
-filename = datadir("isolated", "iso_animal=$(animal)_day=$(day)_tet=ca1ref.jld2")
-jldopen(filename, "r") do storage
-    DIutils.dict.load_keysvals_to_module!(Main, keys(storage), 
-                                        [storage[key] for key in keys(storage)])
-end
-
-
-
 
 # ================================================
 # PFC FIRING DURING CA1 ISOLATION VERSUS ADJACENT
