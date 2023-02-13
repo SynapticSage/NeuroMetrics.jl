@@ -175,7 +175,7 @@ module spiking
 
 
     function torate_windowdia(times::AbstractArray; grid, windowsize::Real,
-            gaussian::Real=0)
+                              gaussian::Real=0)
         torate_windowrad(times; grid, radius=windowsize/2, gaussian)
     end
     #function torate(times::AbstractArray; grid, windowsizes::Tuple{<:Real,<:Real})

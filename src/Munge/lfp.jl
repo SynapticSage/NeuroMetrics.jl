@@ -2,6 +2,7 @@ module lfp
 
     using DataFrames, Statistics, DirectionalStatistics, ImageFiltering
     using DIutils.Table, DIutils, Infiltrator, MATLAB, LazyGrids, ProgressMeter, DSP
+    import DIutils: Table
     function __init__()
         mat"addpath(genpath('/usr/local/chronux_2_12/'))"
     end
@@ -91,25 +92,31 @@ module lfp
     end
 
     """
-        bandpass
+        bandstop
 
     execute bandstop on an lfp dataframe
     """
-    function bandstop(df::DataFrame, low, high; field::Symbol=:broadraw, order=5, 
-            scale::Union{Nothing,Symbol}, smoothkws...)
+    function bandstop(df::DataFrame, low, high; field::Symbol=:broadraw, order=5, rounds=1, scale::Union{Nothing,Symbol}, smoothkws...)
         # Butterworth and hilbert the averaged raw (averaging introduces higher
         # frequency changes)
-        df = copy(df)
-        filt = DSP.analogfilter(DSP.Bandstop(low, high, fs=1/median(diff(df.time))),
-                                DSP.Butterworth(order))
-        df[!,field] =  Float64.(df[!,field])
-        df[!,field] = abs.(DSP.filtfilt(filt.p, df[!,field]))
+        low  = low isa AbstractVector ? low : [low]
+        high = high isa AbstractVector ? high : [high]
+        initial = Float64.(df[!,field])
+        fs = 1/median(diff(df.time))
+        while (rounds -= 1) != 0
+            for (l, h) in zip(low, high)
+                @info "Band stopping" low=l high=h
+                F = DSP.digitalfilter(DSP.Bandstop(l, h, fs=fs), DSP.Elliptic(5, 2.0, 100.0))
+                 initial = DSP.filtfilt(F, initial)
+            end
+        end
+        df[!,"filt"*string(field)] = initial
         if field == :raw
             hilb   = DSP.hilbert(df[!,field])
-            df.amp, df.phase = abs.(hilb), angle.(hilb)
+            df.filtamp, df.filtphase = abs.(hilb), angle.(hilb)
         end
         if scale !== nothing
-            df[!,field] = diff(collect(extrema(df[!,scale]))) .* DIutils.nannorm_extrema(df[!,field], (-1,1))
+            df[!,"filt"*string(field)] = diff(collect(extrema(df[!,scale]))) .* DIutils.nannorm_extrema(df[!,field], (-1,1))
         end
         # Find higher variance tetrodes
         if !(isempty(smoothkws))
@@ -123,7 +130,7 @@ module lfp
     """
     function smooth(lf::DataFrame, field; ker=5)
         ker = Kernel.gaussian((ker,))
-        lf[!, "smooth"*string(field)] = imfilter(lf[!,field], ker)
+        lf[!, "smooth" * String(field)] = imfilter(lf[!,field], ker)
         lf
     end
 

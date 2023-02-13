@@ -11,16 +11,23 @@ export cycleplot
 
 Checks that your lfp dataframe cycle labels are correct (what you expect)
 """
-function cycleplot(lf::DataFrame; otherfield=nothing)
+function cycleplot(lf::DataFrame; otherfield=nothing, kws=(;))
     #otherfield = otherfields isa Vector ? otherfields : [otherfields]
-    @df lf[1:2500,:] begin
+    otherfields = otherfield isa AbstractVector ? otherfield : [otherfield]
+    kws = kws isa Vector ? kws : fill(kws, length(otherfields))
+    P = @df lf[1:2500,:] begin
         Plots.plot(:time, :raw, label="raw")
         Plots.plot!(:time, mod2pi.(:phase) .+100,label="phase")
         Plots.plot!(:time, 10*:cycle, label="cycle labels")
     end
-    if otherfield !== nothing 
-        @df lf[1:2500, :] Plots.plot!(:time, 100 * nannorm_extrema(lf[1:2500,otherfield], (-1,1)), label=string(otherfield)) 
+    if otherfields !== nothing 
+        for (otherfield,kw) in zip(otherfields,kws)
+            @df lf[1:2500, :] begin
+                Plots.plot!(:time, 100 * nannorm_extrema(lf[1:2500,otherfield], (-1,1)); label=string(otherfield), kw...) 
+            end
+        end
     end
+    P
 end
 
 @userplot PlotPhaseLock

@@ -1,12 +1,42 @@
 module isolated
-    using JLD2, ArgParse, DrWatson
+    using JLD2, ArgParse, DrWatson, DIutils.dict
+    using DataStructures: OrderedDict
 
     export path_iso
-    function path_iso(animal, day, tet)
+    function path_iso(animal::String, day::Int, tet=:ca1ref)::String
         datadir("isolated","iso_animal=$(animal)_day=$(day)_tet=$(tet).jld2")
     end
-    function path_iso(opt::Dict)
+    function path_iso(opt::AbstractDict)::String
         path_iso(opt["animal"], opt["day"], opt["tet"])
+    end
+
+    export load_iso
+    """
+        load_iso
+
+    Returns a dictionary of the isolated variables of interest
+    """
+    function load_iso(pos...)::OrderedDict
+        results = OrderedDict()
+        storage=JLD2.jldopen(path_iso(pos...),"r")
+        try
+            results = OrderedDict(zip(keys(storage),
+                                      [storage[k] for k in keys(storage)]))
+        catch exception
+            throw(exception)
+        finally
+            close(storage)
+        end
+        results
+    end
+    """
+        load_iso
+
+    Modifies the module to incldude isolated variables loaded
+    """
+    function load_iso!(Mod::Module, pos...)::Nothing
+        data = load_iso(pos...)
+        dict.load_keysvals_to_module!(Mod, keys(data), values(data))
     end
 
     export parser
