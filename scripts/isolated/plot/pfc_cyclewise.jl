@@ -1,6 +1,7 @@
 if !(:lfp in names(Main))
     # @time include(scriptsdir("isolated","load_isolated.jl"))
     @time include("../load_isolated.jl")
+    get_units(df::DataFrame) = names(df)[tryparse.(Int, string.(last.(names(df)))) .!== nothing]
 end
 
 import DI, DIutils.Table
@@ -50,7 +51,9 @@ begin
          layout=grid(2,2))
 end
 
-df, cyc_error = [], Dict()
+df, cyc_error = Vector{DataFrame}(undef, length(Rdf_isocycles)), 
+                Dict()
+Infiltrator.clear_disabled!()
 begin
 
     prog = Progress(length(Rdf_isocycles); desc="cycle df")
@@ -65,10 +68,11 @@ begin
 
             # Grab each cycle of activity
             U = [begin
-                 u = unstack(Rdf_cycles[🔑], indexers, :unit, val)
-                 combine(u, Not([:time]) .=> [mean], renamecols=false)
+                 u = unstack(Rdf_cycles[🔑], indexers, :unit, val, combine=last) # TODO investigate nonunque
+                 u = combine(u, Not([:time]) .=> [mean], renamecols=false)
              end
                 for 🔑 in 🔑s if 🔑 in keys(Rdf_cycles)]
+             # @info combine(groupby(Rdf_cycles[🔑],:unit),:time=>x->length(x)==length(unique(x)))
 
             cycs = [🔑.cycle for 🔑 in 🔑s 
                         if 🔑 in keys(Rdf_cycles)]
@@ -78,10 +82,11 @@ begin
                           if 🔑 in keys(Rdf_cycles)]
 
             # Added df to list
-            push!(df, 
-                  hcat(DataFrame([cycs,relcycs,area],[:cycs,:relcycs,:area]), vcat(U...; cols=:union))
-                 )
+            df[i] = hcat(DataFrame([cycs,relcycs,area],[:cycs,:relcycs,:area]), 
+                         vcat(U...; cols=:union))
+
             next!(prog)
+
         catch exception
             cyc_error[cyc] = exception
         #     if mod(i, 100) == 0
@@ -91,11 +96,13 @@ begin
         end
 
     end
-
-    @info cyc_error
-    df = vcat(df...)
-
 end
+
+@info cyc_error
+df = vcat(df...)
+old_unit_names = get_units(df)
+new_unit_names = "n" .* old_unit_names
+rename!(df, old_unit_names .=> new_unit_names)
 
 # Checkpoint
 fn=replace(path_iso(opt["animal"], opt["day"]),
@@ -104,13 +111,51 @@ jldsave(fn, true; df, cyc_error)
 
 # Group the dataframe into subdataframes
 # by relative cycle and area
-dfg  = groupby(df,  [:relcycs, :area])
-dfgc = groupby(df, [:relcycs, :area, :unit])
+dfg  = groupby(df, [:relcycs, :area])
+#dfgc = groupby(df, [:relcycs, :area, :unit])
 
-# Let
-
+# Helper functions :hand:
 using GLM
-function construct_area_formula(df, area)
+function getarea(df::DataFrame, area::String)
+    df = @subset(df, :area .== area)
+    nonmissing_cols = [!all(ismissing.(col)) for col in eachcol(df)]
+    df[!,nonmissing_cols]
+end
+Base.adjoint(s::String) = s
+function construct_area_formula(df, independent_area="CA1";
+        other_vars=[], other_ind_vars=[])
+    uArea = unique(area)
+    @assert length(uArea) == 2 "Only supports two area dataframes"
+
+    df_indep = getarea(df, independent_area)
+    df_dep   = getarea(df, setdiff(uArea, [independent_area])[1])
+
+    dep_neurons = get_units(df_dep)
+    ind_neurons = get_units(df_indep)
+    @assert all(dep_neurons' .!= ind_neurons)
+    
+    formulae = []
+    for nd in dep_neurons
+        ni = first(ind_neurons)
+        independents = GLM.Term(Symbol(ni))
+        for ni in ind_neurons[2:end]
+            independents += GLM.Term(Symbol(ni)) 
+        end
+        formula = GLM.Term(Symbol(nd)) ~ independents
+        push!(formulae, formula)
+    end
+    formulae
+end
+
+ca1_formulae = construct_area_formula(df, "CA1");
+pfc_formulae = construct_area_formula(df, "PFC");
+
+dfa = groupby(df, :area)
+
+# Now let's take the formula and apply them
+ca1pfc = []
+for f in ca1_formulae
+    push!(ca1pfc, lm(f, dfa[(;area="CA1")]))
 end
 
 
