@@ -1,6 +1,6 @@
 if !(:lfp in names(Main))
     # @time include(scriptsdir("isolated","load_isolated.jl"))
-    include("../load_isolated.jl")
+    @time include("../load_isolated.jl")
 end
 
 # Get dataframe of R
@@ -144,6 +144,7 @@ begin
         @assert length(uArea) == 2 "Only supports two area dataframes"
         ind_neurons = @subset(cells,:area .==independent_area).unit
         filter!(n->string(n) ∈ names(df), ind_neurons)
+        dependent_area = setdiff(uArea, [independent_area])
         formulae = []
         ni = first(ind_neurons)
         independents = GLM.Term(Symbol(ni))
@@ -161,29 +162,16 @@ begin
 
 end
 
+using Lasso, Distributions, ThreadSafeDicts
 # ========================
 #  . .     ,---.|    ,-.-.
 # -+-+-    |  _.|    | | |
 # -+-+-    |   ||    | | |
 #  ` `     `---'`---'` ' '
+#  OF SPIKE COUNTS  🔺
 # ========================
-#
-# Requirements
-# ------------
-# We next identified another control set of theta cycles when the CA1 cell did
-# not spike. These control cycles were matched for animal speed, movement
-# direction and location (see “Cycle matching”). We created a model for each
-# CA1 cell to determine whether PFC spiking activity can distinguish between
-# cycles with or without isolated spiking in a time window relative to the
-# cycle with isolated spiking. We first modeled using activity in the 12 cycles
-# previous to the cycle with isolated activity and then the 12 cycles after the
-# cycle with isolated activity. We ensured that no other isolated activity
-# occurred in this window was used for prediction. A 4-cycle bin size was used
-# for grouping PFC activity since PFC activity shows relatively long
-# autocorrelation times.
 
 # Now let's take the formula and apply them
-using Lasso, Distributions, ThreadSafeDicts
 formulae, models   = OrderedDict(), ThreadSafeDict()
 formulae["ca1pfc"] = construct_predict_spikecount(df, "CA1");
 formulae["pfcca1"] = construct_predict_spikecount(df, "PFC");
@@ -192,18 +180,99 @@ glmsets = []
 for indep in ("ca1pfc", "pfcca1"), relcyc in -8:8, f in formulae[indep]
     push!(glmsets, (indep, relcyc, f))
 end
-using ThreadSafeDicts
+
 prog = Progress(length(glmsets); desc="GLM spike counts")
 Threads.@threads for (indep, relcyc, f) in glmsets
     try
-    y, X = modelcols(apply_schema(f, schema(f, df)), df) 
-    PoisMod = fit_mle(Poisson, y)
-    models[(;indep, relcyc)] = fit(GLM.GeneralizedLinearModel, X, min.(y,[1]), PoisMod)
+        d = @subset(df, :relcycs .== relcyc)
+        y, XX = modelcols(apply_schema(f, schema(f, d)), d) 
+        FittedPoisson = fit_mle(Poisson, Int.(y))
+        models[(;indep, relcyc)] = m =  fit(GLM.GeneralizedLinearModel, XX, y, FittedPoisson)
+    catch
+        models[(;indep, relcyc)] = nothing
+    end
+    next!(prog)
+end
+try
+    storage = jldopen(fn)
+    global storage["model_spikecount"] = model_spikecount = models
+finally
+    close(storage)
+end
+
+# ========================
+#  . .     ,---.|    ,-.-.
+# -+-+-    |  _.|    | | |
+# -+-+-    |   ||    | | |
+#  ` `     `---'`---'` ' '
+#  OF HAS_ISO
+# ========================
+
+# Now let's take the formula and apply them
+formulae, models   = OrderedDict(), ThreadSafeDict()
+formulae["ca1pfc"] = construct_predict_iso(df, "CA1", :has);
+formulae["pfcca1"] = construct_predict_iso(df, "PFC", :has);
+@assert !isempty(first(values(formulae)))
+glmsets = []
+for indep in ("ca1pfc", "pfcca1"), relcyc in -8:8, f in formulae[indep]
+    push!(glmsets, (indep, relcyc, f))
+end
+
+prog = Progress(length(glmsets); desc="GLM has iso")
+Threads.@threads for (indep, relcyc, f) in glmsets
+    try
+        d = @subset(df, :relcycs .== relcyc)
+        y, X = modelcols(apply_schema(f, schema(f, d)), d) 
+        FittedBinomial = fit_mle(Binomial, 1, y)
+        models[(;indep, relcyc)] = glm(X, y, FittedBinomial)
     catch
         models[(;indep, relcyc)] = nothing
     end
     next!(prog)
 end
 
-pvals = OrderedDict(k=>ftest(v) for (k,v) in models)
+try
+    storage = jldopen(fn, "a")
+    global storage["model_hasiso"] = model_hasiso = models
+finally
+    close(storage)
+end
+
+# ========================
+#  . .     ,---.|    ,-.-.
+# -+-+-    |  _.|    | | |
+# -+-+-    |   ||    | | |
+#  ` `     `---'`---'` ' '
+#  OF ISO COUNT
+# ========================
+
+# Now let's take the formula and apply them
+formulae, models   = OrderedDict(), ThreadSafeDict()
+formulae["ca1pfc"] = construct_predict_iso(df, "CA1", :count);
+formulae["pfcca1"] = construct_predict_iso(df, "PFC", :count);
+@assert !isempty(first(values(formulae)))
+glmsets = []
+for indep in ("ca1pfc", "pfcca1"), relcyc in -8:8, f in formulae[indep]
+    push!(glmsets, (indep, relcyc, f))
+end
+
+prog = Progress(length(glmsets); desc="GLM iso counts")
+Threads.@threads for (indep, relcyc, f) in glmsets
+    try
+        d = @subset(df, :relcycs .== relcyc)
+        y, XX = modelcols(apply_schema(f, schema(f, d)), d) 
+        FittedPoisson = fit_mle(Poisson, Int.(y))
+        models[(;indep, relcyc)] = m =  fit(GLM.GeneralizedLinearModel, XX, y, FittedPoisson)
+    catch
+        models[(;indep, relcyc)] = nothing
+    end
+    next!(prog)
+end
+
+try
+    storage = jldopen(fn)
+    global storage["model_isocount"] = model_isocount = models
+finally
+    close(storage)
+end
 
