@@ -9,6 +9,10 @@ module isolated
     function path_iso(opt::AbstractDict)::String
         path_iso(opt["animal"], opt["day"], opt["tet"])
     end
+    function path_iso(pos...; append::String)::String
+        f = path_iso(pos...)
+        replace(f, ".jld2" => "$(append).jld2")
+    end
 
     export load_iso
     """
