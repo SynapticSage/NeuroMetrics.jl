@@ -11,6 +11,7 @@ begin
 
     using DataStructures: OrderedDict
     import DimensionalData: Between
+    import DI, DIutils.Table
     using ProgressMeter, DimensionalData, Infiltrator, JLD2, DataFrames,
           DataFramesMeta, StatsBase, HypothesisTests, Plots, StatsPlots
 
