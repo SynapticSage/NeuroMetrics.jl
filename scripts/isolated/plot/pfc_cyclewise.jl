@@ -1,31 +1,32 @@
+
+# READY DATATYPES AND MODULES
 if !(:lfp in names(Main))
+
     # @time include(scriptsdir("isolated","load_isolated.jl"))
     @time include("../load_isolated.jl")
-end
 
-# Get dataframe of R
-val = :value
-Rdf = DataFrame(R; name=val)
-# Set cycle via start cycle times
-cycles.time = cycles.start
-DIutils.filtreg.register(cycles, Rdf, on="time", 
-                         transfer=["cycle"], 
-                         match=:prev)
-
-
-# Figure out cycles with some number of isolated spikes
-cycstat = combine(groupby(@subset(spikes, :area .== "CA1"), 
-                :cycle), 
-        :isolated => sum, 
-        :unit => (n->unique(n)) => :diversity,
-        [:isolated, :unit] => ((i,u)->(length(unique(u[i.==true])))) => :isodiversity,
-        [:isolated, :unit] => ((i,u)->(length(unique(u[i.==false])))) => :adjdiversity,
-       )
-dropmissing!(cycstat, :cycle)
+    using GLM, Lasso, Distributions, ThreadSafeDicts
+    # Get dataframe of R
+    val = :value
+    Rdf = DataFrame(R; name=val)
+    # Set cycle via start cycle times
+    cycles.time = cycles.start
+    DIutils.filtreg.register(cycles, Rdf, on="time", 
+                             transfer=["cycle"], 
+                             match=:prev)
 
 
-fn = path_iso(opt; append="_cyclewise")
-if !isfile(fn)
+    # Figure out cycles with some number of isolated spikes
+    begin
+        cycstat = combine(groupby(@subset(spikes, :area .== "CA1"), 
+                        :cycle), 
+                :isolated => sum, 
+                :unit => (n->unique(n)) => :diversity,
+                [:isolated, :unit] => ((i,u)->(length(unique(u[i.==true])))) => :isodiversity,
+                [:isolated, :unit] => ((i,u)->(length(unique(u[i.==false])))) => :adjdiversity,
+               )
+        dropmissing!(cycstat, :cycle)
+    end
 
     # Register datasets
     @showprogress "registration" for (name,obj) in zip(("cycle","spikes","Rdf"),
@@ -53,6 +54,26 @@ if !isfile(fn)
              Plot.blank((plot();Plots.annotate!(0.5,0.5,text("Cycle statistics",14))), visible=false, size=(100,50)),
              layout=grid(2,2))
     end
+end
+
+# Obtain adaptive grid
+props = [:x, :y, :speed, :startWell, :stopWell]
+beh.speed, speed_1σ  = abs.(beh.smoothvel),
+                              std(beh.speed)
+
+grid_kws =
+        (;widths    = [5.7f0, 5.7f0, speed_1σ, 1f0, 1f0, 1f0, 1f0],
+          radiusinc = [0.2f0,0.2f0,0f0,0f0,0f0,0f0,0f0],
+          maxrad    = [6f0,6f0,0.4f0,0.4f0,0.4f0,0.4f0,0.4f0],
+          radiidefault = [2f0,2f0,0.4f0,0.4f0,0.4f0,0.4f0,0.4f0],
+          steplimit=3,
+         )
+grd = DIutils.binning.get_grid(beh, props; grid_kws...)
+
+
+# GET CYCLEWISE INFORMATION
+fn = path_iso(opt; append="_cyclewise")
+if !isfile(fn)
 
     df, cyc_error = Vector{Union{Missing,DataFrame}}(missing, length(Rdf_isocycles)), 
                     Dict()
@@ -111,58 +132,6 @@ else
     close(storage)
 end
 
-# PREPROCESS
-begin
-    # Helper functions :hand:
-    using GLM
-    function construct_predict_spikecount(df, independent_area="CA1";
-            other_vars=[], other_ind_vars=[])
-        uArea = unique(cells.area)
-        @assert length(uArea) == 2 "Only supports two area dataframes"
-        dependent_area = setdiff(uArea, [independent_area])
-
-        dep_neurons = @subset(cells,:area .==dependent_area).unit
-        ind_neurons = @subset(cells,:area .==independent_area).unit
-        filter!(n->string(n) ∈ names(df), dep_neurons)
-        filter!(n->string(n) ∈ names(df), ind_neurons)
-        
-        formulae = []
-        for nd in dep_neurons
-            ni = first(ind_neurons)
-            independents = GLM.Term(Symbol(ni))
-            for ni in ind_neurons[2:end]
-                independents += GLM.Term(Symbol(ni)) 
-            end
-            formula = GLM.Term(Symbol(nd)) ~ independents
-            push!(formulae, formula)
-        end
-        formulae
-    end
-    function construct_predict_iso(df, independent_area="CA1", type=:has;
-            other_vars=[], other_ind_vars=[])
-        uArea = unique(cells.area)
-        @assert length(uArea) == 2 "Only supports two area dataframes"
-        ind_neurons = @subset(cells,:area .==independent_area).unit
-        filter!(n->string(n) ∈ names(df), ind_neurons)
-        dependent_area = setdiff(uArea, [independent_area])
-        formulae = []
-        ni = first(ind_neurons)
-        independents = GLM.Term(Symbol(ni))
-        for ni in ind_neurons[2:end]
-            independents += GLM.Term(Symbol(ni)) 
-        end
-        if type == :has
-            formula = GLM.Term(:has_iso) ~ independents
-        elseif type == :count
-            formula = GLM.Term(:isolated_sum) ~ independents
-        end
-        push!(formulae, formula)
-        formulae
-    end
-
-end
-
-using Lasso, Distributions, ThreadSafeDicts
 # ========================
 #  . .     ,---.|    ,-.-.
 # -+-+-    |  _.|    | | |
@@ -193,12 +162,14 @@ Threads.@threads for (indep, relcyc, f) in glmsets
     end
     next!(prog)
 end
-try
-    storage = jldopen(fn)
-    global storage["model_spikecount"] = model_spikecount = models
-finally
-    close(storage)
-end
+
+@info "saving spikcount"
+if isdefined(Main, :storage); close(storage); end
+storage = jldopen(fn, "a")
+"model_spikecount" in keys(storage) ? delete!(storage, "model_spikecount") : nothing
+global storage["model_spikecount"] = model_spikecount = models
+@info "saved"
+if isdefined(Main, :storage); close(storage); end
 
 # ========================
 #  . .     ,---.|    ,-.-.
@@ -231,12 +202,13 @@ Threads.@threads for (indep, relcyc, f) in glmsets
     next!(prog)
 end
 
-try
-    storage = jldopen(fn, "a")
-    global storage["model_hasiso"] = model_hasiso = models
-finally
-    close(storage)
-end
+@info "saving spikcount"
+if isdefined(Main, :storage); close(storage); end
+storage = jldopen(fn, "a")
+"model_hasiso" in keys(storage) ? delete!(storage, "model_hasiso") : nothing
+global storage["model_hasiso"] = model_hasiso = models
+@info "saved"
+if isdefined(Main, :storage); close(storage); end
 
 # ========================
 #  . .     ,---.|    ,-.-.
@@ -269,10 +241,27 @@ Threads.@threads for (indep, relcyc, f) in glmsets
     next!(prog)
 end
 
-try
-    storage = jldopen(fn)
-    global storage["model_isocount"] = model_isocount = models
-finally
-    close(storage)
-end
+@info "saving isocount"
+if isdefined(Main, :storage); close(storage); end
+storage = jldopen(fn,"a")
+"model_isocount" in keys(storage) ? delete!(storage, "model_isocount") : nothing
+global storage["model_isocount"] = model_isocount = models
+@info "saved"
+if isdefined(Main, :storage); close(storage); end
 
+
+#    _  _     ____        _         __                     _             
+#  _| || |_  |  _ \  __ _| |_ __ _ / _|_ __ __ _ _ __ ___ (_)_ __   __ _ 
+# |_  ..  _| | | | |/ _` | __/ _` | |_| '__/ _` | '_ ` _ \| | '_ \ / _` |
+# |_      _| | |_| | (_| | || (_| |  _| | | (_| | | | | | | | | | | (_| |
+#   |_||_|   |____/ \__,_|\__\__,_|_| |_|  \__,_|_| |_| |_|_|_| |_|\__, |
+#                                                                  |___/ 
+
+plot(
+    glmplot(model_spikecount, "pfcca1", func, label="spike count, general"),
+    glmplot(model_isocount,    "pfcca1", func, label="iso count"),
+    glmplot(model_hasiso,     "pfcca1", func, label="iso occurance");
+    ylims=(0,1),
+    link=:y,
+    layout=grid(3,1)
+)

@@ -1,9 +1,11 @@
 using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
 using GoalFetchAnalysis
-import Load, Munge
+import DI
 
-using Revise, ProgressMeter, CategoricalArrays, Statistics, NaNStatistics, VideoIO, GLMakie, ColorSchemes, Colors, DataFrames, DataFramesMeta, Printf, Infiltrator, ImageFiltering
+using Revise, ProgressMeter, CategoricalArrays, Statistics, NaNStatistics,
+        VideoIO, GLMakie, ColorSchemes, Colors, DataFrames, DataFramesMeta, Printf,
+        Infiltrator, ImageFiltering
 using StatsPlots: @df
 import StatsBase, ColorSchemeTools 
 
@@ -24,7 +26,7 @@ opt = Dict(
 # --------------------------
 animal, day = "RY16", 36
 #animal, day = "RY22", 21
-spikes, beh, tsk  = Load.load(animal, day, data_source=["spikes","behavior","task"])
+spikes, beh, tsk  = DI.load(animal, day, data_source=["spikes","behavior","task"])
 wells             = Munge.behavior.get_wells_df(animal, day, 2; task=tsk, beh)
 boundary          = Munge.task.get_boundary(tsk)
 video             = Load.video.load_videocollection(animal, day)

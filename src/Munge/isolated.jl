@@ -1,6 +1,7 @@
 module isolated
-    using JLD2, ArgParse, DrWatson, DIutils.dict
+    using JLD2, ArgParse, DrWatson, DIutils.dict, RecipesBase, GLM, DataFramesMeta
     using DataStructures: OrderedDict
+    import DIutils: Table
 
     export path_iso
     function path_iso(animal::String, day::Int, tet=:ca1ref)::String
@@ -95,5 +96,92 @@ module isolated
         end
         opt
     end
+
+    function construct_predict_spikecount(df, cells, independent_area="CA1";
+            other_vars=[], other_ind_vars=[])
+        uArea = unique(cells.area)
+        @assert length(uArea) == 2 "Only supports two area dataframes"
+        dependent_area = setdiff(uArea, [independent_area])
+
+        dep_neurons = @subset(cells,:area .==dependent_area).unit
+        ind_neurons = @subset(cells,:area .==independent_area).unit
+        filter!(n->string(n) ∈ names(df), dep_neurons)
+        filter!(n->string(n) ∈ names(df), ind_neurons)
+        
+        formulae = []
+        for nd in dep_neurons
+            ni = first(ind_neurons)
+            independents = GLM.Term(Symbol(ni))
+            for ni in ind_neurons[2:end]
+                independents += GLM.Term(Symbol(ni)) 
+            end
+            formula = GLM.Term(Symbol(nd)) ~ independents
+            push!(formulae, formula)
+        end
+        formulae
+    end
+    function construct_predict_iso(df, cells, independent_area="CA1", type=:has;
+            other_vars=[], other_ind_vars=[])
+        uArea = unique(cells.area)
+        @assert length(uArea) == 2 "Only supports two area dataframes"
+        ind_neurons = @subset(cells,:area .==independent_area).unit
+        filter!(n->string(n) ∈ names(df), ind_neurons)
+        formulae = []
+        ni = first(ind_neurons)
+        independents = GLM.Term(Symbol(ni))
+        for ni in ind_neurons[2:end]
+            independents += GLM.Term(Symbol(ni)) 
+        end
+        if type == :has
+            @info "type=$type"
+            formula = GLM.Term(:has_iso) ~ independents
+        elseif type == :count
+            formula = GLM.Term(:isolated_sum) ~ independents
+        else
+            throw(ErrorException("$type is unrecognized"))
+        end
+        push!(formulae, formula)
+        formulae
+    end
+
+    """
+    Table.to_dataframe
+    """
+    function Table.to_dataframe(D::AbstractDict, func::Function)::DataFrame
+        kt = keytype(D)
+        D = Dict{kt, Any}(k=>func(v) for (k,v) in D)
+        Table.to_dataframe(D)
+    end
+
+    function _handle_args(D::AbstractDict, area::String, 
+        func::Function=x->adjr2(x, :devianceratio))
+        Table.to_dataframe(D, func), area
+    end
+    _handle_args(D::DataFrame, area::String) = D, area
+
+    @userplot GlmPlot
+    """
+        glmplot
+
+    takes either a dataframe of results or an abstract dict with a function to
+    instruct how to process the glm linear model objects
+    """
+    @recipe function glmplot(plt::GlmPlot)
+        D, area = _handle_args(plt.args...)
+        data = sort(@subset(D, :indep .== area),:relcyc)
+        @series begin
+            seriestype := :vline
+            linestyle := :dash
+            c := :black
+            label := ""
+            ([0],)
+        end
+        alpha --> 0.5
+        fillrange --> 0
+        ylims --> (minimum(data.value), maximum(data.value))
+        (data.relcyc, data.value)
+    end
+
+
 
 end
