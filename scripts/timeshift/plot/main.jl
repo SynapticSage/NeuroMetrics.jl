@@ -14,7 +14,7 @@ if !isdefined(Main,:F) || F===nothing
 end
 
 possible_filts = map(k->k.datacut, collect(keys(F)))
-comparisons = Filt.get_comparisons(possible_filts)
+COMPARISONS = Filt.get_comparisons(possible_filts)
 
 datasets = 
 (
@@ -28,7 +28,7 @@ datasets =
  ("super", 0, "PFC"),
  ("super", 0, nothing),
 )
-# datasets = [dataset for dataset in datasets if dataset[1] == "RY16"]
+datasets = [dataset for dataset in datasets if dataset[1] == "RY22"]
 datasets= [(d..., frac) for d in datasets for frac in [nothing]]
 
 # If this doesn't work subfunctions may not be scoped right and may need SoftGlobalScope
@@ -73,6 +73,7 @@ end
 
 
 (i,(animal,day,brain_area,frac)) = first(collect(enumerate(datasets)))
+
 @softscope for (i,(animal,day,brain_area,frac)) in collect(enumerate(datasets))
     
     try
@@ -100,7 +101,15 @@ end
         Plot.setappend(frac == :iso || frac == :adj ?
                        (;frac,animal,day, brain_area) : (;animal,day,brain_area))
 
+        comparisons = filter(K->K[1] ∈ keys(keyz) && 
+                             K[2] ∈ keys(keyz), COMPARISONS)
+        if isempty(comparisons)
+            @warn "No valid comparisons ... skipping"
+            continue
+        end
+
         # = --------------------------------------------------------------- =#
+        
 
 
         """
