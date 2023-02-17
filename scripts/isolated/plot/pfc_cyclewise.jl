@@ -8,11 +8,11 @@ if !(:lfp in names(Main))
     # @time include(scriptsdir("isolated","load_isolated.jl"))
     @time include("../load_isolated.jl")
 
-    # CONSTANTS
+    # CONSTANTS and trackers
     # --------
-    # Cycle registration
-    props = [:x, :y, :speed, :startWell, :stopWell]
     val = :value
+    opt["matched"] = 3    # how many matched non-iso cycles to add per iso cycle
+    opt["has_df"] = false # tracks state about whether df var for glm is backed up in a jld2 file
 
     # DATAFRAME-IZE firing rate matrix
     # and add properties of interest
@@ -50,9 +50,8 @@ if !(:lfp in names(Main))
 
     # Annotate spikes and Rdf
     dropmissing!(Rdf, :isolated_sum)
-    Rdf_cycles = groupby(Rdf, [:cycle])
-    Rdf_isocycles = unique(@subset(Rdf, :isolated_sum .> 0).cycle)
-    uArea = unique(cells.area)
+    Rdf_cycles    = groupby(Rdf, [:cycle])
+    iso_cycles = unique(@subset(Rdf, :isolated_sum .> 0).cycle)
     indexers = [:time,:isolated_sum]
     selector = :area in propertynames(Rdf_cycles) ? Not([:time, :area]) : Not(:time)
 
@@ -67,65 +66,100 @@ if !(:lfp in names(Main))
     end
 end
 
-# Obtain adaptive grid
-# --------------------
-# (
-# For matching isolated theta cycles
-# )
-speed_1σ  = Float32(std(beh.speed))
-theta_cycle_req = 1f0 # length of theta cycle * 100 cycles
-                      # see requirement in Jai's pape
-grid_kws =
-        (;widths       = [10f0, 10f0  , speed_1σ, 1f0,   1f0],
-          radiusinc    = [0.2f0, 0.2f0, 0f0,      0f0,   0f0],
-          maxrad       = [6f0,   6f0,   0.4f0,    0.4f0, 0.4f0],
-          radiidefault = [2f0,   2f0,   0.4f0,    0.4f0, 0.4f0],
-          steplimit=1,
-          thresh=theta_cycle_req
-         )
-grd = DIutils.binning.get_grid(beh, props; grid_kws...)
-occ = DIutils.binning.get_occupancy_indexed(Rdf, grd)
-has_df = false
-jldopen(path_iso(opt; append="_cyclewise"), "a") do storage
-    storage["grd"] = grd
-    storage["occ"] = occ
-    has_df = "df" in keys(storage)
+# ----------------------------------------
+# Obtain adaptive grid and match θ cycles
+# ----------------------------------------
+# ( For matching isolated theta cycles)
+begin
+    # Obtain average of properties of interest per θ cycle
+    # -----------------------------------------------------
+    for prop in props
+        cycles[!,prop] = Vector{Union{Missing,eltype(beh[!,prop])}}(missing, size(cycles,1))
+    end
+    @showprogress "annotate cycle with behavior" for cycle in eachrow(cycles)
+        inds = DIutils.in_range(beh.time, (cycle.start, cycle.stop))
+        for prop in props
+            try
+            cycle[prop] = nanmean(beh[inds, prop])
+            catch
+            end
+        end
+    end
+    # Get the grid binning and occupancy of these cycles
+    # -----------------------------------------------------
+    props = [:x, :y, :speed, :startWell, :stopWell]
+    speed_1σ  = Float32(std(beh.speed))
+    theta_cycle_req = 1f0 # disable required number of cy
+    theta_cycle_dt = median(diff(cycles.start))
+    grid_kws =
+            (;widths       = [10f0,  10f0,  speed_1σ, 1f0,   1f0],
+              radiusinc    = [0.2f0, 0.2f0, 0f0,      0f0,   0f0],
+              maxrad       = [6f0,   6f0,   0.4f0,    0.4f0, 0.4f0],
+              radiidefault = [2f0,   2f0,   0.4f0,    0.4f0, 0.4f0],
+              steplimit=1,
+              thresh=theta_cycle_req
+             )
+    grd = DIutils.binning.get_grid(cycles, props; grid_kws...)
+    occ = DIutils.binning.get_occupancy_indexed(Rdf, grd)
+    # Save!!!
+    # -----------------------------------------------------
+    has_df = false
+    jldopen(path_iso(opt; append="_cyclewise"), "a") do storage
+        storage["grd"] = grd
+        storage["occ"] = occ
+        has_df = "df" in keys(storage)
+    end
+
+    for cyc in iso_cycles
+
+    end
+end
+
+function grab_cycle_data(Rdf_cycles::GroupedDataFrame, cyc::Int)::DataFrame
+     # Address cycles of interest
+     🔑s = [(;cycle=cyc) 
+            for cyc in UnitRange(cyc-8, cyc+8)
+           ]
+
+    # Grab each cycle of activity
+    U = [begin
+         u = unstack(Rdf_cycles[🔑], indexers, :unit, val, combine=last) # TODO investigate nonunque
+         u = combine(u, selector .=> [mean], renamecols=false)
+     end
+        for 🔑 in 🔑s if 🔑 in keys(Rdf_cycles)]
+     # @info combine(groupby(Rdf_cycles[🔑],:unit),:time=>x->length(x)==length(unique(x)))
+
+    cycs = [🔑.cycle for 🔑 in 🔑s 
+                if 🔑 in keys(Rdf_cycles)]
+    relcycs = [🔑.cycle-cyc for 🔑 in 🔑s 
+                  if 🔑 in keys(Rdf_cycles)]
+
+    # Added df to list
+    hcat(DataFrame([cycs,relcycs],[:cycs,:relcycs]), 
+                 vcat(U...; cols=:union))
 end
 
 # GET CYCLEWISE INFORMATION
 fn = path_iso(opt; append="_cyclewise")
 if (!isfile(fn) && has_df) || opt["overwrite"]
 
-    df, cyc_error = Vector{Union{Missing,DataFrame}}(missing, length(Rdf_isocycles)), 
-                    Dict()
+    df = Vector{Union{Missing,DataFrame}}(missing, length(iso_cycles))
+    matched_cycle_holder = Vector{Union{Int,Missing}}(missing, opt["matched"])
+    cyc_error =  Dict() 
     Infiltrator.clear_disabled!()
-    prog = Progress(length(Rdf_isocycles); desc="cycle df")
-    Threads.@threads for (i,cyc) in collect(enumerate(Rdf_isocycles))
+    prog = Progress(length(iso_cycles); desc="cycle df")
+    #= Threads.@threads =# for (i,cyc) in collect(enumerate(iso_cycles))
         try
-             # Address cycles of interest
-             🔑s = [(;cycle=cyc) 
-                    for cyc in UnitRange(cyc-8, cyc+8)
-                   ]
-
-            # Grab each cycle of activity
-            U = [begin
-                 u = unstack(Rdf_cycles[🔑], indexers, :unit, val, combine=last) # TODO investigate nonunque
-                 u = combine(u, selector .=> [mean], renamecols=false)
-             end
-                for 🔑 in 🔑s if 🔑 in keys(Rdf_cycles)]
-             # @info combine(groupby(Rdf_cycles[🔑],:unit),:time=>x->length(x)==length(unique(x)))
-
-            cycs = [🔑.cycle for 🔑 in 🔑s 
-                        if 🔑 in keys(Rdf_cycles)]
-            relcycs = [🔑.cycle-cyc for 🔑 in 🔑s 
-                          if 🔑 in keys(Rdf_cycles)]
-
-            # Added df to list
-            df[i] = hcat(DataFrame([cycs,relcycs],[:cycs,:relcycs]), 
-                         vcat(U...; cols=:union))
-
+            
+            # Push the isolated cycle and its preceding following cycles
+            push!(df, grab_cycle_data(Rdf_cycles, cyc))
+            matched_cycs = rand(@subset(cycles, :cycle .== cyc).matched,
+                                opt["matched"])
+            # Push MATCHED cycles
+            for mc in matched_cycs
+                push!(df, grab_cycle_data(Rdf_cycles, mc))
+            end
             next!(prog)
-
         catch exception
             cyc_error[cyc] = exception
         #     if mod(i, 100) == 0
