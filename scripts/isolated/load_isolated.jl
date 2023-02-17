@@ -26,6 +26,7 @@ begin
     cells     = data["cells"]; @assert(cells isa DataFrame)
     beh       = data["beh"]; @assert(beh isa DataFrame)
     cycles    = data["cycles"]; @assert(cycles isa DataFrame)
+    beh.speed = abs.(beh.smoothvel)
 
 end
 
@@ -41,9 +42,9 @@ animal  = opt["animal"]
 day     = opt["day"]
 tet     = opt["tet"]
 Plot.setappend((;animal, day, tet))
-
 Munge.nonlocal.setunfilteredbeh(DI.load_behavior(animal,day);
                                animal, day)
+
 
 # Obtain the firing rate matrix
 R = Munge.spiking.torate(allspikes, beh)

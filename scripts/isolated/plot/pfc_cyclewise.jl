@@ -2,19 +2,30 @@
 # READY DATATYPES AND MODULES
 if !(:lfp in names(Main))
 
+    # IMPORTS AND DATA
+    # --------
+    using GLM, Lasso, Distributions, ThreadSafeDicts
     # @time include(scriptsdir("isolated","load_isolated.jl"))
     @time include("../load_isolated.jl")
 
-    using GLM, Lasso, Distributions, ThreadSafeDicts
-    # Get dataframe of R
+    # CONSTANTS
+    # --------
+    # Cycle registration
+    props = [:x, :y, :speed, :startWell, :stopWell]
     val = :value
+
+    # DATAFRAME-IZE firing rate matrix
+    # and add properties of interest
+    # --------------------------------
+    # Get dataframe of R
     Rdf = DataFrame(R; name=val)
     # Set cycle via start cycle times
     cycles.time = cycles.start
     DIutils.filtreg.register(cycles, Rdf, on="time", 
                              transfer=["cycle"], 
                              match=:prev)
-
+    DIutils.filtreg.register(beh, Rdf, on="time", 
+                            transfer=String.(props))
 
     # Figure out cycles with some number of isolated spikes
     begin
@@ -57,23 +68,33 @@ if !(:lfp in names(Main))
 end
 
 # Obtain adaptive grid
-props = [:x, :y, :speed, :startWell, :stopWell]
-beh.speed, speed_1σ  = abs.(beh.smoothvel),
-                              std(beh.speed)
-
+# --------------------
+# (
+# For matching isolated theta cycles
+# )
+speed_1σ  = Float32(std(beh.speed))
+theta_cycle_req = 1f0 # length of theta cycle * 100 cycles
+                      # see requirement in Jai's pape
 grid_kws =
-        (;widths    = [5.7f0, 5.7f0, speed_1σ, 1f0, 1f0, 1f0, 1f0],
-          radiusinc = [0.2f0,0.2f0,0f0,0f0,0f0,0f0,0f0],
-          maxrad    = [6f0,6f0,0.4f0,0.4f0,0.4f0,0.4f0,0.4f0],
-          radiidefault = [2f0,2f0,0.4f0,0.4f0,0.4f0,0.4f0,0.4f0],
-          steplimit=3,
+        (;widths       = [10f0, 10f0  , speed_1σ, 1f0,   1f0],
+          radiusinc    = [0.2f0, 0.2f0, 0f0,      0f0,   0f0],
+          maxrad       = [6f0,   6f0,   0.4f0,    0.4f0, 0.4f0],
+          radiidefault = [2f0,   2f0,   0.4f0,    0.4f0, 0.4f0],
+          steplimit=1,
+          thresh=theta_cycle_req
          )
 grd = DIutils.binning.get_grid(beh, props; grid_kws...)
-
+occ = DIutils.binning.get_occupancy_indexed(Rdf, grd)
+has_df = false
+jldopen(path_iso(opt; append="_cyclewise"), "a") do storage
+    storage["grd"] = grd
+    storage["occ"] = occ
+    has_df = "df" in keys(storage)
+end
 
 # GET CYCLEWISE INFORMATION
 fn = path_iso(opt; append="_cyclewise")
-if !isfile(fn)
+if (!isfile(fn) && has_df) || opt["overwrite"]
 
     df, cyc_error = Vector{Union{Missing,DataFrame}}(missing, length(Rdf_isocycles)), 
                     Dict()

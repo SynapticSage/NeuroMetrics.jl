@@ -74,6 +74,11 @@ module isolated
                 help = "inactive for now"
                 arg_type = Symbol
                 default = :all
+            "--overwrite"
+                help = "overwite checkpointed data"
+                arg_type = Bool
+                action = "store_true"
+                default = false
         end
         if return_parser
             return parser
