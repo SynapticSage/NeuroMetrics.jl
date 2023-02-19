@@ -5,8 +5,8 @@ if !(:lfp in names(Main))
     # IMPORTS AND DATA
     # --------
     using GLM, Lasso, Distributions, ThreadSafeDicts
-    # @time include(scriptsdir("isolated","load_isolated.jl"))
-    @time include("../load_isolated.jl")
+    @time include(scriptsdir("isolated","load_isolated.jl"))
+    # @time include("../load_isolated.jl")
 
     # CONSTANTS and trackers
     # --------
@@ -71,6 +71,7 @@ end
 # ----------------------------------------
 # ( For matching isolated theta cycles)
 begin
+    props = [:x, :y, :speed, :startWell, :stopWell]
     # Obtain average of properties of interest per θ cycle
     # -----------------------------------------------------
     for prop in props
@@ -85,9 +86,12 @@ begin
             end
         end
     end
+    for prop in props
+        cycles[!,prop] = replace(cycles[!,prop], NaN=>missing)
+    end
+    
     # Get the grid binning and occupancy of these cycles
     # -----------------------------------------------------
-    props = [:x, :y, :speed, :startWell, :stopWell]
     speed_1σ  = Float32(std(beh.speed))
     theta_cycle_req = 1f0 # disable required number of cy
     theta_cycle_dt = median(diff(cycles.start))
@@ -97,10 +101,11 @@ begin
               maxrad       = [6f0,   6f0,   0.4f0,    0.4f0, 0.4f0],
               radiidefault = [2f0,   2f0,   0.4f0,    0.4f0, 0.4f0],
               steplimit=1,
+              dt=use_behavior ? median(diff(beh)) : theta_cycle_dt,
               thresh=theta_cycle_req
              )
-    grd = DIutils.binning.get_grid(cycles, props; grid_kws...)
-    occ = DIutils.binning.get_occupancy_indexed(Rdf, grd)
+    grd = DIutils.binning.get_grid(use_behavior ? beh : cycles, props; grid_kws...)
+    occ = DIutils.binning.get_occupancy_indexed(cycles, grd)
     # Save!!!
     # -----------------------------------------------------
     has_df = false
