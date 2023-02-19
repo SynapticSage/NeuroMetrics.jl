@@ -13,7 +13,8 @@ begin
     import DimensionalData: Between
     import DI, DIutils.Table
     using ProgressMeter, DimensionalData, Infiltrator, JLD2, DataFrames,
-          DataFramesMeta, StatsBase, HypothesisTests, Plots, StatsPlots
+          DataFramesMeta, StatsBase, HypothesisTests, Plots, StatsPlots,
+          Statistics, NaNStatistics
 
     # Parse the command line
     opt = parser()

@@ -1,7 +1,8 @@
 # This file is machine-generated - editing it directly is not advised
 
-julia_version = "1.7.3"
+julia_version = "1.8.5"
 manifest_format = "2.0"
+project_hash = "cbf52e60cf84e475373275e13677dbf1d003a506"
 
 [[deps.ARFFFiles]]
 deps = ["CategoricalArrays", "Dates", "Parsers", "Tables"]
@@ -75,6 +76,7 @@ version = "1.1.4"
 
 [[deps.ArgTools]]
 uuid = "0dad84c5-d112-42e6-8d28-ef12dabb789f"
+version = "1.1.1"
 
 [[deps.ArnoldiMethod]]
 deps = ["LinearAlgebra", "Random", "StaticArrays"]
@@ -282,11 +284,6 @@ git-tree-sha1 = "6717cb9a3425ebb7b31ca4f832823615d175f64a"
 uuid = "052768ef-5323-5732-b1bb-66c8b64840ba"
 version = "3.13.1"
 
-[[deps.CachedDicts]]
-git-tree-sha1 = "4a3c76b223e745b24ea1c33ab45945874494bb48"
-uuid = "e69b5797-b9f7-4a92-bcfe-7d0cb35ca5b6"
-version = "0.1.0"
-
 [[deps.Cairo]]
 deps = ["Cairo_jll", "Colors", "Glib_jll", "Graphics", "Libdl", "Pango_jll"]
 git-tree-sha1 = "d0b3f8b4ad16cb0a2988c6788646a5e6a17b6b1b"
@@ -473,6 +470,7 @@ version = "4.5.0"
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "e66e0078-7015-5450-92f7-15fbd957f2ae"
+version = "1.0.1+0"
 
 [[deps.Compose]]
 deps = ["Base64", "Colors", "DataStructures", "Dates", "IterTools", "JSON", "LinearAlgebra", "Measures", "Printf", "Random", "Requires", "Statistics", "UUIDs"]
@@ -561,10 +559,8 @@ uuid = "dc8bdbbb-1ca9-579f-8c36-e416f6a65cce"
 version = "1.0.2"
 
 [[deps.DI]]
-deps = ["AlgebraOfGraphics", "ArgParse", "Arrow", "AutoSysimages", "AxisArrays", "BayesHistogram", "BenchmarkTools", "Bootstrap", "CSV", "CUDA", "Cairo", "CairoMakie", "CategoricalArrays", "CausalityTools", "ChaosTools", "ColorSchemeTools", "ColorSchemes", "Colors", "Combinatorics", "Compose", "Conda", "CondaPkg", "Crayons", "CurveFit", "DIutils", "DSP", "Dagger", "DataAPI", "DataFrames", "DataFramesMeta", "DataStructures", "Dates", "Debugger", "DelayEmbeddings", "Diary", "DimensionalData", "DirectionalStatistics", "DiskBackedDicts", "Distances", "Distributed", "Distributions", "DrWatson", "DynamicAxisWarping", "ElectronDisplay", "Entropies", "Eyeball", "FixedPointNumbers", "Flux", "Fontconfig", "GLM", "GLMakie", "GPUArrays", "GR", "GRUtils", "GR_jll", "Gadfly", "Gaston", "GeometricalPredicates", "Glob", "GroupSlices", "HDF5", "HypothesisTests", "ImageFiltering", "ImageSegmentation", "ImageTransformations", "Images", "Infiltrator", "InspectDR", "Interact", "InteractiveCodeSearch", "InteractiveErrors", "InteractiveUtils", "Interpolations", "JLD2", "JSServe", "Jackknife", "JuliaFormatter", "KernelDensity", "KernelDensitySJ", "LIBSVM", "LaTeXStrings", "LanguageServer", "LazyGrids", "LazySets", "Literate", "Loess", "LoopVectorization", "LsqFit", "Luxor", "MATLAB", "MLJ", "MLJBase", "MLJLIBSVMInterface", "Markdown", "MarkdownLiteral", "Measures", "Memoization", "Metadata", "Metrics", "Missings", "ModernGL", "Mux", "NaNStatistics", "NamedTupleTools", "NetCDF", "Observables", "OhMyREPL", "OneHotArrays", "PGFPlots", "PGFPlotsX", "PProf", "PalmerPenguins", "PersistentCollections", "PlotThemes", "PlotlyJS", "Plots", "Pluto", "PlutoUI", "Polyester", "Polynomials", "Poppler_jll", "PrettyTables", "Printf", "ProfileView", "ProgressLogging", "ProgressMeter", "Proj", "ProtoStructs", "PyPlot", "REPLVim", "Random", "RecipesBase", "RecipesPipeline", "RecursiveArrayTools", "Reexport", "Revise", "RollingFunctions", "ScientificTypes", "ScikitLearn", "SearchSortedNearest", "Serialization", "ShiftedArrays", "Shuffle", "SignalAnalysis", "SoftGlobalScope", "StaticArrays", "StaticLint", "Statistics", "StatsBase", "StatsPlots", "SymbolServer", "TableView", "Tables", "TensorToolbox", "Term", "Test", "TextWrap", "ThreadSafeDicts", "ThreadsX", "TimerOutputs", "UMAP", "UnicodePlots", "Unitful", "VideoIO", "WGLMakie"]
-git-tree-sha1 = "af4d8f8756fa337df6bb9cb5defce15e1f5d8da6"
-repo-rev = "main"
-repo-url = "/home/ryoung/Code/projects/DI"
+deps = ["AlgebraOfGraphics", "ArgParse", "Arrow", "AutoSysimages", "AxisArrays", "BayesHistogram", "BenchmarkTools", "Bootstrap", "CSV", "CUDA", "Cairo", "CairoMakie", "CategoricalArrays", "CausalityTools", "ChaosTools", "ColorSchemeTools", "ColorSchemes", "Colors", "Combinatorics", "Compose", "Conda", "CondaPkg", "Crayons", "CurveFit", "DIutils", "DSP", "Dagger", "DataAPI", "DataFrames", "DataFramesMeta", "DataStructures", "Dates", "Debugger", "DelayEmbeddings", "Diary", "DimensionalData", "DirectionalStatistics", "Distances", "Distributed", "Distributions", "DrWatson", "DynamicAxisWarping", "ElectronDisplay", "Entropies", "Eyeball", "FixedPointNumbers", "Flux", "Fontconfig", "GLM", "GLMakie", "GPUArrays", "GR", "GRUtils", "GR_jll", "Gadfly", "Gaston", "GeometricalPredicates", "Glob", "GroupSlices", "HDF5", "HypothesisTests", "ImageFiltering", "ImageSegmentation", "ImageTransformations", "Images", "Infiltrator", "InspectDR", "Interact", "InteractiveCodeSearch", "InteractiveErrors", "InteractiveUtils", "Interpolations", "JLD2", "JSServe", "Jackknife", "JuliaFormatter", "KernelDensity", "KernelDensitySJ", "LIBSVM", "LaTeXStrings", "LanguageServer", "LazyGrids", "LazySets", "Literate", "Loess", "LoopVectorization", "LsqFit", "Luxor", "MATLAB", "MLJ", "MLJBase", "MLJLIBSVMInterface", "Markdown", "MarkdownLiteral", "Measures", "Memoization", "Metadata", "Metrics", "Missings", "ModernGL", "Mux", "NaNStatistics", "NamedTupleTools", "NetCDF", "Observables", "OhMyREPL", "OneHotArrays", "PGFPlots", "PGFPlotsX", "PProf", "PalmerPenguins", "PersistentCollections", "PlotThemes", "PlotlyJS", "Plots", "Pluto", "PlutoUI", "Polyester", "Polynomials", "Poppler_jll", "PrettyTables", "Printf", "ProfileView", "ProgressLogging", "ProgressMeter", "Proj", "ProtoStructs", "PyPlot", "Random", "RecipesBase", "RecipesPipeline", "RecursiveArrayTools", "Reexport", "Revise", "RollingFunctions", "ScientificTypes", "ScikitLearn", "SearchSortedNearest", "Serialization", "ShiftedArrays", "Shuffle", "SignalAnalysis", "SoftGlobalScope", "StaticArrays", "StaticLint", "Statistics", "StatsBase", "StatsPlots", "SymbolServer", "TableView", "Tables", "TensorToolbox", "Term", "Test", "TextWrap", "ThreadSafeDicts", "ThreadsX", "TimerOutputs", "UMAP", "UnicodePlots", "Unitful", "VideoIO", "WGLMakie"]
+path = "/home/ryoung/Projects/DI/"
 uuid = "7a052949-c101-4ca3-9a7e-43a2532b2fa8"
 version = "0.0.0"
 
@@ -723,14 +719,6 @@ git-tree-sha1 = "27ebdcf03ca847fa484f28273db57de3c8514920"
 uuid = "3c3547ce-8d99-4f5e-a174-61eb10b00ae3"
 version = "0.3.8"
 
-[[deps.DiskBackedDicts]]
-deps = ["ArgCheck", "CachedDicts", "JLD2"]
-git-tree-sha1 = "2d2b0cf2d87562c8f63f6ec5316ea048b45a8cc7"
-repo-rev = "master"
-repo-url = "https://github.com/jw3126/DiskBackedDicts.jl"
-uuid = "a606033f-14ee-4438-ae87-3b404a2b735d"
-version = "0.1.0"
-
 [[deps.Distances]]
 deps = ["LinearAlgebra", "SparseArrays", "Statistics", "StatsAPI"]
 git-tree-sha1 = "3258d0659f812acde79e8a74b11f17ac06d0ca04"
@@ -756,6 +744,7 @@ version = "0.8.6"
 [[deps.Downloads]]
 deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
+version = "1.6.0"
 
 [[deps.DrWatson]]
 deps = ["Dates", "FileIO", "JLD2", "LibGit2", "MacroTools", "Pkg", "Random", "Requires", "Scratch", "UnPack"]
@@ -1086,6 +1075,7 @@ version = "5.0.1+0"
 [[deps.GMP_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "781609d7-10c4-51f6-84f2-b8444358ff6d"
+version = "6.2.1+2"
 
 [[deps.GPUArrays]]
 deps = ["Adapt", "GPUArraysCore", "LLVM", "LinearAlgebra", "Printf", "Random", "Reexport", "Serialization", "Statistics"]
@@ -1745,9 +1735,9 @@ version = "4.15.0"
 
 [[deps.LLVMExtra_jll]]
 deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl", "Pkg", "TOML"]
-git-tree-sha1 = "771bfe376249626d3ca12bcd58ba243d3f961576"
+git-tree-sha1 = "7718cf44439c676bc0ec66a87099f41015a522d6"
 uuid = "dad2f222-ce93-54a1-a47d-0025e8a3acab"
-version = "0.0.16+0"
+version = "0.0.16+2"
 
 [[deps.LLVMOpenMP_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -1852,10 +1842,12 @@ version = "0.1.3"
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
+version = "0.6.3"
 
 [[deps.LibCURL_jll]]
 deps = ["Artifacts", "LibSSH2_jll", "Libdl", "MbedTLS_jll", "Zlib_jll", "nghttp2_jll"]
 uuid = "deac9b47-8bc7-5906-a0fe-35ac56dc84c0"
+version = "7.84.0+0"
 
 [[deps.LibGit2]]
 deps = ["Base64", "NetworkOptions", "Printf", "SHA"]
@@ -1864,6 +1856,7 @@ uuid = "76f85450-5226-5b5a-8eaa-529ad045b433"
 [[deps.LibSSH2_jll]]
 deps = ["Artifacts", "Libdl", "MbedTLS_jll"]
 uuid = "29816b5a-b9ab-546f-933c-edad1886dfa8"
+version = "1.10.2+0"
 
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
@@ -2165,6 +2158,7 @@ version = "1.1.7"
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "c8ffd9c3-330d-5841-b78e-0817d7145fa1"
+version = "2.28.0+0"
 
 [[deps.Measurements]]
 deps = ["Calculus", "LinearAlgebra", "Printf", "RecipesBase", "Requires"]
@@ -2278,6 +2272,7 @@ version = "0.3.4"
 
 [[deps.MozillaCACerts_jll]]
 uuid = "14a3606d-f60d-562e-9121-12d972cd8159"
+version = "2022.2.1"
 
 [[deps.MsgPack]]
 deps = ["Serialization"]
@@ -2398,6 +2393,7 @@ version = "1.1.0"
 
 [[deps.NetworkOptions]]
 uuid = "ca575930-c2e3-43a9-ace4-1e988b2c1908"
+version = "1.2.0"
 
 [[deps.NonlinearSolve]]
 deps = ["ArrayInterfaceCore", "FiniteDiff", "ForwardDiff", "IterativeSolvers", "LinearAlgebra", "RecursiveArrayTools", "RecursiveFactorization", "Reexport", "SciMLBase", "Setfield", "StaticArrays", "UnPack"]
@@ -2443,6 +2439,7 @@ version = "0.2.3"
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "4536629a-c528-5b80-bd46-f80d51c5b363"
+version = "0.3.20+0"
 
 [[deps.OpenEXR]]
 deps = ["Colors", "FileIO", "OpenEXR_jll"]
@@ -2465,6 +2462,7 @@ version = "2.4.0+0"
 [[deps.OpenLibm_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "05823500-19ac-5b8b-9628-191a04bc5112"
+version = "0.8.1+0"
 
 [[deps.OpenML]]
 deps = ["ARFFFiles", "HTTP", "JSON", "Markdown", "Pkg", "Scratch"]
@@ -2510,6 +2508,7 @@ version = "1.4.1"
 [[deps.PCRE2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "efcefdf7-47ab-520b-bdef-62a2eaa19f15"
+version = "10.40.0+0"
 
 [[deps.PDMats]]
 deps = ["LinearAlgebra", "SparseArrays", "SuiteSparse"]
@@ -2615,6 +2614,7 @@ version = "0.40.1+0"
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+version = "1.8.0"
 
 [[deps.PkgVersion]]
 deps = ["Pkg"]
@@ -2827,14 +2827,6 @@ version = "0.7.4"
 deps = ["InteractiveUtils", "Markdown", "Sockets", "Unicode"]
 uuid = "3fa0cd96-eef1-5676-8a61-b3b8758bbffb"
 
-[[deps.REPLVim]]
-deps = ["JSON3", "Logging", "REPL", "Sockets", "StructTypes"]
-git-tree-sha1 = "4f492ac2d3a77c1706946ae9101d5b56932bf9e0"
-repo-rev = "main"
-repo-url = "https://github.com/andreypopp/julia-repl-vim.git"
-uuid = "2a140ba1-97ad-47e0-ac3b-8e555ea992ff"
-version = "0.1.0"
-
 [[deps.Random]]
 deps = ["SHA", "Serialization"]
 uuid = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
@@ -2987,6 +2979,7 @@ version = "0.5.5"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+version = "0.7.0"
 
 [[deps.SIMD]]
 deps = ["SnoopPrecompile"]
@@ -3325,6 +3318,7 @@ version = "7.2.1"
 [[deps.TOML]]
 deps = ["Dates"]
 uuid = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+version = "1.0.0"
 
 [[deps.TableOperations]]
 deps = ["SentinelArrays", "Tables", "Test"]
@@ -3359,6 +3353,7 @@ version = "1.10.0"
 [[deps.Tar]]
 deps = ["ArgTools", "SHA"]
 uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
+version = "1.10.1"
 
 [[deps.TensorCore]]
 deps = ["LinearAlgebra"]
@@ -3802,6 +3797,7 @@ version = "1.4.0+3"
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
+version = "1.2.12+3"
 
 [[deps.Zstd_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -3884,6 +3880,7 @@ version = "0.15.1+0"
 [[deps.libblastrampoline_jll]]
 deps = ["Artifacts", "Libdl", "OpenBLAS_jll"]
 uuid = "8e850b90-86db-534c-a0d3-1478176c7d93"
+version = "5.1.1+0"
 
 [[deps.libfdk_aac_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
@@ -3930,10 +3927,12 @@ version = "1.2.0+0"
 [[deps.nghttp2_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
+version = "1.48.0+0"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
+version = "17.4.0+0"
 
 [[deps.pprof_jll]]
 deps = ["Artifacts", "Graphviz_jll", "JLLWrappers", "Libdl", "Pkg"]

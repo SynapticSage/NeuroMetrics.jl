@@ -6,13 +6,14 @@ if !(:lfp in names(Main))
     # --------
     using GLM, Lasso, Distributions, ThreadSafeDicts
     @time include(scriptsdir("isolated","load_isolated.jl"))
-    # @time include("../load_isolated.jl")
+    @time include("../load_isolated.jl")
 
     # CONSTANTS and trackers
     # --------
     val = :value
     opt["matched"] = 3    # how many matched non-iso cycles to add per iso cycle
     opt["has_df"] = false # tracks state about whether df var for glm is backed up in a jld2 file
+    props = [:x, :y, :speed, :startWell, :stopWell]
 
     # DATAFRAME-IZE firing rate matrix
     # and add properties of interest
@@ -71,52 +72,73 @@ end
 # ----------------------------------------
 # ( For matching isolated theta cycles)
 begin
-    props = [:x, :y, :speed, :startWell, :stopWell]
+
     # Obtain average of properties of interest per θ cycle
     # -----------------------------------------------------
     for prop in props
         cycles[!,prop] = Vector{Union{Missing,eltype(beh[!,prop])}}(missing, size(cycles,1))
     end
-    @showprogress "annotate cycle with behavior" for cycle in eachrow(cycles)
-        inds = DIutils.in_range(beh.time, (cycle.start, cycle.stop))
+    E = Threads.Atomic{Int}(0)
+    Threads.@threads for i in collect(1:size(cycles,1))
+        cycle = cycles[i,:]
+        inds = DIutils.in_range(beh.time, [cycle.start, cycle.stop])
         for prop in props
             try
-            cycle[prop] = nanmean(beh[inds, prop])
+                cycle[prop] = nanmean(collect(skipmissing(beh[inds, prop])))
             catch
+                Threads.atomic_add!(E, 1)
             end
         end
     end
+    println("Fail percent ", E[] / size(cycles,1))
     for prop in props
         cycles[!,prop] = replace(cycles[!,prop], NaN=>missing)
     end
-    
+
     # Get the grid binning and occupancy of these cycles
     # -----------------------------------------------------
     speed_1σ  = Float32(std(beh.speed))
     theta_cycle_req = 1f0 # disable required number of cy
-    theta_cycle_dt = median(diff(cycles.start))
+    theta_cycle_dt = Float32(median(diff(cycles.start)))
+    use_behavior = false
+    epsilon = 1f-6
+    widths       = [10f0,  10f0,  speed_1σ, 1f0,   1f0]
     grid_kws =
-            (;widths       = [10f0,  10f0,  speed_1σ, 1f0,   1f0],
+            (;widths,
               radiusinc    = [0.2f0, 0.2f0, 0f0,      0f0,   0f0],
               maxrad       = [6f0,   6f0,   0.4f0,    0.4f0, 0.4f0],
-              radiidefault = [2f0,   2f0,   0.4f0,    0.4f0, 0.4f0],
-              steplimit=1,
-              dt=use_behavior ? median(diff(beh)) : theta_cycle_dt,
+              radiidefault = widths./2 .- epsilon,
+              steplimit=2,
+              dt=use_behavior ? Float32(median(diff(beh))) : theta_cycle_dt,
               thresh=theta_cycle_req
              )
     grd = DIutils.binning.get_grid(use_behavior ? beh : cycles, props; grid_kws...)
     occ = DIutils.binning.get_occupancy_indexed(cycles, grd)
+    println("Percent cycles counted ", sum(occ.count)/size(dropmissing(cycles,props),1))
+    Dict(prop=>nanextrema(collect(skipmissing(cycles[!,prop]))) for prop in props)
+
     # Save!!!
     # -----------------------------------------------------
     has_df = false
     jldopen(path_iso(opt; append="_cyclewise"), "a") do storage
+        if "grd" in keys(storage)
+            delete!(storage, "grd")
+        end
         storage["grd"] = grd
+        if "occ" in keys(storage)
+            delete!(storage, "occ")
+        end
         storage["occ"] = occ
+        if "cycles" in keys(storage)
+            delete!(storage, "cycles")
+        end
+        storage["cycles"] = cycles
         has_df = "df" in keys(storage)
     end
 
+    # Match the cycles
     for cyc in iso_cycles
-
+        Rdf_cycles
     end
 end
 

@@ -32,7 +32,9 @@ IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
 WIDTHS = opts["width"]
 thresh = opts["thresh"]
 shifts= opts["init_shift"]:opts["period_shift"]:opts["final_shift"]
-datasets = (("RY16",36,nothing), ("RY22", 21, nothing)) #, ("RY16",36, :adj),("RY16",36, :iso),)
+# datasets = (("RY16",36,nothing), ("RY22", 21, nothing)) #, ("RY16",36, :adj),("RY16",36, :iso),)
+datasets = (("super", 0, nothing),("super",0,:iso), ("super",0,:adj))
+@assert datasets isa Tuple
 
 function get_key(;shifts, kws...)
     (;kws..., grid=:adaptive,
@@ -66,23 +68,23 @@ I = OrderedDict{NamedTuple, Any}()
 F = OrderedDict{NamedTuple, Any}()
 (animal, day, frac) = first(datasets)
 
-@showprogress "animal" for (animal, day, frac) in datasets #Load.animal_set
+@showprogress "animal" for (animal, day, frac) in datasets #DI.animal_set
 
     @info "loop" animal day frac
 
-    @time spikes, beh, ripples, cells = Load.load(animal, day);
-    _, spikes = Load.register(beh, spikes; transfer=["velVec"], on="time")
+    @time spikes, beh, ripples, cells = DI.load(animal, day);
+    _, spikes = DIutils.filtreg.register(beh, spikes; transfer=["velVec"], on="time")
 
 
     if frac == :iso || frac == :adj
-        lfp = Load.load_lfp(animal, day, tet=:ca1ref, subtract_earlytime=true)
+        lfp = DI.load_lfp(animal, day, tet=:ca1ref, subtract_earlytime=true)
         Munge.lfp.annotate_cycles(lfp::DataFrame; 
                                   phase_col="phase", 
                                   method="peak-to-peak")
         histogram(lfp.time); histogram!(spikes.time)
         spikes = Munge.spiking.isolated(spikes, lfp, refreshcyc=true)
         using Plot.lfplot
-        _, spikes = Load.register(lfp, spikes; transfer=["phase"], on="time")
+        _, spikes = DIutils.filtreg.register(lfp, spikes; transfer=["phase"], on="time")
         #phasepl
         histogram(spikes.time, group=spikes.isolated, normalize=:pdf)
         histogram(spikes.phase, group=spikes.isolated, normalize=:pdf,
@@ -100,7 +102,7 @@ F = OrderedDict{NamedTuple, Any}()
         #nbins = 50
         Munge.behavior.annotate_relative_xtime!(beh)
         #beh.trajreltime_bin = floor.(beh.trajreltime * (nbins-1))
-        _, spikes = Load.register(beh, spikes;
+        _, spikes = DIutils.filtreg.register(beh, spikes;
                                  transfer=["trajreltime","epoch"],
                                  on="time")
         trajperiod = Table.get_periods(beh, :period)
@@ -151,7 +153,8 @@ pushover("Finished cachemain.jl",title="Timeshift")
 #serialize(savefile, (;F,I,shifts))
 #(F,I,shifts) = deserialize(savefile);
 
-overwrite = true
+overwrite = false
 archivestr = isempty(setdiff(unique([d[3] for d in datasets]), [:adj,:iso])) ? "iso" : ""
-checkpoint.save_fields(F; overwrite, archive=archivestr);
+
+# checkpoint.save_fields(F; overwrite, archive=archivestr);
 
