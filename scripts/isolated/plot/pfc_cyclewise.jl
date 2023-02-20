@@ -178,12 +178,14 @@ if (!isfile(fn) && has_df) || opt["overwrite"]
         #         @info cyc_error
         #     end
             sleep(0.1)
+            next!(prog)
         end
     end
     @info cyc_error
-    df = vcat(df[(!).(ismissing.(df))]...)
+    vcatnonmiss(df) = vcat(df[(!).(ismissing.(df))]...)
+    df = vcatnonmiss.(df)
+    df = vcatnonmiss(df)
     df.has_iso = df.isolated_sum .> 0
-    
     # Spike count
     neuroncols = names(df)[tryparse.(Int, names(df)) .!== nothing]
     df[:,neuroncols] .*= median(diff(beh.time)) # TODO not INT because it's gaussian smoothed
@@ -209,8 +211,8 @@ end
 
 # Now let's take the formula and apply them
 formulae, models   = OrderedDict(), ThreadSafeDict()
-formulae["ca1pfc"] = construct_predict_spikecount(df, "CA1");
-formulae["pfcca1"] = construct_predict_spikecount(df, "PFC");
+formulae["ca1pfc"] = construct_predict_spikecount(df, cells, "CA1");
+formulae["pfcca1"] = construct_predict_spikecount(df, cells, "PFC");
 @assert !isempty(first(values(formulae)))
 glmsets = []
 for indep in ("ca1pfc", "pfcca1"), relcyc in -8:8, f in formulae[indep]
@@ -248,8 +250,8 @@ if isdefined(Main, :storage); close(storage); end
 
 # Now let's take the formula and apply them
 formulae, models   = OrderedDict(), ThreadSafeDict()
-formulae["ca1pfc"] = construct_predict_iso(df, "CA1", :has);
-formulae["pfcca1"] = construct_predict_iso(df, "PFC", :has);
+formulae["ca1pfc"] = construct_predict_iso(df, cells, "CA1", :has);
+formulae["pfcca1"] = construct_predict_iso(df, cells, "PFC", :has);
 @assert !isempty(first(values(formulae)))
 glmsets = []
 for indep in ("ca1pfc", "pfcca1"), relcyc in -8:8, f in formulae[indep]
@@ -287,8 +289,8 @@ if isdefined(Main, :storage); close(storage); end
 
 # Now let's take the formula and apply them
 formulae, models   = OrderedDict(), ThreadSafeDict()
-formulae["ca1pfc"] = construct_predict_iso(df, "CA1", :count);
-formulae["pfcca1"] = construct_predict_iso(df, "PFC", :count);
+formulae["ca1pfc"] = construct_predict_iso(df, cells, "CA1", :count);
+formulae["pfcca1"] = construct_predict_iso(df, cells, "PFC", :count);
 @assert !isempty(first(values(formulae)))
 glmsets = []
 for indep in ("ca1pfc", "pfcca1"), relcyc in -8:8, f in formulae[indep]
@@ -323,6 +325,11 @@ if isdefined(Main, :storage); close(storage); end
 # |_      _| | |_| | (_| | || (_| |  _| | | (_| | | | | | | | | | | (_| |
 #   |_||_|   |____/ \__,_|\__\__,_|_| |_|  \__,_|_| |_| |_|_|_| |_|\__, |
 #                                                                  |___/ 
+func = v->if v===nothing
+    NaN
+else
+    adjr2(v, :devianceratio)
+end
 
 plot(
     glmplot(model_spikecount, "pfcca1", func, label="spike count, general"),

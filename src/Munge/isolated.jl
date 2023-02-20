@@ -103,6 +103,7 @@ module isolated
         opt
     end
 
+    export construct_predict_spikecount
     function construct_predict_spikecount(df, cells, independent_area="CA1";
             other_vars=[], other_ind_vars=[])
         uArea = unique(cells.area)
@@ -126,6 +127,8 @@ module isolated
         end
         formulae
     end
+
+    export construct_predict_iso
     function construct_predict_iso(df, cells, independent_area="CA1", type=:has;
             other_vars=[], other_ind_vars=[])
         uArea = unique(cells.area)
@@ -175,6 +178,13 @@ module isolated
     @recipe function glmplot(plt::GlmPlot)
         D, area = _handle_args(plt.args...)
         data = sort(@subset(D, :indep .== area),:relcyc)
+        @series begin
+            seriestype := :hline
+            linestyle := :dash
+            c := :black
+            label := ""
+            ([0],)
+        end
         @series begin
             seriestype := :vline
             linestyle := :dash
