@@ -21,8 +21,8 @@ if !(:lfp in names(Main))
     # Get dataframe of R
     Rdf = DataFrame(R; name=val)
     # Set cycle via start cycle times
-    cycles.time = cycles.start
-    cycles.cycle = 1:size(cycles,1)
+    cycles.time = cycles.start;
+    cycles.cycle = 1:size(cycles,1);
     DIutils.filtreg.register(cycles, Rdf, on="time", 
                              transfer=["cycle"], 
                              match=:prev)
@@ -64,6 +64,7 @@ if !(:lfp in names(Main))
              Plot.blank((plot();Plots.annotate!(0.5,0.5,text("Cycle statistics",14))), visible=false, size=(100,50)),
              layout=grid(2,2))
     end
+
 end
 
 
@@ -153,6 +154,7 @@ begin
             cycles[cyc,:].matched = sample(poss, samples_to_grab, replace=false)
         end
     end
+
 end
 
 # GET CYCLEWISE INFORMATION
@@ -166,16 +168,19 @@ if (!isfile(fn) && has_df) || opt["overwrite"]
     matched_cycle_holder = Vector{Union{Int,Missing}}(missing, opt["matched"])
     cyc_error =  Dict() 
     Infiltrator.clear_disabled!()
-    prog = Progress(length(iso_cycles); desc="cycle df")
+    prog = Progress(length(iso_cycles); desc="grabing cycle batches into df")
     Threads.@threads for (i,cyc) in collect(enumerate(iso_cycles))
         try
             tid = Threads.threadid()
+            cyc_batch = i
             # Push the isolated cycle and its preceding following cycles
-            push!(df[tid], grab_cycle_data(Rdf_cycles, cyc; val, indexers))
+            push!(df[tid], grab_cycle_data(Rdf_cycles, cyc; val, indexers,
+                                            cyc_batch, cyc_match=0))
             matched_cycs = @subset(cycles, :cycle .== cyc).matched[1]
             # Push MATCHED cycles
-            for mc in matched_cycs
-                push!(df[tid], grab_cycle_data(Rdf_cycles, mc; val, indexers))
+            for (j,mc) in enumerate(matched_cycs)
+                push!(df[tid], grab_cycle_data(Rdf_cycles, mc; val, indexers, 
+                                                cyc_batch, cyc_match=j))
             end
             next!(prog)
         catch exception
@@ -201,6 +206,7 @@ if (!isfile(fn) && has_df) || opt["overwrite"]
     # Checkpoint
     rm(fn)
     jldsave(fn; df)
+
 else
     storage = JLD2.jldopen(fn)
     df = storage["df"]
@@ -208,6 +214,20 @@ else
 end
 
 # Clean data frame
+col_all_zero = map(v->all(v.==0), eachcol(df))
+df = df[!, Not(names(df)[col_all_zero])]
+
+
+function get_dx_dy(df, relcyc)
+    dx = @subset(df, :relcycs .== relcyc)
+    dy = @subset(df, :relcycs .== 0)
+    dx = groupby(dx, [:cyc_batch, :cyc_match])
+    dy = groupby(dy, [:cyc_batch, :cyc_match])
+    kx, ky = keys(dx.keymap), keys(dy.keymap)
+    k = intersect(kx,ky)
+    dx = sort(vcat([dx[kk] for kk in k]...), [:cyc_batch, :cyc_match])
+    dy = sort(vcat([dy[kk] for kk in k]...), [:cyc_batch, :cyc_match])
+end
 
 # ========================
 #  . .     ,---.|    ,-.-.
@@ -229,13 +249,15 @@ end
 
 prog = Progress(length(glmsets); desc="GLM spike counts")
 Threads.@threads for (indep, relcyc, f) in glmsets
+    unit = parse(Int,string(f.lhs))
     try
-        d = @subset(df, :relcycs .== relcyc)
-        y, XX = modelcols(apply_schema(f, schema(f, d)), d) 
+        dx, dy = get_dx_dy(df, relcyc)
+        _, XX = modelcols(apply_schema(f, schema(f, dx)), dx)
+        y, _  = modelcols(apply_schema(f, schema(f, dy)), dy)
         FittedPoisson = fit_mle(Poisson, Int.(y))
-        models[(;indep, relcyc)] = m =  fit(GLM.GeneralizedLinearModel, XX, y, FittedPoisson)
-    catch
-        models[(;indep, relcyc)] = nothing
+        models[(;indep, relcyc, unit)] = m =  fit(GLM.GeneralizedLinearModel, XX, y, FittedPoisson)
+    catch exception
+        models[(;indep, relcyc, unit)] = exception
     end
     next!(prog)
 end
@@ -268,13 +290,15 @@ end
 
 prog = Progress(length(glmsets); desc="GLM has iso")
 Threads.@threads for (indep, relcyc, f) in glmsets
+    unit = parse(Int,string(f.lhs))
     try
-        d = @subset(df, :relcycs .== relcyc)
-        y, X = modelcols(apply_schema(f, schema(f, d)), d) 
+        dx, dy = get_dx_dy(df, relcyc)
+        _, XX = modelcols(apply_schema(f, schema(f, dx)), dx)
+        y, _  = modelcols(apply_schema(f, schema(f, dy)), dy)
         FittedBinomial = fit_mle(Binomial, 1, y)
         models[(;indep, relcyc)] = glm(X, y, FittedBinomial)
-    catch
-        models[(;indep, relcyc)] = nothing
+    catch exception
+        models[(;indep, relcyc)] = exception
     end
     next!(prog)
 end
@@ -308,8 +332,10 @@ end
 prog = Progress(length(glmsets); desc="GLM iso counts")
 Threads.@threads for (indep, relcyc, f) in glmsets
     try
-        d = @subset(df, :relcycs .== relcyc)
-        y, XX = modelcols(apply_schema(f, schema(f, d)), d) 
+        dx = @subset(df, :relcycs .== relcyc)
+        dy = @subset(df, :relcycs .== 0)
+        _, XX = modelcols(apply_schema(f, schema(f, dx)), dx)
+        y, _  = modelcols(apply_schema(f, schema(f, dy)), dy)
         FittedPoisson = fit_mle(Poisson, Int.(y))
         models[(;indep, relcyc)] = m =  fit(GLM.GeneralizedLinearModel, XX, y, FittedPoisson)
     catch exception
@@ -333,27 +359,34 @@ if isdefined(Main, :storage); close(storage); end
 # |_      _| | |_| | (_| | || (_| |  _| | | (_| | | | | | | | | | | (_| |
 #   |_||_|   |____/ \__,_|\__\__,_|_| |_|  \__,_|_| |_| |_|_|_| |_|\__, |
 #                                                                  |___/ 
-func = v->if v isa Exception
+
+
+func = v->if v isa Exception || v === nothing
     NaN
 else
     adjr2(v, :devianceratio)
 end
 
+D = to_dataframe(model_spikecount, v->if v isa Exception; missing; else; adjr2(v,:devianceratio); end)
+Dsum = combine(groupby(D, [:relcyc, :indep]), :value => median => :value)
+
+plot(
 plot(
     glmplot(model_spikecount, "pfcca1", func, label="spike count, general"),
     glmplot(model_isocount,    "pfcca1", func, label="iso count"),
     glmplot(model_hasiso,     "pfcca1", func, label="iso occurance");
-    ylims=(0,1),
+    ylims=(0,0.2),
     link=:y,
     layout=grid(3,1)
-)
+),
 
 
 plot(
     glmplot(model_spikecount, "ca1pfc", func, label="spike count, general"),
     glmplot(model_isocount,    "ca1pfc", func, label="iso count"),
     glmplot(model_hasiso,     "ca1pfc", func, label="iso occurance");
-    ylims=(0,1),
+    ylims=(0,0.2),
     link=:y,
     layout=grid(3,1)
 )
+    )

@@ -1,6 +1,6 @@
 module isolated
     using JLD2, ArgParse, DrWatson, DIutils.dict, RecipesBase, GLM, 
-          DataFramesMeta, Statistics, NaNStatistics
+          DataFramesMeta, Statistics, NaNStatistics, Infiltrator
     using DataStructures: OrderedDict
     import DIutils: Table
 
@@ -163,10 +163,19 @@ module isolated
     end
 
     function _handle_args(D::AbstractDict, area::String, 
-        func::Function=x->adjr2(x, :devianceratio))
-        Table.to_dataframe(D, func), area
+        func::Function=x->adjr2(x, :devianceratio); kws...)
+        _handle_args(Table.to_dataframe(D, func), area; kws...)
     end
-    _handle_args(D::DataFrame, area::String) = D, area
+    function _handle_args(D::DataFrame, area::String; 
+            groupargs=nothing, combineargs=nothing, kws...) 
+        @infiltrate
+        if groupargs !== nothing
+            @info "groupby" groupargs combineargs
+            D = groupby(D, groupargs...) 
+            D = combine(D, combineargs)
+        end
+        D, area
+    end
 
     @userplot GlmPlot
     """
@@ -175,8 +184,8 @@ module isolated
     takes either a dataframe of results or an abstract dict with a function to
     instruct how to process the glm linear model objects
     """
-    @recipe function glmplot(plt::GlmPlot)
-        D, area = _handle_args(plt.args...)
+    @recipe function glmplot(plt::GlmPlot; groupargs=nothing, combineargs=nothing)
+        D, area = _handle_args(plt.args...; groupargs, combineargs)
         data = sort(@subset(D, :indep .== area),:relcyc)
         @series begin
             seriestype := :hline
@@ -200,7 +209,7 @@ module isolated
 
     export grab_cycle_data
     function grab_cycle_data(Rdf_cycles::GroupedDataFrame, cyc::Union{Int64,Int32}; 
-                val, indexers, cycrange::Int=8)::DataFrame
+                val, indexers, cycrange::Int=8, kws...)::DataFrame
          selector = :area in propertynames(Rdf_cycles) ? Not([:time, :area]) : Not(:time)
          # Address cycles of interest
          🔑s = [(;cycle=cyc) 
@@ -221,8 +230,14 @@ module isolated
                       if 🔑 in keys(Rdf_cycles)]
 
         # Added df to list
-        hcat(DataFrame([cycs,relcycs],[:cycs,:relcycs]), 
+        df = DataFrames.hcat(DataFrame([cycs,relcycs],[:cycs,:relcycs]), 
                      vcat(U...; cols=:union))
+
+        for (key, val) in kws
+            df[!,key] .= val
+        end
+        
+        df
     end
 
 
