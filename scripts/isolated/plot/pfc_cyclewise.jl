@@ -142,10 +142,16 @@ begin
     cycles.matched = Vector{Union{Vector{Int32}, Missing}}(missing, size(cycles,1))
     Threads.@threads for cyc in iso_cycles
         poss = [] 
+        # Lookup cycles that match this isolated spike cycle's animal behavior
         for gridmatch in occ.datainds[cyc], cycmatch in occ.inds[gridmatch]
             push!(poss, cycmatch)
         end
-        cycles[cyc,:].matched = sample(poss, opt["matched"], replace=false)
+        # Lookup which cycles lack isolated spikes
+        poss = poss[cycles[poss, :].isolated_sum .=== 0]
+        samples_to_grab = min(length(poss), opt["matched"])
+        if samples_to_grab > 0
+            cycles[cyc,:].matched = sample(poss, samples_to_grab, replace=false)
+        end
     end
 end
 
@@ -200,6 +206,8 @@ else
     df = storage["df"]
     close(storage)
 end
+
+# Clean data frame
 
 # ========================
 #  . .     ,---.|    ,-.-.
@@ -304,8 +312,8 @@ Threads.@threads for (indep, relcyc, f) in glmsets
         y, XX = modelcols(apply_schema(f, schema(f, d)), d) 
         FittedPoisson = fit_mle(Poisson, Int.(y))
         models[(;indep, relcyc)] = m =  fit(GLM.GeneralizedLinearModel, XX, y, FittedPoisson)
-    catch
-        models[(;indep, relcyc)] = nothing
+    catch exception
+        models[(;indep, relcyc)] = exception
     end
     next!(prog)
 end
@@ -325,7 +333,7 @@ if isdefined(Main, :storage); close(storage); end
 # |_      _| | |_| | (_| | || (_| |  _| | | (_| | | | | | | | | | | (_| |
 #   |_||_|   |____/ \__,_|\__\__,_|_| |_|  \__,_|_| |_| |_|_|_| |_|\__, |
 #                                                                  |___/ 
-func = v->if v===nothing
+func = v->if v isa Exception
     NaN
 else
     adjr2(v, :devianceratio)
@@ -335,6 +343,16 @@ plot(
     glmplot(model_spikecount, "pfcca1", func, label="spike count, general"),
     glmplot(model_isocount,    "pfcca1", func, label="iso count"),
     glmplot(model_hasiso,     "pfcca1", func, label="iso occurance");
+    ylims=(0,1),
+    link=:y,
+    layout=grid(3,1)
+)
+
+
+plot(
+    glmplot(model_spikecount, "ca1pfc", func, label="spike count, general"),
+    glmplot(model_isocount,    "ca1pfc", func, label="iso count"),
+    glmplot(model_hasiso,     "ca1pfc", func, label="iso occurance");
     ylims=(0,1),
     link=:y,
     layout=grid(3,1)
