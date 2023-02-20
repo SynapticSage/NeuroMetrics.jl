@@ -178,7 +178,7 @@ module lfp
         else
             throw(ArgumentError("Unrecognized method=$method"))
         end
-        lfp[!,"cycle"] = cycle_labels
+        lfp[!,"cycle"] = cycle_labels .+ 1
 
         return lfp
     end
