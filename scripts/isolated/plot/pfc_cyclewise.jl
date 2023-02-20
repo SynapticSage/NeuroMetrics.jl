@@ -22,6 +22,7 @@ if !(:lfp in names(Main))
     Rdf = DataFrame(R; name=val)
     # Set cycle via start cycle times
     cycles.time = cycles.start
+    cycles.cycle = 1:size(cycles,1)
     DIutils.filtreg.register(cycles, Rdf, on="time", 
                              transfer=["cycle"], 
                              match=:prev)
@@ -52,9 +53,7 @@ if !(:lfp in names(Main))
     # Annotate spikes and Rdf
     dropmissing!(Rdf, :isolated_sum)
     Rdf_cycles    = groupby(Rdf, [:cycle])
-    iso_cycles = unique(@subset(Rdf, :isolated_sum .> 0).cycle)
     indexers = [:time,:isolated_sum]
-    selector = :area in propertynames(Rdf_cycles) ? Not([:time, :area]) : Not(:time)
 
     begin
         kws=(;label="")
@@ -66,6 +65,7 @@ if !(:lfp in names(Main))
              layout=grid(2,2))
     end
 end
+
 
 # ----------------------------------------
 # Obtain adaptive grid and match θ cycles
@@ -102,7 +102,7 @@ begin
     theta_cycle_dt = Float32(median(diff(cycles.start)))
     use_behavior = false
     epsilon = 1f-6
-    widths       = [10f0,  10f0,  speed_1σ, 1f0,   1f0]
+    widths  = [10f0,  10f0,  speed_1σ, 1f0,   1f0]
     grid_kws =
             (;widths,
               radiusinc    = [0.2f0, 0.2f0, 0f0,      0f0,   0f0],
@@ -115,7 +115,6 @@ begin
     grd = DIutils.binning.get_grid(use_behavior ? beh : cycles, props; grid_kws...)
     occ = DIutils.binning.get_occupancy_indexed(cycles, grd)
     println("Percent cycles counted ", sum(occ.count)/size(dropmissing(cycles,props),1))
-    Dict(prop=>nanextrema(collect(skipmissing(cycles[!,prop]))) for prop in props)
 
     # Save!!!
     # -----------------------------------------------------
@@ -137,54 +136,40 @@ begin
     end
 
     # Match the cycles
-    for cyc in iso_cycles
-        Rdf_cycles
+    cycles.hasocc = (!).(ismissing.(occ.datainds))
+    DIutils.filtreg.register(cycles, Rdf, transfer=["hasocc"], on="cycle")
+    iso_cycles = unique(@subset(Rdf, :isolated_sum .> 0, :hasocc .== true).cycle)
+    cycles.matched = Vector{Union{Vector{Int32}, Missing}}(missing, size(cycles,1))
+    Threads.@threads for cyc in iso_cycles
+        poss = [] 
+        for gridmatch in occ.datainds[cyc], cycmatch in occ.inds[gridmatch]
+            push!(poss, cycmatch)
+        end
+        cycles[cyc,:].matched = sample(poss, opt["matched"], replace=false)
     end
-end
-
-function grab_cycle_data(Rdf_cycles::GroupedDataFrame, cyc::Int)::DataFrame
-     # Address cycles of interest
-     🔑s = [(;cycle=cyc) 
-            for cyc in UnitRange(cyc-8, cyc+8)
-           ]
-
-    # Grab each cycle of activity
-    U = [begin
-         u = unstack(Rdf_cycles[🔑], indexers, :unit, val, combine=last) # TODO investigate nonunque
-         u = combine(u, selector .=> [mean], renamecols=false)
-     end
-        for 🔑 in 🔑s if 🔑 in keys(Rdf_cycles)]
-     # @info combine(groupby(Rdf_cycles[🔑],:unit),:time=>x->length(x)==length(unique(x)))
-
-    cycs = [🔑.cycle for 🔑 in 🔑s 
-                if 🔑 in keys(Rdf_cycles)]
-    relcycs = [🔑.cycle-cyc for 🔑 in 🔑s 
-                  if 🔑 in keys(Rdf_cycles)]
-
-    # Added df to list
-    hcat(DataFrame([cycs,relcycs],[:cycs,:relcycs]), 
-                 vcat(U...; cols=:union))
 end
 
 # GET CYCLEWISE INFORMATION
 fn = path_iso(opt; append="_cyclewise")
 if (!isfile(fn) && has_df) || opt["overwrite"]
 
-    df = Vector{Union{Missing,DataFrame}}(missing, length(iso_cycles))
+    df = Vector{Any}(undef, 16)
+    for thread in 1:Threads.nthreads()
+        df[thread] = Vector{Union{Missing,DataFrame}}(missing, length(iso_cycles))
+    end
     matched_cycle_holder = Vector{Union{Int,Missing}}(missing, opt["matched"])
     cyc_error =  Dict() 
     Infiltrator.clear_disabled!()
     prog = Progress(length(iso_cycles); desc="cycle df")
-    #= Threads.@threads =# for (i,cyc) in collect(enumerate(iso_cycles))
+    Threads.@threads for (i,cyc) in collect(enumerate(iso_cycles))
         try
-            
+            tid = Threads.threadid()
             # Push the isolated cycle and its preceding following cycles
-            push!(df, grab_cycle_data(Rdf_cycles, cyc))
-            matched_cycs = rand(@subset(cycles, :cycle .== cyc).matched,
-                                opt["matched"])
+            push!(df[tid], grab_cycle_data(Rdf_cycles, cyc; val, indexers))
+            matched_cycs = @subset(cycles, :cycle .== cyc).matched[1]
             # Push MATCHED cycles
             for mc in matched_cycs
-                push!(df, grab_cycle_data(Rdf_cycles, mc))
+                push!(df[tid], grab_cycle_data(Rdf_cycles, mc; val, indexers))
             end
             next!(prog)
         catch exception

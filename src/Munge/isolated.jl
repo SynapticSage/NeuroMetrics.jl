@@ -1,5 +1,6 @@
 module isolated
-    using JLD2, ArgParse, DrWatson, DIutils.dict, RecipesBase, GLM, DataFramesMeta
+    using JLD2, ArgParse, DrWatson, DIutils.dict, RecipesBase, GLM, 
+          DataFramesMeta, Statistics, NaNStatistics
     using DataStructures: OrderedDict
     import DIutils: Table
 
@@ -187,6 +188,32 @@ module isolated
         (data.relcyc, data.value)
     end
 
+    export grab_cycle_data
+    function grab_cycle_data(Rdf_cycles::GroupedDataFrame, cyc::Union{Int64,Int32}; 
+                val, indexers, cycrange::Int=8)::DataFrame
+         selector = :area in propertynames(Rdf_cycles) ? Not([:time, :area]) : Not(:time)
+         # Address cycles of interest
+         🔑s = [(;cycle=cyc) 
+                for cyc in UnitRange(cyc-cycrange, cyc+cycrange)
+               ]
+
+        # Grab each cycle of activity
+        U = [begin
+             u = unstack(Rdf_cycles[🔑], indexers, :unit, val, combine=last) # TODO investigate nonunque
+             u = combine(u, selector .=> [mean], renamecols=false)
+         end
+            for 🔑 in 🔑s if 🔑 in keys(Rdf_cycles)]
+         # @info combine(groupby(Rdf_cycles[🔑],:unit),:time=>x->length(x)==length(unique(x)))
+
+        cycs = [🔑.cycle for 🔑 in 🔑s 
+                    if 🔑 in keys(Rdf_cycles)]
+        relcycs = [🔑.cycle-cyc for 🔑 in 🔑s 
+                      if 🔑 in keys(Rdf_cycles)]
+
+        # Added df to list
+        hcat(DataFrame([cycs,relcycs],[:cycs,:relcycs]), 
+                     vcat(U...; cols=:union))
+    end
 
 
 end
