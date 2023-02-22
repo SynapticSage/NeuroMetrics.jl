@@ -158,7 +158,7 @@ module isolated
     """
     function Table.to_dataframe(D::AbstractDict, func::Function)::DataFrame
         kt = keytype(D)
-        D = Dict{kt, Any}(k=>func(v) for (k,v) in D)
+        D = Dict{kt, Any}(k=>func(k, v) for (k,v) in D)
         Table.to_dataframe(D)
     end
 
@@ -168,7 +168,6 @@ module isolated
     end
     function _handle_args(D::DataFrame, area::String; 
             groupargs=nothing, combineargs=nothing, kws...) 
-        @infiltrate
         if groupargs !== nothing
             @info "groupby" groupargs combineargs
             D = groupby(D, groupargs...) 

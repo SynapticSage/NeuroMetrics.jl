@@ -1,4 +1,4 @@
-begin
+# begin
     using GoalFetchAnalysis
     using .Timeshift, .Plot, .Timeshift.types, .Timeshift.shiftmetrics, 
           .Field.metrics, .Plot.receptivefield, .DIutils.namedtup, 
@@ -29,7 +29,7 @@ begin
     cycles    = data["cycles"]; @assert(cycles isa DataFrame)
     beh.speed = abs.(beh.smoothvel)
 
-end
+# end
 
 clab = OrderedDict(-1 => "nontask", 0 => "cue", 1=> "mem", missing=>"sleep")
 Munge.nonlocal.setclab(clab)
@@ -70,3 +70,25 @@ begin
     cycleplot(lfp; otherfield=[:broadraw, :smoothbroadraw, :filtbroadraw],
                    kws=[(;linewidth=0.25, linestyle=:dash), (;), (;linewidth=0.5, linestyle=:dash, legend=:outerbottomright, background_color=:gray)])
 end
+
+# CONSTANTS and trackers
+# --------
+val = :value
+opt["matched"] = 3    # how many matched non-iso cycles to add per iso cycle
+opt["has_df"] = false # tracks state about whether df var for glm is backed up
+                      # in a jld2 file
+matchprops = [:x, :y, :speed, :startWell, :stopWell]
+
+# DATAFRAME-IZE firing rate matrix
+# and add properties of interest
+# --------------------------------
+# Get dataframe of R
+Rdf = DataFrame(R; name=val)
+# Set cycle via start cycle times
+cycles.time = cycles.start;
+cycles.cycle = 1:size(cycles,1);
+DIutils.filtreg.register(cycles, Rdf, on="time", 
+                         transfer=["cycle"], 
+                         match=:prev)
+DIutils.filtreg.register(beh, Rdf, on="time", 
+                        transfer=String.(matchprops))
