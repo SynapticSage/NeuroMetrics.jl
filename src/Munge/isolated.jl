@@ -207,9 +207,11 @@ module isolated
     end
 
     export grab_cycle_data
-    function grab_cycle_data(Rdf_cycles::GroupedDataFrame, cyc::Union{Int64,Int32}; 
-                val, indexers, cycrange::Int=8, kws...)::DataFrame
-         selector = :area in propertynames(Rdf_cycles) ? Not([:time, :area]) : Not(:time)
+    function grab_cycle_data(Rdf_cycles::GroupedDataFrame, 
+            cyc::Union{Int64,Int32}, val::Symbol; indexers, 
+            cycrange::Int=8, kws...)::DataFrame
+         selector = :area in propertynames(Rdf_cycles) ? Not([:time, :area]) : 
+                                                         Not(:time)
          # Address cycles of interest
          🔑s = [(;cycle=cyc) 
                 for cyc in UnitRange(cyc-cycrange, cyc+cycrange)
@@ -217,20 +219,23 @@ module isolated
 
         # Grab each cycle of activity
         U = [begin
-             u = unstack(Rdf_cycles[🔑], indexers, :unit, val, combine=last) # TODO investigate nonunque
-             u = combine(u, selector .=> [mean], renamecols=false)
-         end
+                # TODO investigate nonunque
+                 u = unstack(Rdf_cycles[🔑], indexers, :unit, val,
+                             combine=last) 
+                 u = combine(u, selector .=> [mean], renamecols=false)
+             end
             for 🔑 in 🔑s if 🔑 in keys(Rdf_cycles)]
-         # @info combine(groupby(Rdf_cycles[🔑],:unit),:time=>x->length(x)==length(unique(x)))
+         # @info combine(groupby(Rdf_cycles[🔑],:unit),
+         #               :time=>x->length(x)==length(unique(x)))
 
         cycs = [🔑.cycle for 🔑 in 🔑s 
-                    if 🔑 in keys(Rdf_cycles)]
+                if 🔑 in keys(Rdf_cycles)]
         relcycs = [🔑.cycle-cyc for 🔑 in 🔑s 
-                      if 🔑 in keys(Rdf_cycles)]
+                   if 🔑 in keys(Rdf_cycles)]
 
         # Added df to list
         df = DataFrames.hcat(DataFrame([cycs,relcycs],[:cycs,:relcycs]), 
-                     vcat(U...; cols=:union))
+                             vcat(U...; cols=:union))
 
         for (key, val) in kws
             df[!,key] .= val
@@ -238,6 +243,28 @@ module isolated
         
         df
     end
-
-
+    function grab_cycle_data(Rdf_cycles::GroupedDataFrame,
+        cyc::Union{Int64,Int32}, vecofval::Vector{Symbol}; indexers, 
+        cycrange::Int=8, kws...)::DataFrame
+        dfs::Vector{DataFrame} = 
+            [grab_cycle_data(Rdf_cycles, cyc, v; indexers, cycrange, kws...)
+                for v in vecofval]
+        out = dfs[1]
+        on = ["cycs", "relcycs", "cyc_batch", "cyc_match"]
+        mutualvars = names(out)[tryparse.(Int,names(out)) .=== 
+                        nothing]
+        mutualvars = union(mutualvars,on)
+        for (v,i) in zip(vecofval[2:end], eachindex(dfs)[2:end])
+            # df = leftjoin(df, dfs[i][!,Not(mutualvars)]; 
+            #         on, makeunique=true, renamecols=""=>"i")
+            @assert all([all(out[!,col] .== dfs[i][!,col])
+                for col in on]) "Must match indices"
+            out = hcat(out, dfs[i][!,Not(mutualvars)]; 
+                        makeunique=true)
+            renames = Dict(x => replace(x, "_1"=>"_$(string(v))")
+                        for x in names(out) if occursin("_1",x))
+            rename!(out, renames)
+        end
+        out
+    end
 end
