@@ -1,22 +1,4 @@
-begin
-    #Imports
-    #-------
-    using DrWatson
-    quickactivate(expanduser("~/Projects/goal-code/"));
-
-    using GoalFetchAnalysis, .Timeshift, .Timeshift.types, .Timeshift.shiftmetrics,
-          .Field.metrics, .Plot, .Plot.receptivefield, .Munge.spiking, .Munge.nonlocal,
-          .DIutils.namedtup , .Munge.isolated, .Timeshift.checkpoint, .Plot.lfplot
-    Filt = DI.Filt
-    import DIutils.statistic: pfunc
-    import .Munge.timeshift: getshift
-
-    using DimensionalData, ProgressMeter, DataFrames, DataFramesMeta, Statistics,
-          NaNStatistics, StatsBase, StatsPlots, HypothesisTests, GLM, Plots, LazySets,
-          JLD2, Infiltrator
-    import DataStructures: OrderedDict
-    import DimensionalData: Between
-end
+include("imports_isolated.jl")
 
 datasets = (
             ("RY16",36,:ca1ref), ("RY22",21,:ca1ref),  #("super", 0, :ca1ref),
@@ -207,4 +189,47 @@ if init != 1; @warn("initial dataset is $init"); end
             Plot.save((;area=sp_area.area[1])) 
         end
     end
+
+    begin
+        Plot.setfolder("phase_locking", "filtsmooth_$animal-$day-$tet")
+        cycles.time = cycles.start
+        @info "Registering cycles"
+        DIutils.filtreg.register(cycles, spikes; on="time", transfer=["cycle"], match=:prev)
+        DIutils.filtreg.register(cycles, lfp; on="time",    transfer=["cycle"], match=:prev)
+        @info "Bandstopping broadraw"
+        lfp = Munge.lfp.bandstop(lfp, [57, 120], [63, 750]; field=:broadraw, scale=:raw, rounds=1, order=10)
+        @info "Smoothing broadraw"
+        lfp=Munge.lfp.smooth(lfp, :broadraw; ker=7.5)
+        @info "Plotting cycles"
+        cycleplot(lfp; otherfield=[:broadraw, :filtbroadraw],
+                       kws=[(;linewidth=0.25, linestyle=:dash), 
+                            (;linewidth=0.5, linestyle=:dash, legend=:outerbottomright, background_color=:gray)])
+        cycleplot(lfp; otherfield=[:broadraw, :smoothbroadraw, :filtbroadraw],
+                       kws=[(;linewidth=0.25, linestyle=:dash), (;), (;linewidth=0.5, linestyle=:dash, legend=:outerbottomright, background_color=:gray)])
+        Plot.save("filtsmooth")
+    end
+
+    # Obtain the firing rate matrix
+    R = Munge.spiking.torate(allspikes, beh)
+
+    # Get PFC_units
+    pfc_units = @subset(cells,:area.=="PFC").unit
+    pfc_units = intersect(pfc_units, collect(R.dims[2]))
+
+
+    # DATAFRAME-IZE firing rate matrix
+    # and add properties of interest
+    # --------------------------------
+    # Get dataframe of R
+    Rdf = DataFrame(R; name=val)
+    # Set cycle via start cycle times
+    cycles.time = cycles.start;
+    cycles.cycle = 1:size(cycles,1);
+    DIutils.filtreg.register(cycles, Rdf, on="time", 
+                             transfer=["cycle"], 
+                             match=:prev)
+    DIutils.filtreg.register(beh, Rdf, on="time", 
+                            transfer=String.(matchprops))
+
+
 end # end dataset loop

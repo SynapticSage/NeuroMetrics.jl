@@ -1,19 +1,38 @@
-
-# READY DATATYPES AND MODULES
-
 # IMPORTS AND DATA
 # --------
-using GLM, Lasso, Distributions, ThreadSafeDicts, DrWatson
-include(scriptsdir("isolated","load_isolated.jl"))
-@time include("../load_isolated.jl")
+checkpoint = true
+if checkpoint
+    include(scriptsdir("isolated","load_cyclewise_checkpoint.jl"))
+    @time include("../load_cyclewise_checkpoint.jl")
+else
+    include(scriptsdir("isolated","load_isolated.jl"))
+    @time include("../load_isolated.jl")
+end
+
+function commit_cycwise_vars()::Bool
+    has_df = false
+    jldopen(path_iso(opt; append="_cyclewise"), "a"; compress=true) do storage
+        for name in ("grd","occ","df", "model_isocount","model_hasiso",
+                     "model_spikecount", "ca1cycstat", "pfccycstat", 
+                     "cyccellstat")
+            if isdefined(Main, Symbol(name))
+                obj = @eval Main eval(Symbol($name))
+                if name in keys(storage)
+                    delete!(storage, name)
+                end
+                storage[name] = obj
+            end
+        end
+        has_df = "df" in keys(storage)
+    end
+    has_df
+end
 
 #   _  _     ____            _        _                     _ _        
 # _| || |_  | __ )  __ _ ___(_) ___  (_)___  ___  ___ _ __ (_) | _____ 
 #|_  ..  _| |  _ \ / _` / __| |/ __| | / __|/ _ \/ __| '_ \| | |/ / _ \
 #|_      _| | |_) | (_| \__ \ | (__  | \__ \ (_) \__ \ |_) | |   <  __/
 #  |_||_|   |____/ \__,_|___/_|\___| |_|___/\___/|___/ .__/|_|_|\_\___|
-#                                                    |_|               
-#     _        _       
 # ___| |_ __ _| |_ ___ 
 #/ __| __/ _` | __/ __|
 #\__ \ || (_| | |_\__ \
@@ -37,7 +56,7 @@ begin
     pfccycstat = combine(groupby(@subset(spikes, :area .== "PFC"), 
                     :cycle), 
     :isolated => sum => :pfcisosum, 
-    :unit => (n->unique(n)) => :diversity,
+    :unit => (n->unique(n)) => :pfcdiversity,
     [:isolated, :unit] => 
         ((i,u)->(length(unique(u[i.==true])))) => :pfcisodiv,
     [:isolated, :unit] => 
@@ -59,18 +78,22 @@ cyccellstat = combine(groupby(spikes, [:cycle, :unit]),
                      transfer=String.(setdiff(propertynames(ca1cycstat),
                                             [:cycle])))
     DIutils.filtreg.register(pfccycstat, obj, on="cycle", 
-                     transfer=String.(setdiff(propertynames(ca1cycstat),
+                     transfer=String.(setdiff(propertynames(pfccycstat),
                                             [:cycle])))
 end
 begin
     css = groupby(cyccellstat, :unit)
     for obj in (spikes, Rdf)
-        obj[!,:i] = Vector{Union{Int,Missing}}(missing, size(obj,1))
+        obj[!,:i] = zeros(Union{Missing,Int64}, size(obj,1))
         tmp = groupby(obj, :unit)
         K = intersect(keys(tmp.keymap), keys(tmp.keymap))
         @showprogress for k in K
-            DIutils.filtreg.register(css[k], tmp[k], on="cycle", 
-                transfer=["i"])
+            inds_css = (!).(ismissing.(css[k][!, :cycle]))
+            inds_tmp = (!).(ismissing.(tmp[k][!, :cycle]))
+            a,b = DIutils.filtreg.register(css[k][inds_css,:],
+                convert_type=Int64,
+                tmp[k][inds_tmp,:],  on="cycle", transfer=["i"])
+            css[k][inds_css,:], tmp[k][inds_tmp,:] = a, b
         end
     end
 end
@@ -79,17 +102,31 @@ DIutils.filtreg.register(cells, Rdf, on="unit", transfer=["area"])
 # Annotate spikes and Rdf
 dropmissing!(Rdf, :isolated_sum)
 Rdf_cycles    = groupby(Rdf, [:cycle])
-indexers = [:time,:isolated_sum]
+indexers = [:time, :isolated_sum, :pfcisolated_sum]
+commit_vars()
 
 begin
-    kws=(;label="")
-    plot(
-     (@df ca1cycstat histogram(:isolated_sum;xlabel="iso spikes emitted",kws...)),
-     (@df ca1cycstat histogram(:isodiversity;xlabel="# of uniq iso cells",kws...)),
-     (@df ca1cycstat histogram(:adjdiversity;ylabel="# of uniq adj cells",kws...)),
-     Plot.blank((plot();Plots.annotate!(0.5,0.5,text("Cycle statistics",14))),
+kws=(;label="")
+
+p1=plot(
+ (@df ca1cycstat histogram(:isolated_sum;xlabel="iso spikes emitted",kws...)),
+ (@df ca1cycstat histogram(:isodiv;xlabel="# of uniq iso cells",kws...)),
+ (@df ca1cycstat histogram(:adjdiv;ylabel="# of uniq adj cells",kws...)),
+ Plot.blank((plot();Plots.annotate!(0.5,0.5,text("CA1 cycle\nstatistics",14))),
+        visible=false, size=(100,50)),
+ layout=grid(2,2));
+
+p2=plot(
+ (@df pfccycstat histogram(:pfcisosum;xlabel="iso spikes emitted",kws...)),
+ (@df pfccycstat histogram(:pfcisodiv;xlabel="# of uniq iso cells",kws...)),
+ (@df pfccycstat histogram(:pfcadjdiv;ylabel="# of uniq adj cells",kws...)),
+ Plot.blank((plot();Plots.annotate!(0.5,0.5,text("PFC cycle\nstatistics",14))),
             visible=false, size=(100,50)),
-     layout=grid(2,2))
+    layout=grid(2,2)
+);
+
+    plot(p1,p2, size=(1000,500))
+
 end
 
 
@@ -98,8 +135,6 @@ end
 # |_  ..  _| | |\/| |/ _` | __/ __| '_ \  | __| '_ \ / _ \ __/ _` |
 # |_      _| | |  | | (_| | || (__| | | | | |_| | | |  __/ || (_| |
 #   |_||_|   |_|  |_|\__,_|\__\___|_| |_|  \__|_| |_|\___|\__\__,_|
-#                                                                  
-#                  _           
 #   ___ _   _  ___| | ___  ___ 
 #  / __| | | |/ __| |/ _ \/ __|
 # | (__| |_| | (__| |  __/\__ \
@@ -156,24 +191,9 @@ begin
     println("Percent cycles counted ",
             sum(occ.count)/size(dropmissing(cycles,matchprops),1))
 
-    # Save!!!
+    # Save!!! cyclewise specific
     # -----------------------------------------------------
-    has_df = false
-    jldopen(path_iso(opt; append="_cyclewise"), "a") do storage
-        if "grd" in keys(storage)
-            delete!(storage, "grd")
-        end
-        storage["grd"] = grd
-        if "occ" in keys(storage)
-            delete!(storage, "occ")
-        end
-        storage["occ"] = occ
-        if "cycles" in keys(storage)
-            delete!(storage, "cycles")
-        end
-        storage["cycles"] = cycles
-        has_df = "df" in keys(storage)
-    end
+    commit_cycwise_vars()
 
     # Match the cycles
     cycles.hasocc = (!).(ismissing.(occ.datainds))
@@ -196,6 +216,10 @@ begin
         end
     end
 
+    # Save!!! isolated general vars again after we've added info
+    # -----------------------------------------------------------
+    commit_vars()
+
 end
 
 #    _  _      ____      _                     _      
@@ -203,20 +227,23 @@ end
 # |_  ..  _| | |  _ / _ \ __|  / __| | | |/ __| |/ _ \
 # |_      _| | |_| |  __/ |_  | (__| |_| | (__| |  __/
 #   |_||_|    \____|\___|\__|  \___|\__, |\___|_|\___|
-#                                   |___/             
-#  _           _       _                
-# | |__   __ _| |_ ___| |__   ___  ___  
-# | '_ \ / _` | __/ __| '_ \ / _ \/ __| 
+# | |__   __ _| |_ ___| |__   ___  ___ | |
+# | '_ \ / _` | __/ __| '_ \ / _ \/ __| _|
 # | |_) | (_| | || (__| | | |  __/\__ \ 
 # |_.__/ \__,_|\__\___|_| |_|\___||___/ 
 #
 # (each iso/noniso cycle plus precedents and antecedents)
-                                      
 fn = path_iso(opt; append="_cyclewise")
 if (!isfile(fn) && has_df) || opt["overwrite"]
 
-    df = Vector{Any}(undef, 16)
-    for thread in 1:Threads.nthreads()
+    threading = true
+    if threading
+        nthreads = Threads.nthreads()
+    else
+        nthreads = 1
+    end
+    df = Vector{Vector{Union{Missing,DataFrame}}}(undef, nthreads)
+    for thread in 1:nthreads
         df[thread] = Vector{Union{Missing,DataFrame}}(missing,
             length(iso_cycles))
     end
@@ -224,17 +251,19 @@ if (!isfile(fn) && has_df) || opt["overwrite"]
     cyc_error =  Dict() 
     Infiltrator.clear_disabled!()
     prog = Progress(length(iso_cycles); desc="grabing cycle batches into df")
+    V = [val, :i]
     Threads.@threads for (i,cyc) in collect(enumerate(iso_cycles))
         try
-            tid = Threads.threadid()
+            tid = threading ? Threads.threadid() : 1
             cyc_batch = i
             # Push the isolated cycle and its preceding following cycles
-            push!(df[tid], grab_cycle_data(Rdf_cycles, cyc; val, indexers,
+            push!(df[tid], grab_cycle_data(Rdf_cycles, cyc, V; indexers,
                                             cyc_batch, cyc_match=0))
             matched_cycs = @subset(cycles, :cycle .== cyc).matched[1]
             # Push MATCHED cycles
             for (j,mc) in enumerate(matched_cycs)
-                push!(df[tid], grab_cycle_data(Rdf_cycles, mc; val, indexers, 
+                push!(df[tid], 
+                    grab_cycle_data(Rdf_cycles, mc; V, indexers, 
                                                 cyc_batch, cyc_match=j))
             end
             next!(prog)
@@ -261,8 +290,7 @@ if (!isfile(fn) && has_df) || opt["overwrite"]
         renamecols=false)
 
     # Checkpoint
-    rm(fn)
-    jldsave(fn; df)
+    commit_cycwise_vars()
 
 else
     storage = JLD2.jldopen(fn)
@@ -353,7 +381,7 @@ end
 formulae, models   = OrderedDict(), ThreadSafeDict()
 formulae["ca1pfc"] = construct_predict_iso(df, cells, "CA1", :has);
 formulae["pfcca1"] = construct_predict_iso(df, cells, "PFC", :has);
-@assert !isempty(first(values(formulae)))
+@assert !isempty(first(V(formulae)))
 glmsets = []
 for indep in ("ca1pfc", "pfcca1"), relcyc in -8:8, f in formulae[indep]
     push!(glmsets, (indep, relcyc, f))
@@ -397,7 +425,7 @@ if isdefined(Main, :storage); close(storage); end
 formulae, models   = OrderedDict(), ThreadSafeDict()
 formulae["ca1pfc"] = construct_predict_iso(df, cells, "CA1", :count);
 formulae["pfcca1"] = construct_predict_iso(df, cells, "PFC", :count);
-@assert !isempty(first(values(formulae)))
+@assert !isempty(first(V(formulae)))
 glmsets = []
 for indep in ("ca1pfc", "pfcca1"), relcyc in -8:8, f in formulae[indep]
     push!(glmsets, (indep, relcyc, f))
