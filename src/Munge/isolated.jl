@@ -265,6 +265,7 @@ module isolated
                         for x in names(out) if occursin("_1",x))
             rename!(out, renames)
         end
+        @assert "cyc_match" ∈ names(out)
         out
     end
 end

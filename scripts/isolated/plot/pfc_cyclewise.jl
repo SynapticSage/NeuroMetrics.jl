@@ -8,6 +8,7 @@ else
     include(scriptsdir("isolated","load_isolated.jl"))
     @time include("../load_isolated.jl")
 end
+include("../imports_isolated.jl")
 
 function commit_cycwise_vars()::Bool
     has_df = false
@@ -102,7 +103,7 @@ DIutils.filtreg.register(cells, Rdf, on="unit", transfer=["area"])
 # Annotate spikes and Rdf
 dropmissing!(Rdf, :isolated_sum)
 Rdf_cycles    = groupby(Rdf, [:cycle])
-indexers = [:time, :isolated_sum, :pfcisolated_sum]
+indexers = [:time, :isolated_sum, :pfcisosum]
 commit_vars()
 
 begin
@@ -244,14 +245,15 @@ if (!isfile(fn) && has_df) || opt["overwrite"]
     end
     df = Vector{Vector{Union{Missing,DataFrame}}}(undef, nthreads)
     for thread in 1:nthreads
-        df[thread] = Vector{Union{Missing,DataFrame}}(missing,
-            length(iso_cycles))
+        df[thread] = Vector{Union{Missing,DataFrame}}()
     end
     matched_cycle_holder = Vector{Union{Int,Missing}}(missing, opt["matched"])
     cyc_error =  Dict() 
     Infiltrator.clear_disabled!()
     prog = Progress(length(iso_cycles); desc="grabing cycle batches into df")
     V = [val, :i]
+    E, M = Threads.Atomic{Int}(0), Threads.Atomic{Int}(0)
+    #[(length(iso_cycles)-100):end]
     Threads.@threads for (i,cyc) in collect(enumerate(iso_cycles))
         try
             tid = threading ? Threads.threadid() : 1
@@ -261,25 +263,33 @@ if (!isfile(fn) && has_df) || opt["overwrite"]
                                             cyc_batch, cyc_match=0))
             matched_cycs = @subset(cycles, :cycle .== cyc).matched[1]
             # Push MATCHED cycles
+            if isempty(matched_cycs)
+                Threads.atomic_add!(M, 1)
+                continue
+            end
             for (j,mc) in enumerate(matched_cycs)
                 push!(df[tid], 
-                    grab_cycle_data(Rdf_cycles, mc; V, indexers, 
+                    grab_cycle_data(Rdf_cycles, mc, V; indexers, 
                                                 cyc_batch, cyc_match=j))
             end
             next!(prog)
         catch exception
             cyc_error[cyc] = exception
+            Threads.atomic_add!(E, 1)
         #     if mod(i, 100) == 0
         #         @info cyc_error
         #     end
-            sleep(0.1)
+            sleep(0.05)
             next!(prog)
         end
     end
-    @info cyc_error
+    printstyled("Cycles without match ", M[]/length(iso_cycles), 
+          "\nErrored cycles ", E[]/length(iso_cycles), color=:blink)
     vcatnonmiss(df) = vcat(df[(!).(ismissing.(df))]...)
     df = vcatnonmiss.(df)
     df = vcatnonmiss(df)
+    @assert :cyc_match ∈ propertynames(df) ||
+        unique(df.cyc_match)>1 "FUCK"
     df.has_iso = df.isolated_sum .> 0
     # Spike count
     neuroncols = names(df)[tryparse.(Int, names(df)) .!== nothing]
@@ -288,7 +298,9 @@ if (!isfile(fn) && has_df) || opt["overwrite"]
     df[:,neuroncols] .= round.(df[:,neuroncols])
     df = transform(df, neuroncols .=> n -> convert(Vector{Int64}, n), 
         renamecols=false)
-
+    # Clean data frame
+    col_all_zero = map(v->all(skipmissing(v.==0)), eachcol(df))
+    df = df[!, Not(names(df)[col_all_zero])]
     # Checkpoint
     commit_cycwise_vars()
 
@@ -297,11 +309,6 @@ else
     df = storage["df"]
     close(storage)
 end
-
-# Clean data frame
-col_all_zero = map(v->all(v.==0), eachcol(df))
-df = df[!, Not(names(df)[col_all_zero])]
-
 
 function get_dx_dy(df, relcyc)
     dx = @subset(df, :relcycs .== relcyc)
