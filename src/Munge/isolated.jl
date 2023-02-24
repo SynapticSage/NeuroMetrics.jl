@@ -103,15 +103,42 @@ module isolated
         opt
     end
 
-    export construct_predict_spikecount
-    function construct_predict_spikecount(df, cells, independent_area="CA1";
+    export construct_predict_isospikecount
+    function construct_predict_isospikecount(df, cells, input_area="CA1";
             other_vars=[], other_ind_vars=[])
         uArea = unique(cells.area)
         @assert length(uArea) == 2 "Only supports two area dataframes"
-        dependent_area = setdiff(uArea, [independent_area])
+        dependent_area = setdiff(uArea, [input_area])
 
         dep_neurons = @subset(cells,:area .==dependent_area).unit
-        ind_neurons = @subset(cells,:area .==independent_area).unit
+        ind_neurons = @subset(cells,:area .==input_area).unit
+        dep_neurons = string.(dep_neurons) .* "_i"
+        ind_neurons = string.(ind_neurons) 
+        filter!(n->n ∈ names(df), dep_neurons)
+        filter!(n->n ∈ names(df), ind_neurons)
+        
+        formulae = []
+        for nd in dep_neurons
+            ni = first(ind_neurons)
+            independents = GLM.Term(Symbol(ni))
+            for ni in ind_neurons[2:end]
+                independents += GLM.Term(Symbol(ni)) 
+            end
+            formula = GLM.Term(Symbol(nd)) ~ independents
+            push!(formulae, formula)
+        end
+        formulae
+    end
+
+    export construct_predict_spikecount
+    function construct_predict_spikecount(df, cells, input_area="CA1";
+            other_vars=[], other_ind_vars=[])
+        uArea = unique(cells.area)
+        @assert length(uArea) == 2 "Only supports two area dataframes"
+        dependent_area = setdiff(uArea, [input_area])
+
+        dep_neurons = @subset(cells,:area .==dependent_area).unit
+        ind_neurons = @subset(cells,:area .==input_area).unit
         filter!(n->string(n) ∈ names(df), dep_neurons)
         filter!(n->string(n) ∈ names(df), ind_neurons)
         
@@ -129,11 +156,11 @@ module isolated
     end
 
     export construct_predict_iso
-    function construct_predict_iso(df, cells, independent_area="CA1", type=:has;
+    function construct_predict_iso(df, cells, input_area="CA1", type=:has;
             other_vars=[], other_ind_vars=[])
         uArea = unique(cells.area)
         @assert length(uArea) == 2 "Only supports two area dataframes"
-        ind_neurons = @subset(cells,:area .==independent_area).unit
+        ind_neurons = @subset(cells,:area .==input_area).unit
         filter!(n->string(n) ∈ names(df), ind_neurons)
         formulae = []
         ni = first(ind_neurons)
@@ -268,4 +295,5 @@ module isolated
         @assert "cyc_match" ∈ names(out)
         out
     end
+
 end

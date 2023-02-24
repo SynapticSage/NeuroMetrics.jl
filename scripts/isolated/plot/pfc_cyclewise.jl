@@ -331,6 +331,65 @@ end
 #  OF SPIKE COUNTS  🔺
 # ========================
 
+for col in eachcol(df[!,[x for x in names(df) if occursin("_i", x)]] )
+    replace!(col, missing=>0)
+    col = convert(Vector{Union{Missing,Float64}}, col)
+end
+df[!,[x for x in names(df) if occursin("_i", x)]]
+
+ # Now let's take the formula and apply them
+ formulae, models, cache   = OrderedDict(), ThreadSafeDict(), ThreadSafeDict()
+ formulae["ca1pfc"] = construct_predict_isospikecount(df, cells, "CA1");
+ formulae["pfcca1"] = construct_predict_isospikecount(df, cells, "PFC");
+ @assert !isempty(first(values(formulae)))
+ glmsets = []
+ for indep in ("ca1pfc", "pfcca1"), relcyc in -8:8, f in formulae[indep]
+     push!(glmsets, (indep, relcyc, f))
+ end
+
+ prog = Progress(length(glmsets); desc="GLM spike counts")
+ #= Threads.@threads =# for (indep, relcyc, f) in glmsets
+    unit = parse(Int, replace(string(f.lhs),"_i"=>""))
+     try
+        dx, dy = dx_dy[relcyc]
+        cols = [string(ff) for ff in f.rhs]
+        XX = Matrix(dx[!,cols])
+        y  = Vector(dy[!,string(f.lhs)])
+        misses = (!).(ismissing.(y))
+        XX, y = XX[misses,:], Int.(y[misses])
+        FittedPoisson = fit_mle(Poisson, y)
+        # TODO better research glmnet -- do i need to link manually -- its
+        # negative output for a neural firing prediction
+        models[(;indep, relcyc, unit)] = m =  glm(XX, y, FittedPoisson)
+        # models[(;indep, relcyc, unit)] = m =  glmnetcv(XX, y,FittedPoisson)
+        #  mat"[$B, $stats] = lassoglm(double($XX), double($y), 'poisson', 
+        #   'alpha', 0.5, 'CV', 3, 'MCReps', 5, 'link', 'log')"
+        # models[(;indep, relcyc)] = (;B, stats)
+        cache[(;indep, relcyc, unit)] = (;XX, y)
+     catch exception
+         models[(;indep, relcyc, unit)] = exception
+         sleep(0.1)
+     end
+     next!(prog)
+ end
+
+ @info "saving spikcount"
+ if isdefined(Main, :storage); close(storage); end
+ storage = jldopen(fn, "a")
+ "model_spikecount" in keys(storage) ? delete!(storage, "model_spikecount") :
+    nothing
+ global storage["model_spikecount"] = model_isospikecount = models
+ @info "saved"
+ if isdefined(Main, :storage); close(storage); end
+
+# ========================
+#  . .     ,---.|    ,-.-.
+# -+-+-    |  _.|    | | |
+# -+-+-    |   ||    | | |
+#  ` `     `---'`---'` ' '
+#  OF SPIKE COUNTS  🔺
+# ========================
+
 # # Now let's take the formula and apply them
 # formulae, models, cache   = OrderedDict(), ThreadSafeDict(), ThreadSafeDict()
 # formulae["ca1pfc"] = construct_predict_spikecount(df, cells, "CA1");
