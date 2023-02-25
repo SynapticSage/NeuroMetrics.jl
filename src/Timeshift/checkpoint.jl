@@ -197,6 +197,7 @@ module checkpoint
         else
             D = Dict()
         end
+        @infiltrate
         D = merge(D, M)
         @info "Saving $name"
         if keytype(D) == Any
@@ -454,9 +455,10 @@ module checkpoint
     end
 
     function _load_data(name::String)
-        storage = jldopen(name, "r"; compress=true)
         obj = nothing
+        storage = nothing
         try
+            storage = jldopen(name, "r"; compress=true)
             obj = if length(keys(storage)) == 1 && "OBJ" ∈ keys(storage)
                 storage["OBJ"] 
             else

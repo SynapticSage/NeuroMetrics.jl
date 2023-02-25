@@ -255,11 +255,13 @@ if (!isfile(fn) && has_df) || opt["overwrite"]
     E, M = Threads.Atomic{Int}(0), Threads.Atomic{Int}(0)
     #[(length(iso_cycles)-100):end]
     Threads.@threads for (i,cyc) in collect(enumerate(iso_cycles))
+    unit = parse(Int,replace(string(f.lhs), "_i"=>""))
         try
             tid = threading ? Threads.threadid() : 1
             cyc_batch = i
             # Push the isolated cycle and its preceding following cycles
             push!(df[tid], grab_cycle_data(Rdf_cycles, cyc, V; indexers,
+                                            cycrange=opt["cycles"],
                                             cyc_batch, cyc_match=0))
             matched_cycs = @subset(cycles, :cycle .== cyc).matched[1]
             # Push MATCHED cycles
@@ -270,7 +272,8 @@ if (!isfile(fn) && has_df) || opt["overwrite"]
             for (j,mc) in enumerate(matched_cycs)
                 push!(df[tid], 
                     grab_cycle_data(Rdf_cycles, mc, V; indexers, 
-                                                cyc_batch, cyc_match=j))
+                                    cycrange=opt["cycles"],
+                                    cyc_batch, cyc_match=j))
             end
             next!(prog)
         catch exception
@@ -321,7 +324,12 @@ function get_dx_dy(df, relcyc)
     dy = sort(vcat([dy[kk] for kk in k]...), [:cyc_batch, :cyc_match])
     dx, dy
 end
-@time dx_dy = Dict(relcyc => get_dx_dy(df, relcyc) for relcyc in -8:8)
+@time dx_dy = Dict(relcyc => get_dx_dy(df, relcyc) for relcyc in 
+    -opt["cycles"]:opt["cycles"])
+
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 # ========================
 #  . .     ,---.|    ,-.-.
@@ -330,6 +338,9 @@ end
 #  ` `     `---'`---'` ' '
 #  OF SPIKE COUNTS  🔺
 # ========================
+using MATLAB
+mat"dbclear all"
+expit(x) = 1/(1+exp(-x))
 
 for col in eachcol(df[!,[x for x in names(df) if occursin("_i", x)]] )
     replace!(col, missing=>0)
@@ -343,7 +354,8 @@ df[!,[x for x in names(df) if occursin("_i", x)]]
  formulae["pfcca1"] = construct_predict_isospikecount(df, cells, "PFC");
  @assert !isempty(first(values(formulae)))
  glmsets = []
- for indep in ("ca1pfc", "pfcca1"), relcyc in -8:8, f in formulae[indep]
+for indep in ("ca1pfc", "pfcca1"), relcyc in -opt["cycles"]:opt["cycles"], 
+    f in formulae[indep]
      push!(glmsets, (indep, relcyc, f))
  end
 
@@ -356,15 +368,15 @@ df[!,[x for x in names(df) if occursin("_i", x)]]
         XX = Matrix(dx[!,cols])
         y  = Vector(dy[!,string(f.lhs)])
         misses = (!).(ismissing.(y))
-        XX, y = XX[misses,:], Int.(y[misses])
-        FittedPoisson = fit_mle(Poisson, y)
+        Dist =  Binomial()# fit_mle(Poisson, y)
         # TODO better research glmnet -- do i need to link manually -- its
         # negative output for a neural firing prediction
-        models[(;indep, relcyc, unit)] = m =  glm(XX, y, FittedPoisson)
-        # models[(;indep, relcyc, unit)] = m =  glmnetcv(XX, y,FittedPoisson)
-        #  mat"[$B, $stats] = lassoglm(double($XX), double($y), 'poisson', 
-        #   'alpha', 0.5, 'CV', 3, 'MCReps', 5, 'link', 'log')"
-        # models[(;indep, relcyc)] = (;B, stats)
+        # XX, y = XX[misses,:], expit.(Int.(y[misses]) .> 0)
+        # models[(;indep, relcyc, unit)] = m =  glm(XX, y, Dist)
+        # models[(;indep, relcyc, unit)] = m =  glmnetcv(XX, y, Dist)
+        XX, y = XX[misses,:], Int.(y[misses]) .> 0
+        @time mat"[$B, $stats] = lassoglm(double($XX), double($y), 'binomial', 'alpha', 0.5, 'CV', 3, 'MCReps', 5, 'link', 'log')"
+        models[(;indep, relcyc)] = (;B, stats)
         cache[(;indep, relcyc, unit)] = (;XX, y)
      catch exception
          models[(;indep, relcyc, unit)] = exception
@@ -396,7 +408,8 @@ df[!,[x for x in names(df) if occursin("_i", x)]]
 # formulae["pfcca1"] = construct_predict_spikecount(df, cells, "PFC");
 # @assert !isempty(first(values(formulae)))
 # glmsets = []
-# for indep in ("ca1pfc", "pfcca1"), relcyc in -8:8, f in formulae[indep]
+# for indep in ("ca1pfc", "pfcca1"), relcyc in -opt["cycles"]:opt["cycles"], 
+# f in formulae[indep]
 #     push!(glmsets, (indep, relcyc, f))
 # end
 #
@@ -447,9 +460,10 @@ df[!,[x for x in names(df) if occursin("_i", x)]]
 formulae, models   = OrderedDict(), ThreadSafeDict()
 formulae["ca1pfc"] = construct_predict_iso(df, cells, "CA1", :has);
 formulae["pfcca1"] = construct_predict_iso(df, cells, "PFC", :has);
-@assert !isempty(first(V(formulae)))
+@assert !isempty(first(values(formulae)))
 glmsets = []
-for indep in ("ca1pfc", "pfcca1"), relcyc in -8:8, f in formulae[indep]
+for indep in ("ca1pfc", "pfcca1"), relcyc in -opt["cycles"]:opt["cycles"],
+                                   f in formulae[indep]
     push!(glmsets, (indep, relcyc, f))
 end
 
@@ -491,9 +505,10 @@ if isdefined(Main, :storage); close(storage); end
 formulae, models   = OrderedDict(), ThreadSafeDict()
 formulae["ca1pfc"] = construct_predict_iso(df, cells, "CA1", :count);
 formulae["pfcca1"] = construct_predict_iso(df, cells, "PFC", :count);
-@assert !isempty(first(V(formulae)))
+@assert !isempty(first(values(formulae)))
 glmsets = []
-for indep in ("ca1pfc", "pfcca1"), relcyc in -8:8, f in formulae[indep]
+for indep in ("ca1pfc", "pfcca1"), relcyc in -opt["cycles"]:opt["cycles"], 
+    f in formulae[indep]
     push!(glmsets, (indep, relcyc, f))
 end
 
@@ -530,7 +545,7 @@ if isdefined(Main, :storage); close(storage); end
 # |_      _| |  __/| | (_) | |_| |_| | | | | (_| |
 #   |_||_|   |_|   |_|\___/ \__|\__|_|_| |_|\__, |
 #                                           |___/ 
-#
+
 Plot.setfolder("isolated", "glm")
 Plot.setappend((;animal, day, tet))
 
@@ -539,27 +554,38 @@ import Dates
 func = (k,v)->if v isa Exception || v === nothing
     NaN
 else
+    println(k)
     # adjr2(v, :devianceratio)
     if v isa GLMNet.GLMNetCrossValidation
         XX, y = cache[k]
-        y0 = GLMNet.predict(v, XX)
+        yp = GLMNet.predict(v, XX)
         #Metrics.r2_score(y0, y)
-        Dict("y"=>y, "y0"=>y0)
+        Dict("y"=>y, "y0"=>yp)
     elseif v isa StatisticalModel
         adjr2(v, :devianceratio)
+        # XX, y = cache[k]
+        # yp = GLM.predict(v, Float64.(XX))
+        # mae(yp, y)
     else
         NaN
     end
 end
-D = to_dataframe(model_spikecount, func)
+D = to_dataframe(model_isospikecount, func)
+# D = combine(groupby(D, :unit), :relcyc, :indep, :value=> v->v.-minimum(v), renamecols=false)
 
 Dsum = sort(combine(groupby(D, [:relcyc, :indep]), :value=>nanmedian=>:value),
         [:indep,:relcyc])
-@df @subset(Dsum,:indep .== "pfcca1") begin
-    scatter(:relcyc, :value, alpha=0.5, ylim=(0,1))
+begin
+    @df @subset(Dsum,:indep .== "pfcca1") begin
+        plot(:relcyc, :value, alpha=0.5, label="pfc->ca1")
+    end
+    @df @subset(Dsum,:indep .== "ca1pfc") begin
+        plot!(:relcyc, :value, alpha=0.5, label="ca1->pfc")
+    end
 end
 
-P=[(@df d scatter(:relcyc, :value, alpha=0.5, ylim=(0,1)))
+P=[(@df d scatter(:relcyc, :value, alpha=0.5, ylim=(0,1), ylabel="r2", 
+        c=:indep[1] .== "pfcca1" ? :red : :blue))
     for d in groupby(D, :unit)]
 
 plot(
@@ -581,3 +607,18 @@ plot(
     size=(600, 900)
 )
 Plot.save("iso, count and occur, date=$(Dates.now())")
+
+
+# Sandbox example
+using GLM
+samples = rand(100,2)
+coeff = arr.atleast2d([0.5, 2])'
+linear_part = vec(coeff * samples')
+out = expit.(linear_part)
+glm(samples, Float64.(out), Binomial())
+scatter(linear_part, out)
+m=glm(samples, Float64.(out), Binomial(), LogitLink())
+plot(linear_part, GLM.predict(m, samples))
+
+m2=glmnetcv(samples, string.(Float64.(out).> 0.75))
+

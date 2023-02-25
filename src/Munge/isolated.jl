@@ -75,6 +75,10 @@ module isolated
                 help = "inactive for now"
                 arg_type = Symbol
                 default = :all
+            "--cycles", "-c"
+                help = "how many cycles to explore ahead/behind"
+                arg_type = Int
+                default = 8
             "--overwrite"
                 help = "overwite checkpointed data"
                 arg_type = Bool
