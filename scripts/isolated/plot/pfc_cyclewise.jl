@@ -358,7 +358,6 @@ function run_glm(name::String,
     formula_method::Function, glmtool; Dist=Binomial(),
     unitwise::Bool, unitrep=[], xtransform=identity,
     ytransform=identity, methodsave::Bool=true)
-
     # Now let's take the formula and apply them
     formulae, models, cache = OrderedDict(), ThreadSafeDict(), ThreadSafeDict()
     formulae["ca1pfc"] = formula_method(df, cells, "CA1");
@@ -369,7 +368,6 @@ function run_glm(name::String,
         f in formulae[indep]
          push!(glmsets, (indep, relcyc, f))
      end
-
      prog = Progress(length(glmsets); desc="GLM spike counts")
      #= Threads.@threads =# for (indep, relcyc, f) in glmsets
         if unitwise
@@ -393,6 +391,7 @@ function run_glm(name::String,
                        continue
                else
                    @time mat"[$B, $stats] = lassoglm(double($XX), double($y), 'binomial', 'alpha', 0.5, 'CV', 3, 'MCReps', 5, 'link', 'log')"
+                    @infiltrate
                     mat"[$yhat, $dylo, $dyhi] = glmval($B, double($XX), 'log', $stats)"
                    Dict("B"=>B, "stats"=>stats, "type"=>:matlab, 
                         "ypred"=>yhat, "dylo"=>dylo, "dyhi"=>dyhi,
@@ -404,25 +403,26 @@ function run_glm(name::String,
                m =  glm(XX, y, Dist)
                Dict("B"=>B, "stats"=>stats, "type"=>:glmjl)
             elseif glmtool == :mlj
-                @infiltrate
                 @time begin
+                        @infiltrate
                     XX, y = MLJ.table(XX), y
-                    R = ElasticNetCVRegressor()
+                    R = ElasticNetCVRegressor(n_jobs=Threads.nthreads())
                     # μ = GLM.linkinv.(canonicallink(Dist), y)
                     yin = if Dist isa Binomial
-                        replace(y,0=>0.000000000001,1=>0.999999999999)
+                        replace(y,0=>0.0000000000001,1=>0.9999999999999)
                     else
                         y
                     end
                     η = GLM.linkfun.(canonicallink(Dist), 
                             yin)
                     m = machine(R, XX, η)
+                    # @info "machine info" info(R)
                     fit!(m)
                     ypred = MLJ.predict(m, XX)
                     ypred = GLM.linkinv.(canonicallink(Dist), ypred)
-                    plot(y, label="actual");plot!(ypred, label="pred")
+                    pltcomp = plot(y, label="actual");plot!(ypred, label="pred")
                 end
-                Dict("m"=>m, "type"=>:mlj, "ypred"=>ypred, 
+                Dict("m"=>m, "type"=>:mlj, "ypred"=>ypred, "pltcomp"=>pltcomp,
                     "mae"=>mae(y, ypred),
                         "adjr2"=>adjusted_r2_score(y,ypred,length(XX)))
             end
@@ -436,7 +436,6 @@ function run_glm(name::String,
         end
         next!(prog)
      end
-
      @info "saving spikcount"
      if isdefined(Main, :storage); close(Main.storage); end
      storage = jldopen(fn, "a")
@@ -451,7 +450,6 @@ function run_glm(name::String,
      finally
          if isdefined(Main, :storage); close(storage); end
      end
-
     return models
 end
 
@@ -488,8 +486,6 @@ model_cellhasiso = run_glm("model_cellcountiso", construct_predict_isospikecount
 #     push!(glmsets, (indep, relcyc, f))
 # end
 #
-# using GLMNet, MultivariateStats, MLJ, ScikitLearn
-# using MATLAB
 #
 # prog = Progress(length(glmsets); desc="GLM spike counts")
 # Threads.@threads for (indep, relcyc, f) in glmsets

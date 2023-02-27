@@ -1,14 +1,27 @@
-using GLM, Lasso, Distributions, ThreadSafeDicts
-@time include(scriptsdir("isolated","load_isolated.jl"))
-# @time include("./load_isolated.jl")
+using DrWatson; quickactivate("goal-code")
+include(scriptsdir("isolated","imports_isolated.jl"))
+include("./imports_isolated.jl")
+opt = parser()
+opt["cycles"] = 8
+# Data
+@time data = load_iso(opt)
+lfp       = data["lfp"]; @assert(lfp isa DataFrame)
+spikes    = data["spikes"] ; @assert(spikes isa DataFrame)
+allspikes = data["allspikes"]; @assert(allspikes isa DataFrame)
+tsk       = data["tsk"]; @assert(tsk isa DataFrame)
+cells     = data["cells"]; @assert(cells isa DataFrame)
+beh       = data["beh"]; @assert(beh isa DataFrame)
+cycles    = data["cycles"]; @assert(cycles isa DataFrame)
+Rdf       = data["Rdf"]; @assert(Rdf isa DataFrame)
+beh.speed = abs.(beh.smoothvel)
+
 fn = path_iso(opt; append="_cyclewise")
-@load "/home/ryoung/Projects/goal-code/data/isolated/iso_animal=RY16_day=36_tet=ca1ref.jld2"
-@load "/home/ryoung/Projects/goal-code/data/isolated/iso_animal=RY16_day=36_tet=ca1ref_cyclewise.jld2"
-
-# Clean data frame
-col_all_zero = map(v->all(v.==0), eachcol(df))
-df = df[!, Not(names(df)[col_all_zero])]
-
+grd = occ = df = nothing
+jldopen(fn, "r") do storage
+    @eval Main grd = $(storage["grd"])
+    @eval Main occ = $(storage["occ"])
+    @eval Main df  = $(storage["df"])
+end
 
 function get_dx_dy(df, relcyc)
     dx = @subset(df, :relcycs .== relcyc)
@@ -21,5 +34,6 @@ function get_dx_dy(df, relcyc)
     dy = sort(vcat([dy[kk] for kk in k]...), [:cyc_batch, :cyc_match])
     dx, dy
 end
-@time dx_dy = Dict(relcyc => get_dx_dy(df, relcyc) for relcyc in -8:8)
-
+@time dx_dy = Dict(relcyc => get_dx_dy(df, relcyc) for relcyc 
+    in -opt["cycles"]:opt["cycles"])
+DIutils.pushover("Finished load_cyclewise_checkpoint")

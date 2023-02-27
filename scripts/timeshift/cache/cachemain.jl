@@ -68,7 +68,7 @@ I = OrderedDict{NamedTuple, Any}()
 F = OrderedDict{NamedTuple, Any}()
 (animal, day, frac) = first(datasets)
 
-@showprogress "animal" for (animal, day, frac) in datasets #DI.animal_set
+@showprogress "animal" for (animal, day, frac) in datasets[2:end] #DI.animal_set
 
     @info "loop" animal day frac
 
@@ -78,14 +78,18 @@ F = OrderedDict{NamedTuple, Any}()
 
     if frac == :iso || frac == :adj
         lfp = DI.load_lfp(animal, day, tet=:ca1ref, subtract_earlytime=true)
+        @info "annotating cycles"
         Munge.lfp.annotate_cycles(lfp::DataFrame; 
                                   phase_col="phase", 
                                   method="peak-to-peak")
         histogram(lfp.time); histogram!(spikes.time)
+        @info "isolated cycles"
         spikes = Munge.spiking.isolated(spikes, lfp, refreshcyc=true)
         using Plot.lfplot
+        @info "registering"
         _, spikes = DIutils.filtreg.register(lfp, spikes; transfer=["phase"], on="time")
         #phasepl
+        @info "plotting"
         histogram(spikes.time, group=spikes.isolated, normalize=:pdf)
         histogram(spikes.phase, group=spikes.isolated, normalize=:pdf,
                   alpha=0.33)
@@ -146,8 +150,8 @@ F = OrderedDict{NamedTuple, Any}()
             @info "exception" exception
         end
     end
+    DIutils.pushover("Finished cachemain.jl $animal $day $frac",title="Timeshift")
 end
-pushover("Finished cachemain.jl",title="Timeshift")
 
 #savefile = datadir("timeshift","fixed_shifts_$shifts.serial")
 #serialize(savefile, (;F,I,shifts))
@@ -155,6 +159,5 @@ pushover("Finished cachemain.jl",title="Timeshift")
 
 overwrite = false
 archivestr = isempty(setdiff(unique([d[3] for d in datasets]), [:adj,:iso])) ? "iso" : ""
-
-# checkpoint.save_fields(F; overwrite, archive=archivestr);
+checkpoint.save_fields(F; overwrite, archive=archivestr);
 
