@@ -344,16 +344,57 @@ df[!,[x for x in names(df) if occursin("_i", x)]]
 #  OF SPIKE COUNTS  🔺
 # ========================
 include(scriptsdir("isolated","imports_isolated.jl"))
+function glm_matlab(XX, y)
+   @time mat"[$B, $stats] = lassoglm(double($XX), double($y), 'binomial', 'alpha', 0.5, 'CV', 3, 'MCReps', 5, 'link', 'log')"
+   idxLambdaMinDeviance = stats["IndexMinDeviance"]
+   intercept = stats["Intercept"]
+   B0   = intercept[Int(idxLambdaMinDeviance)];  
+   c = [B0; B[ :,Int(idxLambdaMinDeviance) ]]
+   ypred = mat"glmval($c, double($(XX)), 'log', $stats)"
+   #mat"[$ypred, $dlo, $dhi] = glmval($c, double($(XX)), 'log', $stats)"
+   @info "yhat size" size(ypred)
+   Dict("B"=>B, "stats"=>stats, "type"=>:matlab, 
+        "ypred"=>ypred, 
+        #"dylo"=>dylo, "dyhi"=>dyhi,
+        "mae"=>mae(y, ypred),
+        "adjr2"=>adjusted_r2_score(y,ypred,length(XX))
+        )
+end
+function glm_mlj(XX, y)
+    XX, y = MLJ.table(XX), y
+    R = ElasticNetCVRegressor(n_jobs=Threads.nthreads())
+    # μ = GLM.linkinv.(canonicallink(Dist), y)
+    yin = if Dist isa Binomial
+        replace(y,0=>0.0000000000001,1=>0.9999999999999)
+    else
+        y
+    end
+    η = GLM.linkfun.(canonicallink(Dist), 
+            yin)
+    m = machine(R, XX, η)
+    # @info "machine info" info(R)
+    fit!(m)
+    ypred = MLJ.predict(m, XX)
+    ypred = GLM.linkinv.(canonicallink(Dist), ypred)
+    pltcomp = plot(y, label="actual");plot!(ypred, label="pred")
+    Dict("m"=>m, "type"=>:mlj, "ypred"=>ypred, "pltcomp"=>pltcomp,
+        "mae"=>mae(y, ypred),
+            "adjr2"=>adjusted_r2_score(y,ypred,length(XX)))
+end
+function glm_glmjl(XX,y)
+   y =  expit.(Int.(y[misses]) .> 0)
+   m =  glm(XX, y, Dist)
+end
 """
 Shortcut function that handles applying my statsmodels formulae to each
 cut of the data andn running GLM with the chosen `glmtool`
 """
-function run_glm(name::String, 
+function run_glm(runname::String, 
     formula_method::Function, glmtool; Dist=Binomial(),
-    unitwise::Bool, unitrep=[], xtransform=identity,
-    ytransform=identity, methodsave::Bool=true)
+    unitwise::Bool, unitrep=[], xtrans=identity,
+    ytrans=identity, methodsave::Bool=true)
     # Now let's take the formula and apply them
-    formulae, models, cache = OrderedDict(), ThreadSafeDict(), ThreadSafeDict()
+    formulae, modelz, cache = OrderedDict(), ThreadSafeDict(), ThreadSafeDict()
     formulae["ca1pfc"] = formula_method(df, cells, "CA1");
     formulae["pfcca1"] = formula_method(df, cells, "PFC");
     @assert !isempty(first(values(formulae)))
@@ -378,58 +419,25 @@ function run_glm(name::String,
            XX = Matrix(dx[!,cols])
            y  = Vector(dy[!,string(f.lhs)])
            misses = (!).(ismissing.(y))
-           XX, y = xtransform.(XX[misses,:]), ytransform.(Int.(y[misses]))
-           models[key] = if glmtool == :matlab
-               if key ∈ keys(models) && 
-                   models[key] isa NamedTuple
+           XX, y = xtrans.(XX[misses,:]), ytrans.(Int.(y[misses]))
+           modelz[key] = if glmtool == :matlab
+               if key ∈ keys(modelz) && 
+                   modelz[key] isa NamedTuple
                        continue
                else
-                   @time mat"[$B, $stats] = lassoglm(double($XX), double($y), 'binomial', 'alpha', 0.5, 'CV', 3, 'MCReps', 5, 'link', 'log')"
-                   idxLambdaMinDeviance = mat"stats.IndexMinDeviance";
-                   B0   = mat"stats.Intercept(idxLambdaMinDeviance)";
-                   coef = mat"[B0; B(:,idxLambdaMinDeviance)]"
-                   mat"[$ypred, $dylo, $dyhi] = glmval($coef, double($(XX[1,:])), 'log', $stats)"
-                   @info "yhat size" size(ypred)
-                   
-                   Dict("B"=>B, "stats"=>stats, "type"=>:matlab, 
-                        "ypred"=>yhat, "dylo"=>dylo, "dyhi"=>dyhi,
-                        "mae"=>mae(y, ypred),
-                        "adjr2"=>adjusted_r2_score(y,ypred,length(XX))
-                        )
+                    glm_matlab(XX, y)
                end
             elseif glmtool == :glmjl
-               y =  expit.(Int.(y[misses]) .> 0)
-               m =  glm(XX, y, Dist)
-               Dict("B"=>B, "stats"=>stats, "type"=>:glmjl)
+                glm_glmjl(XX, y)
             elseif glmtool == :mlj
-                @time begin
-                    XX, y = MLJ.table(XX), y
-                    R = ElasticNetCVRegressor(n_jobs=Threads.nthreads())
-                    # μ = GLM.linkinv.(canonicallink(Dist), y)
-                    yin = if Dist isa Binomial
-                        replace(y,0=>0.0000000000001,1=>0.9999999999999)
-                    else
-                        y
-                    end
-                    η = GLM.linkfun.(canonicallink(Dist), 
-                            yin)
-                    m = machine(R, XX, η)
-                    # @info "machine info" info(R)
-                    fit!(m)
-                    ypred = MLJ.predict(m, XX)
-                    ypred = GLM.linkinv.(canonicallink(Dist), ypred)
-                    pltcomp = plot(y, label="actual");plot!(ypred, label="pred")
-                end
-                Dict("m"=>m, "type"=>:mlj, "ypred"=>ypred, "pltcomp"=>pltcomp,
-                    "mae"=>mae(y, ypred),
-                        "adjr2"=>adjusted_r2_score(y,ypred,length(XX)))
+                glm_mlj(XX, y)
             end
            # TODO better research glmnet -- do i need to link manually -- its
            # negative output for a neural firing prediction
            # models[(;indep, relcyc, unit)] = m =  glmnetcv(XX, y, Dist)
            cache[key] = (;XX, y)
         catch exception
-            models[(;indep, relcyc, unit)] = exception
+            modelz[(;indep, relcyc, unit)] = exception
             print("Error on $key, exception = $exception")
             sleep(0.1)
         end
@@ -439,9 +447,9 @@ function run_glm(name::String,
      if isdefined(Main, :storage); close(Main.storage); end
      storage = jldopen(fn, "a")
      try
-        name in keys(storage) ? delete!(storage, name) : nothing
-        storage[name] = models
-        storage[name * "_" * "$glmtrick"] = models
+        runname in keys(storage) ? delete!(storage, runname) : nothing
+        storage[runname] = modelz
+        storage[runname * "_" * "$glmtrick"] = modelz
      catch exception
         @warn exception
      else
@@ -449,123 +457,63 @@ function run_glm(name::String,
      finally
          if isdefined(Main, :storage); close(storage); end
      end
-    return models
+    return modelz
 end
 
+# ========================
+#  . .     ,---.|    ,-.-.
+# -+-+-    |  _.|    | | |
+# -+-+-    |   ||    | | |
+#  ` `     `---'`---'` ' '
+#  OF HAS isolated spike per cell  🔺
+# ========================
 model_cellhasiso = run_glm("model_cellhasiso", construct_predict_isospikecount, 
     :mlj; Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""], 
-    ytransform=x->Float64(x>0), xtransform=x->Float64(x))
+    ytrans=x->Float64(x>0), xtrans=x->Float64(x))
 
 model_cellhasiso_matlab = run_glm("model_cellhasiso", 
     construct_predict_isospikecount, 
     :matlab; Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""], 
-    ytransform=x->Float64(x>0), xtransform=x->Float64(x))
+    ytrans=x->Float64(x>0), xtrans=x->Float64(x))
 
 jldopen(fn, "a") do storage
     keys(storage)
 end
 
-model_cellhasiso = run_glm("model_cellcountiso", construct_predict_isospikecount, 
-    :mlj; Dist=Poisson(), unitwise=true, unitrep=["_i"=>""],
-    ytransform=x->Float64(x), xtransform=x->Float64(x)
+model_cellhasiso = run_glm("model_cellcountiso", 
+    construct_predict_isospikecount, :mlj; 
+    Dist=Distributions.Poisson(), 
+    unitwise=true, unitrep=["_i"=>""],
+    ytrans=x->Float64(x), xtrans=x->Float64(x)
 )
 
-# ========================
-#  . .     ,---.|    ,-.-.
-# -+-+-    |  _.|    | | |
-# -+-+-    |   ||    | | |
-#  ` `     `---'`---'` ' '
-#  OF SPIKE COUNTS  🔺
-# ========================
-
-# # Now let's take the formula and apply them
-# formulae, models, cache   = OrderedDict(), ThreadSafeDict(), ThreadSafeDict()
-# formulae["ca1pfc"] = construct_predict_spikecount(df, cells, "CA1");
-# formulae["pfcca1"] = construct_predict_spikecount(df, cells, "PFC");
-# @assert !isempty(first(values(formulae)))
-# glmsets = []
-# for indep in ("ca1pfc", "pfcca1"), relcyc in -opt["cycles"]:opt["cycles"], 
-# f in formulae[indep]
-#     push!(glmsets, (indep, relcyc, f))
-# end
-#
-#
-# prog = Progress(length(glmsets); desc="GLM spike counts")
-# Threads.@threads for (indep, relcyc, f) in glmsets
-#     unit = parse(Int,string(f.lhs))
-#     try
-#         dx, dy = dx_dy[relcyc]
-#         _, XX = modelcols(apply_schema(f, schema(f, dx)), dx)
-#         y, _  = modelcols(apply_schema(f, schema(f, dy)), dy)
-#         FittedPoisson = fit_mle(Poisson, Int.(y))
-#         # TODO better research glmnet -- do i need to link manually -- its
-#         # negative output for a neural firing prediction
-#         models[(;indep, relcyc, unit)] = m =  glm(XX, y, FittedPoisson)
-#         # models[(;indep, relcyc, unit)] = m =  glmnetcv(XX, y,FittedPoisson)
-#         #  mat"[$B, $stats] = lassoglm(double($XX), double($y), 'poisson', 
-#         #   'alpha', 0.5, 'CV', 3, 'MCReps', 5, 'link', 'log')"
-#         # models[(;indep, relcyc)] = (;B, stats)
-#         cache[(;indep, relcyc, unit)] = (;XX, y)
-#     catch exception
-#         models[(;indep, relcyc, unit)] = exception
-#         sleep(0.1)
-#     end
-#     next!(prog)
-# end
-#
-# @info "saving spikcount"
-# if isdefined(Main, :storage); close(storage); end
-# storage = jldopen(fn, "a")
-# "model_spikecount" in keys(storage) ? delete!(storage, "model_spikecount")
-#           : nothing
-# global storage["model_spikecount"] = model_spikecount = models
-# @info "saved"
-# if isdefined(Main, :storage); close(storage); end
+commit_cycwise_vars()
 
 # ========================
 #  . .     ,---.|    ,-.-.
 # -+-+-    |  _.|    | | |
 # -+-+-    |   ||    | | |
 #  ` `     `---'`---'` ' '
-#  OF HAS_ISO
+#  OF SPIKE COUNTS per cell  🔺
 # ========================
+model_spikecount = run_glm("model_spikecount", construct_predict_spikecount,
+    :mlj, Dist=Distributions.Poisson(), unitwise=true, 
+    xtrans=x->Float64(x), ytrans=x->Float64(x))
 
-# Now let's take the formula and apply them
-formulae, models   = OrderedDict(), ThreadSafeDict()
-formulae["ca1pfc"] = construct_predict_iso(df, cells, "CA1", :has);
-formulae["pfcca1"] = construct_predict_iso(df, cells, "PFC", :has);
-@assert !isempty(first(values(formulae)))
-glmsets = []
-for indep in ("ca1pfc", "pfcca1"), relcyc in -opt["cycles"]:opt["cycles"],
-                                   f in formulae[indep]
-    push!(glmsets, (indep, relcyc, f))
-end
+commit_cycwise_vars()
 
-prog = Progress(length(glmsets); desc="GLM has iso")
-Threads.@threads for (indep, relcyc, f) in glmsets
-    try
-        dx, dy = dx_dy[relcyc]
-        _, XX = modelcols(apply_schema(f, schema(f, dx)), dx)
-        y, _  = modelcols(apply_schema(f, schema(f, dy)), dy)
-        FittedBinomial = fit_mle(Binomial, 1, y)
-        models[(;indep, relcyc)] = m =  glm(XX, y, FittedBinomial)
-        # models[(;indep, relcyc)] = glm(XX, y, FittedBinomial)
-        # mat"[$B, $stats] = lassoglm(double($XX), double($y), 'binomial',
-        # 'alpha', 0.5, 'CV', 3, 'MCReps', 5, 'link', 'logit')"
-        # models[(;indep, relcyc)] = (;B, stats)
-    catch exception
-        models[(;indep, relcyc)] = exception
-    end
-    next!(prog)
-end
+# ========================
+#  . .     ,---.|    ,-.-.
+# -+-+-    |  _.|    | | |
+# -+-+-    |   ||    | | |
+#  ` `     `---'`---'` ' '
+#  OF HAS_ISO at all
+# ========================
+model_spikecount = run_glm("model_spikecount", construct_predict_iso,
+    :mlj, Dist=Distributions.Binomial(), unitwise=false, 
+    xtrans=x->Float64(x), ytrans=x->Float64(x))
 
-@info "saving spikcount"
-if isdefined(Main, :storage); close(storage); end
-storage = jldopen(fn, "a")
-"model_hasiso" in keys(storage) ? delete!(storage, "model_hasiso") : nothing
-global storage["model_hasiso"] = model_hasiso = models
-@info "saved"
-if isdefined(Main, :storage); close(storage); end
+commit_cycwise_vars()
 
 # ========================
 #  . .     ,---.|    ,-.-.
