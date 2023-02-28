@@ -10,25 +10,6 @@ else
 end
 include("../imports_isolated.jl")
 
-function commit_cycwise_vars()::Bool
-    has_df = false
-    jldopen(path_iso(opt; append="_cyclewise"), "a"; compress=true) do storage
-        for name in ("grd","occ","df", "model_isocount","model_hasiso",
-                     "model_spikecount", "ca1cycstat", "pfccycstat", 
-                     "cyccellstat")
-            if isdefined(Main, Symbol(name))
-                obj = @eval Main eval(Symbol($name))
-                if name in keys(storage)
-                    delete!(storage, name)
-                end
-                storage[name] = obj
-            end
-        end
-        has_df = "df" in keys(storage)
-    end
-    has_df
-end
-
 #   _  _     ____            _        _                     _ _        
 # _| || |_  | __ )  __ _ ___(_) ___  (_)___  ___  ___ _ __ (_) | _____ 
 #|_  ..  _| |  _ \ / _` / __| |/ __| | / __|/ _ \/ __| '_ \| | |/ / _ \
@@ -313,7 +294,7 @@ else
     close(storage)
 end
 
-function get_dx_dy(df, relcyc)
+function get_dx_dy(df, relcyc::Int)
     dx = @subset(df, :relcycs .== relcyc)
     dy = @subset(df, :relcycs .== 0)
     dx = groupby(dx, [:cyc_batch, :cyc_match])
@@ -324,16 +305,28 @@ function get_dx_dy(df, relcyc)
     dy = sort(vcat([dy[kk] for kk in k]...), [:cyc_batch, :cyc_match])
     dx, dy
 end
+function get_futurepast_blocks(df)
+    dxf = @subset(df, :relcycs .> 0)
+    dxp = @subset(df, :relcycs .<= 0)
+    dy = @subset(df, :relcycs .== 0)
+    dxp = groupby(dxp, [:cyc_batch, :cyc_match])
+    dxf = groupby(dxf, [:cyc_batch, :cyc_match])
+    dy = groupby(dy, [:cyc_batch, :cyc_match])
+    kxp, kxf, ky = keys(dxp.keymap), keys(dxf.keymap), keys(dy.keymap)
+    k = intersect(kxf,kxp,ky)
+    dxf = sort(vcat([dxf[kk] for kk in k]...), [:cyc_batch, :cyc_match], )
+    dxp = sort(vcat([dxp[kk] for kk in k]...), [:cyc_batch, :cyc_match], )
+    dy  = sort(vcat([dy[kk] for kk in k]...), [:cyc_batch, :cyc_match], )
+    Dict("pastcurr"=>(dxp, dy), "future"=>(dxf, dy))
+end
 @time dx_dy = Dict(relcyc => get_dx_dy(df, relcyc) for relcyc in 
     -opt["cycles"]:opt["cycles"])
+@time dx_dy = merge(dx_dy,
+    get_futurepast_blocks(df))
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-using MATLAB
-mat"dbclear all"
-using MLJ
-using MLJScikitLearnInterface: ElasticNetCVRegressor
 
 expit(x) = 1/(1+exp(-x))
 
@@ -350,6 +343,7 @@ df[!,[x for x in names(df) if occursin("_i", x)]]
 #  ` `     `---'`---'` ' '
 #  OF SPIKE COUNTS  🔺
 # ========================
+include(scriptsdir("isolated","imports_isolated.jl"))
 """
 Shortcut function that handles applying my statsmodels formulae to each
 cut of the data andn running GLM with the chosen `glmtool`
@@ -391,12 +385,17 @@ function run_glm(name::String,
                        continue
                else
                    @time mat"[$B, $stats] = lassoglm(double($XX), double($y), 'binomial', 'alpha', 0.5, 'CV', 3, 'MCReps', 5, 'link', 'log')"
-                    @infiltrate
-                    mat"[$yhat, $dylo, $dyhi] = glmval($B, double($XX), 'log', $stats)"
+                   idxLambdaMinDeviance = mat"stats.IndexMinDeviance";
+                   B0   = mat"stats.Intercept(idxLambdaMinDeviance)";
+                   coef = mat"[B0; B(:,idxLambdaMinDeviance)]"
+                   mat"[$ypred, $dylo, $dyhi] = glmval($coef, double($(XX[1,:])), 'log', $stats)"
+                   @info "yhat size" size(ypred)
+                   
                    Dict("B"=>B, "stats"=>stats, "type"=>:matlab, 
                         "ypred"=>yhat, "dylo"=>dylo, "dyhi"=>dyhi,
                         "mae"=>mae(y, ypred),
-                        "adjr2"=>adjusted_r2_score(y,ypred,length(XX)))
+                        "adjr2"=>adjusted_r2_score(y,ypred,length(XX))
+                        )
                end
             elseif glmtool == :glmjl
                y =  expit.(Int.(y[misses]) .> 0)
@@ -404,7 +403,6 @@ function run_glm(name::String,
                Dict("B"=>B, "stats"=>stats, "type"=>:glmjl)
             elseif glmtool == :mlj
                 @time begin
-                        @infiltrate
                     XX, y = MLJ.table(XX), y
                     R = ElasticNetCVRegressor(n_jobs=Threads.nthreads())
                     # μ = GLM.linkinv.(canonicallink(Dist), y)
@@ -432,6 +430,7 @@ function run_glm(name::String,
            cache[key] = (;XX, y)
         catch exception
             models[(;indep, relcyc, unit)] = exception
+            print("Error on $key, exception = $exception")
             sleep(0.1)
         end
         next!(prog)
@@ -454,13 +453,17 @@ function run_glm(name::String,
 end
 
 model_cellhasiso = run_glm("model_cellhasiso", construct_predict_isospikecount, 
-    :mlj; Dist=Binomial(), unitwise=true, unitrep=["_i"=>""], 
+    :mlj; Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""], 
     ytransform=x->Float64(x>0), xtransform=x->Float64(x))
 
 model_cellhasiso_matlab = run_glm("model_cellhasiso", 
     construct_predict_isospikecount, 
-    :matlab; Dist=Binomial(), unitwise=true, unitrep=["_i"=>""], 
+    :matlab; Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""], 
     ytransform=x->Float64(x>0), xtransform=x->Float64(x))
+
+jldopen(fn, "a") do storage
+    keys(storage)
+end
 
 model_cellhasiso = run_glm("model_cellcountiso", construct_predict_isospikecount, 
     :mlj; Dist=Poisson(), unitwise=true, unitrep=["_i"=>""],

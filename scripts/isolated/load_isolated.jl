@@ -27,24 +27,6 @@ Plot.setappend((;animal, day, tet))
 Munge.nonlocal.setunfilteredbeh(DI.load_behavior(animal,day);
                                animal, day)
 
-# Create a little save function I can run at any time
-# (these vars are refs to the data, and if those change,
-#  will commit them)
-function commit_vars()
-    varnames = (
-        ("lfp", "spikes", "tsk", "cells", "beh", "cycles", "Rdf", "opt")
-    )
-    jldopen(path_iso(opt), "a") do storage
-        for n in varnames
-            v = @eval Main eval(Symbol($n))
-            if n in keys(storage)
-                delete!(storage, n)
-            end
-            storage[n] = v
-        end
-    end
-end
-
 
 # CONSTANTS and trackers
 # --------
