@@ -1,3 +1,4 @@
+using GoalFetchAnalysis.Field.metrics: skipnan
 # IMPORTS AND DATA
 # --------
 checkpoint = true
@@ -327,8 +328,8 @@ end
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+include(scriptsdir("isolated","imports_isolated.jl"))
 
-expit(x) = 1/(1+exp(-x))
 
 for col in eachcol(df[!,[x for x in names(df) if occursin("_i", x)]] )
     replace!(col, missing=>0)
@@ -343,58 +344,17 @@ df[!,[x for x in names(df) if occursin("_i", x)]]
 #  ` `     `---'`---'` ' '
 #  OF SPIKE COUNTS  🔺
 # ========================
-include(scriptsdir("isolated","imports_isolated.jl"))
-function glm_matlab(XX, y)
-   @time mat"[$B, $stats] = lassoglm(double($XX), double($y), 'binomial', 'alpha', 0.5, 'CV', 3, 'MCReps', 5, 'link', 'log')"
-   idxLambdaMinDeviance = stats["IndexMinDeviance"]
-   intercept = stats["Intercept"]
-   B0   = intercept[Int(idxLambdaMinDeviance)];  
-   c = [B0; B[ :,Int(idxLambdaMinDeviance) ]]
-   ypred = mat"glmval($c, double($(XX)), 'log', $stats)"
-   #mat"[$ypred, $dlo, $dhi] = glmval($c, double($(XX)), 'log', $stats)"
-   @info "yhat size" size(ypred)
-   Dict("B"=>B, "stats"=>stats, "type"=>:matlab, 
-        "ypred"=>ypred, 
-        #"dylo"=>dylo, "dyhi"=>dyhi,
-        "mae"=>mae(y, ypred),
-        "adjr2"=>adjusted_r2_score(y,ypred,length(XX))
-        )
-end
-function glm_mlj(XX, y)
-    XX, y = MLJ.table(XX), y
-    R = ElasticNetCVRegressor(n_jobs=Threads.nthreads())
-    # μ = GLM.linkinv.(canonicallink(Dist), y)
-    yin = if Dist isa Binomial
-        replace(y,0=>0.0000000000001,1=>0.9999999999999)
-    else
-        y
-    end
-    η = GLM.linkfun.(canonicallink(Dist), 
-            yin)
-    m = machine(R, XX, η)
-    # @info "machine info" info(R)
-    fit!(m)
-    ypred = MLJ.predict(m, XX)
-    ypred = GLM.linkinv.(canonicallink(Dist), ypred)
-    pltcomp = plot(y, label="actual");plot!(ypred, label="pred")
-    Dict("m"=>m, "type"=>:mlj, "ypred"=>ypred, "pltcomp"=>pltcomp,
-        "mae"=>mae(y, ypred),
-            "adjr2"=>adjusted_r2_score(y,ypred,length(XX)))
-end
-function glm_glmjl(XX,y)
-   y =  expit.(Int.(y[misses]) .> 0)
-   m =  glm(XX, y, Dist)
-end
 """
 Shortcut function that handles applying my statsmodels formulae to each
 cut of the data andn running GLM with the chosen `glmtool`
 """
-function run_glm(runname::String, 
+function run_glm!(runname::String, 
     formula_method::Function, glmtool; Dist=Binomial(),
-    unitwise::Bool, unitrep=[], xtrans=identity,
-    ytrans=identity, methodsave::Bool=true)
+    unitwise::Bool, unitrep=[], xtrans::Function=identity,
+    ytrans::Function=identity, methodsave::Bool=true,
+    cache=ThreadSafeDict(), modelz=ThreadSafeDict())
     # Now let's take the formula and apply them
-    formulae, modelz, cache = OrderedDict(), ThreadSafeDict(), ThreadSafeDict()
+    formulae = OrderedDict() 
     formulae["ca1pfc"] = formula_method(df, cells, "CA1");
     formulae["pfcca1"] = formula_method(df, cells, "PFC");
     @assert !isempty(first(values(formulae)))
@@ -420,23 +380,25 @@ function run_glm(runname::String,
            y  = Vector(dy[!,string(f.lhs)])
            misses = (!).(ismissing.(y))
            XX, y = xtrans.(XX[misses,:]), ytrans.(Int.(y[misses]))
+           @infiltrate
            modelz[key] = if glmtool == :matlab
                if key ∈ keys(modelz) && 
                    modelz[key] isa NamedTuple
                        continue
                else
-                    glm_matlab(XX, y)
+                    glm_matlab(XX, y, Dist)
                end
             elseif glmtool == :glmjl
-                glm_glmjl(XX, y)
+                glm_glmjl(XX, y, Dist)
             elseif glmtool == :mlj
-                glm_mlj(XX, y)
+                glm_mlj(XX, y, Dist)
             end
            # TODO better research glmnet -- do i need to link manually -- its
            # negative output for a neural firing prediction
            # models[(;indep, relcyc, unit)] = m =  glmnetcv(XX, y, Dist)
            cache[key] = (;XX, y)
         catch exception
+                @infiltrate
             modelz[(;indep, relcyc, unit)] = exception
             print("Error on $key, exception = $exception")
             sleep(0.1)
@@ -457,7 +419,18 @@ function run_glm(runname::String,
      finally
          if isdefined(Main, :storage); close(storage); end
      end
-    return modelz
+    return modelz, cache
+end
+
+function initorget(key)
+    jldopen(path_iso(opt;append="_cyclewise"), "r") do storage
+        print("Possible keys", keys(storage))
+        if key in keys(storage)
+            storage[key]
+        else
+            ThreadSafeDict()
+        end
+    end
 end
 
 # ========================
@@ -467,20 +440,24 @@ end
 #  ` `     `---'`---'` ' '
 #  OF HAS isolated spike per cell  🔺
 # ========================
-model_cellhasiso = run_glm("model_cellhasiso", construct_predict_isospikecount, 
+model_cellhasiso, cacheiso = initorget("model_cellhasiso_mlj"), ThreadSafeDict()
+run_glm!("model_cellhasiso_mlj", construct_predict_isospikecount, 
     :mlj; Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""], 
-    ytrans=x->Float64(x>0), xtrans=x->Float64(x))
+    ytrans=x->Float64(x>0), xtrans=x->Float64(x),
+    modelz=model_cellhasiso, cache=cacheiso
+)
 
-model_cellhasiso_matlab = run_glm("model_cellhasiso", 
-    construct_predict_isospikecount, 
+model_cellhasiso_matlab = initorget("model_cellhasiso_matlab")
+run_glm!("model_cellhasiso_matlab", construct_predict_isospikecount, 
     :matlab; Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""], 
-    ytrans=x->Float64(x>0), xtrans=x->Float64(x))
+    ytrans=x->Float64(x>0), xtrans=x->Float64(x),
+    modelz=model_cellhasiso_matlab)
 
 jldopen(fn, "a") do storage
     keys(storage)
 end
 
-model_cellhasiso = run_glm("model_cellcountiso", 
+model_cellhasiso = run_glm!("model_cellcountiso", 
     construct_predict_isospikecount, :mlj; 
     Dist=Distributions.Poisson(), 
     unitwise=true, unitrep=["_i"=>""],
@@ -496,7 +473,7 @@ commit_cycwise_vars()
 #  ` `     `---'`---'` ' '
 #  OF SPIKE COUNTS per cell  🔺
 # ========================
-model_spikecount = run_glm("model_spikecount", construct_predict_spikecount,
+model_spikecount, cache = run_glm!("model_spikecount", construct_predict_spikecount,
     :mlj, Dist=Distributions.Poisson(), unitwise=true, 
     xtrans=x->Float64(x), ytrans=x->Float64(x))
 
@@ -513,53 +490,9 @@ model_spikecount = run_glm("model_spikecount", construct_predict_iso,
     :mlj, Dist=Distributions.Binomial(), unitwise=false, 
     xtrans=x->Float64(x), ytrans=x->Float64(x))
 
+# TODO add iso_count
+
 commit_cycwise_vars()
-
-# ========================
-#  . .     ,---.|    ,-.-.
-# -+-+-    |  _.|    | | |
-# -+-+-    |   ||    | | |
-#  ` `     `---'`---'` ' '
-#  OF ISO COUNT
-# ========================
-
-# Now let's take the formula and apply them
-formulae, models   = OrderedDict(), ThreadSafeDict()
-formulae["ca1pfc"] = construct_predict_iso(df, cells, "CA1", :count);
-formulae["pfcca1"] = construct_predict_iso(df, cells, "PFC", :count);
-@assert !isempty(first(values(formulae)))
-glmsets = []
-for indep in ("ca1pfc", "pfcca1"), relcyc in -opt["cycles"]:opt["cycles"], 
-    f in formulae[indep]
-    push!(glmsets, (indep, relcyc, f))
-end
-
-prog = Progress(length(glmsets); desc="GLM iso counts")
-Threads.@threads for (indep, relcyc, f) in glmsets
-    try
-        dx, dy = dx_dy[relcyc]
-        _, XX = modelcols(apply_schema(f, schema(f, dx)), dx)
-        y, _  = modelcols(apply_schema(f, schema(f, dy)), dy)
-        FittedPoisson = fit_mle(Poisson, Int.(y))
-        models[(;indep, relcyc)] = m =  fit(GLM.GeneralizedLinearModel, XX, y,
-                                            FittedPoisson)
-        # mat"[$B, $stats] = lassoglm(double($XX), double($y), 'binomial',
-        # 'alpha', 0.5, 'CV', 3, 'MCReps', 5, 'link', 'logit')"
-        # models[(;indep, relcyc)] = (;B, stats)
-    catch exception
-        models[(;indep, relcyc)] = exception
-    end
-    next!(prog)
-end
-
-@info "saving isocount"
-if isdefined(Main, :storage); close(storage); end
-storage = jldopen(fn,"a")
-"model_isocount" in keys(storage) ? delete!(storage, "model_isocount") : nothing
-global storage["model_isocount"] = model_isocount = models
-@info "saved"
-if isdefined(Main, :storage); close(storage); end
-
 
 #    _  _     ____  _       _   _   _             
 #  _| || |_  |  _ \| | ___ | |_| |_(_)_ __   __ _ 
@@ -569,19 +502,24 @@ if isdefined(Main, :storage); close(storage); end
 #                                           |___/ 
 
 Plot.setfolder("isolated", "glm")
-Plot.setappend((;animal, day, tet))
+Plot.setappend((;animal=opt["animal"], day=opt["day"], tet=opt["tet"]))
 
-func = (k,v)->if v isa Exception || v === nothing
+grabfield(x::String) = (k,v)->if v isa Exception || v === nothing
     NaN
 else
-    try v["adjr2"]
+    try v[x]
     catch NaN end
 end
-D = to_dataframe(model_cellhasiso, func)
-# D = combine(groupby(D, :unit), :relcyc, :indep, :value=> v->v.-minimum(v), renamecols=false)
+grabfield(x::Vector{String}) = (k,v)->if v isa Exception || v === nothing
+    Dict(k=>NaN for k in x)
+else
+    try Dict(k=>v[k] for k in x)
+    catch; Dict(k=>NaN for k in x); end
+end
 
-Dsum = sort(combine(groupby(D, [:relcyc, :indep]), :value=>nanmean=>:value),
-        [:indep,:relcyc])
+D = to_dataframe(model_cellhasiso, grabfield("adjr2"))
+Dsum = sort(combine(groupby(D, [:relcyc, :indep]), 
+    :value=> (x->nanmean(collect(DIutils.skipnan(x)))) =>:value), [:indep,:relcyc])
 p = begin
     @df @subset(Dsum,:indep .== "pfcca1") begin
         plot(:relcyc, :value, alpha=0.5, label="pfc->ca1")
@@ -590,23 +528,41 @@ p = begin
         plot!(:relcyc, :value, alpha=0.5, label="ca1->pfc")
     end
 end
-ylims!(0,1)
-
-P=[(@df d scatter(:relcyc, :value, alpha=0.5, ylim=(0,1), ylabel="r2", 
+P=[(@df d scatter(:relcyc, :value, alpha=0.5, ylabel="r2", tickfontsize=3,
         c=:indep[1] .== "pfcca1" ? :red : :blue))
     for d in groupby(D, :unit)]
+using Blink, Interact
+ui = @manipulate for i in eachindex(P)
+    P[i]
+end; w=Window(); body!(w,ui)
+
+D = to_dataframe(model_cellhasiso, grabfield("mae"))
+Dsum = sort(combine(groupby(D, [:relcyc, :indep]), 
+    :value=> (x->nanmean(collect(DIutils.skipnan(x)))) =>:value), [:indep,:relcyc])
+p = begin
+    @df @subset(Dsum,:indep .== "pfcca1") begin
+        plot(:relcyc, :value, alpha=0.5, label="pfc->ca1")
+    end
+    @df @subset(Dsum,:indep .== "ca1pfc") begin
+        plot!(:relcyc, :value, alpha=0.5, label="ca1->pfc")
+    end
+end
+
+D = to_dataframe(model_cellhasiso, grabfield("mae"))
+
+
 
 plot(
     plot(
-        glmplot(model_isocount, "pfcca1", func, label="iso count"),
-        glmplot(model_hasiso,   "pfcca1", func, label="iso occurance");
+        glmplot(model_isocount, "pfcca1", grabfield, label="iso count"),
+        glmplot(model_hasiso,   "pfcca1", grabfield, label="iso occurance");
         link=:y,
         layout=grid(2,1),
         title= "pfc -> ca1"
     ),
     plot(
-        glmplot(model_isocount, "ca1pfc", func, label="iso count"),
-        glmplot(model_hasiso,   "ca1pfc", func, label="iso occurance");
+        glmplot(model_isocount, "ca1pfc", grabfield, label="iso count"),
+        glmplot(model_hasiso,   "ca1pfc", grabfield, label="iso occurance");
         link=:y,
         layout=grid(2,1),
         title="ca1 -> pfc"
@@ -615,25 +571,5 @@ plot(
     size=(600, 900)
 )
 Plot.save("iso, count and occur, date=$(Dates.now())")
-
-
-# Sandbox example
-using GLM
-samples = rand(100,2)
-coeff = arr.atleast2d([0.5, 2])'
-linear_part = vec(coeff * samples')
-out = expit.(linear_part)
-glm(samples, Float64.(out), Binomial())
-scatter(linear_part, out)
-m=glm(samples, Float64.(out), Binomial(), LogitLink())
-plot(linear_part, GLM.predict(m, samples))
-
-m2=glmnetcv(samples, string.(Float64.(out).> 0.75))
-
-# PLOTTING MATLAB's GLM
-M = filter(m ->m isa NamedTuple, collect(values(model_isospikecount)))
-for i in eachindex(M)
-    mat"lassoPlot($(M[i].B), $(M[i].stats), 'PlotType', 'L1')"
-end
 
 

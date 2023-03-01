@@ -1,9 +1,8 @@
 using GoalFetchAnalysis
-GFA =GoalFetchAnalysis
-using GFA.Timeshift, GFA.Plot, GFA.Timeshift.types, GFA.Timeshift.shiftmetrics,
-    GFA.Field.metrics, GFA.Plot.receptivefield, GFA.DIutils.namedtup,
-    GFA.Munge.isolated, GFA.Munge.nonlocal, GFA.Munge.spiking, GFA.Plot.lfplot,
-    GFA.DIutils.arr
+using .Timeshift, .Plot, .Timeshift.types, .Timeshift.shiftmetrics,
+    .Field.metrics, .Plot.receptivefield, .DIutils.namedtup,
+    .Munge.isolated, .Munge.nonlocal, .Munge.spiking, .Plot.lfplot,
+    .DIutils.arr
 Filt = DI.Filt
 using .Munge.timeshift: getshift
 using .DIutils.statistic: pfunc

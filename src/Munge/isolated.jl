@@ -3,6 +3,18 @@ module isolated
           DataFramesMeta, Statistics, NaNStatistics, Infiltrator
     using DataStructures: OrderedDict
     import DIutils: Table
+    
+    using GLMNet, MultivariateStats, MLJ, ScikitLearn, Metrics
+    using MATLAB, Plots
+
+    init_mlj = false
+
+    function __init__mlj()
+        @eval isolated init_mlj = true
+        if !init_mlj
+            @eval isolated using MLJScikitLearnInterface: ElasticNetCVRegressor
+        end
+    end
 
     export path_iso
     function path_iso(animal::String, day::Int, tet=:ca1ref)::String
@@ -298,6 +310,70 @@ module isolated
         end
         @assert "cyc_match" ∈ names(out)
         out
+    end
+
+    export expit
+    expit(x) = 1/(1+exp(-x))
+
+    export glm_matlab
+    """
+    glm_matlab
+    """
+function glm_matlab(XX, y, dist=Binomial(), link=nothing)
+       nameit(x) = lowercase(begin
+            first(split(first(split(string(x),"{")), "("))
+        end
+        )
+        link = link === nothing ? 
+        replace(nameit(canonicallink(dist)),"link"=>"") : link
+        dist = dist isa String ? dist : nameit(dist)
+        @info "matlab" link dist
+       @time mat"[$B, $stats] = lassoglm(double($XX), double($y), $dist, 'alpha', 0.5, 'CV', 3, 'MCReps', 5, 'link', $link)"
+       idxLambdaMinDeviance = stats["IndexMinDeviance"]
+       intercept = stats["Intercept"]
+       B0   = intercept[Int(idxLambdaMinDeviance)];  
+       c = [B0; B[ :,Int(idxLambdaMinDeviance) ]]
+       ypred = mat"glmval($c, double($(XX)), $link, $stats)"
+       #mat"[$ypred, $dlo, $dhi] = glmval($c, double($(XX)), 'log', $stats)"
+       @info "yhat size" size(ypred)
+       # pltcomp = plot(y; label="actual")
+       # plot!(ypred; label="pred")
+       Dict("B"=>B, "stats"=>stats, "type"=>:matlab, 
+        "ypred"=>ypred, "coef"=>c[2:end],
+            "mae"=>Metrics.mae(y, ypred),
+            "adjr2"=>Metrics.adjusted_r2_score(y,ypred,length(XX))
+            )
+    end
+
+    export glm_mlj
+    function glm_mlj(XX, y, Dist=Binomial())
+        __init__mlj()
+        XX, y = MLJ.table(XX), y
+        R = ElasticNetCVRegressor(n_jobs=Threads.nthreads())
+        # μ = GLM.linkinv.(canonicallink(Dist), y)
+        yin = if Dist isa Binomial || Dist isa Poisson
+            replace(y,0=>0.0000000000001,1=>0.9999999999999)
+        else
+            y
+        end
+        η = GLM.linkfun.(canonicallink(Dist), 
+                yin)
+        m = MLJ.machine(R, XX, η)
+        # @info "machine info" info(R)
+        MLJ.fit!(m)
+        ypred = MLJ.predict(m, XX)
+        ypred = GLM.linkinv.(canonicallink(Dist), ypred)
+        # pltcomp = plot(y, label="actual")
+        # plot!(ypred, label="pred")
+        Dict("m"=>m, "type"=>:mlj, "ypred"=>ypred, 
+            "mae"=>Metrics.mae(y, ypred), "coef"=>m.fitresult[1].coef_,
+                "adjr2"=>Metrics.adjusted_r2_score(y,ypred,length(XX)))
+    end
+
+    export glm_glmjl
+    function glm_glmjl(XX,y)
+       y =  expit.(Int.(y[misses]) .> 0)
+       m =  glm(XX, y, Dist)
     end
 
 end
