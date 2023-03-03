@@ -1,5 +1,6 @@
 module spiking
 
+    using Base: test_success
     using StatsBase
     using DataFrames
     using ImageFiltering
@@ -243,16 +244,32 @@ module spiking
         isolated
 
     find isolated spikes in the manneer of Jai/Frank 2021
+
+    update
     """
     function isolated(spikes::DataFrame,  theta::Union{DataFrame,Nothing}; 
                       cycle=:cycle, refreshcyc=false, kws...)
+
+        print("Got here")
         if refreshcyc || !hasproperty(spikes, Symbol(cycle)) 
-            DIutils.filtreg.register(theta, spikes; on="time", transfer=[String(cycle)])
+            DIutils.filtreg.register(theta, spikes; on="time", 
+            transfer=[String(cycle)])
         end
-        prog = Progress(length(unique(spikes.unit)); desc="Adding isolation stats")
-        combine(groupby(spikes, :unit), 
-                     x->(i=isolated(x; kws...);next!(prog);i)
-                     )
+        prog = Progress(length(unique(spikes.unit)); 
+                        desc="Adding isolation stats")
+        func = x->(i=isolated(x; kws...);next!(prog);i)
+        # combine(groupby(spikes, :unit), func)
+        spikes = groupby(spikes, :unit)
+        Threads.@threads for cell in spikes
+            try
+                func(cell)
+            catch exception
+                print(exception)
+                sleep(0.1)
+            end
+        end
+        @infiltrate
+        combine(spikes, identity)
     end
     function isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle, include_samples::Bool=false, overwrite=false)
         explore = setdiff(-N:N,0)
@@ -268,36 +285,43 @@ module spiking
         if overwrite || (include_samples && !hasproperty(spikes, :isosamples))
             spikes[!,:meancyc] = Vector{Union{Missing,Vector}}(missing, size(spikes,1))
         end
-        cycles = groupby(spikes, cycle_prop)
+        spcycles = groupby(spikes, cycle_prop)
         if all(ismissing.(spikes[!,cycle_prop]))
-            @warn "All cycles are missing" spikes.unit[1]
+            @warn "All cycles are missing" unit=spikes.unit[1]
         end
         #if length(cycles) > 1
             #@warn  "You only have 1 cycle"
         #end
         #(c,cycle) =  first(enumerate(cycles))
-        for (c,cycle) in enumerate(cycles)
+        print("Running unit ", spikes.unit[1])
+        for (c,cycle) in enumerate(spcycles)
             # find the N closest cycles
-            explore_cycles = unique(max.(min.(c .+ explore, [size(cycles,1)]),[1]))
+            explore_cycles = unique(max.(min.(c .+ explore, 
+                                        [size(spcycles,1)]),[1]))
             if length(explore_cycles) < length(explore)
                 cycle.isolated .= false
 
-                center_times = [abs(mean(c.time)-mean(cycle.time)) for c in cycles[explore_cycles]]
-                order = sortperm(center_times)
+                center_times = [abs(mean(c.time)-mean(cycle.time)) 
+                                for c in spcycles[explore_cycles]]
+                order   = sortperm(center_times)
                 nearest = explore_cycles[order] # TODO
-                cycle_prox = [abs(cycle[1,cycle_prop] - other_cyc[1,cycle_prop])
-                              for other_cyc in cycles[nearest]]
+                cycle_prox = [abs(cycle[1,cycle_prop] - 
+                              other_cyc[1,cycle_prop])
+                              for other_cyc in spcycles[nearest]]
                 nearestcyc = minimum(cycle_prox)
                 meancyc    = mean(cycle_prox)
                 cycle.meancyc    .= meancyc
                 cycle.nearestcyc .= nearestcyc
 
             else
-                center_times = [abs(mean(c.time)-mean(cycle.time)) for c in cycles[explore_cycles]]
+                center_times = [abs(mean(c.time)-mean(cycle.time)) 
+                for c in spcycles[explore_cycles]]
                 order = sortperm(center_times)
-                nearest = explore_cycles[order[1:N]] # TODO make this match TODO above
-                cycle_prox = [abs(cycle[1,cycle_prop] - other_cyc[1,cycle_prop])
-                              for other_cyc in cycles[nearest]]
+                # TODO make this match TODO above
+                nearest = explore_cycles[order[1:N]] 
+                cycle_prox = [abs(cycle[1,cycle_prop] - 
+                                other_cyc[1,cycle_prop])
+                              for other_cyc in spcycles[nearest]]
                 nearestcyc = minimum(cycle_prox)
                 meancyc    = mean(cycle_prox)
                 isolated   = meancyc > thresh
