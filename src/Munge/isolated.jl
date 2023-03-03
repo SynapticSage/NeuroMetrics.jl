@@ -1,11 +1,19 @@
 module isolated
+    import DIutils
+    using DIutils.binning
+    import Logging
+
     using JLD2, ArgParse, DrWatson, DIutils.dict, RecipesBase, GLM, 
           DataFramesMeta, Statistics, NaNStatistics, Infiltrator
     using DataStructures: OrderedDict
+    import Distributions
     import DIutils: Table
+    using ProgressMeter
     
     using GLMNet, MultivariateStats, MLJ, ScikitLearn, Metrics
     using MATLAB, Plots
+    using Random
+    using MLJScikitLearnInterface: ElasticNetCVRegressor
 
     init_mlj = false
 
@@ -249,6 +257,126 @@ module isolated
         (data.relcyc, data.value)
     end
 
+    export match_cycles!
+    """match_cycles!
+    
+    find null cycles non-iso spike cycles matched on behavior per
+    iso spike cycle
+    """
+    function match_cycles!(cycles::DataFrame, Rdf::DataFrame, 
+        occ::IndexedAdaptiveOcc; matches=3,
+        iso_cycles = nothing)
+
+        if iso_cycles === nothing
+           unique(@subset(Rdf, :isolated_sum .> 0, 
+                                              :hasocc .== true).cycle) 
+        end
+
+        cycles.hasocc = (!).(ismissing.(occ.datainds))
+        DIutils.filtreg.register(cycles, Rdf, transfer=["hasocc"], on="cycle")
+        
+        cycles.matched = Vector{Union{Vector{Int32}, Missing}}(missing,
+            size(cycles,1))
+        Threads.@threads for cyc in iso_cycles
+            poss = [] 
+            # Lookup cycles that match this isolated spike cycle's animal 
+            # behavior
+            for gridmatch in occ.datainds[cyc], cycmatch in occ.inds[gridmatch]
+                push!(poss, cycmatch)
+            end
+            # Lookup which cycles lack isolated spikes
+            poss = poss[cycles[poss, :].isolated_sum .=== 0]
+            samples_to_grab = min(length(poss), matches)
+            if samples_to_grab > 0
+                cycles[cyc,:].matched = 
+                        Distributions.sample(poss, samples_to_grab, 
+                        replace=false)
+            end
+        end
+    end
+    
+    export df_FRpercycle_and_matched
+    """
+    df_FRpercycle_and_matches
+    
+    obtain the fr per theta cycle of interest, relative cylces to it, and
+    cycles without isolated spikes matched on behavior
+    """
+    function df_FRpercycle_and_matched(cycles, Rdf_cycles, beh, val,
+            ; threading::Bool=true,
+                indexers=[:time, :isolated_sum, :pfcisosum], cyrange=8)::DataFrame
+
+        if threading
+            nthreads = Threads.nthreads()
+        else
+            nthreads = 1
+        end
+        df = Vector{Vector{Union{Missing,DataFrame}}}(undef, nthreads)
+        for thread in 1:nthreads
+            df[thread] = Vector{Union{Missing,DataFrame}}()
+        end
+        # matched_cycle_holder = 
+        #         Vector{Union{Int,Missing}}(missing, opt["matched"])
+        cyc_error =  Dict() 
+        Infiltrator.clear_disabled!()
+        prog = Progress(length(iso_cycles); 
+                         desc="grabing cycle batches into df")
+        V = [val, :i]
+        E, M = Threads.Atomic{Int}(0), Threads.Atomic{Int}(0)
+        #[(length(iso_cycles)-100):end]
+        Threads.@threads for (i,cyc) in collect(enumerate(iso_cycles))
+            # unit = parse(Int,replace(string(f.lhs), "_i"=>""))
+            try
+                tid = threading ? Threads.threadid() : 1
+                cyc_batch = i
+                # Push the isolated cycle and its preceding following cycles
+                push!(df[tid], 
+                    grab_cycle_data(Rdf_cycles, cyc, V; indexers,
+                                                cycrange=cyrange,
+                                                cyc_batch, cyc_match=0))
+                matched_cycs = @subset(cycles, :cycle .== cyc).matched[1]
+                # Push MATCHED cycles
+                if isempty(matched_cycs)
+                    Threads.atomic_add!(M, 1)
+                    continue
+                end
+                for (j,mc) in enumerate(matched_cycs)
+                    push!(df[tid], 
+                        grab_cycle_data(Rdf_cycles, mc, V; indexers, 
+                                        cycrange=opt["cycles"],
+                                        cyc_batch, cyc_match=j))
+                end
+                next!(prog)
+            catch exception
+                cyc_error[cyc] = exception
+                Threads.atomic_add!(E, 1)
+            #     if mod(i, 100) == 0
+            #         @info cyc_error
+            #     end
+                sleep(0.05)
+                next!(prog)
+            end
+        end
+        printstyled("Cycles without match ", M[]/length(iso_cycles), 
+              "\nErrored cycles ", E[]/length(iso_cycles), color=:blink)
+        vcatnonmiss(df) = vcat(df[(!).(ismissing.(df))]...)
+        df = vcatnonmiss.(df)
+        df = vcatnonmiss(df)
+        @assert :cyc_match ∈ propertynames(df) ||
+            unique(df.cyc_match)>1 "FUCK"
+        df.has_iso = df.isolated_sum .> 0
+        # Spike count
+        neuroncols = names(df)[tryparse.(Int, names(df)) .!== nothing]
+        # TODO not INT because it's gaussian smoothed
+        df[:,neuroncols] .*= median(diff(beh.time)) 
+        df[:,neuroncols] .= round.(df[:,neuroncols])
+        df = transform(df, neuroncols .=> n -> convert(Vector{Int64}, n), 
+            renamecols=false)
+        # Clean data frame
+        col_all_zero = map(v->all(skipmissing(v.==0)), eachcol(df))
+        df = df[!, Not(names(df)[col_all_zero])]
+    end
+
     export grab_cycle_data
     function grab_cycle_data(Rdf_cycles::GroupedDataFrame, 
             cyc::Union{Int64,Int32}, val::Symbol; indexers, 
@@ -352,22 +480,24 @@ function glm_matlab(XX, y, dist=Binomial(), link=nothing)
         R = ElasticNetCVRegressor(n_jobs=Threads.nthreads())
         # μ = GLM.linkinv.(canonicallink(Dist), y)
         yin = if Dist isa Binomial || Dist isa Poisson
-            replace(y,0=>0.0000000000001,1=>0.9999999999999)
+            replace(y, 0=>0.0000000000001, 1=>0.9999999999999)
         else
             y
         end
         η = GLM.linkfun.(canonicallink(Dist), 
                 yin)
+        # Logging.disable_logging(Logging.Warn)
         m = MLJ.machine(R, XX, η)
         # @info "machine info" info(R)
         MLJ.fit!(m)
+        # Logging.disable_logging(Logging.Debug)
         ypred = MLJ.predict(m, XX)
         ypred = GLM.linkinv.(canonicallink(Dist), ypred)
         # pltcomp = plot(y, label="actual")
         # plot!(ypred, label="pred")
         Dict("m"=>m, "type"=>:mlj, "ypred"=>ypred, 
             "mae"=>Metrics.mae(y, ypred), "coef"=>m.fitresult[1].coef_,
-                "adjr2"=>Metrics.adjusted_r2_score(y,ypred,length(XX)))
+            "adjr2"=>Metrics.adjusted_r2_score(y,ypred,length(XX)))
     end
 
     export glm_glmjl

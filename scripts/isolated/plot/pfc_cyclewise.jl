@@ -84,7 +84,7 @@ DIutils.filtreg.register(cells, Rdf, on="unit", transfer=["area"])
 
 # Annotate spikes and Rdf
 dropmissing!(Rdf, :isolated_sum)
-Rdf_cycles    = groupby(Rdf, [:cycle])
+Rdf_cycles  = groupby(Rdf, [:cycle])
 indexers = [:time, :isolated_sum, :pfcisosum]
 commit_vars()
 
@@ -112,22 +112,24 @@ p2=plot(
 
 end
 
-
-#    _  _     __  __       _       _       _   _          _        
-#  _| || |_  |  \/  | __ _| |_ ___| |__   | |_| |__   ___| |_ __ _ 
-# |_  ..  _| | |\/| |/ _` | __/ __| '_ \  | __| '_ \ / _ \ __/ _` |
-# |_      _| | |  | | (_| | || (__| | | | | |_| | | |  __/ || (_| |
-#   |_||_|   |_|  |_|\__,_|\__\___|_| |_|  \__|_| |_|\___|\__\__,_|
-#   ___ _   _  ___| | ___  ___ 
-#  / __| | | |/ __| |/ _ \/ __|
-# | (__| |_| | (__| |  __/\__ \
-#  \___|\__, |\___|_|\___||___/
-#       |___/                  
 # 
+#    _  _     ____                                
+#  _| || |_  |  _ \ _ __ ___ _ __   __ _ _ __ ___ 
+# |_  ..  _| | |_) | '__/ _ \ '_ \ / _` | '__/ _ \
+# |_      _| |  __/| | |  __/ |_) | (_| | | |  __/
+#   |_||_|   |_|   |_|  \___| .__/ \__,_|_|  \___|
+#                           |_|                   
+#                  _       _       _   _          _        
+#  _ __ ___   __ _| |_ ___| |__   | |_| |__   ___| |_ __ _ 
+# | '_ ` _ \ / _` | __/ __| '_ \  | __| '_ \ / _ \ __/ _` |
+# | | | | | | (_| | || (__| | | | | |_| | | |  __/ || (_| |
+# |_| |_| |_|\__,_|\__\___|_| |_|  \__|_| |_|\___|\__\__,_|
+#                                                          
 # ( For matching isolated theta cycles with behavior "equivalent"
 #  non-isolated theta cycles)
 begin
 
+    # (1) Place behavior into cycles
     # Obtain average of properties of interest per θ cycle
     # -----------------------------------------------------
     for prop in matchprops
@@ -151,6 +153,7 @@ begin
         cycles[!,prop] = replace(cycles[!,prop], NaN=>missing)
     end
 
+    # (2) Get an adaptive grid
     # Get the grid binning and occupancy of these cycles
     # -----------------------------------------------------
     speed_1σ  = Float32(std(beh.speed))
@@ -174,36 +177,16 @@ begin
     println("Percent cycles counted ",
             sum(occ.count)/size(dropmissing(cycles,matchprops),1))
 
-    # Save!!! cyclewise specific
-    # -----------------------------------------------------
-    commit_cycwise_vars()
-
-    # Match the cycles
-    cycles.hasocc = (!).(ismissing.(occ.datainds))
-    DIutils.filtreg.register(cycles, Rdf, transfer=["hasocc"], on="cycle")
-    iso_cycles = unique(
-        @subset(Rdf, :isolated_sum .> 0, :hasocc .== true).cycle)
-    cycles.matched = Vector{Union{Vector{Int32}, Missing}}(missing,
-        size(cycles,1))
-    Threads.@threads for cyc in iso_cycles
-        poss = [] 
-        # Lookup cycles that match this isolated spike cycle's animal behavior
-        for gridmatch in occ.datainds[cyc], cycmatch in occ.inds[gridmatch]
-            push!(poss, cycmatch)
-        end
-        # Lookup which cycles lack isolated spikes
-        poss = poss[cycles[poss, :].isolated_sum .=== 0]
-        samples_to_grab = min(length(poss), opt["matched"])
-        if samples_to_grab > 0
-            cycles[cyc,:].matched = sample(poss, samples_to_grab, replace=false)
-        end
-    end
-
-    # Save!!! isolated general vars again after we've added info
-    # -----------------------------------------------------------
-    commit_vars()
-
 end
+
+# Match cycles
+iso_cycles = unique(@subset(Rdf, :isolated_sum .> 0, 
+                                          :hasocc .== true).cycle).cycles
+match_cycles!(cycles, Rdf, occ; matches=opt["matches"], iso_cycles)
+
+# Save!!! cyclewise specific
+# -----------------------------------------------------
+commit_cycwise_vars()
 
 #    _  _      ____      _                     _      
 #  _| || |_   / ___| ___| |_    ___ _   _  ___| | ___ 
@@ -216,110 +199,12 @@ end
 # |_.__/ \__,_|\__\___|_| |_|\___||___/ 
 #
 # (each iso/noniso cycle plus precedents and antecedents)
-fn = path_iso(opt; append="_cyclewise")
-if (!isfile(fn) && has_df) || opt["overwrite"]
+df = df_FRpercycle_and_matched(cycles, Rdf_cycles, beh; 
+                               indexers, cycrange=opt["cycles"])
 
-    threading = true
-    if threading
-        nthreads = Threads.nthreads()
-    else
-        nthreads = 1
-    end
-    df = Vector{Vector{Union{Missing,DataFrame}}}(undef, nthreads)
-    for thread in 1:nthreads
-        df[thread] = Vector{Union{Missing,DataFrame}}()
-    end
-    matched_cycle_holder = Vector{Union{Int,Missing}}(missing, opt["matched"])
-    cyc_error =  Dict() 
-    Infiltrator.clear_disabled!()
-    prog = Progress(length(iso_cycles); desc="grabing cycle batches into df")
-    V = [val, :i]
-    E, M = Threads.Atomic{Int}(0), Threads.Atomic{Int}(0)
-    #[(length(iso_cycles)-100):end]
-    Threads.@threads for (i,cyc) in collect(enumerate(iso_cycles))
-    unit = parse(Int,replace(string(f.lhs), "_i"=>""))
-        try
-            tid = threading ? Threads.threadid() : 1
-            cyc_batch = i
-            # Push the isolated cycle and its preceding following cycles
-            push!(df[tid], grab_cycle_data(Rdf_cycles, cyc, V; indexers,
-                                            cycrange=opt["cycles"],
-                                            cyc_batch, cyc_match=0))
-            matched_cycs = @subset(cycles, :cycle .== cyc).matched[1]
-            # Push MATCHED cycles
-            if isempty(matched_cycs)
-                Threads.atomic_add!(M, 1)
-                continue
-            end
-            for (j,mc) in enumerate(matched_cycs)
-                push!(df[tid], 
-                    grab_cycle_data(Rdf_cycles, mc, V; indexers, 
-                                    cycrange=opt["cycles"],
-                                    cyc_batch, cyc_match=j))
-            end
-            next!(prog)
-        catch exception
-            cyc_error[cyc] = exception
-            Threads.atomic_add!(E, 1)
-        #     if mod(i, 100) == 0
-        #         @info cyc_error
-        #     end
-            sleep(0.05)
-            next!(prog)
-        end
-    end
-    printstyled("Cycles without match ", M[]/length(iso_cycles), 
-          "\nErrored cycles ", E[]/length(iso_cycles), color=:blink)
-    vcatnonmiss(df) = vcat(df[(!).(ismissing.(df))]...)
-    df = vcatnonmiss.(df)
-    df = vcatnonmiss(df)
-    @assert :cyc_match ∈ propertynames(df) ||
-        unique(df.cyc_match)>1 "FUCK"
-    df.has_iso = df.isolated_sum .> 0
-    # Spike count
-    neuroncols = names(df)[tryparse.(Int, names(df)) .!== nothing]
-    # TODO not INT because it's gaussian smoothed
-    df[:,neuroncols] .*= median(diff(beh.time)) 
-    df[:,neuroncols] .= round.(df[:,neuroncols])
-    df = transform(df, neuroncols .=> n -> convert(Vector{Int64}, n), 
-        renamecols=false)
-    # Clean data frame
-    col_all_zero = map(v->all(skipmissing(v.==0)), eachcol(df))
-    df = df[!, Not(names(df)[col_all_zero])]
-    # Checkpoint
-    commit_cycwise_vars()
+# Checkpoint
+commit_cycwise_vars()
 
-else
-    storage = JLD2.jldopen(fn)
-    df = storage["df"]
-    close(storage)
-end
-
-function get_dx_dy(df, relcyc::Int)
-    dx = @subset(df, :relcycs .== relcyc)
-    dy = @subset(df, :relcycs .== 0)
-    dx = groupby(dx, [:cyc_batch, :cyc_match])
-    dy = groupby(dy, [:cyc_batch, :cyc_match])
-    kx, ky = keys(dx.keymap), keys(dy.keymap)
-    k = intersect(kx,ky)
-    dx = sort(vcat([dx[kk] for kk in k]...), [:cyc_batch, :cyc_match])
-    dy = sort(vcat([dy[kk] for kk in k]...), [:cyc_batch, :cyc_match])
-    dx, dy
-end
-function get_futurepast_blocks(df)
-    dxf = @subset(df, :relcycs .> 0)
-    dxp = @subset(df, :relcycs .<= 0)
-    dy = @subset(df, :relcycs .== 0)
-    dxp = groupby(dxp, [:cyc_batch, :cyc_match])
-    dxf = groupby(dxf, [:cyc_batch, :cyc_match])
-    dy = groupby(dy, [:cyc_batch, :cyc_match])
-    kxp, kxf, ky = keys(dxp.keymap), keys(dxf.keymap), keys(dy.keymap)
-    k = intersect(kxf,kxp,ky)
-    dxf = sort(vcat([dxf[kk] for kk in k]...), [:cyc_batch, :cyc_match], )
-    dxp = sort(vcat([dxp[kk] for kk in k]...), [:cyc_batch, :cyc_match], )
-    dy  = sort(vcat([dy[kk] for kk in k]...), [:cyc_batch, :cyc_match], )
-    Dict("pastcurr"=>(dxp, dy), "future"=>(dxf, dy))
-end
 @time dx_dy = Dict(relcyc => get_dx_dy(df, relcyc) for relcyc in 
     -opt["cycles"]:opt["cycles"])
 @time dx_dy = merge(dx_dy,
@@ -344,94 +229,11 @@ df[!,[x for x in names(df) if occursin("_i", x)]]
 #  ` `     `---'`---'` ' '
 #  OF SPIKE COUNTS  🔺
 # ========================
+using Distributed
 """
 Shortcut function that handles applying my statsmodels formulae to each
 cut of the data andn running GLM with the chosen `glmtool`
 """
-function run_glm!(runname::String, 
-    formula_method::Function, glmtool; Dist=Binomial(),
-    unitwise::Bool, unitrep=[], xtrans::Function=identity,
-    ytrans::Function=identity, methodsave::Bool=true,
-    cache=ThreadSafeDict(), modelz=ThreadSafeDict())
-    # Now let's take the formula and apply them
-    formulae = OrderedDict() 
-    formulae["ca1pfc"] = formula_method(df, cells, "CA1");
-    formulae["pfcca1"] = formula_method(df, cells, "PFC");
-    @assert !isempty(first(values(formulae)))
-    glmsets = []
-    for indep in ("ca1pfc", "pfcca1"), relcyc in -opt["cycles"]:opt["cycles"], 
-        f in formulae[indep]
-         push!(glmsets, (indep, relcyc, f))
-     end
-     prog = Progress(length(glmsets); desc="GLM spike counts")
-     #= Threads.@threads =# for (indep, relcyc, f) in glmsets
-        if unitwise
-            unitstr = !isempty(unitrep) ?
-                replace(string(f.lhs),unitrep...) : string(f.lhs)
-            unit=parse(Int, unitstr)
-            key = (;unit,indep, relcyc)
-        else
-            key = (;indep, relcyc)
-        end
-        try
-           dx, dy = dx_dy[relcyc]
-           cols = [string(ff) for ff in f.rhs]
-           XX = Matrix(dx[!,cols])
-           y  = Vector(dy[!,string(f.lhs)])
-           misses = (!).(ismissing.(y))
-           XX, y = xtrans.(XX[misses,:]), ytrans.(Int.(y[misses]))
-           @infiltrate
-           modelz[key] = if glmtool == :matlab
-               if key ∈ keys(modelz) && 
-                   modelz[key] isa NamedTuple
-                       continue
-               else
-                    glm_matlab(XX, y, Dist)
-               end
-            elseif glmtool == :glmjl
-                glm_glmjl(XX, y, Dist)
-            elseif glmtool == :mlj
-                glm_mlj(XX, y, Dist)
-            end
-           # TODO better research glmnet -- do i need to link manually -- its
-           # negative output for a neural firing prediction
-           # models[(;indep, relcyc, unit)] = m =  glmnetcv(XX, y, Dist)
-           cache[key] = (;XX, y)
-        catch exception
-                @infiltrate
-            modelz[(;indep, relcyc, unit)] = exception
-            print("Error on $key, exception = $exception")
-            sleep(0.1)
-        end
-        next!(prog)
-     end
-     @info "saving spikcount"
-     if isdefined(Main, :storage); close(Main.storage); end
-     storage = jldopen(fn, "a")
-     try
-        runname in keys(storage) ? delete!(storage, runname) : nothing
-        storage[runname] = modelz
-        storage[runname * "_" * "$glmtrick"] = modelz
-     catch exception
-        @warn exception
-     else
-        @info "saved"
-     finally
-         if isdefined(Main, :storage); close(storage); end
-     end
-    return modelz, cache
-end
-
-function initorget(key)
-    jldopen(path_iso(opt;append="_cyclewise"), "r") do storage
-        print("Possible keys", keys(storage))
-        if key in keys(storage)
-            storage[key]
-        else
-            ThreadSafeDict()
-        end
-    end
-end
 
 # ========================
 #  . .     ,---.|    ,-.-.
@@ -440,15 +242,20 @@ end
 #  ` `     `---'`---'` ' '
 #  OF HAS isolated spike per cell  🔺
 # ========================
-model_cellhasiso, cacheiso = initorget("model_cellhasiso_mlj"), ThreadSafeDict()
-run_glm!("model_cellhasiso_mlj", construct_predict_isospikecount, 
-    :mlj; Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""], 
-    ytrans=x->Float64(x>0), xtrans=x->Float64(x),
-    modelz=model_cellhasiso, cache=cacheiso
-)
+model_cellhasiso, cacheiso, shuffle_cellhasiso = 
+                             initorget("model_cellhasiso"), 
+                             ThreadSafeDict(),
+                        initorget("model_cellhasiso_mlj_shuffle";obj=Dict())
+pos = (df, "model_cellhasiso_mlj", construct_predict_isospikecount, :mlj)
+kws = (Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""],
+    ytrans=x->Float64(x>0), xtrans=x->Float64(x), modelz=model_cellhasiso,
+    cache=cacheiso)
+run_glm!(pos...;kws...)
+run_shuffle!(pos...;kws..., shuffle_models=shuffle_cellhasiso, shufcount=20)
+commit_cycwise_vars()
 
 model_cellhasiso_matlab = initorget("model_cellhasiso_matlab")
-run_glm!("model_cellhasiso_matlab", construct_predict_isospikecount, 
+run_glm!(df, "model_cellhasiso_matlab", construct_predict_isospikecount, 
     :matlab; Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""], 
     ytrans=x->Float64(x>0), xtrans=x->Float64(x),
     modelz=model_cellhasiso_matlab)
@@ -486,12 +293,11 @@ commit_cycwise_vars()
 #  ` `     `---'`---'` ' '
 #  OF HAS_ISO at all
 # ========================
-model_spikecount = run_glm("model_spikecount", construct_predict_iso,
+model_spikecount = run_glm!(df, "model_spikecount", construct_predict_iso,
     :mlj, Dist=Distributions.Binomial(), unitwise=false, 
     xtrans=x->Float64(x), ytrans=x->Float64(x))
 
 # TODO add iso_count
-
 commit_cycwise_vars()
 
 #    _  _     ____  _       _   _   _             
@@ -517,39 +323,66 @@ else
     catch; Dict(k=>NaN for k in x); end
 end
 
-D = to_dataframe(model_cellhasiso, grabfield("adjr2"))
-Dsum = sort(combine(groupby(D, [:relcyc, :indep]), 
-    :value=> (x->nanmean(collect(DIutils.skipnan(x)))) =>:value), [:indep,:relcyc])
-p = begin
-    @df @subset(Dsum,:indep .== "pfcca1") begin
-        plot(:relcyc, :value, alpha=0.5, label="pfc->ca1")
+
+modelsort(x) = sort(OrderedDict(x), by= q->[q.unit, q.relcyc])
+It = Iterators.product(zip(modelsort.((model_cellhasiso, model_spikecount)), 
+            ("cell has iso", "spike count")), ["adjr2", "mae"])
+
+P = Dict()
+for ((model, name), measure) in It
+    D = to_dataframe(model, grabfield(measure))
+    Dsum = sort(combine(groupby(D, [:relcyc, :indep]), 
+        :value=> (x->nanmean(collect(DIutils.skipnan(x)))) =>:value),
+            [:indep,:relcyc])
+    title = "$name $measure"
+    p = begin
+        @df @subset(Dsum,:indep .== "pfcca1") begin
+            plot(:relcyc, :value, alpha=0.5, label="pfc->ca1")
+        end
+        @df @subset(Dsum,:indep .== "ca1pfc") begin
+            plot!(:relcyc, :value, alpha=0.5, label="ca1->pfc", ylabel=measure)
+        end
     end
-    @df @subset(Dsum,:indep .== "ca1pfc") begin
-        plot!(:relcyc, :value, alpha=0.5, label="ca1->pfc")
-    end
+    push!(P, title=>p)
 end
-P=[(@df d scatter(:relcyc, :value, alpha=0.5, ylabel="r2", tickfontsize=3,
-        c=:indep[1] .== "pfcca1" ? :red : :blue))
+plot(values(P)...)
+
+using Blink, Interact, Interpolations
+function interp(D)
+    D = copy(D)
+    x,y,z = 1:size(D,1), D.value, D.relcyc
+    notmissing = (!).(isnan.(y))
+    xn, yn, zn = x[notmissing], y[notmissing], z[notmissing]
+    itp = linear_interpolation(xn, yn)
+    itpr = linear_interpolation(xn, zn)
+    x = unique(clamp.(x, xn[1], xn[end]))
+    D[x,:value] = (itp[x,:])
+    D[x,:relcyc] = (itpr[x,:])
+    D = D[(!).(isnan.(D.value)), :]
+    D
+end
+
+for ((model, nm), measure) in It
+
+    tle="$nm $measure"
+    D = sort(to_dataframe(model, 
+                 grabfield(measure)), [:relcyc])
+    P=[(#d=interp(d);
+        @df d (
+        scatter(:relcyc, :value; alpha=0.5, ylabel=measure, 
+        title=tle, linestyle=:solid, tickfontsize=6, label=replace(:indep[1],
+            "pfcca1"=>"pfc ⟶ ca1",
+            "ca1pfc"=>"ca1 ⟶ pfc"),
+    c=:indep[1] .== "pfcca1" ? :red : :blue)); 
+    #@df d plot!(:relcyc, :value)
+    )
     for d in groupby(D, :unit)]
-using Blink, Interact
-ui = @manipulate for i in eachindex(P)
-    P[i]
-end; w=Window(); body!(w,ui)
+    ui = @manipulate for i in eachindex(P)
+        P[i]
+    end
+    w=Window(); body!(w,ui)
 
-D = to_dataframe(model_cellhasiso, grabfield("mae"))
-Dsum = sort(combine(groupby(D, [:relcyc, :indep]), 
-    :value=> (x->nanmean(collect(DIutils.skipnan(x)))) =>:value), [:indep,:relcyc])
-p = begin
-    @df @subset(Dsum,:indep .== "pfcca1") begin
-        plot(:relcyc, :value, alpha=0.5, label="pfc->ca1")
-    end
-    @df @subset(Dsum,:indep .== "ca1pfc") begin
-        plot!(:relcyc, :value, alpha=0.5, label="ca1->pfc")
-    end
 end
-
-D = to_dataframe(model_cellhasiso, grabfield("mae"))
-
 
 
 plot(
@@ -571,5 +404,4 @@ plot(
     size=(600, 900)
 )
 Plot.save("iso, count and occur, date=$(Dates.now())")
-
 
