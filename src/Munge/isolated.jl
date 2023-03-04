@@ -4,7 +4,8 @@ module isolated
     import Logging
 
     using JLD2, ArgParse, DrWatson, DIutils.dict, RecipesBase, GLM, 
-          DataFramesMeta, Statistics, NaNStatistics, Infiltrator
+          DataFramesMeta, Statistics, NaNStatistics, Infiltrator, DataFrames,
+          Missings
     using DataStructures: OrderedDict
     import Distributions
     import DIutils: Table
@@ -294,6 +295,9 @@ module isolated
             end
         end
     end
+
+
+    # vcatnonmiss(df::DataFrame) = DataFrames.vcat(df[(!).(ismissing.(df))]...)
     
     export df_FRpercycle_and_matched
     """
@@ -302,9 +306,9 @@ module isolated
     obtain the fr per theta cycle of interest, relative cylces to it, and
     cycles without isolated spikes matched on behavior
     """
-    function df_FRpercycle_and_matched(cycles, Rdf_cycles, beh, val,
-            ; threading::Bool=true,
-                indexers=[:time, :isolated_sum, :pfcisosum], cyrange=8)::DataFrame
+    function df_FRpercycle_and_matched(cycles, Rdf_cycles, beh, val;
+        iso_cycles, threading::Bool=true, indexers=[:time, :isolated_sum,
+            :pfcisosum], cycrange=8)
 
         if threading
             nthreads = Threads.nthreads()
@@ -332,7 +336,7 @@ module isolated
                 # Push the isolated cycle and its preceding following cycles
                 push!(df[tid], 
                     grab_cycle_data(Rdf_cycles, cyc, V; indexers,
-                                                cycrange=cyrange,
+                                                cycrange=cycrange,
                                                 cyc_batch, cyc_match=0))
                 matched_cycs = @subset(cycles, :cycle .== cyc).matched[1]
                 # Push MATCHED cycles
@@ -343,7 +347,7 @@ module isolated
                 for (j,mc) in enumerate(matched_cycs)
                     push!(df[tid], 
                         grab_cycle_data(Rdf_cycles, mc, V; indexers, 
-                                        cycrange=opt["cycles"],
+                                        cycrange=cycrange,
                                         cyc_batch, cyc_match=j))
                 end
                 next!(prog)
@@ -359,9 +363,9 @@ module isolated
         end
         printstyled("Cycles without match ", M[]/length(iso_cycles), 
               "\nErrored cycles ", E[]/length(iso_cycles), color=:blink)
-        vcatnonmiss(df) = vcat(df[(!).(ismissing.(df))]...)
-        df = vcatnonmiss.(df)
-        df = vcatnonmiss(df)
+        df = collect(Iterators.flatten(df))
+        df = df[(!).(ismissing.(df))]
+        df = vcat(df...)
         @assert :cyc_match ∈ propertynames(df) ||
             unique(df.cyc_match)>1 "FUCK"
         df.has_iso = df.isolated_sum .> 0
@@ -370,11 +374,13 @@ module isolated
         # TODO not INT because it's gaussian smoothed
         df[:,neuroncols] .*= median(diff(beh.time)) 
         df[:,neuroncols] .= round.(df[:,neuroncols])
-        df = transform(df, neuroncols .=> n -> convert(Vector{Int64}, n), 
+        df = DataFrames.transform(df, 
+        neuroncols .=> n -> convert(Vector{Int64}, n), 
             renamecols=false)
         # Clean data frame
         col_all_zero = map(v->all(skipmissing(v.==0)), eachcol(df))
         df = df[!, Not(names(df)[col_all_zero])]
+        (;df, cyc_error)
     end
 
     export grab_cycle_data
@@ -477,7 +483,8 @@ function glm_matlab(XX, y, dist=Binomial(), link=nothing)
     function glm_mlj(XX, y, Dist=Binomial())
         __init__mlj()
         XX, y = MLJ.table(XX), y
-        R = ElasticNetCVRegressor(n_jobs=Threads.nthreads())
+        R = ElasticNetCVRegressor(n_jobs=Threads.nthreads(),
+            cv=min(5,size(XX,1)))
         # μ = GLM.linkinv.(canonicallink(Dist), y)
         yin = if Dist isa Binomial || Dist isa Poisson
             replace(y, 0=>0.0000000000001, 1=>0.9999999999999)
@@ -495,9 +502,10 @@ function glm_matlab(XX, y, dist=Binomial(), link=nothing)
         ypred = GLM.linkinv.(canonicallink(Dist), ypred)
         # pltcomp = plot(y, label="actual")
         # plot!(ypred, label="pred")
-        Dict("m"=>m, "type"=>:mlj, "ypred"=>ypred, 
+        Dict("m"=>m, "type"=>:mlj, "ypred"=>ypred, "y"=>y,
             "mae"=>Metrics.mae(y, ypred), "coef"=>m.fitresult[1].coef_,
-            "adjr2"=>Metrics.adjusted_r2_score(y,ypred,length(XX)))
+            "adjr2"=>Metrics.adjusted_r2_score(y,ypred,length(XX))
+            "N"=>size(y,1))
     end
 
     export glm_glmjl
