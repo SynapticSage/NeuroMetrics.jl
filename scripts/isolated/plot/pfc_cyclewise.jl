@@ -1,15 +1,29 @@
 using GoalFetchAnalysis.Field.metrics: skipnan
 # IMPORTS AND DATA
 # --------
-checkpoint = true
+checkpoint = false
 if checkpoint
     include(scriptsdir("isolated","load_cyclewise_checkpoint.jl"))
     @time include("../load_cyclewise_checkpoint.jl")
 else
-    include(scriptsdir("isolated","load_isolated.jl"))
+    @time include(scriptsdir("isolated","load_isolated.jl"))
     @time include("../load_isolated.jl")
 end
 include("../imports_isolated.jl")
+
+
+# Filtration
+pyramidal = cells[cells.meanrate .< 5, :unit]
+spikecount = combine(groupby(spikes, :unit), nrow=>:spikecount, 
+                             :isolated=>sum=>:isospikecount)
+spikecount_criteria = 
+    spikecount[spikecount.isospikecount .> 5 .&& 
+        spikecount.spikecount .> 50,:unit]
+neurons_of_interest = intersect(pyramidal, spikecount_criteria)
+spikes_sub = @subset(spikes, :unit .∈ (neurons_of_interest,))
+Rdf_sub    = @subset(Rdf, :unit .∈ (neurons_of_interest,))
+cells_sub  = @subset(cells, :unit .∈ (neurons_of_interest,))
+@assert size(spikes,1) != size(spikes_sub,1)
 
 #   _  _     ____            _        _                     _ _        
 # _| || |_  | __ )  __ _ ___(_) ___  (_)___  ___  ___ _ __ (_) | _____ 
@@ -24,7 +38,7 @@ include("../imports_isolated.jl")
 
 # Figure out cycles with some number of isolated spikes
 begin
-    ca1cycstat = combine(groupby(@subset(spikes, :area .== "CA1"), 
+    ca1cycstat = combine(groupby(@subset(spikes_sub, :area .== "CA1"), 
                     :cycle), 
     :isolated => sum, 
     :unit => (n->unique(n)) => :diversity,
@@ -36,7 +50,7 @@ begin
     dropmissing!(ca1cycstat, :cycle)
 end
 begin
-    pfccycstat = combine(groupby(@subset(spikes, :area .== "PFC"), 
+    pfccycstat = combine(groupby(@subset(spikes_sub, :area .== "PFC"), 
                     :cycle), 
     :isolated => sum => :pfcisosum, 
     :unit => (n->unique(n)) => :pfcdiversity,
@@ -48,14 +62,14 @@ begin
     dropmissing!(pfccycstat, :cycle)
 end
 
-cyccellstat = combine(groupby(spikes, [:cycle, :unit]),
+cyccellstat = combine(groupby(spikes_sub, [:cycle, :unit]),
     :isolated => sum => :i
 )
 
 
 # Register datasets
 @showprogress "registration" for (name,obj) in zip(("cycle","spikes","Rdf"),
-                                                    (cycles, spikes, Rdf))
+                                                    (cycles, spikes_sub, Rdf_sub))
     @info "register" name
     DIutils.filtreg.register(ca1cycstat, obj, on="cycle", 
                      transfer=String.(setdiff(propertynames(ca1cycstat),
@@ -66,7 +80,7 @@ cyccellstat = combine(groupby(spikes, [:cycle, :unit]),
 end
 begin
     css = groupby(cyccellstat, :unit)
-    for obj in (spikes, Rdf)
+    for obj in (spikes_sub, Rdf_sub)
         obj[!,:i] = zeros(Union{Missing,Int64}, size(obj,1))
         tmp = groupby(obj, :unit)
         K = intersect(keys(tmp.keymap), keys(tmp.keymap))
@@ -80,37 +94,15 @@ begin
         end
     end
 end
-DIutils.filtreg.register(cells, Rdf, on="unit", transfer=["area"])
+DIutils.filtreg.register(cells, Rdf_sub, on="unit", transfer=["area"])
 
 # Annotate spikes and Rdf
-dropmissing!(Rdf, :isolated_sum)
-Rdf_cycles  = groupby(Rdf, [:cycle])
+dropmissing!(Rdf_sub, :isolated_sum)
+Rdf_cycles  = groupby(Rdf_sub, [:cycle])
+iso_cycles = unique(@subset(Rdf_sub, :isolated_sum .> 0, 
+                    :hasocc .== true).cycle)
 indexers = [:time, :isolated_sum, :pfcisosum]
 commit_vars()
-
-begin
-kws=(;label="")
-
-p1=plot(
- (@df ca1cycstat histogram(:isolated_sum;xlabel="iso spikes emitted",kws...)),
- (@df ca1cycstat histogram(:isodiv;xlabel="# of uniq iso cells",kws...)),
- (@df ca1cycstat histogram(:adjdiv;ylabel="# of uniq adj cells",kws...)),
- Plot.blank((plot();Plots.annotate!(0.5,0.5,text("CA1 cycle\nstatistics",14))),
-        visible=false, size=(100,50)),
- layout=grid(2,2));
-
-p2=plot(
- (@df pfccycstat histogram(:pfcisosum;xlabel="iso spikes emitted",kws...)),
- (@df pfccycstat histogram(:pfcisodiv;xlabel="# of uniq iso cells",kws...)),
- (@df pfccycstat histogram(:pfcadjdiv;ylabel="# of uniq adj cells",kws...)),
- Plot.blank((plot();Plots.annotate!(0.5,0.5,text("PFC cycle\nstatistics",14))),
-            visible=false, size=(100,50)),
-    layout=grid(2,2)
-);
-
-    plot(p1,p2, size=(1000,500))
-
-end
 
 # 
 #    _  _     ____                                
@@ -180,9 +172,7 @@ begin
 end
 
 # Match cycles
-iso_cycles = unique(@subset(Rdf, :isolated_sum .> 0, 
-                                          :hasocc .== true).cycle).cycles
-match_cycles!(cycles, Rdf, occ; matches=opt["matches"], iso_cycles)
+match_cycles!(cycles, Rdf_sub, occ; matches=opt["matches"], iso_cycles)
 
 # Save!!! cyclewise specific
 # -----------------------------------------------------
@@ -199,8 +189,9 @@ commit_cycwise_vars()
 # |_.__/ \__,_|\__\___|_| |_|\___||___/ 
 #
 # (each iso/noniso cycle plus precedents and antecedents)
-df = df_FRpercycle_and_matched(cycles, Rdf_cycles, beh; 
-                               indexers, cycrange=opt["cycles"])
+val = val === nothing ? :value : val
+df, cyc_errors = Munge.isolated.df_FRpercycle_and_matched(cycles, Rdf_cycles,
+    beh, val; iso_cycles=iso_cycles, indexers, cycrange=opt["cycles"])
 
 # Checkpoint
 commit_cycwise_vars()
@@ -243,15 +234,25 @@ cut of the data andn running GLM with the chosen `glmtool`
 #  OF HAS isolated spike per cell  🔺
 # ========================
 model_cellhasiso, cacheiso, shuffle_cellhasiso = 
-                             initorget("model_cellhasiso"), 
-                             ThreadSafeDict(),
-                        initorget("model_cellhasiso_mlj_shuffle";obj=Dict())
+                            initorget("model_cellhasiso"), 
+                            ThreadSafeDict(),
+                            initorget("shuffle_cellhasiso"; obj=Dict())
 pos = (df, "model_cellhasiso_mlj", construct_predict_isospikecount, :mlj)
 kws = (Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""],
     ytrans=x->Float64(x>0), xtrans=x->Float64(x), modelz=model_cellhasiso,
     cache=cacheiso)
+
+tmp = shuffle_cellhasiso
+shuffle_cellhasiso = ThreadSafeDict()
+for (k,v) in tmp
+    push!(shuffle_cellhasiso,k=>v)
+end
+
 run_glm!(pos...;kws...)
-run_shuffle!(pos...;kws..., shuffle_models=shuffle_cellhasiso, shufcount=20)
+run_shuffle!(pos...; kws..., 
+    shuffle_models=shuffle_cellhasiso,
+    shufcount=30)
+
 commit_cycwise_vars()
 
 model_cellhasiso_matlab = initorget("model_cellhasiso_matlab")
@@ -260,11 +261,7 @@ run_glm!(df, "model_cellhasiso_matlab", construct_predict_isospikecount,
     ytrans=x->Float64(x>0), xtrans=x->Float64(x),
     modelz=model_cellhasiso_matlab)
 
-jldopen(fn, "a") do storage
-    keys(storage)
-end
-
-model_cellhasiso = run_glm!("model_cellcountiso", 
+model_cellhasiso = run_glm!(df, "model_cellcountiso", 
     construct_predict_isospikecount, :mlj; 
     Dist=Distributions.Poisson(), 
     unitwise=true, unitrep=["_i"=>""],
@@ -280,7 +277,8 @@ commit_cycwise_vars()
 #  ` `     `---'`---'` ' '
 #  OF SPIKE COUNTS per cell  🔺
 # ========================
-model_spikecount, cache = run_glm!("model_spikecount", construct_predict_spikecount,
+model_spikecount, cache = run_glm!(df, "model_spikecount", 
+    construct_predict_spikecount,
     :mlj, Dist=Distributions.Poisson(), unitwise=true, 
     xtrans=x->Float64(x), ytrans=x->Float64(x))
 
@@ -299,109 +297,4 @@ model_spikecount = run_glm!(df, "model_spikecount", construct_predict_iso,
 
 # TODO add iso_count
 commit_cycwise_vars()
-
-#    _  _     ____  _       _   _   _             
-#  _| || |_  |  _ \| | ___ | |_| |_(_)_ __   __ _ 
-# |_  ..  _| | |_) | |/ _ \| __| __| | '_ \ / _` |
-# |_      _| |  __/| | (_) | |_| |_| | | | | (_| |
-#   |_||_|   |_|   |_|\___/ \__|\__|_|_| |_|\__, |
-#                                           |___/ 
-
-Plot.setfolder("isolated", "glm")
-Plot.setappend((;animal=opt["animal"], day=opt["day"], tet=opt["tet"]))
-
-grabfield(x::String) = (k,v)->if v isa Exception || v === nothing
-    NaN
-else
-    try v[x]
-    catch NaN end
-end
-grabfield(x::Vector{String}) = (k,v)->if v isa Exception || v === nothing
-    Dict(k=>NaN for k in x)
-else
-    try Dict(k=>v[k] for k in x)
-    catch; Dict(k=>NaN for k in x); end
-end
-
-
-modelsort(x) = sort(OrderedDict(x), by= q->[q.unit, q.relcyc])
-It = Iterators.product(zip(modelsort.((model_cellhasiso, model_spikecount)), 
-            ("cell has iso", "spike count")), ["adjr2", "mae"])
-
-P = Dict()
-for ((model, name), measure) in It
-    D = to_dataframe(model, grabfield(measure))
-    Dsum = sort(combine(groupby(D, [:relcyc, :indep]), 
-        :value=> (x->nanmean(collect(DIutils.skipnan(x)))) =>:value),
-            [:indep,:relcyc])
-    title = "$name $measure"
-    p = begin
-        @df @subset(Dsum,:indep .== "pfcca1") begin
-            plot(:relcyc, :value, alpha=0.5, label="pfc->ca1")
-        end
-        @df @subset(Dsum,:indep .== "ca1pfc") begin
-            plot!(:relcyc, :value, alpha=0.5, label="ca1->pfc", ylabel=measure)
-        end
-    end
-    push!(P, title=>p)
-end
-plot(values(P)...)
-
-using Blink, Interact, Interpolations
-function interp(D)
-    D = copy(D)
-    x,y,z = 1:size(D,1), D.value, D.relcyc
-    notmissing = (!).(isnan.(y))
-    xn, yn, zn = x[notmissing], y[notmissing], z[notmissing]
-    itp = linear_interpolation(xn, yn)
-    itpr = linear_interpolation(xn, zn)
-    x = unique(clamp.(x, xn[1], xn[end]))
-    D[x,:value] = (itp[x,:])
-    D[x,:relcyc] = (itpr[x,:])
-    D = D[(!).(isnan.(D.value)), :]
-    D
-end
-
-for ((model, nm), measure) in It
-
-    tle="$nm $measure"
-    D = sort(to_dataframe(model, 
-                 grabfield(measure)), [:relcyc])
-    P=[(#d=interp(d);
-        @df d (
-        scatter(:relcyc, :value; alpha=0.5, ylabel=measure, 
-        title=tle, linestyle=:solid, tickfontsize=6, label=replace(:indep[1],
-            "pfcca1"=>"pfc ⟶ ca1",
-            "ca1pfc"=>"ca1 ⟶ pfc"),
-    c=:indep[1] .== "pfcca1" ? :red : :blue)); 
-    #@df d plot!(:relcyc, :value)
-    )
-    for d in groupby(D, :unit)]
-    ui = @manipulate for i in eachindex(P)
-        P[i]
-    end
-    w=Window(); body!(w,ui)
-
-end
-
-
-plot(
-    plot(
-        glmplot(model_isocount, "pfcca1", grabfield, label="iso count"),
-        glmplot(model_hasiso,   "pfcca1", grabfield, label="iso occurance");
-        link=:y,
-        layout=grid(2,1),
-        title= "pfc -> ca1"
-    ),
-    plot(
-        glmplot(model_isocount, "ca1pfc", grabfield, label="iso count"),
-        glmplot(model_hasiso,   "ca1pfc", grabfield, label="iso occurance");
-        link=:y,
-        layout=grid(2,1),
-        title="ca1 -> pfc"
-    ),
-    ylims=(0,0.4),
-    size=(600, 900)
-)
-Plot.save("iso, count and occur, date=$(Dates.now())")
 
