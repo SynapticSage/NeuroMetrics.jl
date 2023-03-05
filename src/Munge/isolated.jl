@@ -383,6 +383,7 @@ module isolated
                 push!(df[tid], 
                     grab_cycle_data(Rdf_cycles, cyc, V; indexers,
                                                 cycrange=cycrange,
+                                                cyc_central=cyc,
                                                 cyc_batch, cyc_match=0))
                 matched_cycs = @subset(cycles, :cycle .== cyc).matched[1]
                 # Push MATCHED cycles
@@ -596,17 +597,17 @@ function glm_matlab(XX, y, dist=Binomial(), link=nothing)
         catch; Dict(k=>NaN for k in x); end
     end
 
-    export unstackcellcols
+    export ucellcols
     """
     grab columsn that correspond to cell props
     """
-    unstackcellcols(df) = names(df)[tryparse.(Int, names(df)) .!== nothing]
+    ucellcols(df) = names(df)[tryparse.(Int, names(df)) .!== nothing]
 
-    export unstackicellcols
+    export uicellcols
     """
     grab columsn that correspond to cell isolated props
     """
-    function unstackicellcols(df)
+    function uicellcols(df)
         nms = [nm for nm in names(df) if endswith(nm,"_i")]
         names_cleaned = replace.(nms, ["_i"=>""])
         nms[tryparse.(Int, names_cleaned) .!== nothing]
