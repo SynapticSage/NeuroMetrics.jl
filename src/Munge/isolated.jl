@@ -205,13 +205,52 @@ module isolated
         formulae
     end
 
+    # -----------------
+    # Caching the dicts
+    # -----------------
+
     """
-    Table.to_dataframe
+        get_dx_dy(df, relcyc)
     """
-    function Table.to_dataframe(D::AbstractDict, func::Function)::DataFrame
-        kt = keytype(D)
-        D = Dict{kt, Any}(k=>func(k, v) for (k,v) in D)
-        Table.to_dataframe(D)
+    function get_dx_dy(df, relcyc)
+        dx = @subset(df, :relcycs .== relcyc)
+        dy = @subset(df, :relcycs .== 0)
+        register = [:cyc_batch, :cyc_match]
+        # dx = groupby(dx, [:cyc_batch, :cyc_match])
+        # dy = groupby(dy, [:cyc_batch, :cyc_match])
+        # kx, ky = keys(dx.keymap), keys(dy.keymap)
+        # k = intersect(kx,ky)
+        # dx = sort(vcat([dx[kk] for kk in k]...), [:cyc_batch, :cyc_match])
+        # dy = sort(vcat([dy[kk] for kk in k]...), [:cyc_batch, :cyc_match])
+        dx, dy = sort(dx, register), sort(dy, register)
+        dxr, dyr = Matrix(dx[!,register]), Matrix(dy[!,register])
+        if dxr != dyr
+            dxr, dyr = eachrow.((dxr, dyr))
+            D = intersect(dxr, dyr)
+            idx = [findfirst((x == d for x in dxr)) for d in D]
+            idy = [findfirst((y == d for y in dyr)) for d in D]
+            dx, dy = dx[idx,:], dy[idy, :]
+        end
+        @assert Matrix(dx[!,register]) == Matrix(dy[!,register])
+        dx, dy
+    end
+
+    """
+        get_futurepast_blocks(df)
+    """
+    function get_futurepast_blocks(df)
+        dxf = unstack(@subset(df, :relcycs .> 0), )
+        dxp = @subset(df, :relcycs .<= 0)
+        dy = @subset(df, :relcycs .== 0)
+        dxp = groupby(dxp, [:cyc_batch, :cyc_match])
+        dxf = groupby(dxf, [:cyc_batch, :cyc_match])
+        dy = groupby(dy, [:cyc_batch, :cyc_match])
+        kxp, kxf, ky = keys(dxp.keymap), keys(dxf.keymap), keys(dy.keymap)
+        k = intersect(kxf,kxp,ky)
+        dxf = sort(vcat([dxf[kk] for kk in k]...), [:cyc_batch, :cyc_match], )
+        dxp = sort(vcat([dxp[kk] for kk in k]...), [:cyc_batch, :cyc_match], )
+        dy  = sort(vcat([dy[kk] for kk in k]...), [:cyc_batch, :cyc_match], )
+        Dict("pastcurr"=>(dxp, dy), "future"=>(dxf, dy))
     end
 
     function _handle_args(D::AbstractDict, area::String, 
@@ -227,6 +266,10 @@ module isolated
         end
         D, area
     end
+
+    # -----------------
+    #   Plotting
+    # -----------------
 
     @userplot GlmPlot
     """
@@ -257,6 +300,10 @@ module isolated
         ylims --> (minimum(data.value), maximum(data.value))
         (data.relcyc, data.value)
     end
+
+    # -----------------
+    # preparing cycles
+    # -----------------
 
     export match_cycles!
     """match_cycles!
@@ -295,7 +342,6 @@ module isolated
             end
         end
     end
-
 
     # vcatnonmiss(df::DataFrame) = DataFrames.vcat(df[(!).(ismissing.(df))]...)
     
@@ -484,7 +530,7 @@ function glm_matlab(XX, y, dist=Binomial(), link=nothing)
         __init__mlj()
         XX, y = MLJ.table(XX), y
         R = ElasticNetCVRegressor(n_jobs=Threads.nthreads(),
-            cv=min(5,size(XX,1)))
+            cv=min(5,size(XX[1],1)))
         # μ = GLM.linkinv.(canonicallink(Dist), y)
         yin = if Dist isa Binomial || Dist isa Poisson
             replace(y, 0=>0.0000000000001, 1=>0.9999999999999)
@@ -504,7 +550,7 @@ function glm_matlab(XX, y, dist=Binomial(), link=nothing)
         # plot!(ypred, label="pred")
         Dict("m"=>m, "type"=>:mlj, "ypred"=>ypred, "y"=>y,
             "mae"=>Metrics.mae(y, ypred), "coef"=>m.fitresult[1].coef_,
-            "adjr2"=>Metrics.adjusted_r2_score(y,ypred,length(XX))
+            "adjr2"=>Metrics.adjusted_r2_score(y,ypred,length(XX)),
             "N"=>size(y,1))
     end
 
@@ -512,6 +558,58 @@ function glm_matlab(XX, y, dist=Binomial(), link=nothing)
     function glm_glmjl(XX,y)
        y =  expit.(Int.(y[misses]) .> 0)
        m =  glm(XX, y, Dist)
+    end
+
+    # FOR INTERACTING WITH GLM MODEL DICTS
+    """
+    Table.to_dataframe
+    """
+    function Table.to_dataframe(D::AbstractDict, func::Function)::DataFrame
+        kt = keytype(D)
+        if all(isa.(collect(values(D)), AbstractDict))
+            D = Dict{kt, Any}(k=>Table.to_dataframe(v, func) for (k,v) in D)
+            Table.to_dataframe(D)
+        else
+            D = Dict{kt, Any}(k=>func(k, v) for (k,v) in D)
+            Table.to_dataframe(D)
+        end
+    end
+
+
+    export clean_keys
+    function clean_keys(D::AbstractDict, blacklist)
+        Dict(k=>clean_keys(v, blacklist) for (k,v) in D if k ∉ blacklist) 
+    end
+    clean_keys(D::Any, blacklist) = D
+
+    export grabfield
+    grabfield(x::String) = (k,v)->if v isa Exception || v === nothing
+        NaN
+    else
+        try v[x]
+        catch NaN end
+    end
+    grabfield(x::Vector{String}) = (k,v)->if v isa Exception || v === nothing
+        Dict(k=>NaN for k in x)
+    else
+        try Dict(k=>v[k] for k in x)
+        catch; Dict(k=>NaN for k in x); end
+    end
+
+    export unstackcellcols
+    """
+    grab columsn that correspond to cell props
+    """
+    unstackcellcols(df) = names(df)[tryparse.(Int, names(df)) .!== nothing]
+
+    export unstackicellcols
+    """
+    grab columsn that correspond to cell isolated props
+    """
+    function unstackicellcols(df)
+        nms = [nm for nm in names(df) if endswith(nm,"_i")]
+        names_cleaned = replace.(nms, ["_i"=>""])
+        nms[tryparse.(Int, names_cleaned) .!== nothing]
     end
 
 end
