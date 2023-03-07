@@ -315,12 +315,13 @@ module isolated
         occ::IndexedAdaptiveOcc; matches=3,
         iso_cycles = nothing)
 
+        cycles.hasocc = (!).(ismissing.(occ.datainds))
+
         if iso_cycles === nothing
            unique(@subset(Rdf, :isolated_sum .> 0, 
-                                              :hasocc .== true).cycle) 
+                          :hasocc .== true).cycle) 
         end
 
-        cycles.hasocc = (!).(ismissing.(occ.datainds))
         DIutils.filtreg.register(cycles, Rdf, transfer=["hasocc"], on="cycle")
         
         cycles.matched = Vector{Union{Vector{Int32}, Missing}}(missing,
@@ -329,8 +330,11 @@ module isolated
             poss = [] 
             # Lookup cycles that match this isolated spike cycle's animal 
             # behavior
-            for gridmatch in occ.datainds[cyc], cycmatch in occ.inds[gridmatch]
-                push!(poss, cycmatch)
+            ismissing(occ.datainds[cyc]) ? continue : nothing
+            for gridmatch in occ.datainds[cyc]
+                for cycmatch in occ.inds[gridmatch]
+                    push!(poss, cycmatch)
+                end
             end
             # Lookup which cycles lack isolated spikes
             poss = poss[cycles[poss, :].isolated_sum .=== 0]
@@ -394,6 +398,7 @@ module isolated
                 for (j,mc) in enumerate(matched_cycs)
                     push!(df[tid], 
                         grab_cycle_data(Rdf_cycles, mc, V; indexers, 
+                                        cyc_central=mc,
                                         cycrange=cycrange,
                                         cyc_batch, cyc_match=j))
                 end
@@ -410,9 +415,15 @@ module isolated
         end
         printstyled("Cycles without match ", M[]/length(iso_cycles), 
               "\nErrored cycles ", E[]/length(iso_cycles), color=:blink)
-        df = collect(Iterators.flatten(df))
-        df = df[(!).(ismissing.(df))]
-        df = vcat(df...)
+        dfs = Vector{DataFrame}(undef, length(df))
+        for i in eachindex(df)
+            dfs[i] = vcat(skipmissing(df[i])...)
+        end
+        df = vcat(dfs...)
+        printstyled("Isocycles ", length(iso_cycles), 
+            "\ntotal df cycles ", size(df,1),
+            "\ntheoretical cycles ", length(iso_cycles) * ((2*cycrange)+1) * 4,
+            color=:blink)
         @assert :cyc_match ∈ propertynames(df) ||
             unique(df.cyc_match)>1 "FUCK"
         df.has_iso = df.isolated_sum .> 0

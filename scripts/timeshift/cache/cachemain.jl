@@ -10,6 +10,7 @@ begin
     using DataStructures: OrderedDict
     using Combinatorics: powerset
     import Base.Threads: @spawn
+    using JLD2
 
     using GoalFetchAnalysis , .Timeshift, .Timeshift.types, .Timeshift.checkpoint
     import DI: Filt
@@ -68,23 +69,28 @@ I = OrderedDict{NamedTuple, Any}()
 F = OrderedDict{NamedTuple, Any}()
 (animal, day, frac) = first(datasets)
 
+global spikes = lfp = beh = cycles = nothing
+(animal, day, frac) = first(datasets[2:end])
+
 @showprogress "animal" for (animal, day, frac) in datasets[2:end] #DI.animal_set
 
     @info "loop" animal day frac
 
     @time spikes, beh, ripples, cells = DI.load(animal, day);
     _, spikes = DIutils.filtreg.register(beh, spikes; transfer=["velVec"], on="time")
+    spikescopy = copy(spikes)
 
 
     if frac == :iso || frac == :adj
         lfp = DI.load_lfp(animal, day, tet=:ca1ref, subtract_earlytime=true)
         @info "annotating cycles"
-        Munge.lfp.annotate_cycles(lfp::DataFrame; 
+        @time Munge.lfp.annotate_cycles(lfp::DataFrame; 
                                   phase_col="phase", 
                                   method="peak-to-peak")
-        histogram(lfp.time); histogram!(spikes.time)
+        # histogram(lfp.time); histogram!(spikes.time)
         @info "isolated cycles"
-        spikes = Munge.spiking.isolated(spikes, lfp, refreshcyc=true)
+        spikes = @profile Munge.spiking.isolated(spikes, lfp, refreshcyc=true)
+        JLD2.@save "~/tmp_checkpoint_iso.jld2" {compress=true} spikes, lfp
         using Plot.lfplot
         @info "registering"
         _, spikes = DIutils.filtreg.register(lfp, spikes; transfer=["phase"], on="time")
@@ -100,6 +106,8 @@ F = OrderedDict{NamedTuple, Any}()
                                 (println("selecting adj"); spikes[(!).(spikes.isolated), :])
         @info "unique iso" unique(spikes.isolated)
     end
+
+    # CHECKPOINT
 
     shuffle_type = :dotson
     if shuffle_type == :dotson
@@ -151,6 +159,12 @@ F = OrderedDict{NamedTuple, Any}()
         end
     end
     DIutils.pushover("Finished cachemain.jl $animal $day $frac",title="Timeshift")
+
+end
+
+for (key,value) in F
+    keynew = (key..., frac=:adj)
+    F[keynew] = pop!(F, key)
 end
 
 #savefile = datadir("timeshift","fixed_shifts_$shifts.serial")

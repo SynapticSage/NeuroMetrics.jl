@@ -1,4 +1,3 @@
-using GoalFetchAnalysis.Field.metrics: skipnan
 # IMPORTS AND DATA
 # --------
 checkpoint = false
@@ -111,7 +110,6 @@ commit_vars()
 # |_      _| |  __/| | |  __/ |_) | (_| | | |  __/
 #   |_||_|   |_|   |_|  \___| .__/ \__,_|_|  \___|
 #                           |_|                   
-#                  _       _       _   _          _        
 #  _ __ ___   __ _| |_ ___| |__   | |_| |__   ___| |_ __ _ 
 # | '_ ` _ \ / _` | __/ __| '_ \  | __| '_ \ / _ \ __/ _` |
 # | | | | | | (_| | || (__| | | | | |_| | | |  __/ || (_| |
@@ -166,13 +164,13 @@ begin
     grd = DIutils.binning.get_grid(use_behavior ? beh : cycles, matchprops;
                                     grid_kws...)
     occ = DIutils.binning.get_occupancy_indexed(cycles, grd)
+
     println("Percent cycles counted ",
             sum(occ.count)/size(dropmissing(cycles,matchprops),1))
-
 end
 
 # Match cycles
-match_cycles!(cycles, Rdf_sub, occ; matches=opt["matches"], iso_cycles)
+match_cycles!(cycles, Rdf_sub, occ; matches=opt["matched"], iso_cycles)
 
 # Save!!! cyclewise specific
 # -----------------------------------------------------
@@ -198,8 +196,7 @@ commit_cycwise_vars()
 
 @time dx_dy = Dict(relcyc => get_dx_dy(df, relcyc) for relcyc in 
     -opt["cycles"]:opt["cycles"])
-@time dx_dy = merge(dx_dy,
-    get_futurepast_blocks(df))
+# @time dx_dy = merge(dx_dy, get_futurepast_blocks(df))
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -242,13 +239,13 @@ kws = (Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""],
     ytrans=x->Float64(x>0), xtrans=x->Float64(x), modelz=model_cellhasiso,
     cache=cacheiso)
 
-tmp = shuffle_cellhasiso
-shuffle_cellhasiso = ThreadSafeDict()
-for (k,v) in tmp
-    push!(shuffle_cellhasiso,k=>v)
-end
+# tmp = shuffle_cellhasiso
+# shuffle_cellhasiso = ThreadSafeDict()
+# for (k,v) in tmp
+#     push!(shuffle_cellhasiso,k=>v)
+# end
 
-run_glm!(pos...;kws...)
+run_glm!(pos...;kws...) 
 run_shuffle!(pos...; kws..., 
     shuffle_models=shuffle_cellhasiso,
     shufcount=30)
@@ -264,7 +261,7 @@ run_glm!(df, "model_cellhasiso_matlab", construct_predict_isospikecount,
 model_cellhasiso = run_glm!(df, "model_cellcountiso", 
     construct_predict_isospikecount, :mlj; 
     Dist=Distributions.Poisson(), 
-    unitwise=true, unitrep=["_i"=>""],
+   
     ytrans=x->Float64(x), xtrans=x->Float64(x)
 )
 
@@ -277,6 +274,7 @@ commit_cycwise_vars()
 #  ` `     `---'`---'` ' '
 #  OF SPIKE COUNTS per cell  🔺
 # ========================
+model_cellhasiso_matlab = initorget("model_spikecount")
 model_spikecount, cache = run_glm!(df, "model_spikecount", 
     construct_predict_spikecount,
     :mlj, Dist=Distributions.Poisson(), unitwise=true, 
