@@ -194,7 +194,7 @@ df, cyc_errors = Munge.isolated.df_FRpercycle_and_matched(cycles, Rdf_cycles,
 # Checkpoint
 commit_cycwise_vars()
 
-@time dx_dy = Dict(relcyc => get_dx_dy(df, relcyc) for relcyc in 
+@time dx_dy = Dict((;relcyc) => get_dx_dy(df, relcyc) for relcyc in 
     -opt["cycles"]:opt["cycles"])
 # @time dx_dy = merge(dx_dy, get_futurepast_blocks(df))
 

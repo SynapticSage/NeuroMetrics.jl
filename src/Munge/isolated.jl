@@ -5,14 +5,14 @@ module isolated
 
     using JLD2, ArgParse, DrWatson, DIutils.dict, RecipesBase, GLM, 
           DataFramesMeta, Statistics, NaNStatistics, Infiltrator, DataFrames,
-          Missings
+          Missings, Plots
     using DataStructures: OrderedDict
     import Distributions
     import DIutils: Table
     using ProgressMeter
     
     using GLMNet, MultivariateStats, MLJ, ScikitLearn, Metrics
-    using MATLAB, Plots
+    using MATLAB, PyCall
     using Random
     using MLJScikitLearnInterface: ElasticNetCVRegressor
 
@@ -21,7 +21,8 @@ module isolated
     function __init__mlj()
         @eval isolated init_mlj = true
         if !init_mlj
-            @eval isolated using MLJScikitLearnInterface: ElasticNetCVRegressor
+            @eval isolated using MLJScikitLearnInterface: ElasticNetCVRegressor,
+                    LogisticCVClassifier
         end
     end
 
@@ -156,25 +157,31 @@ module isolated
     end
 
     export construct_predict_spikecount
-    function construct_predict_spikecount(df, cells, input_area="CA1";
-            other_vars=[], other_ind_vars=[])
+    function construct_predict_spikecount(df, cells::DataFrame, 
+            indep_area="CA1"; dep_area=nothing, 
+             other_vars=[], other_ind_vars=[])
+
         uArea = unique(cells.area)
         @assert length(uArea) == 2 "Only supports two area dataframes"
-        dependent_area = setdiff(uArea, [input_area])
+        dep_area = dep_area === nothing ? 
+                    setdiff(uArea, [indep_area]) : dep_area
+        ind_eq_dep = indep_area == dep_area
 
-        dep_neurons = @subset(cells,:area .==dependent_area).unit
-        ind_neurons = @subset(cells,:area .==input_area).unit
+        dep_neurons = @subset(cells,:area .== dep_area).unit
+        ind_neurons = @subset(cells,:area .== indep_area).unit
         filter!(n->string(n) ∈ names(df), dep_neurons)
         filter!(n->string(n) ∈ names(df), ind_neurons)
         
         formulae = []
-        for nd in dep_neurons
-            ni = first(ind_neurons)
-            independents = GLM.Term(Symbol(ni))
-            for ni in ind_neurons[2:end]
+        for n_dep in dep_neurons
+            ind_neuron_set = ind_eq_dep ? 
+                setdiff(ind_neurons, [n_dep]) : ind_neurons 
+            n_ind = first(ind_neuron_set)
+            independents = GLM.Term(Symbol(n_ind))
+            for ni in ind_neuron_set[2:end]
                 independents += GLM.Term(Symbol(ni)) 
             end
-            formula = GLM.Term(Symbol(nd)) ~ independents
+            formula = GLM.Term(Symbol(n_dep)) ~ independents
             push!(formulae, formula)
         end
         formulae
@@ -504,66 +511,175 @@ module isolated
         out
     end
 
+    """
+        ready_glm_vars(f::FormulaTerm, XX::DataFrame, y::DataFrame;
+                       xtrans=identity, ytrans=identity, kws...)
+
+    Readies vars to be fed into the various glm functions 
+    """
+    function ready_glm_vars(f::FormulaTerm, XX::DataFrame, y::DataFrame;
+        predictkey=0, xtrans=identity, ytrans=identity, kws...)
+
+        function get_mat(dx, f)
+               cols = [string(ff) for ff in f.rhs]
+               XX = Matrix(dx[!,cols])
+        end
+        XX = if length(unique(dx.relcyc)) .> 1
+            XX = []
+            for cyc in sort(unique(dx.relcyc))
+                get_mat(@subset(dx, :relcyc .== cyc), f)
+            end
+            hcat(XX...)
+        else
+            get_mat(dx, f)
+        end
+        cols = [string(ff) for ff in f.rhs]
+        XX = Matrix(XX[!,cols])
+        y  = Vector(y[!,string(f.lhs)])
+        @assert f.lhs ∉ f.rhs
+        misses = (!).(ismissing.(y))
+        XX, y = xtrans.(XX[misses,:]), ytrans.(Int.(y[misses]))
+    end
+
     export expit
     expit(x) = 1/(1+exp(-x))
 
     export glm_matlab
     """
-    glm_matlab
+        glm_matlab(f::FormulaTerm, XX::DataFrame, y::DataFrame, 
+                 Dist=Binomial(); xtrans=identity, ytrans=identity,
+                kws...)
     """
-function glm_matlab(XX, y, dist=Binomial(), link=nothing)
+    function glm_matlab(f::FormulaTerm, XX::DataFrame, y::DataFrame, 
+                 Dist=Binomial(); xtrans=identity, ytrans=identity,
+                kws...)
+        XX, y = ready_glm_vars(f, XX, y; xtrans, ytrans, kws...)
+       glm_matlab(XX,y,Dist; kws...)
+    end
+    function glm_matlab(XX, y, Dist=Binomial(), link=nothing; 
+                        pre=nothing, kws...)
        nameit(x) = lowercase(begin
             first(split(first(split(string(x),"{")), "("))
         end
         )
         link = link === nothing ? 
-        replace(nameit(canonicallink(dist)),"link"=>"") : link
-        dist = dist isa String ? dist : nameit(dist)
+        replace(nameit(canonicallink(Dist)),"link"=>"") : link
+        dist = Dist isa String ? Dist : nameit(Dist)
         @info "matlab" link dist
-       @time mat"[$B, $stats] = lassoglm(double($XX), double($y), $dist, 'alpha', 0.5, 'CV', 3, 'MCReps', 5, 'link', $link)"
+
+       logval(xn) = log.(replace(xn,0=>1e-16))
+       xnz = logval(XX)
+       xnz, y = DIutils.arr.atleast2d(xnz), DIutils.arr.atleast2d(y)
+       if pre === nothing
+           @time mat"[$B, $stats] = lassoglm(double($xnz), double($y), $dist, 'alpha', 0.5, 'CV', 3, 'MCReps', 5)"
+           y   = vec(Float64.(y))
+           pre = Dict("B"=>B, "stats"=>stats, "type"=>:matlab, "y"=>y)
+        end
+       B, stats = pre["B"], pre["stats"]
        idxLambdaMinDeviance = stats["IndexMinDeviance"]
        intercept = stats["Intercept"]
        B0   = intercept[Int(idxLambdaMinDeviance)];  
        c = [B0; B[ :,Int(idxLambdaMinDeviance) ]]
-       ypred = mat"glmval($c, double($(XX)), $link, $stats)"
+       # ypred = mat"glmval($c, double($(xnz)), 'log', $stats)"
        #mat"[$ypred, $dlo, $dhi] = glmval($c, double($(XX)), 'log', $stats)"
-       @info "yhat size" size(ypred)
-       # pltcomp = plot(y; label="actual")
-       # plot!(ypred; label="pred")
-       Dict("B"=>B, "stats"=>stats, "type"=>:matlab, 
-        "ypred"=>ypred, "coef"=>c[2:end],
+       ypred = mat"glmval($c, double($(xnz)), $link, $stats)"
+       y, ypred = vec(Float64.(y)), vec(Float64.(ypred))
+       @infiltrate
+       merge!(pre, Dict( "ypred"=>ypred, "y"=>y, 
+            "coef"=>c[2:end], "intercept"=>c[1],
             "mae"=>Metrics.mae(y, ypred),
-            "adjr2"=>Metrics.adjusted_r2_score(y,ypred,length(XX))
+            "adjr2"=>Metrics.adjusted_r2_score(y,ypred,length(y)),
+            "rsquared"=>MLJ.rsquared(y, ypred)
             )
+        )
+       pre
+    end
+
+    struct Custom_ElasticNetMLJ
+    end
+    struct SpecificGLM_MLJ
     end
 
     export glm_mlj
-    function glm_mlj(XX, y, Dist=Binomial())
-        __init__mlj()
-        XX, y = MLJ.table(XX), y
-        R = ElasticNetCVRegressor(n_jobs=Threads.nthreads(),
-            cv=min(5,size(XX[1],1)))
-        # μ = GLM.linkinv.(canonicallink(Dist), y)
-        yin = if Dist isa Binomial || Dist isa Poisson
-            replace(y, 0=>0.0000000000001, 1=>0.9999999999999)
+    function glm_mlj(f::FormulaTerm, XX::DataFrame, y::DataFrame, 
+                     Dist=Binomial(); xtrans=identity, ytrans=identity,
+                    kws...)
+        XX, y = ready_glm_vars(f, XX, y; xtrans, ytrans, kws...)
+        glm_mlj(XX, y, Dist; kws...)
+    end
+    function glm_mlj(XX::Matrix, y, Dist=Binomial(); type=:specific, kws...)
+         __init__mlj()
+         type = if type == :specific
+             SpecificGLM_MLJ()
+         elseif type == :custom
+             Custom_ElasticNetMLJ()
+         end
+         kv = glm_mlj(type, XX, y, Dist)
+         
+         out = merge(Dict("type"=>:mlj, "y"=>y,
+         "yr"=>sortperm(y), 
+         "ypredr"=>sortperm(kv["ypred"])), kv)
+         out = merge(out,
+             Dict(
+         "mae"=>Metrics.mae(y, kv["ypred"]), 
+         "adjr2"=>Metrics.adjusted_r2_score(Float64.(y),
+             Float64.(out["ypred"]), length(XX)), 
+         "adjr2r"=>Metrics.adjusted_r2_score(
+             Float64.(out["yr"]), Float64.(out["ypredr"]), length(XX)), 
+             "maer"=>Metrics.mae(out["yr"], out["ypredr"]), 
+         "N"=>size(y,1))
+         )
+         
+    end
+    function glm_mlj(::Custom_ElasticNetMLJ, XX::Matrix, y, Dist=Binomial())
+        @info "Custom $(typeof(Dist))"
+        yin, XXin = if Dist isa Binomial || Dist isa Poisson
+            replace(y, 0=>1e-16), replace(XX, 0=>1e-16)
         else
             y
         end
-        η = GLM.linkfun.(canonicallink(Dist), 
-                yin)
-        # Logging.disable_logging(Logging.Warn)
-        m = MLJ.machine(R, XX, η)
-        # @info "machine info" info(R)
-        MLJ.fit!(m)
-        # Logging.disable_logging(Logging.Debug)
-        ypred = MLJ.predict(m, XX)
-        ypred = GLM.linkinv.(canonicallink(Dist), ypred)
-        # pltcomp = plot(y, label="actual")
-        # plot!(ypred, label="pred")
-        Dict("m"=>m, "type"=>:mlj, "ypred"=>ypred, "y"=>y,
-            "mae"=>Metrics.mae(y, ypred), "coef"=>m.fitresult[1].coef_,
-            "adjr2"=>Metrics.adjusted_r2_score(y,ypred,length(XX)),
-            "N"=>size(y,1))
+        R = ElasticNetCVRegressor(n_jobs=Threads.nthreads(),
+            cv=min(10,size(XX,1)), normalize=true)
+        # μ = GLM.linkinv.(canonicallink(Dist), y)
+        # @infiltrate any(y .≈ 1)
+        m = ypred = nothing
+        lif(x) = GLM.linkfun.(canonicallink(Dist), x)
+        ilif(x) = GLM.linkinv.(canonicallink(Dist), x)
+        try
+            XXin, yin = log.(XXin .+ exp(0)), lif(yin)
+            XXin, y = MLJ.table(XXin), y
+            m = MLJ.machine(R, XXin, yin)
+            MLJ.fit!(m)
+            ypred = ilif(MLJ.predict(m, XXin))
+            # ypredlink = lf(map(x-> x>=0 ? x : 0,ypred))
+            # ypredlink = ilf(ypred)
+        catch
+            @infiltrate
+        end
+        Dict("m"=>m, "ypred"=>ypred, "coef"=> m.fitresult[1].coef_)
+    end
+    function glm_mlj(::SpecificGLM_MLJ, XX::Matrix, y, Dist)
+        if Dist isa Binomial
+            @info "Spec binoomial"
+            XX, y = MLJ.table(XX), y
+            R = LogisticCVClassifier(n_jobs=Threads.nthreads(),
+                penalty="elastic_net",
+                cv=min(5,size(XX[1],1)))
+            m = MLJ.machine(R, XX, η)
+            MLJ.fit!(m)
+            ypred = MLJ.predict(m, XX)
+            coef = m.fitresult[1]
+        elseif Dist isa Poisson
+            @info "Spec poisson"
+            sklearn = pyimport("sklearn")
+            lm = sklearn.linear_model
+            R = lm.PoissonRegressor()
+            R.fit(XX, y)
+            ypred = R.predict(XX)
+            m = nothing
+            coef = R.coef_
+        end
+        Dict("m"=>m, "ypred"=>ypred, "coef"=>coef)
     end
 
     export glm_glmjl
