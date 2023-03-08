@@ -1,3 +1,7 @@
+# This script just explores whether my underling data ought to be predictive
+# if its changing enough over the 2 hours of recording that prediction is
+# ruined
+
 include("../imports_isolated.jl")
 
 # Make some helper functions!
@@ -62,13 +66,13 @@ function get_correlation_matrices(df)
     Cca1    = C[ca1, ca1]
     Cpfc    = C[pfc, pfc]
     Cca1pfc = C[ca1, pfc]
-    ca1pct = sum(ca1)/length(ca1) * Plots.pct
-    pfcpct = sum(pfc)/length(pfc) * Plots.pct
     (;C, Cca1, Cpfc, Cca1pfc)
 end
 
 function plot_correlation_matrices(;Cca1, Cpfc, Cca1pfc, kws...)
     g= grid(2,2)
+    ca1pct = sum(ca1)/length(ca1) * Plots.pct
+    pfcpct = sum(pfc)/length(pfc) * Plots.pct
     g.widths  = [ca1pct, pfcpct]
     g.heights = [ca1pct, pfcpct]
     m = 0.2
@@ -81,19 +85,138 @@ function plot_correlation_matrices(;Cca1, Cpfc, Cca1pfc, kws...)
     )
 end
 
-
 overall = get_correlation_matrices(df)
 plot_correlation_matrices(;overall...)
 
+function checkbins(var::Symbol)
+    println("Unique $var bins: ", length(unique(getproperty(Main,var).bins)))
+end
 
 # Prepare for a 10 minute bucketed approach
 dT = diff(beh.time)
 bins = Int(maximum(floor.(cumsum(dT)/60/10))) #get number of 10 minute buckets
-beh.bins = DIutils.binning.digitize(beh.time, bins)
-DIutils.filtreg.register(beh, cycles, on="time", transfer=["epoch","bins"])
-df.cycle = df.cycs
-DIutils.filtreg.register(cycles, df, on="cycle", transfer=["epoch","time","bins"])
+beh.bins = DIutils.binning.digitize(beh.time, bins);
+checkbins(:beh)
+DIutils.filtreg.register(beh, cycles, on="time",
+    transfer=["epoch","bins"]);
+checkbins(:cycles);
+df.cycle = df.cyc_central;
+DIutils.filtreg.register(cycles, df, on="cycle",
+    transfer=["epoch","time","bins"]);
+checkbins(:df);
+DIutils.filtreg.register(cycles, Rdf, on="cycle", transfer=["epoch","bins"]);
+checkbins(:Rdf);
+DIutils.filtreg.register(cycles, Rdf, on="time", transfer=["epoch","bins"]);
+checkbins(:Rdf)
 
-@df df scatter(:cycle)
+using ColorSchemes
+function plot_bins(df, x=nothing; cmap=:Reds)
+    y = :bins
+    vars = x === nothing ? [y] : [x,y] 
+    dfc = dropmissing(df, vars) 
+    x = x === nothing ? (1:size(dfc,1)) : dfc[!,x]
+    c=DIutils.plotutils.getplotcolor(dfc[!,y], cmap)
+    y = dfc[!,y]
+    scatter(x, y; c )
+end
+plot(
+    plot_bins(beh, :time),
+    plot_bins(df, :time)
+)
 
+# CORRELATION STRUCTURE OF 10 MINUTE BINS
+function test_correlation_structure(prop=:bins; desc="")
+    SIM=[]
+    DF = groupby(df, prop)
+    prog =Progress(length(DF);desc="CC")
+    CC = Vector{Array}(undef, length(DF))
+    for (i,d) in enumerate(DF)
+        CC[i] = begin
+            Q = get_correlation_matrices(d).C
+            Q[isnan.(Q)] .= 0
+            next!(prog)
+            Q[:]
+        end
+    end
+
+    a2d = DIutils.arr.atleast2d
+    println("Computing simlarity")
+    similarity = Matrix{Float64}(undef, length(CC), length(CC))
+    prog = Progress(length(CC)^2)
+    Threads.@threads for (i,(q1,q2)) in 
+        collect(enumerate(Iterators.product(CC,CC)))
+        similarity[i]= (a2d(q1)' * a2d(q2))[1]/(norm(q1)*norm(q2))
+        next!(prog)
+    end
+    push!(SIM,similarity)
+    println("PLotting CC")
+    # hCC=heatmap(similarity, title="Correlation structure over time bins")
+    # savefig(plotsdir("isolated","glm","correlation structure of $desc $prop for cyclemean df.pdf"))
+
+    println("Processing Rdf")
+    RDF = groupby(Rdf, prop)
+    prog =Progress(length(RDF);desc="RCC")
+    println("Computing simlarity")
+    RCC = Vector{Array}(undef, length(RDF))
+    Threads.@threads for (i,d) in enumerate(RDF)
+        RCC[i] = begin
+            Q = get_correlation_matrices(begin
+                unstack(d, :time, :unit, :value, combine=mean) 
+                end).C
+            Q[isnan.(Q)] .= 0
+            next!(prog)
+            Q[:]
+        end
+    end
+
+    println("Computing RCC similarity")
+    similarity = Matrix{Float64}(undef, length(RCC), length(RCC))
+    prog = Progress(length(CC)^2)
+    Threads.@threads for (i,(q1,q2)) in 
+        collect(enumerate(Iterators.product(RCC,RCC)))
+        similarity[i]= (a2d(q1)' * a2d(q2))[1]/(norm(q1)*norm(q2))
+        next!(prog)
+    end
+    push!(SIM,similarity)
+    println("PLotting RCC")
+    # hRCC=heatmap(similarity, title="Correlation structure over time bins")
+    # savefig(plotsdir("isolated","glm","correlation structure of $desc $prop for cyclemean Rdf.pdf"))
+
+    println("PLotting CC vs RCC")
+    similarity = Matrix{Float64}(undef, length(CC), length(RCC))
+    prog = Progress(length(CC)^2)
+    Threads.@threads for (i,(q1,q2)) in 
+        collect(enumerate(Iterators.product(CC,RCC)))
+        similarity[i]= (a2d(q1)' * a2d(q2))[1]/(norm(q1)*norm(q2))
+        next!(prog)
+    end
+    push!(SIM,similarity)
+    # hCCRCC = heatmap(similarity, xlabel="cycle df", ylabel="firing rate df",
+    #     title="Correlation structure over time bins")
+    # (;hCC,hRCC, hCCRCC, SIM)
+    (;SIM)
+end
+test_correlation_structure(:cycle; desc="")
+
+test_correlation_structure(:bins; desc="10 minute")
  # heatmap(cor(Matrix(df[!,uicellcols(df)])), c=:delta, clim=(0,0.1))
+
+
+    cycles[!,:hasmis] = vec(any(Matrix(ismissing.(cycles[!,matchprops])),
+        dims=2))
+    cycles.hasocc = (!).(ismissing.(occ.datainds))
+    @assert size(occ.datainds,1) == size(cycles.hasocc,1)
+
+    q1= @df dropmissing(cycles,[matchprops..., :bins]) plot(:time,:bins, 
+        label="cycles have behavior and bins")
+    @df dropmissing(df,[:bins]) scatter!(:time,:bins,label="df have bins")
+    x = cycles.time[abs.([0;diff((!).(cycles.hasmis))]) .> 0]
+    vspan!(x, alpha=0.40, labels="cycles has non miss", c=:blue)
+
+    x=cycles.time[abs.([0;diff(cycles.hasocc)]) .> 0]
+    q2=vspan!(x, alpha=0.40, labels="cycles has occ", c=:red)
+    plot(q1,q2)
+
+Z=ismissing.([
+    Matrix(@subset(cycles, :cycle .∈ (iso_cycles,))[:,[:x,:stopWell,:speed]]) occ.datainds[iso_cycles,:]])
+heatmap(Z,xticks=([1,2,3,4],["x","stopwell","speed","datainds"]))
