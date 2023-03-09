@@ -97,10 +97,9 @@ DIutils.filtreg.register(cells, Rdf_sub, on="unit", transfer=["area"])
 
 # Annotate spikes and Rdf
 dropmissing!(Rdf_sub, :isolated_sum)
-Rdf_cycles  = groupby(Rdf_sub, [:cycle])
 iso_cycles = unique(@subset(Rdf_sub, :isolated_sum .> 0, 
                     :hasocc .== true).cycle)
-indexers = [:time, :isolated_sum, :pfcisosum]
+indexers = [:time, :isolated_sum, :pfcisosum, :bins]
 commit_vars()
 
 # 
@@ -186,23 +185,48 @@ commit_cycwise_vars()
 # | |_) | (_| | || (__| | | |  __/\__ \ 
 # |_.__/ \__,_|\__\___|_| |_|\___||___/ 
 #
+
+# Prepare for a 10 minute bucketed approach
+dT = diff(beh.time)
+bins = Int(maximum(floor.(cumsum(dT)/60/10))) #get number of 10 minute buckets
+beh.bins = DIutils.binning.digitize(beh.time, bins);
+checkbins(:beh)
+DIutils.filtreg.register(beh, cycles, on="time",
+    transfer=["epoch","bins"]);
+checkbins(:cycles);
+df.cycle = df.cyc_central;
+# DIutils.filtreg.register(cycles, df, on="cycle",
+#     transfer=["epoch","time","bins"]);
+DIutils.filtreg.register(cycles, Rdf_sub, on="cycle", transfer=["epoch","bins"]);
+checkbins(:Rdf_sub);
+
 # (each iso/noniso cycle plus precedents and antecedents)
-val = val === nothing ? :value : val
-df, cyc_errors = Munge.isolated.df_FRpercycle_and_matched(cycles, Rdf_cycles,
+Rdf_cycles  = groupby(Rdf_sub, [:cycle])
+df, cyc_errors = df_FRpercycle_and_matched(cycles, Rdf_cycles,
     beh, val; iso_cycles=iso_cycles, indexers, cycrange=opt["cycles"])
+checkbins(:df);
 
 # Checkpoint
 commit_cycwise_vars()
 
 @time dx_dy = Dict((;relcyc) => get_dx_dy(df, relcyc) for relcyc in 
-    -opt["cycles"]:opt["cycles"])
+                    -opt["cycles"]:opt["cycles"])
+DFB= groupby(df, :bins)
+prog = Progress((opt["cycles"]*2+1) * length(DFB))
+@time dx_dy_bin = ThreadSafeDict()
+sets = [(relcyc, dfb) for relcyc in -opt["cycles"]:opt["cycles"], dfb in DFB]
+Threads.@threads for (relcyc, dfb) in sets
+    dx_dy_bin[(;relcyc, bin=Int(dfb.bins[1]))] = get_dx_dy(dfb, relcyc)
+    next!(prog)
+end
+
+predkey(k::NamedTuple) = (;k..., bin=0)
 # @time dx_dy = merge(dx_dy, get_futurepast_blocks(df))
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 include(scriptsdir("isolated","imports_isolated.jl"))
-
 
 for col in eachcol(df[!,[x for x in names(df) if occursin("_i", x)]] )
     replace!(col, missing=>0)

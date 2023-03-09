@@ -362,6 +362,8 @@ module isolated
     
     obtain the fr per theta cycle of interest, relative cylces to it, and
     cycles without isolated spikes matched on behavior
+
+    changes
     """
     function df_FRpercycle_and_matched(cycles, Rdf_cycles, beh, val;
         iso_cycles, threading::Bool=true, indexers=[:time, :isolated_sum,
@@ -396,9 +398,14 @@ module isolated
                                                 cycrange=cycrange,
                                                 cyc_central=cyc,
                                                 cyc_batch, cyc_match=0))
-                matched_cycs = @subset(cycles, :cycle .== cyc).matched[1]
+                matched_cycs = @subset(cycles, :cycle .== cyc)
+                matched_cycs = matched_cycs.matched[1]
                 # Push MATCHED cycles
-                if isempty(matched_cycs)
+                if ismissing(matched_cycs) 
+                    Threads.atomic_add!(M, 1)
+                    @warn "Missing matches for $cyc, skipping"
+                    continue
+                elseif isempty(matched_cycs)
                     Threads.atomic_add!(M, 1)
                     continue
                 end
@@ -411,6 +418,7 @@ module isolated
                 end
                 next!(prog)
             catch exception
+                print("exception")
                 cyc_error[cyc] = exception
                 Threads.atomic_add!(E, 1)
             #     if mod(i, 100) == 0
