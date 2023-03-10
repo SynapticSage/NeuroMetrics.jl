@@ -1,14 +1,21 @@
 __precompile__(false)
+"""
+    isolated
+
+This module contains code used to analyze isolated spikes. It is
+designed to be used in conjunction with the `GoalFetchAnalysis` module
+and the `GoalFetchAnalysis.Munge` module.
+"""
 module isolated
     using MATLAB: matlab_cmd
-using ArgParse: test_range
+    using ArgParse: test_range
     import DIutils
     using DIutils.binning
     import Logging
 
     using JLD2, ArgParse, DrWatson, DIutils.dict, RecipesBase, DataFramesMeta,
           Statistics, NaNStatistics, Infiltrator, DataFrames, 
-            Missings, Plots, StatsBase
+            Missings, Plots, StatsBase, ThreadSafeDicts
     using DataStructures: OrderedDict
     import Distributions
     import DIutils: Table
@@ -46,9 +53,11 @@ using ArgParse: test_range
 
     export load_iso
     """
-        load_iso
+        load_iso(pos...)
 
     Returns a dictionary of the isolated variables of interest
+    
+    see also: path_iso
     """
     function load_iso(pos...)::OrderedDict
         results = OrderedDict()
@@ -67,6 +76,8 @@ using ArgParse: test_range
         load_iso
 
     Modifies the module to incldude isolated variables loaded
+
+    see also: path_iso for possible pos arguments
     """
     function load_iso!(Mod::Module, pos...)::Nothing
         data = load_iso(pos...)
@@ -136,6 +147,26 @@ using ArgParse: test_range
     end
 
     export construct_predict_isospikecount
+    """
+        construct_predict_isospikecount(df, cells, input_area="CA1";
+                other_vars=[], other_ind_vars=[])
+
+    Returns a list of GLM formulae for predicting the spike count of
+    each neuron in the dependent area from the spike count of each
+    neuron in the independent area. The independent area is assumed
+    to contain isolated spike columns.
+
+    # Inputs
+    - `df`: the dataframe containing the spike counts
+    - `cells`: the dataframe containing the cell information
+    - `input_area`: the area that contains the isolated spikes
+    - `other_vars`: other variables to include in the model
+    - `other_ind_vars`: other variables to include in the model as
+        independent variables
+
+    # Returns
+    - `formulae`: a list of GLM formulae
+    """
     function construct_predict_isospikecount(df, cells, input_area="CA1";
             other_vars=[], other_ind_vars=[])
         uArea = unique(cells.area)
@@ -628,6 +659,8 @@ using ArgParse: test_range
             elseif zscoreX
                 @info "zscoring"
                 hcat([zscore(x) for x in eachcol(XX)]...)
+            else
+                XX
             end
         XX, y
     end
@@ -715,6 +748,16 @@ using ArgParse: test_range
         measure_glm_dict!(out, "yr", "ypredr")
     end
 
+    """
+        glm_(::SpecificGLM_MLJ, XX, y, Dist=Binomial(); kws...)
+
+    Wrapper for the specific GLM method
+
+    # Inputs
+    - `XX::AbstractMatrix`: Design matrix
+    - `y::AbstractVector`: Response vector
+    - `Dist::Distribution`: Distribution to use
+    """
     function glm_(::PYGLM_ElasticNet, XX::AbstractMatrix, y, Dist=Binomial(); kws...)
         kws = (;tol=1e-3, score_metric="pseudo_R2", alpha=0.5, 
                 max_iter=100, cv=3, kws...)
@@ -724,11 +767,24 @@ using ArgParse: test_range
         ypred = gl_glm.predict(XX)
         out = Dict(string.(collect(keys(kws))) .=> collect(values(kws)))
         merge(out, Dict("y"=>y, "ypred"=>ypred), 
-        "lambda"=>gl_glm.reg_lambda_opt_, "lambdas"=>gl_glm.reg_lambda)
+        Dict("lambda"=>gl_glm.reg_lambda_opt_, "lambdas"=>gl_glm.reg_lambda))
     end
     glm_pyglm(XX, y, Dist, kws...) = glm_(PYGLM_ElasticNet(), XX, y, Dist;
                                      kws...)
 
+    """
+        glm_(::Custom_ElasticNetMLJ, XX, y, Dist=Binomial(); kws...)
+
+    Wrapper for the custom GLM method
+    
+    # Inputs
+    - `XX::AbstractMatrix`: Design matrix
+    - `y::AbstractVector`: Response vector
+    - `Dist::Distribution`: Distribution to use
+    
+    # Outputs
+    Dictionary of results
+    """
     function glm_(::Custom_ElasticNetMLJ, XX::AbstractMatrix, y, Dist=Binomial())
         @info "Custom $(typeof(Dist))"
         yin, XXin = if Dist isa Binomial || Dist isa Poisson
@@ -756,6 +812,16 @@ using ArgParse: test_range
     glm_custom(XX::AbstractMatrix, y::AbstractVector, Dist) = 
             glm_(Custom_ElasticNetMLJ(), XX::AbstractMatrix, y, Dist=Binomial())
 
+    """
+    glm_(::SpecificGLM_MLJ, XX::AbstractMatrix, y, Dist)
+
+    mlj version of glmnet
+
+    # Inputs
+    - `XX::AbstractMatrix`: Design matrix
+    - `y::AbstractVector`: Response vector
+    - `Dist`: Distribution
+    """
     function glm_(::SpecificGLM_MLJ, XX::AbstractMatrix, y, Dist)
         if Dist isa Binomial
             @info "Spec binoomial"
@@ -810,7 +876,6 @@ using ArgParse: test_range
 
         @info "matlab" link dist
 
-
         xnz, y = DIutils.arr.atleast2d(xnz), DIutils.arr.atleast2d(y)
         @info quick_and_dirty
         if pre === nothing
@@ -841,8 +906,117 @@ using ArgParse: test_range
     glm_matlab(XX::AbstractMatrix, y, Dist, kws...) =
             glm_(GLM_MATLAB(), XX, y, Dist; kws...)
 
+
+    export run_glm!
+    """
+    Run the GLM on several batches of data
+
+    - `df` : the dataframe, with the data
+    - `df_cache` : the dataframe, with the data
+    - `cells` : dataframe describing the possible cells
+    - `formula_method` : the function to create the formulae
+    - `glmtool` : the tool to use
+    - `Dist` : the distribution to use
+    - `unitwise` : if true, we do the GLM on the unitwise data
+    - `unitrep` : unit replace ie, when a unit is address with a string,
+                  a replacement argment to address something else (e.g. "_i")
+                 to pull an isolated spike column for that cell
+    - `xtrans` : the function to transform the X values
+    - `ytrans` : the function to transform the Y values
+    - `cacheXY` : a dictionary to cache the X and Y values
+    - `modelz` : a dictionary to cache the model values
+
+    # Returns
+    - `modelz` : a dictionary to cache the model values
+    - `cacheXY` : a dictionary to cache the X and Y values
+    
+    The outputs are also written to by reference, so no need to return them.
+    """
+    function run_glm!(full_df::DataFrame, df_batches::AbstractDict,
+        cells::DataFrame, formula_method::Function, glmtool::Symbol; 
+        area_to_area::Bool=false,
+        Dist=Binomial(), unitwise::Bool, unitrep=[], xtrans::Function=identity,
+        ytrans::Function=identity, cacheXY=ThreadSafeDict(),
+        modelz=ThreadSafeDict())
+        # Now let's take the formula and apply them
+        formulae = OrderedDict() 
+        formulae["ca1pfc"] = formula_method(full_df, cells, "CA1");
+        formulae["pfcca1"] = formula_method(full_df, cells, "PFC");
+        if area_to_area
+            formulae["ca1ca1"] = formula_method(full_df, cells, "CA1", 
+                                         dep_area="CA1");
+            formulae["pfcpfc"] = formula_method(full_df, cells, "PFC"; 
+                                         dep_area="PFC");
+        end
+        @assert !isempty(first(values(formulae)))
+        glmsets = []
+        # CREATE THE ITERATOR
+        for indep in keys(formulae), cachekey in keys(df_batches), 
+           f in formulae[indep]
+            push!(glmsets, (indep, cachekey, f))
+        end
+        prog = Progress(length(glmsets); desc="GLM spike counts")
+        for (indep, x_key, f) in glmsets                                                
+
+            # Get 🔑               
+            if unitwise
+                unitstr = !isempty(unitrep) ?
+                    replace(string(f.lhs),unitrep...) : string(f.lhs)
+                unit=parse(Int, unitstr)
+                out_key = (;unit, indep, x_key...)
+            else
+                out_key = (;indep, x_key...)
+            end
+
+            # Run model 🤖
+            try
+                XX, y = df_batches[x_key]
+                modelz[(;indep, x_key, unit)] = glm_(f, XX, y, Dist;
+                                       type=glmtool, xtrans=xtrans, ytrans=ytrans)
+                cacheXY[out_key] = (;XX, y)
+            catch exception
+                @infiltrate
+                modelz[(;indep, x_key, unit)] = exception
+                print("Error on $out_key, exception = $exception")
+                sleep(0.1)
+            end
+            next!(prog)
+         end
+        return modelz, cacheXY
+    end
+    """
+    Runs the GLM on the full dataframe
+    """
+    function run_glm!(full_df::DataFrame, formula_method::Function,
+                        cells::DataFrame, glmtool::Symbol; kws...)
+        df_batches = OrderedDict(
+            "batch" => (full_df, full_df)
+        )   
+        run_glm!(full_df, df_batches, cells, formula_method, glmtool; kws...)
+    end
+    """
+    Runs the GLM on a grouped dataframe
+    """
+    function run_glm!(grouped::GroupedDataFrame, formula_method::Function,
+                        cells::DataFrame, glmtool::Symbol; kws...)
+        df_batches = OrderedDict(
+            begin
+                k = NamedTuple(grouped.cols, keytup)
+                k => (grouped[keytup], grouped[keytup])
+            end 
+        for keytup in keys(grouped)
+        )   
+        run_glm!(DataFrame(grouped), df_batches, cells, formula_method,
+                    glmtool; kws...)
+    end
+
+
     # FOR INTERACTING WITH GLM MODEL DICTS
-    """ """
+    """
+        Table.to_dataframe(D::AbstractDict)::DataFrame
+
+    Convert a dictionary to a dataframe, where the keys are the column names
+    """
     function Table.to_dataframe(D::AbstractDict, func::Function)::DataFrame
         kt = keytype(D)
         if all(isa.(collect(values(D)), AbstractDict))
@@ -856,6 +1030,9 @@ using ArgParse: test_range
 
 
     export clean_keys
+    """
+    Clean the keys of a dictionary, removing the blacklist
+    """
     function clean_keys(D::AbstractDict, blacklist)
         Dict(k=>clean_keys(v, blacklist) for (k,v) in D if k ∉ blacklist) 
     end

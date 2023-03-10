@@ -8,6 +8,7 @@ else
     @time include(scriptsdir("isolated","load_isolated.jl"))
     @time include("../load_isolated.jl")
 end
+include("./imports_isolated.jl")
 include("../imports_isolated.jl")
 
 
@@ -260,12 +261,19 @@ df[!,[x for x in names(df) if occursin("_i", x)]]
 model_cellhasiso, cacheiso, shuffle_cellhasiso = 
                             initorget("model_cellhasiso"), ThreadSafeDict(),
                             initorget("shuffle_cellhasiso"; obj=Dict())
-pos = (df, dx_dy, construct_predict_isospikecount, :mlj)
+model_cellhasiso = OrderedDict()
+pos = (df, dx_dy, cells, construct_predict_isospikecount, :pyglm)
+pos = (df, Dict(first(dx_dy)), cells, construct_predict_isospikecount, :pyglm)
 kws = (Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""],
     ytrans=x->Float64(x>0), xtrans=x->Float64(x), modelz=model_cellhasiso,
     )
 
-run_glm!(pos...;kws...) 
+isolated.run_glm!(pos...;kws...) 
+
+isolated.run_glm!(df, dx_dy, cells, construct_predict_isospikecount, :pyglm;
+    Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""],
+    ytrans=x->Float64(x>0), xtrans=x->Float64(x), modelz=model_cellhasiso,
+    )
 
 # tmp = shuffle_cellhasiso
 # shuffle_cellhasiso = ThreadSafeDict()
@@ -273,53 +281,50 @@ run_glm!(pos...;kws...)
 #     push!(shuffle_cellhasiso,k=>v)
 # end
 
+
+# -----------------------------------------------
+# Description of the different construct_ methods
+# -----------------------------------------------
+#
+# construct_predict_isospikecount :: 
+#     Predicts the number of isolated spikes in a cycle
+# Type :: Poisson
+#
+# construct_predict_iso :: 
+#     Whether there is an isolated spike in a cycle
+# Type :: Binomial
+#
+# construct_predict_spikecount :: 
+#     Predicts the number of spikes in a cycle
+# Type :: Poisson
+#
+# -----------------------------------------------
+# Description of different model variables stored
+# in the local JLD2 file
+# -----------------------------------------------
+#
+# model_cellhasiso :: 
+#     Model for predicting whether there is an isolated spike in a cycle
+#
+# model_cellhasiso_matlab ::
+#     Model for predicting whether there is an isolated spike in a cycle
+#     using the matlab implementation
+#
+# 
+# shuffle_cellhasiso :: 
+#     Shuffled model for predicting whether there is an isolated spike in a cycle
+# 
+# model_spikecount :: 
+#     Model for predicting the number of spikes in a cycle
+#
+# model_counthasiso :: 
+#     Model for predicting whether there is an isolated spike in a cycle
+#     using the number of spikes in a cycle as a predictor
+# 
+#
+
 run_shuffle!(pos...; kws..., 
     shuffle_models=shuffle_cellhasiso,
     shufcount=30)
 
 commit_cycwise_vars()
-
-model_cellhasiso_matlab = initorget("model_cellhasiso_matlab")
-run_glm!(df, "model_cellhasiso_matlab", construct_predict_isospikecount, 
-    :matlab; Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""], 
-    ytrans=x->Float64(x>0), xtrans=x->Float64(x),
-    modelz=model_cellhasiso_matlab)
-
-model_cellhasiso = run_glm!(df, "model_cellcountiso", 
-    construct_predict_isospikecount, :mlj; 
-    Dist=Distributions.Poisson(), 
-   
-    ytrans=x->Float64(x), xtrans=x->Float64(x)
-)
-
-commit_cycwise_vars()
-
-# ========================
-#  . .     ,---.|    ,-.-.
-# -+-+-    |  _.|    | | |
-# -+-+-    |   ||    | | |
-#  ` `     `---'`---'` ' '
-#  OF SPIKE COUNTS per cell  🔺
-# ========================
-model_cellhasiso_matlab = initorget("model_spikecount")
-model_spikecount, cache = run_glm!(df, "model_spikecount", 
-    construct_predict_spikecount,
-    :mlj, Dist=Distributions.Poisson(), unitwise=true, 
-    xtrans=x->Float64(x), ytrans=x->Float64(x))
-
-commit_cycwise_vars()
-
-# ========================
-#  . .     ,---.|    ,-.-.
-# -+-+-    |  _.|    | | |
-# -+-+-    |   ||    | | |
-#  ` `     `---'`---'` ' '
-#  OF HAS_ISO at all
-# ========================
-model_spikecount = run_glm!(df, "model_spikecount", construct_predict_iso,
-    :mlj, Dist=Distributions.Binomial(), unitwise=false, 
-    xtrans=x->Float64(x), ytrans=x->Float64(x))
-
-# TODO add iso_count
-commit_cycwise_vars()
-
