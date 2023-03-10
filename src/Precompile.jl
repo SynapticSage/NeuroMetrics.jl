@@ -22,7 +22,8 @@ module Precompile
                        "ImageSegmentation", "ImageTransformations",
                        "ImageFiltering", "ArgParse", 
                        #"DIutils"
-                      ]   
+                        "MLJ" # 03/2023
+]   
     _GFA_data_dependencies = [_GFA_dependencies..., "DI", "SampleData"]
 
     using PackageCompiler

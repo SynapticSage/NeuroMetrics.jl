@@ -205,22 +205,38 @@ Rdf_cycles  = groupby(Rdf_sub, [:cycle])
 df, cyc_errors = df_FRpercycle_and_matched(cycles, Rdf_cycles,
     beh, val; iso_cycles=iso_cycles, indexers, cycrange=opt["cycles"])
 checkbins(:df);
-
 # Checkpoint
 commit_cycwise_vars()
 
-@time dx_dy = Dict((;relcyc) => get_dx_dy(df, relcyc) for relcyc in 
-                    -opt["cycles"]:opt["cycles"])
+#    _  _      ____           _          
+# _| || |_   / ___|__ _  ___| |__   ___ 
+#|_  ..  _| | |   / _` |/ __| '_ \ / _ \
+#|_      _| | |__| (_| | (__| | | |  __/
+#  |_||_|    \____\__,_|\___|_| |_|\___|
+#                                       
+dx_dy = ThreadSafeDict()
+Threads.@threads for relcyc in collect(-opt["cycles"]:opt["cycles"])
+    dx_dy[(;relcyc)] = get_dx_dy(df, relcyc)
+end
+dx_dy = Dict(dx_dy)
+
 DFB= groupby(df, :bins)
 prog = Progress((opt["cycles"]*2+1) * length(DFB))
 @time dx_dy_bin = ThreadSafeDict()
-sets = [(relcyc, dfb) for relcyc in -opt["cycles"]:opt["cycles"], dfb in DFB]
-Threads.@threads for (relcyc, dfb) in sets
-    dx_dy_bin[(;relcyc, bin=Int(dfb.bins[1]))] = get_dx_dy(dfb, relcyc)
+sets = [(relcyc, DFB[b], b) 
+    for relcyc in -opt["cycles"]:opt["cycles"],
+    b in eachindex(DFB)]
+Threads.@threads for (relcyc, dfb, b) in sets
+    key = (;relcyc, bin=b[1])
+    try
+        dx_dy_bin[key] = get_dx_dy(dfb, relcyc)
+    catch exception
+        @warn "$key failed" exception
+    end
     next!(prog)
 end
+dx_dy_bin = Dict(dx_dy_bin)
 
-predkey(k::NamedTuple) = (;k..., bin=0)
 # @time dx_dy = merge(dx_dy, get_futurepast_blocks(df))
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

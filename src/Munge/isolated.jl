@@ -1,11 +1,12 @@
+__precompile__(false)
 module isolated
     import DIutils
     using DIutils.binning
     import Logging
 
     using JLD2, ArgParse, DrWatson, DIutils.dict, RecipesBase, GLM, 
-          DataFramesMeta, Statistics, NaNStatistics, Infiltrator, DataFrames,
-          Missings, Plots
+          DataFramesMeta, Statistics, NaNStatistics, Infiltrator, DataFrames, 
+        Missings, Plots, StatsBase
     using DataStructures: OrderedDict
     import Distributions
     import DIutils: Table
@@ -15,14 +16,15 @@ module isolated
     using MATLAB, PyCall
     using Random
     using MLJScikitLearnInterface: ElasticNetCVRegressor
+    @pyimport pyglmnet 
 
     init_mlj = false
 
     function __init__mlj()
         @eval isolated init_mlj = true
         if !init_mlj
-            @eval isolated using MLJScikitLearnInterface: ElasticNetCVRegressor,
-                    LogisticCVClassifier
+            @eval isolated using MLJScikitLearnInterface: 
+                 ElasticNetCVRegressor, LogisticCVClassifier
         end
     end
 
@@ -159,7 +161,7 @@ module isolated
     export construct_predict_spikecount
     function construct_predict_spikecount(df, cells::DataFrame, 
             indep_area="CA1"; dep_area=nothing, 
-             other_vars=[], other_ind_vars=[])
+            other_vars=[], other_ind_vars=[])
 
         uArea = unique(cells.area)
         @assert length(uArea) == 2 "Only supports two area dataframes"
@@ -528,21 +530,19 @@ module isolated
     function ready_glm_vars(f::FormulaTerm, XX::DataFrame, y::DataFrame;
         predictkey=0, xtrans=identity, ytrans=identity, kws...)
 
-        function get_mat(dx, f)
-               cols = [string(ff) for ff in f.rhs]
-               XX = Matrix(dx[!,cols])
+        function get_mat(XX, f)
+              cols = [string(ff) for ff in f.rhs]
+              Matrix(XX[!,cols])
         end
-        XX = if length(unique(dx.relcyc)) .> 1
-            XX = []
-            for cyc in sort(unique(dx.relcyc))
-                get_mat(@subset(dx, :relcyc .== cyc), f)
+        XX = if length(unique(XX.relcycs)) .> 1
+            res = []
+            for cyc in sort(unique(XX.relcycs))
+                push!(res, get_mat(@subset(XX, :relcycs .== cyc), f))
             end
             hcat(XX...)
         else
-            get_mat(dx, f)
+            get_mat(XX, f)
         end
-        cols = [string(ff) for ff in f.rhs]
-        XX = Matrix(XX[!,cols])
         y  = Vector(y[!,string(f.lhs)])
         @assert f.lhs ∉ f.rhs
         misses = (!).(ismissing.(y))
@@ -551,6 +551,11 @@ module isolated
 
     export expit
     expit(x) = 1/(1+exp(-x))
+
+    # ------------------------
+    # METHOD : MATLAB
+    # `fitglm` or better `lassoglm`
+    # ------------------------
 
     export glm_matlab
     """
@@ -565,7 +570,8 @@ module isolated
        glm_matlab(XX,y,Dist; kws...)
     end
     function glm_matlab(XX, y, Dist=Binomial(), link=nothing; 
-                        pre=nothing, kws...)
+                        quick_and_dirty=false, dummy_coding=true,
+                 pre=nothing, kws...)
        nameit(x) = lowercase(begin
             first(split(first(split(string(x),"{")), "("))
         end
@@ -575,37 +581,62 @@ module isolated
         dist = Dist isa String ? Dist : nameit(Dist)
         @info "matlab" link dist
 
-       logval(xn) = log.(replace(xn,0=>1e-16))
-       xnz = logval(XX)
-       xnz, y = DIutils.arr.atleast2d(xnz), DIutils.arr.atleast2d(y)
-       if pre === nothing
-           @time mat"[$B, $stats] = lassoglm(double($xnz), double($y), $dist, 'alpha', 0.5, 'CV', 3, 'MCReps', 5)"
+        # logval(xn) = log.(replace(xn,0=>1e-16))
+        xnz =  !dummy_coding ?  XX : DIutils.statistic.dummycode(XX)
+        @infiltrate
+
+        xnz, y = DIutils.arr.atleast2d(xnz), DIutils.arr.atleast2d(y)
+        @info quick_and_dirty
+        if pre === nothing
+            if quick_and_dirty
+               @time mat"[$B, ~, $stats] = glmfit(double($xnz), double($y), $dist);"
+            else
+               @time mat"[$B, $stats] = lassoglm(double($xnz), double($y), $dist, 'alpha', 0.5, 'CV', 3, 'MCReps', 5);"
+            end
            y   = vec(Float64.(y))
            pre = Dict("B"=>B, "stats"=>stats, "type"=>:matlab, "y"=>y)
         end
-       B, stats = pre["B"], pre["stats"]
-       idxLambdaMinDeviance = stats["IndexMinDeviance"]
-       intercept = stats["Intercept"]
-       B0   = intercept[Int(idxLambdaMinDeviance)];  
-       c = [B0; B[ :,Int(idxLambdaMinDeviance) ]]
-       # ypred = mat"glmval($c, double($(xnz)), 'log', $stats)"
-       #mat"[$ypred, $dlo, $dhi] = glmval($c, double($(XX)), 'log', $stats)"
-       ypred = mat"glmval($c, double($(xnz)), $link, $stats)"
-       y, ypred = vec(Float64.(y)), vec(Float64.(ypred))
-       @infiltrate
-       merge!(pre, Dict( "ypred"=>ypred, "y"=>y, 
-            "coef"=>c[2:end], "intercept"=>c[1],
-            "mae"=>Metrics.mae(y, ypred),
-            "adjr2"=>Metrics.adjusted_r2_score(y,ypred,length(y)),
-            "rsquared"=>MLJ.rsquared(y, ypred)
-            )
-        )
-       pre
+        B, stats = pre["B"], pre["stats"]
+        if quick_and_dirty
+            c = B
+        else
+           idxLambdaMinDeviance = stats["IndexMinDeviance"]
+           intercept = stats["Intercept"]
+           B0   = intercept[Int(idxLambdaMinDeviance)];  
+           c = [B0; B[ :,Int(idxLambdaMinDeviance) ]]
+        end
+        # ypred = mat"glmval($c, double($(xnz)), 'log', $stats)"
+        #mat"[$ypred, $dlo, $dhi] = glmval($c, double($(XX)), 'log', $stats)"
+        ypred = mat"glmval($c, double($(xnz)), $link, $stats);"
+        y, ypred = vec(Float64.(y)), vec(Float64.(ypred))
+        merge!(pre, Dict( "ypred"=>ypred, "y"=>y, 
+             "coef"=>c[2:end], "intercept"=>c[1]))
+        measure_glm_dict!(pre)
     end
+
+    function measure_glm_dict!(D, y="y", ypred="ypred")
+        y, ypred = D[y], D[ypred]
+        M = Dict(
+            "mae" => MLJ.mean_absolute_error(y, ypred),
+            "cor" => cor(y, ypred),
+            "r2" => MLJ.rsquared(y, ypred),
+            "adjr2" => Metrics.adjusted_r2_score(y, ypred, length(y)),
+        )
+        merge!(D,M)
+    end
+
+
+    # -------------------------
+    # METHOD : MLJ package GLM  
+    # Which taps python's sklearn
+    # Also added another method
+    # -------------------------
 
     struct Custom_ElasticNetMLJ
     end
     struct SpecificGLM_MLJ
+    end
+    struct PYGLM_ElasticNet
     end
 
     export glm_mlj
@@ -615,30 +646,32 @@ module isolated
         XX, y = ready_glm_vars(f, XX, y; xtrans, ytrans, kws...)
         glm_mlj(XX, y, Dist; kws...)
     end
+
     function glm_mlj(XX::Matrix, y, Dist=Binomial(); type=:specific, kws...)
          __init__mlj()
          type = if type == :specific
              SpecificGLM_MLJ()
          elseif type == :custom
              Custom_ElasticNetMLJ()
+         elseif type == :pyglm
+             PYGLM_ElasticNet()
          end
          kv = glm_mlj(type, XX, y, Dist)
-         
          out = merge(Dict("type"=>:mlj, "y"=>y,
-         "yr"=>sortperm(y), 
-         "ypredr"=>sortperm(kv["ypred"])), kv)
-         out = merge(out,
-             Dict(
-         "mae"=>Metrics.mae(y, kv["ypred"]), 
-         "adjr2"=>Metrics.adjusted_r2_score(Float64.(y),
-             Float64.(out["ypred"]), length(XX)), 
-         "adjr2r"=>Metrics.adjusted_r2_score(
-             Float64.(out["yr"]), Float64.(out["ypredr"]), length(XX)), 
-             "maer"=>Metrics.mae(out["yr"], out["ypredr"]), 
-         "N"=>size(y,1))
-         )
-         
+        "yr"=>denserank(y)./length(y), 
+        "ypredr"=>denserank(kv["ypred"])./length(y)
+            ), kv)
+        measure_glm_dict!(out)
+        measure_glm_dict!(out, y="yr", ypred="ypredr")
     end
+
+    function glm_mlj(::PYGLM_ElasticNet, XX::Matrix, y, Dist=Binomial())
+        pyglmnet
+        gl_glm = GLMCV(distr="binomial", tol=1e-3, group=group_idxs,
+        score_metric="pseudo_R2", alpha=1.0, learning_rate=3, max_iter=100,
+              cv=3, verbose=True)
+    end
+
     function glm_mlj(::Custom_ElasticNetMLJ, XX::Matrix, y, Dist=Binomial())
         @info "Custom $(typeof(Dist))"
         yin, XXin = if Dist isa Binomial || Dist isa Poisson
@@ -646,11 +679,11 @@ module isolated
         else
             y
         end
-        R = ElasticNetCVRegressor(n_jobs=Threads.nthreads(),
-            cv=min(10,size(XX,1)), normalize=true)
         # μ = GLM.linkinv.(canonicallink(Dist), y)
         # @infiltrate any(y .≈ 1)
         m = ypred = nothing
+        R = ElasticNetCVRegressor(n_jobs=Threads.nthreads(),
+            cv=min(10,size(XX,1)), normalize=true)
         lif(x) = GLM.linkfun.(canonicallink(Dist), x)
         ilif(x) = GLM.linkinv.(canonicallink(Dist), x)
         try
@@ -666,6 +699,7 @@ module isolated
         end
         Dict("m"=>m, "ypred"=>ypred, "coef"=> m.fitresult[1].coef_)
     end
+
     function glm_mlj(::SpecificGLM_MLJ, XX::Matrix, y, Dist)
         if Dist isa Binomial
             @info "Spec binoomial"
@@ -689,6 +723,11 @@ module isolated
         end
         Dict("m"=>m, "ypred"=>ypred, "coef"=>coef)
     end
+    
+    # ------------------------
+    # METHOD : GLM.JL VERSION
+    # ------------------------
+
 
     export glm_glmjl
     function glm_glmjl(XX,y)
@@ -747,5 +786,5 @@ module isolated
         names_cleaned = replace.(nms, ["_i"=>""])
         nms[tryparse.(Int, names_cleaned) .!== nothing]
     end
-
+    
 end
