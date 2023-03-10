@@ -1,22 +1,26 @@
 __precompile__(false)
 module isolated
+    using MATLAB: matlab_cmd
+using ArgParse: test_range
     import DIutils
     using DIutils.binning
     import Logging
 
-    using JLD2, ArgParse, DrWatson, DIutils.dict, RecipesBase, GLM, 
-          DataFramesMeta, Statistics, NaNStatistics, Infiltrator, DataFrames, 
-        Missings, Plots, StatsBase
+    using JLD2, ArgParse, DrWatson, DIutils.dict, RecipesBase, DataFramesMeta,
+          Statistics, NaNStatistics, Infiltrator, DataFrames, 
+            Missings, Plots, StatsBase
     using DataStructures: OrderedDict
     import Distributions
     import DIutils: Table
     using ProgressMeter
     
-    using GLMNet, MultivariateStats, MLJ, ScikitLearn, Metrics
+    using GLMNet, MultivariateStats, MLJ, ScikitLearn, Metrics, GLM
     using MATLAB, PyCall
     using Random
     using MLJScikitLearnInterface: ElasticNetCVRegressor
-    @pyimport pyglmnet 
+    function __init__()
+        pyglmnet = pyimport("pyglmnet")
+    end
 
     init_mlj = false
 
@@ -219,18 +223,87 @@ module isolated
     # -----------------
 
     """
-        get_dx_dy(df, relcyc)
+        function get_dx_dy(df::DataFrame, relcyc::Int)
+    
+        Get the dataframes for the relative cycle `relcyc` and the cycle 0 data.
+    
+        # Arguments
+        - `df::DataFrame`: The dataframe to get the data from.
+        - `relcyc::Int`: The relative cycle to get the data from.
+    
+        # Returns
+        - `dx::DataFrame`: The dataframe of the relative cycle `relcyc` data.
+        - `dy::DataFrame`: The dataframe of the cycle 0 data.
+    
+        # Example
+        ```julia
+        df = DataFrame(x = 1:10, y = 1:10)
+        df[:relcyc] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        dx, dy = get_dx_dy(df, 1)
+        ```
+        # Output
+        ```
+        (2×2 DataFrame
+          Row │ x     y
+              │ Int64 Int64
+        ─────┼─────────────
+            1 │     2     2
+            2 │     3     3,
+         2×2 DataFrame
+          Row │ x     y
+              │ Int64 Int64
+        ─────┼─────────────
+            1 │     1     1
+            2 │     2     2)
+        ```
     """
-    function get_dx_dy(df, relcyc)
+    function get_dx_dy(df::DataFrame, relcyc::Int)
         dx = @subset(df, :relcycs .== relcyc)
         dy = @subset(df, :relcycs .== 0)
-        register = [:cyc_batch, :cyc_match]
-        # dx = groupby(dx, [:cyc_batch, :cyc_match])
-        # dy = groupby(dy, [:cyc_batch, :cyc_match])
-        # kx, ky = keys(dx.keymap), keys(dy.keymap)
-        # k = intersect(kx,ky)
-        # dx = sort(vcat([dx[kk] for kk in k]...), [:cyc_batch, :cyc_match])
-        # dy = sort(vcat([dy[kk] for kk in k]...), [:cyc_batch, :cyc_match])
+        _register_frames(dx, dy)
+    end
+
+    """
+             function _register_frames(dx::DataFrame, dy::DataFrame; register= [:cyc_batch, :cyc_match])
+    
+        Register the two dataframes `dx` and `dy` by the columns `register`.
+    
+        # Arguments
+        - `dx::DataFrame`: The first dataframe to register.
+        - `dy::DataFrame`: The second dataframe to register.
+        - `register::Vector{Symbol}`: The columns to register by.
+    
+        # Returns
+        - `dx::DataFrame`: The first dataframe with the columns `register` removed.
+        - `dy::DataFrame`: The second dataframe with the columns `register` removed.
+    
+        # Example
+        ```julia
+        df = DataFrame(x = 1:10, y = 1:10)
+        df[:cyc_batch] = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5]
+        df[:cyc_match] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        df[:relcycs] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+        df1 = @subset(df, :relcycs .== 1)
+        df2 = @subset(df, :relcycs .== 0)
+        dx, dy = _register_frames(df1, df2)
+        ```
+        # Output
+        ```
+        (2×2 DataFrame
+          Row │ x     y
+              │ Int64 Int64
+        ─────┼─────────────
+            1 │     2     2
+            2 │     3     3,
+         2×2 DataFrame
+          Row │ x     y
+              │ Int64 Int64
+        ─────┼─────────────
+            1 │     1     1
+            2 │     2     2)
+        ```
+    """
+    function _register_frames(dx, dy; register= [:cyc_batch, :cyc_match])
         dx, dy = sort(dx, register), sort(dy, register)
         dxr, dyr = Matrix(dx[!,register]), Matrix(dy[!,register])
         if dxr != dyr
@@ -495,6 +568,7 @@ module isolated
         
         df
     end
+    
     function grab_cycle_data(Rdf_cycles::GroupedDataFrame,
         cyc::Union{Int64,Int32}, vecofval::Vector{Symbol}; indexers, 
         cycrange::Int=8, kws...)::DataFrame
@@ -528,7 +602,8 @@ module isolated
     Readies vars to be fed into the various glm functions 
     """
     function ready_glm_vars(f::FormulaTerm, XX::DataFrame, y::DataFrame;
-        predictkey=0, xtrans=identity, ytrans=identity, kws...)
+                    predictkey=0, xtrans=identity, ytrans=identity, 
+                    zscoreX=false, dummy_coding=false, kws...)::Tuple
 
         function get_mat(XX, f)
               cols = [string(ff) for ff in f.rhs]
@@ -547,10 +622,174 @@ module isolated
         @assert f.lhs ∉ f.rhs
         misses = (!).(ismissing.(y))
         XX, y = xtrans.(XX[misses,:]), ytrans.(Int.(y[misses]))
+        XX =  if dummy_coding  
+                @info "dummy coding"
+                DIutils.statistic.dummycode(XX)
+            elseif zscoreX
+                @info "zscoring"
+                hcat([zscore(x) for x in eachcol(XX)]...)
+            end
+        XX, y
     end
 
     export expit
     expit(x) = 1/(1+exp(-x))
+
+
+    """
+        measure_glm_dict!(D, y="y", ypred="ypred")
+
+    Adds metrics to the dictionary `D` and returns it.
+
+    # Inputs
+    - `D::Dict`: Dictionary to add metrics to
+    - `y::Symbol`: Name of the key for the true values
+    - `ypred::Symbol`: Name of the key for the predicted values
+
+    # Outputs
+    - `D::Dict`: Dictionary with metrics added
+    """
+    function measure_glm_dict!(D::AbstractDict, y="y", ypred="ypred")
+        y, ypred = D[y], D[ypred]
+        M = Dict(
+            "mae" => MLJ.mean_absolute_error(y, ypred),
+            "cor" => cor(y, ypred),
+            "r2" => MLJ.rsquared(y, ypred),
+            "adjr2" => Metrics.adjusted_r2_score(y, ypred, length(y)),
+        )
+        merge!(D,M)
+    end
+
+
+    # -------------------------
+    # METHOD : MLJ package GLM  
+    # Which taps python's sklearn
+    # Also added another method
+    # -------------------------
+
+    struct Custom_ElasticNetMLJ
+    end
+    struct SpecificGLM_MLJ
+    end
+    struct PYGLM_ElasticNet
+    end
+    struct GLMJL
+    end
+    struct GLM_MATLAB
+    end
+
+    export glm_
+    """
+        glm_(type, XX, y, Dist=Binomial(); kws...)
+    
+    Wrapper for the various GLM methods
+    """
+    function glm_(f::FormulaTerm, XX::DataFrame, y::DataFrame, 
+                     Dist=Binomial(); xtrans=identity, ytrans=identity,
+                    kws...)
+        @assert size(XX,1) == size(y,1) "Rows must match"
+        XX, y = ready_glm_vars(f, XX, y; xtrans, ytrans, kws...)
+        kws = DIutils.namedtup.pop(kws, [:zscoreX, :dummy_coding])
+        glm_(XX, y, Dist; kws...)
+    end
+
+    function glm_(XX::AbstractMatrix, y, Dist=Binomial(); type=:specific, kws...)
+         __init__mlj()
+         type = if type == :mlj_spec
+             SpecificGLM_MLJ()
+         elseif type == :mlj_custom
+             Custom_ElasticNetMLJ()
+         elseif type == :pyglm
+             PYGLM_ElasticNet()
+         elseif type == :matlab
+             GLM_MATLAB()
+         else
+            @error "type=$type not recognized"
+         end
+         kv  = glm_(type, XX, y, Dist; kws...)
+        out = merge(Dict("type"=>string(type), "y"=>y,
+                          "yr"=>denserank(y)./length(y), 
+                          "ypredr"=>denserank(kv["ypred"])./length(y)
+                    ), kv)
+        measure_glm_dict!(out)
+        measure_glm_dict!(out, "yr", "ypredr")
+    end
+
+    function glm_(::PYGLM_ElasticNet, XX::AbstractMatrix, y, Dist=Binomial(); kws...)
+        kws = (;tol=1e-3, score_metric="pseudo_R2", alpha=0.5, 
+                max_iter=100, cv=3, kws...)
+        @infiltrate
+        gl_glm = pyglmnet.GLMCV(;distr=diststr(Dist), kws...)
+        gl_glm.fit(XX, y)
+        ypred = gl_glm.predict(XX)
+        out = Dict(string.(collect(keys(kws))) .=> collect(values(kws)))
+        merge(out, Dict("y"=>y, "ypred"=>ypred), 
+        "lambda"=>gl_glm.reg_lambda_opt_, "lambdas"=>gl_glm.reg_lambda)
+    end
+    glm_pyglm(XX, y, Dist, kws...) = glm_(PYGLM_ElasticNet(), XX, y, Dist;
+                                     kws...)
+
+    function glm_(::Custom_ElasticNetMLJ, XX::AbstractMatrix, y, Dist=Binomial())
+        @info "Custom $(typeof(Dist))"
+        yin, XXin = if Dist isa Binomial || Dist isa Poisson
+            replace(y, 0=>1e-16), replace(XX, 0=>1e-16)
+        else
+            y
+        end
+        m = ypred = nothing
+        R = ElasticNetCVRegressor(n_jobs=Threads.nthreads(),
+            cv=min(10,size(XX,1)), normalize=true)
+        lif(x) = GLM.linkfun.(canonicallink(Dist), x)
+        ilif(x) = GLM.linkinv.(canonicallink(Dist), x)
+        try
+            XXin, yin = XX, lif(yin)
+            XXin, y = MLJ.table(XXin), y
+            m = MLJ.machine(R, XXin, yin)
+            MLJ.fit!(m)
+            ypred = ilif(MLJ.predict(m, XXin))
+        catch exception
+            println("Exception = $exception")
+            @infiltrate
+        end
+        Dict("m"=>m, "ypred"=>ypred, "coef"=> m.fitresult[1].coef_)
+    end
+    glm_custom(XX::AbstractMatrix, y::AbstractVector, Dist) = 
+            glm_(Custom_ElasticNetMLJ(), XX::AbstractMatrix, y, Dist=Binomial())
+
+    function glm_(::SpecificGLM_MLJ, XX::AbstractMatrix, y, Dist)
+        if Dist isa Binomial
+            @info "Spec binoomial"
+            XX, y = MLJ.table(XX), y
+            R = LogisticCVClassifier(n_jobs=Threads.nthreads(),
+                penalty="elastic_net",
+                cv=min(5,size(XX[1],1)))
+            m = MLJ.machine(R, XX, η)
+            MLJ.fit!(m)
+            ypred = MLJ.predict(m, XX)
+            coef = m.fitresult[1]
+        elseif Dist isa Poisson
+            @info "Spec poisson"
+            sklearn = pyimport("sklearn")
+            lm = sklearn.linear_model
+            R = lm.PoissonRegressor()
+            R.fit(XX, y)
+            ypred = R.predict(XX)
+            m = nothing
+            coef = R.coef_
+        end
+        Dict("m"=>m, "ypred"=>ypred, "coef"=>coef)
+    end
+    glm_specific(XX::AbstractMatrix, y, Dist) = 
+            glm_(SpecificGLM_MLJ(), XX::AbstractMatrix, y, Dist=Binomial())
+    
+    export glm_
+    function glm_(::GLMJL, XX, y)
+       y =  expit.(Int.(y[misses]) .> 0)
+       m =  GLM.glm(XX, y, Dist)
+       ypred = GLM.predict(XX)
+       Dict("m"=>m, "ypred"=>ypred, "coef"=>GLM.coef(m))
+    end
+    glm_glmjl(XX::AbstractMatrix, y) = glm_(GLMJL(), XX, y)
 
     # ------------------------
     # METHOD : MATLAB
@@ -563,27 +802,14 @@ module isolated
                  Dist=Binomial(); xtrans=identity, ytrans=identity,
                 kws...)
     """
-    function glm_matlab(f::FormulaTerm, XX::DataFrame, y::DataFrame, 
-                 Dist=Binomial(); xtrans=identity, ytrans=identity,
-                kws...)
-        XX, y = ready_glm_vars(f, XX, y; xtrans, ytrans, kws...)
-       glm_matlab(XX,y,Dist; kws...)
-    end
-    function glm_matlab(XX, y, Dist=Binomial(), link=nothing; 
-                        quick_and_dirty=false, dummy_coding=true,
-                 pre=nothing, kws...)
-       nameit(x) = lowercase(begin
-            first(split(first(split(string(x),"{")), "("))
-        end
-        )
-        link = link === nothing ? 
-        replace(nameit(canonicallink(Dist)),"link"=>"") : link
-        dist = Dist isa String ? Dist : nameit(Dist)
+    function glm_(::GLM_MATLAB, XX, y, Dist=Binomial(), link=nothing; 
+                        quick_and_dirty=false, pre=nothing, kws...)
+
+        dist = diststr(Dist)
+        link = linkstr(link)
+
         @info "matlab" link dist
 
-        # logval(xn) = log.(replace(xn,0=>1e-16))
-        xnz =  !dummy_coding ?  XX : DIutils.statistic.dummycode(XX)
-        @infiltrate
 
         xnz, y = DIutils.arr.atleast2d(xnz), DIutils.arr.atleast2d(y)
         @info quick_and_dirty
@@ -611,134 +837,12 @@ module isolated
         y, ypred = vec(Float64.(y)), vec(Float64.(ypred))
         merge!(pre, Dict( "ypred"=>ypred, "y"=>y, 
              "coef"=>c[2:end], "intercept"=>c[1]))
-        measure_glm_dict!(pre)
     end
-
-    function measure_glm_dict!(D, y="y", ypred="ypred")
-        y, ypred = D[y], D[ypred]
-        M = Dict(
-            "mae" => MLJ.mean_absolute_error(y, ypred),
-            "cor" => cor(y, ypred),
-            "r2" => MLJ.rsquared(y, ypred),
-            "adjr2" => Metrics.adjusted_r2_score(y, ypred, length(y)),
-        )
-        merge!(D,M)
-    end
-
-
-    # -------------------------
-    # METHOD : MLJ package GLM  
-    # Which taps python's sklearn
-    # Also added another method
-    # -------------------------
-
-    struct Custom_ElasticNetMLJ
-    end
-    struct SpecificGLM_MLJ
-    end
-    struct PYGLM_ElasticNet
-    end
-
-    export glm_mlj
-    function glm_mlj(f::FormulaTerm, XX::DataFrame, y::DataFrame, 
-                     Dist=Binomial(); xtrans=identity, ytrans=identity,
-                    kws...)
-        XX, y = ready_glm_vars(f, XX, y; xtrans, ytrans, kws...)
-        glm_mlj(XX, y, Dist; kws...)
-    end
-
-    function glm_mlj(XX::Matrix, y, Dist=Binomial(); type=:specific, kws...)
-         __init__mlj()
-         type = if type == :specific
-             SpecificGLM_MLJ()
-         elseif type == :custom
-             Custom_ElasticNetMLJ()
-         elseif type == :pyglm
-             PYGLM_ElasticNet()
-         end
-         kv = glm_mlj(type, XX, y, Dist)
-         out = merge(Dict("type"=>:mlj, "y"=>y,
-        "yr"=>denserank(y)./length(y), 
-        "ypredr"=>denserank(kv["ypred"])./length(y)
-            ), kv)
-        measure_glm_dict!(out)
-        measure_glm_dict!(out, y="yr", ypred="ypredr")
-    end
-
-    function glm_mlj(::PYGLM_ElasticNet, XX::Matrix, y, Dist=Binomial())
-        pyglmnet
-        gl_glm = GLMCV(distr="binomial", tol=1e-3, group=group_idxs,
-        score_metric="pseudo_R2", alpha=1.0, learning_rate=3, max_iter=100,
-              cv=3, verbose=True)
-    end
-
-    function glm_mlj(::Custom_ElasticNetMLJ, XX::Matrix, y, Dist=Binomial())
-        @info "Custom $(typeof(Dist))"
-        yin, XXin = if Dist isa Binomial || Dist isa Poisson
-            replace(y, 0=>1e-16), replace(XX, 0=>1e-16)
-        else
-            y
-        end
-        # μ = GLM.linkinv.(canonicallink(Dist), y)
-        # @infiltrate any(y .≈ 1)
-        m = ypred = nothing
-        R = ElasticNetCVRegressor(n_jobs=Threads.nthreads(),
-            cv=min(10,size(XX,1)), normalize=true)
-        lif(x) = GLM.linkfun.(canonicallink(Dist), x)
-        ilif(x) = GLM.linkinv.(canonicallink(Dist), x)
-        try
-            XXin, yin = log.(XXin .+ exp(0)), lif(yin)
-            XXin, y = MLJ.table(XXin), y
-            m = MLJ.machine(R, XXin, yin)
-            MLJ.fit!(m)
-            ypred = ilif(MLJ.predict(m, XXin))
-            # ypredlink = lf(map(x-> x>=0 ? x : 0,ypred))
-            # ypredlink = ilf(ypred)
-        catch
-            @infiltrate
-        end
-        Dict("m"=>m, "ypred"=>ypred, "coef"=> m.fitresult[1].coef_)
-    end
-
-    function glm_mlj(::SpecificGLM_MLJ, XX::Matrix, y, Dist)
-        if Dist isa Binomial
-            @info "Spec binoomial"
-            XX, y = MLJ.table(XX), y
-            R = LogisticCVClassifier(n_jobs=Threads.nthreads(),
-                penalty="elastic_net",
-                cv=min(5,size(XX[1],1)))
-            m = MLJ.machine(R, XX, η)
-            MLJ.fit!(m)
-            ypred = MLJ.predict(m, XX)
-            coef = m.fitresult[1]
-        elseif Dist isa Poisson
-            @info "Spec poisson"
-            sklearn = pyimport("sklearn")
-            lm = sklearn.linear_model
-            R = lm.PoissonRegressor()
-            R.fit(XX, y)
-            ypred = R.predict(XX)
-            m = nothing
-            coef = R.coef_
-        end
-        Dict("m"=>m, "ypred"=>ypred, "coef"=>coef)
-    end
-    
-    # ------------------------
-    # METHOD : GLM.JL VERSION
-    # ------------------------
-
-
-    export glm_glmjl
-    function glm_glmjl(XX,y)
-       y =  expit.(Int.(y[misses]) .> 0)
-       m =  glm(XX, y, Dist)
-    end
+    glm_matlab(XX::AbstractMatrix, y, Dist, kws...) =
+            glm_(GLM_MATLAB(), XX, y, Dist; kws...)
 
     # FOR INTERACTING WITH GLM MODEL DICTS
-    """
-    Table.to_dataframe
-    """
+    """ """
     function Table.to_dataframe(D::AbstractDict, func::Function)::DataFrame
         kt = keytype(D)
         if all(isa.(collect(values(D)), AbstractDict))
@@ -786,5 +890,14 @@ module isolated
         names_cleaned = replace.(nms, ["_i"=>""])
         nms[tryparse.(Int, names_cleaned) .!== nothing]
     end
+
+
+    # STRING METHODS
+    nameit(x) = lowercase(begin
+        first(split(first(split(string(x),"{")), "(" ))
+    end)
+    linkstr(link) = link === nothing ? 
+    replace(nameit(canonicallink(Dist)),"link"=>"") : link
+    diststr(Dist) = Dist isa String ? Dist : nameit(Dist)
     
 end

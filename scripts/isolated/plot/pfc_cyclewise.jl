@@ -250,20 +250,7 @@ for col in eachcol(df[!,[x for x in names(df) if occursin("_i", x)]] )
 end
 df[!,[x for x in names(df) if occursin("_i", x)]]
 
-# ========================
-#  . .     ,---.|    ,-.-.
-# -+-+-    |  _.|    | | |
-# -+-+-    |   ||    | | |
-#  ` `     `---'`---'` ' '
-#  OF SPIKE COUNTS  🔺
-# ========================
-using Distributed
-"""
-Shortcut function that handles applying my statsmodels formulae to each
-cut of the data andn running GLM with the chosen `glmtool`
-"""
-
-# ========================
+# =========================
 #  . .     ,---.|    ,-.-.
 # -+-+-    |  _.|    | | |
 # -+-+-    |   ||    | | |
@@ -271,13 +258,14 @@ cut of the data andn running GLM with the chosen `glmtool`
 #  OF HAS isolated spike per cell  🔺
 # ========================
 model_cellhasiso, cacheiso, shuffle_cellhasiso = 
-                            initorget("model_cellhasiso"), 
-                            ThreadSafeDict(),
+                            initorget("model_cellhasiso"), ThreadSafeDict(),
                             initorget("shuffle_cellhasiso"; obj=Dict())
-pos = (df, "model_cellhasiso_mlj", construct_predict_isospikecount, :mlj)
+pos = (df, dx_dy, construct_predict_isospikecount, :mlj)
 kws = (Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""],
     ytrans=x->Float64(x>0), xtrans=x->Float64(x), modelz=model_cellhasiso,
-    cache=cacheiso)
+    )
+
+run_glm!(pos...;kws...) 
 
 # tmp = shuffle_cellhasiso
 # shuffle_cellhasiso = ThreadSafeDict()
@@ -285,7 +273,6 @@ kws = (Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""],
 #     push!(shuffle_cellhasiso,k=>v)
 # end
 
-run_glm!(pos...;kws...) 
 run_shuffle!(pos...; kws..., 
     shuffle_models=shuffle_cellhasiso,
     shufcount=30)
