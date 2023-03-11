@@ -22,7 +22,7 @@ module isolated
     using ProgressMeter
     
     using GLMNet, MultivariateStats, MLJ, ScikitLearn, Metrics, GLM
-    using MATLAB, PyCall
+    using MATLAB, PyCall, RCall
     using Random
     using MLJScikitLearnInterface: ElasticNetCVRegressor
 
@@ -851,6 +851,11 @@ module isolated
         - `:infiltrate`: Infiltrate and continue
         - `:exfiltrate`: Exfiltrate and continue
         - `:ignore`: Ignore and continue 
+
+    # Returns
+    - `Array{Dict}`: An array of dictionaries containing the results of the GLM
+                    for each formula term. The size of the array is the same
+                    as the size of `F`.
     """
     function glm_(F::Array{FormulaTerm}, pos...; 
                     handle_exception=:error, kwargs...)
@@ -859,15 +864,16 @@ module isolated
             try
             push!(out, glm_(f, pos...; kwargs...))
             catch exception
-            if handle_exception == :warn
-                @warn exception
-            elseif handle_exception == :infiltrate
-                @infiltreate
-            elseif handle_exception == :exfiltrate
-                @exfiltrate
-            elseif handle_exception == :ignore
-            else
-                rethrow(exception)
+                if handle_exception == :warn
+                    @warn exception
+                elseif handle_exception == :infiltrate
+                    @infiltrate
+                elseif handle_exception == :exfiltrate
+                    @exfiltrate
+                elseif handle_exception == :ignore
+                else
+                    rethrow(exception)
+                end
             end
         end
         reshape(out, size(F))
@@ -1058,8 +1064,6 @@ module isolated
            B0   = intercept[Int(idxLambdaMinDeviance)];  
            c = [B0; B[ :,Int(idxLambdaMinDeviance) ]]
         end
-        # ypred = mat"glmval($c, double($(xnz)), 'log', $stats)"
-        #mat"[$ypred, $dlo, $dhi] = glmval($c, double($(XX)), 'log', $stats)"
         ypred = mat"glmval($c, double($(xnz)), $link, $stats);"
         y, ypred = vec(Float64.(y)), vec(Float64.(ypred))
         merge!(pre, Dict( "ypred"=>ypred, "y"=>y, 
