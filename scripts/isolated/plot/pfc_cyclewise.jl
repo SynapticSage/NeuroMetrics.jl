@@ -268,12 +268,56 @@ kws = (Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""],
     ytrans=x->Float64(x>0), xtrans=x->Float64(x), modelz=model_cellhasiso,
     )
 
-isolated.run_glm!(pos...;kws...) 
+# isolated.run_glm!(pos...;kws...) 
 
-isolated.run_glm!(df, dx_dy, cells, construct_predict_isospikecount, :pyglm;
+# Relative cycle 0 runs of the model
+isolated.run_glm!(df, dx_dy, cells, construct_predict_spikecount, :pyglm;
     Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""],
     ytrans=x->Float64(x>0), xtrans=x->Float64(x), modelz=model_cellhasiso,
     )
+
+
+# TESTING WITH THE ENTIRE DATAFRAME
+model = Dict()
+
+# Dry run of the model
+isolated.run_glm!(df, dx_dy, cells, construct_predict_spikecount, :matlab;
+    Dist=Distributions.Poisson(), unitwise=true, 
+    xtrans=x->Float64(x), ytrans=x->Float64(x),
+    modelz=model, dryrun=true)
+
+# Test on indvidual formulae
+fca1pfc = construct_predict_spikecount(df, cells, "PFC")
+fpfcca1 = construct_predict_spikecount(df, cells, "CA1")
+res = []
+@showprogress "df, run types" for type in [:matlab, :pyglm]
+    A = glm_(fca1pfc, df, df, Poisson(); type, 
+        desc=Dict("desc"=>"CA1->PFC"))
+    push!(res, A)
+    B = glm_(fpfcca1, df, df, Poisson(); type, 
+        desc=Dict("desc"=>"PFC->CA1"))
+    push!(res, B)
+end
+
+# Running for entire df (not by relcyc)
+isolated.run_glm!(df, cells, construct_predict_spikecount, :pyglm;
+    Dist=Distributions.Binomial(), unitwise=true, modelz=model,)
+
+# Testing full firing rate matrix, sans cycles
+Rdf_unstack = unstack(Rdf_sub, :time, :unit, :value, combine=mean)
+# Test on indvidual formulae
+fca1pfc = construct_predict_spikecount(df, cells, "PFC")
+fpfcca1 = construct_predict_spikecount(df, cells, "CA1")
+res = []
+@showprogress "Rdf, run types" for type in [:matlab, :pyglm]
+    A = glm_(fca1pfc, Rdf_unstack, Rdf_unstack, Poisson(); type, 
+        desc=Dict("desc"=>"CA1->PFC"))
+    push!(res, A)
+    B = glm_(fpfcca1, Rdf_unstack, Rdf_unstack, Poisson(); type, 
+        desc=Dict("desc"=>"PFC->CA1"))
+    push!(res, B)
+end
+
 
 # tmp = shuffle_cellhasiso
 # shuffle_cellhasiso = ThreadSafeDict()

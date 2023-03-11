@@ -15,7 +15,7 @@ module isolated
 
     using JLD2, ArgParse, DrWatson, DIutils.dict, RecipesBase, DataFramesMeta,
           Statistics, NaNStatistics, Infiltrator, DataFrames, 
-            Missings, Plots, StatsBase, ThreadSafeDicts
+            Missings, Plots, StatsBase, ThreadSafeDicts, Distributions
     using DataStructures: OrderedDict
     import Distributions
     import DIutils: Table
@@ -25,27 +25,38 @@ module isolated
     using MATLAB, PyCall
     using Random
     using MLJScikitLearnInterface: ElasticNetCVRegressor
+
     function __init__()
-        pyglmnet = pyimport("pyglmnet")
-    end
-
-    init_mlj = false
-
-    function __init__mlj()
-        @eval isolated init_mlj = true
-        if !init_mlj
-            @eval isolated using MLJScikitLearnInterface: 
-                 ElasticNetCVRegressor, LogisticCVClassifier
-        end
+        @eval isolated pyglmnet = pyimport("pyglmnet")
+        @eval isolated using MLJScikitLearnInterface: 
+             ElasticNetCVRegressor, LogisticCVClassifier
     end
 
     export path_iso
+    """
+        path_iso(animal::String, day::Int, tet=:ca1ref)::String
+    
+    Returns the path to the isolated data for the given animal, day, and
+    tet. The default tet is the ca1ref tet.
+    """
     function path_iso(animal::String, day::Int, tet=:ca1ref)::String
         datadir("isolated","iso_animal=$(animal)_day=$(day)_tet=$(tet).jld2")
     end
+    """
+        path_iso(opt::AbstractDict)::String
+    
+    Returns the path to the isolated data for the given animal, day, and
+    tet. The default tet is the ca1ref tet.
+    """
     function path_iso(opt::AbstractDict)::String
         path_iso(opt["animal"], opt["day"], opt["tet"])
     end
+    """
+        path_iso(pos...; append::String="_cyclewise")::String
+
+    Returns the path to the isolated data for the given animal, day, and
+    tet. The default tet is the ca1ref tet. Optionally, append a string.
+    """
     function path_iso(pos...; append::String)::String
         f = path_iso(pos...)
         replace(f, ".jld2" => "$(append).jld2")
@@ -165,7 +176,7 @@ module isolated
         independent variables
 
     # Returns
-    - `formulae`: a list of GLM formulae
+    - `formulae`: a list of StatsModels formulae
     """
     function construct_predict_isospikecount(df, cells, input_area="CA1";
             other_vars=[], other_ind_vars=[])
@@ -190,10 +201,28 @@ module isolated
             formula = GLM.Term(Symbol(nd)) ~ independents
             push!(formulae, formula)
         end
-        formulae
+        Vector{FormulaTerm}(formulae)
     end
 
     export construct_predict_spikecount
+    """
+        construct_predict_spikecount(df, cells, indep_area="CA1";
+                dep_area=nothing, other_vars=[], other_ind_vars=[])
+
+    Returns a list of GLM formulae for predicting the spike count of
+    each neuron in the dependent area from the spike count of each
+    neuron in the independent area. The independent area is raw spike
+    counts.
+
+    # Inputs
+    - `df`: the dataframe containing the spike counts
+    - `cells`: the dataframe containing the cell information
+    - `indep_area`: the area that contains spikecount to predict from
+    - `dep_area`: the area that contains spikecount to predict
+
+    # Returns
+    - `formulae`: a list of StatsModels formulae
+    """
     function construct_predict_spikecount(df, cells::DataFrame, 
             indep_area="CA1"; dep_area=nothing, 
             other_vars=[], other_ind_vars=[])
@@ -209,7 +238,7 @@ module isolated
         filter!(n->string(n) ∈ names(df), dep_neurons)
         filter!(n->string(n) ∈ names(df), ind_neurons)
         
-        formulae = []
+        formulae = Vector{FormulaTerm}()
         for n_dep in dep_neurons
             ind_neuron_set = ind_eq_dep ? 
                 setdiff(ind_neurons, [n_dep]) : ind_neurons 
@@ -226,12 +255,14 @@ module isolated
 
     export construct_predict_iso
     function construct_predict_iso(df, cells, input_area="CA1", type=:has;
-            other_vars=[], other_ind_vars=[])
+            dep_area=nothing, other_vars=[], other_ind_vars=[])
         uArea = unique(cells.area)
         @assert length(uArea) == 2 "Only supports two area dataframes"
+        dep_area = dep_area === nothing ? 
+                    setdiff(uArea, [input_area]) : dep_area
         ind_neurons = @subset(cells,:area .==input_area).unit
         filter!(n->string(n) ∈ names(df), ind_neurons)
-        formulae = []
+        formulae = Vector{FormulaTerm}()
         ni = first(ind_neurons)
         independents = GLM.Term(Symbol(ni))
         for ni in ind_neurons[2:end]
@@ -239,9 +270,21 @@ module isolated
         end
         if type == :has
             @info "type=$type"
-            formula = GLM.Term(:has_iso) ~ independents
+            if dep_area == "CA1"
+                formula = GLM.Term(:has_iso) ~ independents
+            elseif dep_area == "PFC"
+                formula = GLM.Term(:pfc_has_iso) ~ independents
+            else
+                throw(ErrorException("dep_area=$dep_area is unrecognized"))
+            end
         elseif type == :count
-            formula = GLM.Term(:isolated_sum) ~ independents
+            if dep_area == "CA1"
+                formula = GLM.Term(:isolated_sum) ~ independents
+            elseif dep_area == "PFC"
+                    formula = GLM.Term(:pfc_isolated_sum) ~ independents
+            else
+                throw(ErrorException("dep_area=$dep_area is unrecognized"))
+            end
         else
             throw(ErrorException("$type is unrecognized"))
         end
@@ -350,6 +393,8 @@ module isolated
 
     """
         get_futurepast_blocks(df)
+
+    Get the future and past blocks of the dataframe `df`.
     """
     function get_futurepast_blocks(df)
         dxf = unstack(@subset(df, :relcycs .> 0), )
@@ -600,6 +645,23 @@ module isolated
         df
     end
     
+    """
+        grab_cycle_data(Rdf_cycles::GroupedDataFrame, cyc::Union{Int64,Int32}, 
+            vecofval::Vector{Symbol}; indexers, cycrange::Int=8, kws...)::DataFrame
+        Grab a cycle of activity and its preceding and following cycles
+        from a grouped data frame of cycles.
+
+    # Arguments
+    - `Rdf_cycles::GroupedDataFrame`: Grouped data frame of cycles
+    - `cyc::Union{Int64,Int32}`: Cycle of interest
+    - `vecofval::Vector{Symbol}`: Vector of values to grab per cycle
+    - `indexers::Symbol`: Indexer to grab per cycle
+    - `cycrange::Int=8`: Number of cycles to grab before and after
+    - `kws...`: Keyword arguments to add to the data frame
+
+    # Returns
+    - `DataFrame`: Data frame of the cycle of interest and its preceding and
+    """
     function grab_cycle_data(Rdf_cycles::GroupedDataFrame,
         cyc::Union{Int64,Int32}, vecofval::Vector{Symbol}; indexers, 
         cycrange::Int=8, kws...)::DataFrame
@@ -631,21 +693,40 @@ module isolated
                        xtrans=identity, ytrans=identity, kws...)
 
     Readies vars to be fed into the various glm functions 
+
+    # Arguments
+    - `f::FormulaTerm`: The formula to be used in the GLM
+    - `XX::DataFrame`: The data frame containing the predictors
+    - `y::DataFrame`: The data frame containing the response
+    - `xtrans::Function`: A function to be applied to the predictors
+    - `ytrans::Function`: A function to be applied to the response
+    - `expand_relcycs::Bool`: If true, will expand the relative cycles
+    - `zscoreX::Bool`: If true, will zscore the predictors
+    - `dummy_coding::Bool`: If true, will dummy code the predictors
+
+    # Returns
+    - `Tuple`: A tuple containing the predictors, response
+
+    # Example
+    ```julia
+    using GLM, DataFrames, StatsModels
+    df = DataFrame(x=[1,2,3,4,5], y=[1,2,3,4,5])
+    f = @formula(y ~ x)
+    ready_glm_vars(f, df, df)
+    glm(f, df, df)
+    ```
     """
     function ready_glm_vars(f::FormulaTerm, XX::DataFrame, y::DataFrame;
-                    predictkey=0, xtrans=identity, ytrans=identity, 
-                    zscoreX=false, dummy_coding=false, kws...)::Tuple
+    xtrans=identity, ytrans=identity, expand_relcycs::Bool=false,
+    zscoreX::Bool=false, dummy_coding::Bool=false, kws...)::Tuple
 
         function get_mat(XX, f)
               cols = [string(ff) for ff in f.rhs]
               Matrix(XX[!,cols])
         end
-        XX = if length(unique(XX.relcycs)) .> 1
-            res = []
-            for cyc in sort(unique(XX.relcycs))
-                push!(res, get_mat(@subset(XX, :relcycs .== cyc), f))
-            end
-            hcat(XX...)
+        XX = if expand_relcycs && length(unique(XX.relcycs)) .> 1
+            @info "Expanding relative cycles"  
+            unstack_relcycles(XX)
         else
             get_mat(XX, f)
         end
@@ -663,6 +744,19 @@ module isolated
                 XX
             end
         XX, y
+    end
+
+    """
+        expand_relcycles(XX::DataFrame, f::FormulaTerm)::DataFrame
+    
+    Expands the relative cycles in the dataframe `XX`
+    """
+    function unstack_relcycles(XX::DataFrame)::DataFrame
+        res = []
+        for cyc in sort(unique(XX.relcycs))
+            push!(res, get_mat(@subset(XX, :relcycs .== cyc), f))
+        end
+        hcat(res...)
     end
 
     export expit
@@ -694,11 +788,10 @@ module isolated
     end
 
 
-    # -------------------------
-    # METHOD : MLJ package GLM  
-    # Which taps python's sklearn
-    # Also added another method
-    # -------------------------
+    # -----------------------------------------
+    # The following structs are empty types
+    # used to dispatch on the various GLM methods
+    # -----------------------------------------
 
     struct Custom_ElasticNetMLJ
     end
@@ -710,24 +803,92 @@ module isolated
     end
     struct GLM_MATLAB
     end
+    struct GLM_R
+    end
 
     export glm_
     """
         glm_(type, XX, y, Dist=Binomial(); kws...)
     
     Wrapper for the various GLM methods
+
+    # Arguments
+    - `f::FormulaTerm`: The formula to be used in the GLM
+    - `XX::DataFrame`: The data frame containing the predictors
+    - `y::DataFrame`: The data frame containing the response
+    - `type`: The type of GLM to use. Can be one of the following:
+        - `GLMJL`: Uses the GLM.jl package
+        - `GLM_MATLAB`: Uses the GLM_MATLAB package
+        - `GLM_R`: Uses the GLM_R package
+        - `SpecificGLM_MLJ`: Uses the MLJ specific GLM
+        - `Custom_ElasticNetMLJ`: Uses the MLJ specific ElasticNet
+        - `PYGLM_ElasticNet`: Uses the Python specific ElasticNet
+
+    # Returns
+    - `Dict`: A dictionary containing the results of the GLM
     """
     function glm_(f::FormulaTerm, XX::DataFrame, y::DataFrame, 
                      Dist=Binomial(); xtrans=identity, ytrans=identity,
-                    kws...)
+                    desc::AbstractDict=Dict(), kws...)
         @assert size(XX,1) == size(y,1) "Rows must match"
         XX, y = ready_glm_vars(f, XX, y; xtrans, ytrans, kws...)
-        kws = DIutils.namedtup.pop(kws, [:zscoreX, :dummy_coding])
-        glm_(XX, y, Dist; kws...)
+        kws = DIutils.namedtup.pop(kws, [:zscoreX, :dummy_coding, 
+                                         :expand_relcycs])
+        merge(glm_(XX, y, Dist; kws...), desc, Dict("formula"=>f))
+    end
+    """
+        glm_(F::Array{FormulaTerm}, pos...; kwargs...)
+
+    Iterate glm_ over an array of formula terms
+
+    # Arguments
+    - `F::Array{FormulaTerm}`: The array of formula terms
+    - `pos...`: The positional arguments to pass to `glm_`
+    - `kwargs...`: The keyword arguments to pass to `glm_`
+    - `handle_exception`: How to handle exceptions. Can be one of the following:
+        - `:error`: Throw an error
+        - `:warn`: Warn and continue
+        - `:infiltrate`: Infiltrate and continue
+        - `:exfiltrate`: Exfiltrate and continue
+        - `:ignore`: Ignore and continue 
+    """
+    function glm_(F::Array{FormulaTerm}, pos...; 
+                    handle_exception=:error, kwargs...)
+        out = []
+        @showprogress for f in F
+            try
+            push!(out, glm_(f, pos...; kwargs...))
+            catch exception
+            if handle_exception == :warn
+                @warn exception
+            elseif handle_exception == :infiltrate
+                @infiltreate
+            elseif handle_exception == :exfiltrate
+                @exfiltrate
+            elseif handle_exception == :ignore
+            else
+                rethrow(exception)
+            end
+        end
+        reshape(out, size(F))
     end
 
+    """
+        glm_(type, XX, y, Dist=Binomial(); kws...)
+
+    GLM function that dispatches on the type `type` to call the appropriate
+    GLM method.
+
+    # Inputs
+    - `XX::AbstractMatrix`: The predictors
+    - `y`: The response
+    - `Dist`: The distribution to use
+    - `type`: The type of GLM method to use
+
+    # Returns
+    - `Dict`: A dictionary containing the results
+    """ 
     function glm_(XX::AbstractMatrix, y, Dist=Binomial(); type=:specific, kws...)
-         __init__mlj()
          type = if type == :mlj_spec
              SpecificGLM_MLJ()
          elseif type == :mlj_custom
@@ -744,6 +905,7 @@ module isolated
                           "yr"=>denserank(y)./length(y), 
                           "ypredr"=>denserank(kv["ypred"])./length(y)
                     ), kv)
+        out["ypred"], out["y"] = Float64.(out["ypred"]), Float64.(out["y"])
         measure_glm_dict!(out)
         measure_glm_dict!(out, "yr", "ypredr")
     end
@@ -868,15 +1030,15 @@ module isolated
                  Dist=Binomial(); xtrans=identity, ytrans=identity,
                 kws...)
     """
-    function glm_(::GLM_MATLAB, XX, y, Dist=Binomial(), link=nothing; 
-                        quick_and_dirty=false, pre=nothing, kws...)
+    function glm_(::GLM_MATLAB, XX, y, Dist=Binomial(), 
+        link=canonicallink(Dist); quick_and_dirty=false, pre=nothing, kws...)
 
         dist = diststr(Dist)
         link = linkstr(link)
 
         @info "matlab" link dist
 
-        xnz, y = DIutils.arr.atleast2d(xnz), DIutils.arr.atleast2d(y)
+        xnz, y = DIutils.arr.atleast2d(XX), DIutils.arr.atleast2d(y)
         @info quick_and_dirty
         if pre === nothing
             if quick_and_dirty
@@ -907,6 +1069,41 @@ module isolated
             glm_(GLM_MATLAB(), XX, y, Dist; kws...)
 
 
+    # ------------------------
+    # METHOD : R
+    # ------------------------
+
+    """
+        glm_(::GLM_R, XX::AbstractMatrix, y, Dist)
+
+    The R programming language version of the GLM    
+    """
+    # function glm_(::GLM_R, XX::AbstractMatrix, y, Dist)
+    #     # Import GLM net R libraries
+    #     glmnet = R"library(glmnet)"
+    #     # Run GLM on XX and y with distribution Dist
+    #     R"glmnet.fit <- glmnet($XX, $y, family = $Dist, alpha = 0.5)"
+    #     # Get the coefficients
+    #     coef = R"glmnet.fit$beta"
+    #     # Get the predictions
+    #     ypred = R"predict(glmnet.fit, $XX)"
+    #     # Get the intercept
+    #     intercept = R"glmnet.fit$a0"
+    #     # Get the deviance
+    #     deviance = R"glmnet.fit$dev.ratio"
+    #     # Get the lambda
+    #     lambda = R"glmnet.fit$lambda"
+    #     # Get the null deviance
+    #     nulldeviance = R"glmnet.fit$nulldev"
+    #     # Get the number of iterations
+    #     niter = R"glmnet.fit$niter"
+    #     # Return the results
+    #     Dict("coef"=>coef, "ypred"=>ypred, "intercept"=>intercept,
+    #     "deviance"=>deviance, "lambda"=>lambda, "nulldeviance"=>nulldeviance,
+    #     "niter"=>niter)
+    # end
+    #
+
     export run_glm!
     """
     Run the GLM on several batches of data
@@ -917,7 +1114,8 @@ module isolated
     - `formula_method` : the function to create the formulae
     - `glmtool` : the tool to use
     - `Dist` : the distribution to use
-    - `unitwise` : if true, we do the GLM on the unitwise data
+    - `unitwise` : if true, we do the GLM on the unitwise data or instead
+                   a different column specified by the formula_method
     - `unitrep` : unit replace ie, when a unit is address with a string,
                   a replacement argment to address something else (e.g. "_i")
                  to pull an isolated spike column for that cell
@@ -937,7 +1135,7 @@ module isolated
         area_to_area::Bool=false,
         Dist=Binomial(), unitwise::Bool, unitrep=[], xtrans::Function=identity,
         ytrans::Function=identity, cacheXY=ThreadSafeDict(),
-        modelz=ThreadSafeDict())
+        dryrun::Bool=false, modelz=ThreadSafeDict())
         # Now let's take the formula and apply them
         formulae = OrderedDict() 
         formulae["ca1pfc"] = formula_method(full_df, cells, "CA1");
@@ -955,10 +1153,15 @@ module isolated
            f in formulae[indep]
             push!(glmsets, (indep, cachekey, f))
         end
+        # DRY RUN?
+        # if dryrun, then we only do the first two
+        if dryrun
+            glmsets = glmsets[1:2]
+        end
         prog = Progress(length(glmsets); desc="GLM spike counts")
         for (indep, x_key, f) in glmsets                                                
 
-            # Get 🔑               
+            # Get 🔑 the output key
             if unitwise
                 unitstr = !isempty(unitrep) ?
                     replace(string(f.lhs),unitrep...) : string(f.lhs)
@@ -967,8 +1170,9 @@ module isolated
             else
                 out_key = (;indep, x_key...)
             end
+            @infiltrate
 
-            # Run model 🤖
+            # Run GLM model 🤖
             try
                 XX, y = df_batches[x_key]
                 modelz[(;indep, x_key, unit)] = glm_(f, XX, y, Dist;
@@ -987,18 +1191,18 @@ module isolated
     """
     Runs the GLM on the full dataframe
     """
-    function run_glm!(full_df::DataFrame, formula_method::Function,
-                        cells::DataFrame, glmtool::Symbol; kws...)
+    function run_glm!(full_df::DataFrame,
+    cells::DataFrame,formula_method::Function, glmtool::Symbol; kws...)
         df_batches = OrderedDict(
-            "batch" => (full_df, full_df)
+            (;batch=:full) => (full_df, full_df)
         )   
         run_glm!(full_df, df_batches, cells, formula_method, glmtool; kws...)
     end
     """
     Runs the GLM on a grouped dataframe
     """
-    function run_glm!(grouped::GroupedDataFrame, formula_method::Function,
-                        cells::DataFrame, glmtool::Symbol; kws...)
+    function run_glm!(grouped::GroupedDataFrame, cells::DataFrame,
+    formula_method::Function, glmtool::Symbol; kws...)
         df_batches = OrderedDict(
             begin
                 k = NamedTuple(grouped.cols, keytup)
@@ -1073,8 +1277,26 @@ module isolated
     nameit(x) = lowercase(begin
         first(split(first(split(string(x),"{")), "(" ))
     end)
-    linkstr(link) = link === nothing ? 
-    replace(nameit(canonicallink(Dist)),"link"=>"") : link
-    diststr(Dist) = Dist isa String ? Dist : nameit(Dist)
+
+    """
+        linkstr(link::Distribution)
+
+    Returns the name of the link function
+    """
+    linkstr(Dist) = 
+        if Dist isa Distribution
+            replace(nameit(canonicallink(Dist)),"link"=>"")
+        elseif Dist isa String
+                Dist
+        else
+            replace(nameit(Dist),"link"=>"")
+        end
+
+    """
+        diststr(Dist::Distribution)
+
+    Returns the name of the distribution
+    """
+    diststr(Dist::Union{String,Distribution}) = Dist isa String ? Dist : nameit(Dist)
     
 end

@@ -99,7 +99,26 @@ module Timeshift
             grid_kws...)::OrderedDict
 
     Newer versioin of `get_field_shift` that works with new adaptive and fixed
-    types
+    types of fields. This function is the main function for getting shifted
+    fields. It is a wrapper for `get_field_shift` that allows for multiple
+    shifts to be calculated in parallel.
+
+    # Arguments
+    - `beh`: Behavior data
+    - `data`: Neural data
+    - `shifts`: Vector of shifts to calculate
+    - `props`: Vector of properties to calculate
+    - `filters`: Filters to apply to data
+    - `splitby`: Vector of properties to split by
+    - `fieldpreset`: Preset field options
+    - `fieldfunc`: Function to calculate fields
+    - `gridfunc`: Function to calculate grid
+    - `occfunc`: Function to calculate occupancy
+    - `postfunc`: Function to apply to fields after calculation
+    - `metricfuncs`: Function to calculate metrics
+
+    # Returns
+    - `OrderedDict`: Dictionary of shifted fields
     """
     function shifted_fields(beh::DataFrame, data::DataFrame,
             shifts::Union{StepRangeLen,StepRange,Vector{T}} where T <: Real,
