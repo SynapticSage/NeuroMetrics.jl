@@ -836,6 +836,38 @@ module isolated
                                          :expand_relcycs])
         merge(glm_(XX, y, Dist; kws...), desc, Dict("formula"=>f))
     end
+
+    export cvglm_
+    """
+        cvglm_(f::FormulaTerm, XX::DataFrame, y::DataFrame, 
+                     Dist=Binomial(); xtrans=identity, ytrans=identity,
+                    desc::AbstractDict=Dict(), cv=5, shuffle=true, kws...)
+
+     Cross-validated GLM that will call the wrapper to various GLM methods
+    `glm_` and return a dictionary containing the results of the 
+     cross-validation
+    """
+    function cvglm_(f::FormulaTerm, XX::DataFrame, y::DataFrame, 
+                     Dist=Binomial(); xtrans=identity, ytrans=identity,
+                    desc::AbstractDict=Dict(), cv=5, shuffle=true, kws...)
+        @assert size(XX,1) == size(y,1) "Rows must match"
+        XX, y = ready_glm_vars(f, XX, y; xtrans, ytrans, kws...)
+        kws = DIutils.namedtup.pop(kws, [:zscoreX, :dummy_coding, 
+                                         :expand_relcycs])
+        # Generate cross-validation sets using MLJ
+        RES = OrdereredDict()
+        cv = MLJ.CV(;nfolds=cv, shuffle)
+        for (i,(train, test)) in enumerate(train_test_pairs(cv, 1:length(y)))
+            XXtrain, ytrain = XX[train,:], y[train]
+            XXtest, ytest = XX[test,:], y[test]
+            # Run the GLM
+            res = glm_(XXtrain, ytrain, Dist; XXtest, kws...)
+            merge!(res, desc, Dict("formula"=>f))
+            push!(RES, i=>res)
+        end
+        RES
+    end
+
     """
         glm_(F::Array{FormulaTerm}, pos...; kwargs...)
 
@@ -894,7 +926,10 @@ module isolated
     # Returns
     - `Dict`: A dictionary containing the results
     """ 
-    function glm_(XX::AbstractMatrix, y, Dist=Binomial(); type=:specific, kws...)
+    function glm_(XX::AbstractMatrix, y, Dist=Binomial(); 
+                  ytest=nothing, type=:pyglm, kws...)
+
+        # Select the type of GLM to dispatch to
          type = if type == :mlj_spec
              SpecificGLM_MLJ()
          elseif type == :mlj_custom
@@ -906,7 +941,10 @@ module isolated
          else
             @error "type=$type not recognized"
          end
-         kv  = glm_(type, XX, y, Dist; kws...)
+        # Dispatch to the appropriate GLM method
+        kv  = glm_(type, XX, y, Dist; kws...)
+        # Merge the results with top level results and the values
+        # to be predicted
         out = merge(Dict("type"=>string(type), "y"=>y,
                           "yr"=>denserank(y)./length(y), 
                           "ypredr"=>denserank(kv["ypred"])./length(y)
@@ -926,10 +964,11 @@ module isolated
     - `y::AbstractVector`: Response vector
     - `Dist::Distribution`: Distribution to use
     """
-    function glm_(::PYGLM_ElasticNet, XX::AbstractMatrix, y, Dist=Binomial(); kws...)
+    function glm_(::PYGLM_ElasticNet, XX::AbstractMatrix, y, Dist=Binomial(); 
+        testXX=nothing, kws...)
+        testXX = testXX === nothing ? XX : testXX
         kws = (;tol=1e-3, score_metric="pseudo_R2", alpha=0.5, 
                 max_iter=100, cv=3, kws...)
-        @infiltrate
         gl_glm = pyglmnet.GLMCV(;distr=diststr(Dist), kws...)
         gl_glm.fit(XX, y)
         ypred = gl_glm.predict(XX)
@@ -953,7 +992,9 @@ module isolated
     # Outputs
     Dictionary of results
     """
-    function glm_(::Custom_ElasticNetMLJ, XX::AbstractMatrix, y, Dist=Binomial())
+    function glm_(::Custom_ElasticNetMLJ, XX::AbstractMatrix, y, Dist=Binomial();
+        testXX=nothing, kws...)
+        testXX = testXX === nothing ? XX : testXX
         @info "Custom $(typeof(Dist))"
         yin, XXin = if Dist isa Binomial || Dist isa Poisson
             replace(y, 0=>1e-16), replace(XX, 0=>1e-16)
@@ -990,7 +1031,9 @@ module isolated
     - `y::AbstractVector`: Response vector
     - `Dist`: Distribution
     """
-    function glm_(::SpecificGLM_MLJ, XX::AbstractMatrix, y, Dist)
+    function glm_(::SpecificGLM_MLJ, XX::AbstractMatrix, y, Dist; 
+                 testXX=nothing, kws...)
+        testXX = testXX === nothing ? XX : testXX
         if Dist isa Binomial
             @info "Spec binoomial"
             XX, y = MLJ.table(XX), y
@@ -1017,11 +1060,18 @@ module isolated
             glm_(SpecificGLM_MLJ(), XX::AbstractMatrix, y, Dist=Binomial())
     
     export glm_
-    function glm_(::GLMJL, XX, y)
-       y =  expit.(Int.(y[misses]) .> 0)
-       m =  GLM.glm(XX, y, Dist)
-       ypred = GLM.predict(XX)
-       Dict("m"=>m, "ypred"=>ypred, "coef"=>GLM.coef(m))
+    """
+        glm_(::GLMJL, XX, y, Dist=Binomial(); testXX, kws...)
+    
+    Wrapper for the specific GLM method from GLM.jl
+    """
+    function glm_(::GLMJL, XX, y; testXX=nothing, kws...)
+        testXX = testXX === nothing ? XX : testXX
+        @info "GLM.jl"
+        y =  expit.(Int.(y[misses]) .> 0)
+        m =  GLM.glm(XX, y, Dist)
+        ypred = GLM.predict(XX)
+        Dict("m"=>m, "ypred"=>ypred, "coef"=>GLM.coef(m))
     end
     glm_glmjl(XX::AbstractMatrix, y) = glm_(GLMJL(), XX, y)
 
@@ -1032,12 +1082,26 @@ module isolated
 
     export glm_matlab
     """
-        glm_matlab(f::FormulaTerm, XX::DataFrame, y::DataFrame, 
-                 Dist=Binomial(); xtrans=identity, ytrans=identity,
-                kws...)
+        glm_matlab(f::FormulaTerm, XX::DataFrame, y::DataFrame,
+                    Dist=Binomial(); testXX=nothing, quick_and_dirty=false,
+                    pre=nothing, kws...)
+
+    Wrapper for the specific GLM method from matlab (fitglm and lassoglm)
+
+    # Inputs
+    - `XX::AbstractMatrix`: Design matrix
+    - `y::AbstractVector`: Response vector
+    - `Dist::Distribution`: Distribution to use
+    - `link::Link`: Link function to use
+    - `testXX::AbstractMatrix`: Test design matrix
+    - `quick_and_dirty::Bool`: Use `glmfit` instead of `lassoglm`
+    - `pre::Dict`: Precomputed results; if passed, will skip the fitting
     """
     function glm_(::GLM_MATLAB, XX, y, Dist=Binomial(), 
-        link=canonicallink(Dist); quick_and_dirty=false, pre=nothing, kws...)
+        link=canonicallink(Dist); testXX=nothing,
+        quick_and_dirty=false, pre=nothing, kws...)
+
+        testXX = testXX === nothing ? XX : testXX
 
         dist = diststr(Dist)
         link = linkstr(link)
@@ -1082,7 +1146,9 @@ module isolated
 
     The R programming language version of the GLM    
     """
-    # function glm_(::GLM_R, XX::AbstractMatrix, y, Dist)
+    # using RCall
+    # function glm_(::GLM_R, XX::AbstractMatrix, y, Dist; testXX=nothing, 
+    #                   kws...)
     #     # Import GLM net R libraries
     #     glmnet = R"library(glmnet)"
     #     # Run GLM on XX and y with distribution Dist
@@ -1106,8 +1172,8 @@ module isolated
     #     "deviance"=>deviance, "lambda"=>lambda, "nulldeviance"=>nulldeviance,
     #     "niter"=>niter)
     # end
-    #
-
+    
+    
     export run_glm!
     """
     Run the GLM on several batches of data
