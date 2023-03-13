@@ -464,10 +464,24 @@ module isolated
     # -----------------
 
     export match_cycles!
-    """match_cycles!
+    """
+        match_cycles!(cycles::DataFrame, Rdf::DataFrame,
+            occ::IndexedAdaptiveOcc; matches=3, iso_cycles = nothing)
     
     find null cycles non-iso spike cycles matched on behavior per
     iso spike cycle
+
+    # Arguments
+    - `cycles::DataFrame`: cycles dataframe
+    - `Rdf::DataFrame`: firing rate matrix R in the form of a dataframe
+    - `occ::IndexedAdaptiveOcc`: indexed adaptive occupancy object
+    - `matches::Int`: number of matches to find per cycle
+    - `iso_cycles::Vector{Int}`: vector of cycles containing isolated spikes
+
+    # Output
+    - `cycles::DataFrame`: cycles dataframe with a new column `matched` that
+                           contains the matched cycles in terms of the behavior
+                           as noted in the `occ` object
     """
     function match_cycles!(cycles::DataFrame, Rdf::DataFrame, 
         occ::IndexedAdaptiveOcc; matches=3,
@@ -504,19 +518,36 @@ module isolated
             end
         end
     end
-
-    # vcatnonmiss(df::DataFrame) = DataFrames.vcat(df[(!).(ismissing.(df))]...)
     
     export df_FRpercycle_and_matched
     """
-    df_FRpercycle_and_matches
+        df_FRpercycle_and_matched(cycles, Rdf_cycles, beh, val; iso_cycles,
+            threading=true, indexers=[:time, :isolated_sum, :pfcisosum],
+            cycrange=8)
     
     obtain the fr per theta cycle of interest, relative cylces to it, and
     cycles without isolated spikes matched on behavior
 
-    changes
+    this grabs a span of cycles around each isolated spike cycle
+    and grabs a span around the null matched non-isolated cyles for each
+    iteration of the loop
+
+    # Arguments
+    - `cycles`: the cycles dataframe
+    - `Rdf_cycles`: dataframe with cyclewise groups of firing rate data
+    - `beh`: the behavior dataframe
+    - `firingvals`: values to mean (usually the column containing the firing
+                    rate)
+    - `iso_cycles`: the cycles with isolated spikes
+    - `threading`: whether to use threading
+    - `indexers`: the columns to use to index the cycles dataframe
+    - `cycrange`: the number of cycles to grab around the cycle of interest
+
+    # Returns
+    - `df`: a vector of dataframes, each containing the firing rate data
+    - `cyc_error`: a dictionary of errors that occured during the loop
     """
-    function df_FRpercycle_and_matched(cycles, Rdf_cycles, beh, val;
+    function df_FRpercycle_and_matched(cycles, Rdf_cycles, beh, firingvals;
         iso_cycles, threading::Bool=true, indexers=[:time, :isolated_sum,
             :pfcisosum], cycrange=8)
 
@@ -535,10 +566,12 @@ module isolated
         Infiltrator.clear_disabled!()
         prog = Progress(length(iso_cycles); 
                          desc="grabing cycle batches into df")
-        V = [val, :i]
+        V = [firingvals, :i]
         E, M = Threads.Atomic{Int}(0), Threads.Atomic{Int}(0)
-        #[(length(iso_cycles)-100):end]
-        Threads.@threads for (i,cyc) in collect(enumerate(iso_cycles))
+
+        # Grab a span of cycles around each isolated spike cycle
+        # and grab a span around the null matched non-isolated cyles for each
+        #= Threads.@threads =# for (i,cyc) in collect(enumerate(iso_cycles))
             # unit = parse(Int,replace(string(f.lhs), "_i"=>""))
             try
                 tid = threading ? Threads.threadid() : 1
@@ -571,6 +604,7 @@ module isolated
             catch exception
                 print("exception")
                 cyc_error[cyc] = exception
+                @infiltrate
                 Threads.atomic_add!(E, 1)
             #     if mod(i, 100) == 0
             #         @info cyc_error
@@ -579,23 +613,32 @@ module isolated
                 next!(prog)
             end
         end
+
         printstyled("Cycles without match ", M[]/length(iso_cycles), 
               "\nErrored cycles ", E[]/length(iso_cycles), color=:blink)
+
+        # Because we are using threading, we need to combine the dataframes
+        # we aggregated from each thread
         dfs = Vector{DataFrame}(undef, length(df))
         for i in eachindex(df)
             dfs[i] = vcat(skipmissing(df[i])...)
         end
         df = vcat(dfs...)
+
         printstyled("Isocycles ", length(iso_cycles), 
             "\ntotal df cycles ", size(df,1),
             "\ntheoretical cycles ", length(iso_cycles) * ((2*cycrange)+1) * 4,
             color=:blink)
         @assert :cyc_match ∈ propertynames(df) ||
             unique(df.cyc_match)>1 "FUCK"
+
+        # Add column indicating if cycle has isolated spikes
         df.has_iso = df.isolated_sum .> 0
-        # Spike count
+        # Obtain the columns who encode the firing rate of each neuron
         neuroncols = names(df)[tryparse.(Int, names(df)) .!== nothing]
-        # TODO not INT because it's gaussian smoothed
+
+        #+TODO not INT because it's gaussian smoothed
+
         df[:,neuroncols] .*= median(diff(beh.time)) 
         df[:,neuroncols] .= round.(df[:,neuroncols])
         df = DataFrames.transform(df, 
@@ -608,26 +651,49 @@ module isolated
     end
 
     export grab_cycle_data
+    """
+        grab_cycle_data(Rdf_cycles::GroupedDataFrame, cyc::Union{Int64,Int32}, 
+            val::Symbol; indexers, cycrange::Int=8, kws...)
+
+    Takes a firing rate data frame grouped by cyles and grabs a span of
+    cycles around the cycle of interest.
+
+    Parameters
+    ----------
+    - `Rdf_cycles::GroupedDataFrame`: Grouped data frame of firing rates
+    - `cyc::Union{Int64,Int32}`: Cycle of interest
+    - `val::Symbol`: Value to grab from the data frame
+    - `indexers::Vector{Symbol}`: Indexers to grab from the data frame
+    - `cycrange::Int=8`: Number of cycles to grab before and after the cycle
+                         of interest 
+    - `kws...`: Keyword arguments to pass to `grab_cycle_data`
+    
+    Returns
+    -------
+    - `DataFrame`: Data frame of the meaned firing rates per cycle spanning
+                    each cycle of interest
+    """ 
     function grab_cycle_data(Rdf_cycles::GroupedDataFrame, 
             cyc::Union{Int64,Int32}, val::Symbol; indexers, 
             cycrange::Int=8, kws...)::DataFrame
-         selector = :area in propertynames(Rdf_cycles) ? Not([:time, :area]) : 
-                                                         Not(:time)
+
          # Address cycles of interest
          🔑s = [(;cycle=cyc) 
                 for cyc in UnitRange(cyc-cycrange, cyc+cycrange)
                ]
 
+         # Which cycles to not compute the mean on in the unit unstacked
+         # form of the data below
+         do_not_mean = :area in propertynames(Rdf_cycles) ? 
+                            Not([:time, :area]) : Not(:time)
         # Grab each cycle of activity
         U = [begin
                 # TODO investigate nonunque
                  u = unstack(Rdf_cycles[🔑], indexers, :unit, val,
-                             combine=last) 
-                 u = combine(u, selector .=> [mean], renamecols=false)
+                             combine=mean) 
+                 u = combine(u, do_not_mean .=> [mean], renamecols=false)
              end
             for 🔑 in 🔑s if 🔑 in keys(Rdf_cycles)]
-         # @info combine(groupby(Rdf_cycles[🔑],:unit),
-         #               :time=>x->length(x)==length(unique(x)))
 
         cycs = [🔑.cycle for 🔑 in 🔑s 
                 if 🔑 in keys(Rdf_cycles)]
@@ -733,7 +799,7 @@ module isolated
         y  = Vector(y[!,string(f.lhs)])
         @assert f.lhs ∉ f.rhs
         misses = (!).(ismissing.(y))
-        XX, y = xtrans.(XX[misses,:]), ytrans.(Int.(y[misses]))
+        XX, y = xtrans.(XX[misses,:]), ytrans.(y[misses])
         XX =  if dummy_coding  
                 @info "dummy coding"
                 DIutils.statistic.dummycode(XX)
@@ -938,6 +1004,8 @@ module isolated
              PYGLM_ElasticNet()
          elseif type == :matlab
              GLM_MATLAB()
+        elseif type in [:r,:R]
+             GLM_R()
          else
             @error "type=$type not recognized"
          end
@@ -1141,37 +1209,39 @@ module isolated
     # METHOD : R
     # ------------------------
 
+    using RCall
     """
         glm_(::GLM_R, XX::AbstractMatrix, y, Dist)
 
     The R programming language version of the GLM    
     """
-    # using RCall
-    # function glm_(::GLM_R, XX::AbstractMatrix, y, Dist; testXX=nothing, 
-    #                   kws...)
-    #     # Import GLM net R libraries
-    #     glmnet = R"library(glmnet)"
-    #     # Run GLM on XX and y with distribution Dist
-    #     R"glmnet.fit <- glmnet($XX, $y, family = $Dist, alpha = 0.5)"
-    #     # Get the coefficients
-    #     coef = R"glmnet.fit$beta"
-    #     # Get the predictions
-    #     ypred = R"predict(glmnet.fit, $XX)"
-    #     # Get the intercept
-    #     intercept = R"glmnet.fit$a0"
-    #     # Get the deviance
-    #     deviance = R"glmnet.fit$dev.ratio"
-    #     # Get the lambda
-    #     lambda = R"glmnet.fit$lambda"
-    #     # Get the null deviance
-    #     nulldeviance = R"glmnet.fit$nulldev"
-    #     # Get the number of iterations
-    #     niter = R"glmnet.fit$niter"
-    #     # Return the results
-    #     Dict("coef"=>coef, "ypred"=>ypred, "intercept"=>intercept,
-    #     "deviance"=>deviance, "lambda"=>lambda, "nulldeviance"=>nulldeviance,
-    #     "niter"=>niter)
-    # end
+    function glm_(::GLM_R, XX::AbstractMatrix, y, Dist; testXX=nothing, 
+                      kws...)
+        testXX = testXX === nothing ? XX : testXX
+        # Import GLM net R libraries
+        R"library(glmnet)"
+        # Run GLM on XX and y with distribution Dist
+        Dist = diststr(Dist)
+        R"glmnet.fit <- glmnet($testXX, $y, family = $Dist, alpha = 0.5)"
+        # Get the coefficients
+        coef = R"glmnet.fit$beta"
+        # Get the predictions
+        ypred = rcopy(R"predict(glmnet.fit, $XX)")
+        # Get the intercept
+        intercept = rcopy(R"glmnet.fit$a0")
+        # Get the deviance
+        deviance = rcopy(R"glmnet.fit$dev.ratio")
+        # Get the lambda
+        lambda = rcopy(R"glmnet.fit$lambda")
+        # Get the null deviance
+        nulldeviance = rcopy(R"glmnet.fit$nulldev")
+        # Get the number of iterations
+        niter = rcopy(R"glmnet.fit$niter")
+        # Return the results
+        Dict("ypred"=>ypred, "intercept"=>intercept,
+        "deviance"=>deviance, "lambda"=>lambda, "nulldeviance"=>nulldeviance,
+        "niter"=>niter)
+    end
     
     
     export run_glm!

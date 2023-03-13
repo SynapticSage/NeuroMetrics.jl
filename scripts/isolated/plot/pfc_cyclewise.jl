@@ -267,7 +267,6 @@ pos = (df, Dict(first(dx_dy)), cells, construct_predict_isospikecount, :pyglm)
 kws = (Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""],
     ytrans=x->Float64(x>0), xtrans=x->Float64(x), modelz=model_cellhasiso,
     )
-
 # isolated.run_glm!(pos...;kws...) 
 
 # Relative cycle 0 runs of the model
@@ -276,7 +275,11 @@ isolated.run_glm!(df, dx_dy, cells, construct_predict_spikecount, :pyglm;
     ytrans=x->Float64(x>0), xtrans=x->Float64(x), modelz=model_cellhasiso,
     )
 
-
+#    _  _     _____                _     _           _                 _   
+#  _| || |_  |_   _| __ ___  _   _| |__ | | ___  ___| |__   ___   ___ | |_ 
+# |_  ..  _|   | || '__/ _ \| | | | '_ \| |/ _ \/ __| '_ \ / _ \ / _ \| __|
+# |_      _|   | || | | (_) | |_| | |_) | |  __/\__ \ | | | (_) | (_) | |_ 
+#   |_||_|     |_||_|  \___/ \__,_|_.__/|_|\___||___/_| |_|\___/ \___/ \__|
 # TESTING WITH THE ENTIRE DATAFRAME
 model = Dict()
 
@@ -289,34 +292,65 @@ isolated.run_glm!(df, dx_dy, cells, construct_predict_spikecount, :matlab;
 # Test on indvidual formulae
 fca1pfc = construct_predict_spikecount(df, cells, "PFC")
 fpfcca1 = construct_predict_spikecount(df, cells, "CA1")
-res = []
-@showprogress "df, run types" for type in [:matlab, :pyglm]
+glm_list_df = []
+@showprogress "df, run types" for type in [:matlab, :pyglm, :r]
     A = glm_(fca1pfc, df, df, Poisson(); type, handle_exception=:warn,
-        desc=Dict("desc"=>"CA1->PFC"))
-    push!(res, A)
+        desc=Dict("desc"=>"CA1->PFC", "typ"=>type))
+    push!(glm_list_df, A)
     B = glm_(fpfcca1, df, df, Poisson(); type, handle_exception=:warn,
-        desc=Dict("desc"=>"PFC->CA1"))
-    push!(res, B)
+        desc=Dict("desc"=>"PFC->CA1", "typ"=>type))
+    push!(glm_list_df, B)
 end
 
-# Running for entire df (not by relcyc)
-isolated.run_glm!(df, cells, construct_predict_spikecount, :pyglm;
-    Dist=Distributions.Binomial(), unitwise=true, modelz=model)
+# # Running for entire df (not by relcyc)
+# isolated.run_glm!(df, cells, construct_predict_spikecount, :pyglm;
+#     Dist=Distributions.Binomial(), unitwise=true, modelz=model)
 
 # Testing full firing rate matrix, sans cycles
 Rdf_unstack = unstack(Rdf_sub, :time, :unit, :value, combine=mean)
 # Test on indvidual formulae
 fca1pfc = construct_predict_spikecount(df, cells, "PFC")
 fpfcca1 = construct_predict_spikecount(df, cells, "CA1")
-res = []
-@showprogress "Rdf, run types" for type in [:matlab, :pyglm]
+glm_list_rdf = []
+@showprogress "Rdf, run types" for type in [:matlab, :pyglm, :r]
     A = glm_(fca1pfc, Rdf_unstack, Rdf_unstack, Poisson(); type, 
-        handle_exception=:warn, desc=Dict("desc"=>"CA1->PFC"))
-    push!(res, A)
+        handle_exception=:warn, desc=Dict("desc"=>"CA1->PFC", "typ"=>type))
+    push!(glm_list_rdf, A)
     B = glm_(fpfcca1, Rdf_unstack, Rdf_unstack, Poisson(); type, 
-        handle_exception=:warn, desc=Dict("desc"=>"PFC->CA1"))
-    push!(res, B)
+        handle_exception=:warn, desc=Dict("desc"=>"PFC->CA1", "typ"=>type))
+    push!(glm_list_rdf, B)
 end
+
+#    _  _     _____                  _ _ _         
+#  _| || |_  | ____|__ _ _   _  __ _| (_) |_ _   _ 
+# |_  ..  _| |  _| / _` | | | |/ _` | | | __| | | |
+# |_      _| | |__| (_| | |_| | (_| | | | |_| |_| |
+#   |_||_|   |_____\__, |\__,_|\__,_|_|_|\__|\__, |
+#                     |_|                    |___/ 
+#   ___| |__   ___  ___| | _____ 
+#  / __| '_ \ / _ \/ __| |/ / __|
+# | (__| | | |  __/ (__|   <\__ \
+#  \___|_| |_|\___|\___|_|\_\___/
+
+# Comparing the results from glming on Rdf_unst1ack and df
+    # Convert res to dataframe
+    glm_df = Table.to_dataframe(glm_list_df)
+    glm_Rdf = Table.to_dataframe(glm_list_rdf)
+    # Plot and compare the R2 values using
+#
+    # R2 value equality?
+    H = HypothesisTests.KruskalWallisTest(glm_Rdf[:,:R2], glm_df[:,:R2], 0.05)
+    @df glm_Rdf histogram(:R2, group=:desc, label=:desc, 
+                            title="R2 values for Rdf")
+    @df glm_df histogram(:R2, group=:desc, label=:desc,
+                            title="R2 values for df")
+
+    # Coefficient equality?
+    H = HypothesisTests.KruskalWallisTest(glm_Rdf[:,:coef], glm_df[:,:coef], 0.05)
+    @df glm_Rdf histogram(:coef, group=:desc, label=:desc, 
+                            title="Coef values for Rdf")
+    @df glm_df histogram(:coef, group=:desc, label=:desc,
+                            title="Coef values for df")
 
 
 # tmp = shuffle_cellhasiso
