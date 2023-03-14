@@ -1,3 +1,4 @@
+using DrWatson
 using GoalFetchAnalysis
 using .Timeshift, .Plot, .Timeshift.types, .Timeshift.shiftmetrics,
     .Field.metrics, .Plot.receptivefield, .DIutils.namedtup,
@@ -7,15 +8,17 @@ Filt = DI.Filt
 using .Munge.timeshift: getshift
 using .DIutils.statistic: pfunc
 filt_desc = Filt.get_filters_desc()
+using GoalFetchAnalysis.Field.metrics: skipnan
 
 using DataStructures: OrderedDict
 import DimensionalData: Between
 import DI, DIutils.Table
 using ProgressMeter, DimensionalData, Infiltrator, JLD2, DataFrames,
       DataFramesMeta, StatsBase, HypothesisTests, Plots, StatsPlots,
-      Statistics, NaNStatistics
+      Statistics, NaNStatistics, Distributed
 
 using GLM, Lasso, Distributions, ThreadSafeDicts, DrWatson, SoftGlobalScope
+using LinearAlgebra
 
 import DataStructures: OrderedDict
 import DimensionalData: Between
@@ -29,14 +32,20 @@ using MLJ
 using MLJScikitLearnInterface: ElasticNetCVRegressor
 
 export commit_vars
-# Create a little save function I can run at any time
-# (these vars are refs to the data, and if those change,
-#  will commit them)
+"""
+    commit_vars()
+
+Save the variables in the global scope to a jld2 file. The variables must be in
+the global scope, and must be one of the following:
+lfp, spikes, tsk, cells, beh, cycles, Rdf, opt
+"""
 function commit_vars()
-    varnames = (
+    if !opt["commits"]; return Nothing; end
+    varnames = (x for x in
         ("lfp", "spikes", "tsk", "cells", "beh", "cycles", "Rdf", "opt")
+        if isdefined(Main, x)
     )
-    jldopen(path_iso(opt), "a") do storage
+    jldopen(GoalFetchAnalysis.Munge.isolated.path_iso(opt), "a") do storage
         for n in varnames
             v = @eval Main eval(Symbol($n))
             if n in keys(storage)
@@ -47,22 +56,55 @@ function commit_vars()
     end
 end
 
+"""
+    print_vars()
+
+Print the variables in path_iso(opt; append="")
+"""
+function print_vars()
+    jldopen(path_iso(opt; append=""), "r") do storage
+        println(keys(storage))
+    end
+end
+
 export commit_cycwise_vars
 """
-    commit_cyclewise_vars
+    commit_cyclewise_vars(vars::Union{Nothing,Vector,Tuple,String}=nothing)
 
+Save the variables in the global scope to a jld2 file.
+
+# Arguments
+- vars: a vector of strings, or a string, or nothing. If nothing, save all
+variables in the global scope. If a string, save that variable. If a vector
+of strings, save those variables.
+The variables must be in the global scope, and must be one of the following:
+grd, occ, df, ca1cycstat, pfccycstat, cyccellstat, model_*, shuffle_*,
+glm_list*, glm_dict*
 """
-function commit_cycwise_vars()::Bool
+function commit_cycwise_vars(vars::Union{Nothing,Vector,Tuple,String}=nothing)
     has_df = false
+    if !in("commits", keys(opt)); opt["commits"] = true; end
+    if opt["commits"] == false; return Nothing; end
     jldopen(path_iso(opt; append="_cyclewise"), "a"; compress=true) do storage
         models = [string(x) for x in propertynames(Main) 
                   if occursin("model_", string(x))]
         shuffles = [string(x) for x in propertynames(Main) 
                   if occursin("shuffle_", string(x))]
-        for name in ("grd","occ","df", "ca1cycstat", "pfccycstat", 
-                     "cyccellstat", models..., shuffles...)
-            if isdefined(Main, Symbol(name))
-                @info "saving $name"
+        result_dumps = [string(x) for x in propertynames(Main) 
+                  if occursin("glm_list", string(x)) || 
+                     occursin("glm_dict", string(x))]
+        total_vars = ("grd","occ","df", "ca1cycstat", "pfccycstat",
+            "cyccellstat", models..., shuffles..., result_dumps...)
+        vars = vars isa String ? [vars] : vars
+        vars = vars===nothing ? total_vars : 
+                collect(intersect(total_vars, vars))
+        @info "Var list to save $vars"
+        @showprogress "saving" for name in vars
+            if isdefined(Main, Symbol(name)) && 
+                !isa(getproperty(Main, Symbol(name)), Function) &&
+                !isa(getproperty(Main, Symbol(name)), Module)
+                !isa(getproperty(Main, Symbol(name)), Type)
+
                 obj = @eval Main eval(Symbol($name))
                 if name in keys(storage)
                     delete!(storage, name)
@@ -75,7 +117,30 @@ function commit_cycwise_vars()::Bool
     has_df
 end
 
+"""
+    print_cyclewise_vars()
+
+Print the variables in path_iso(opt; append="_cyclewise")
+""" 
+function print_cyclewise_vars()
+    jldopen(path_iso(opt; append="_cyclewise"), "r") do storage
+        println(keys(storage))
+    end
+end
+
 export initorget
+"""
+    initorget(key; append="_cyclewise", obj=ThreadSafeDict())
+
+Get the object `key` from the jld2 file at path_iso(opt; append="_cyclewise").
+If the key is not in the file, return `obj`.
+
+# Arguments
+ - key: a string, the key to get
+ - append: a string, the string to append to the path_iso(opt) to get the path
+   to the jld2 file.
+ - obj: an object, the object to return if the key is not in the file.
+"""
 function initorget(key;append="_cyclewise", obj=ThreadSafeDict())
     jldopen(path_iso(opt;append), "r") do storage
         print("Possible keys", keys(storage))
@@ -90,71 +155,137 @@ end
 
 using Random
 export shuffle_cyclelabels
+"""
+    shuffle_cyclelabels(df, perm=[:cycs,:relcycs])
+
+Shuffle the cycle labels in the dataframe `df` and return the shuffled dataframe.
+
+# Arguments
+ - df: a dataframe with columns `perm`
+ - perm: a vector of symbols, the columns to shuffle
+
+# Returns
+ - dfshuf: a dataframe with the same columns as `df`, but with the columns
+   `perm` shuffled.
+"""
 function shuffle_cyclelabels(df, perm=[:cycs,:relcycs])
     # if "orig"*string(perm[1]) ∉ names(df)
     #         df[!,"orig".*string(perm)] .= df[!, perm]
     # end
     inds = collect(1:size(df,1))
     randperm!(inds)
-    sort(
-    DataFrames.transform(df, perm .=> x->x[inds], Not(perm), renamecols=false),
-        perm)
+    dfshuf = sort(
+    DataFrames.transform(df, perm .=> 
+            x->x[inds], 
+            Not(perm), renamecols=false), perm)
+    @assert dfshuf != df
+    dfshuf
 end
 
+"""
+    run_shuffle!(df, pos...; shuffle_models=ThreadSafeDict(), shufcount=10_000,
+        scrub=["ypred", "m"], kws...)
+
+Shuffle the dataframe labels and run the model on the shuffled data.
+"""
 function run_shuffle!(df, pos...; 
-    shuffle_models=ThreadSafeDict(), shufcount=10_000, scrub_ypred=true, 
-    scrub_model=true, kws...)
-    @showprogress "shuffle" for i in 1:shufcount
-        key = hash(i+rand())
+    shuffle_models=ThreadSafeDict(), shufcount=10_000, scrub=["ypred", "m"],
+    kws...)
+    for i in 1:shufcount
+        key = hash(i + rand())
         shuffle_models[key] = Dict()
         run_glm!(shuffle_cyclelabels(df),
             pos...; kws..., modelz=shuffle_models[key])
-        if scrub_ypred
-            [pop!(v, "ypred") for v in values(shuffle_models[key])
-            if !(v isa Exception)]
+        if !isempty(scrub)
+            shuffle_models[key] = 
+                isolated.clean_keys(shuffle_models[key], scrub)
+            GC.gc(); 
         end
-        if scrub_model
-            [pop!(v, "m") for v in values(shuffle_models[key])
-            if !(v isa Exception)]
-        end
-        if scrub_ypred || scrub_model; GC.gc(); end
     end
 end
 
-function get_dx_dy(df, relcyc)
-    dx = @subset(df, :relcycs .== relcyc)
-    dy = @subset(df, :relcycs .== 0)
-    register = [:cyc_batch, :cyc_match]
-    # dx = groupby(dx, [:cyc_batch, :cyc_match])
-    # dy = groupby(dy, [:cyc_batch, :cyc_match])
-    # kx, ky = keys(dx.keymap), keys(dy.keymap)
-    # k = intersect(kx,ky)
-    # dx = sort(vcat([dx[kk] for kk in k]...), [:cyc_batch, :cyc_match])
-    # dy = sort(vcat([dy[kk] for kk in k]...), [:cyc_batch, :cyc_match])
-    dx, dy = sort(dx, register), sort(dy, register)
-    dxr, dyr = Matrix(dx[!,register]), Matrix(dy[!,register])
-    if dxr != dyr
-        dxr, dyr = eachrow.((dxr, dyr))
-        D = intersect(dxr, dyr)
-        idx = [findfirst((x == d for x in dxr)) for d in D]
-        idy = [findfirst((y == d for y in dyr)) for d in D]
-        dx, dy = dx[idx,:], dy[idy, :]
-    end
-    @assert Matrix(dx[!,register]) == Matrix(dy[!,register])
-    dx, dy
+"""
+    checkbins(var)
+
+Print the number of unique bins in the variable `var`.
+"""
+function checkbins(var::Symbol)
+    println("Unique $var bins: ", length(unique(getproperty(Main,var).bins)))
 end
 
-function get_futurepast_blocks(df)
-    dxf = unstack(@subset(df, :relcycs .> 0), )
-    dxp = @subset(df, :relcycs .<= 0)
-    dy = @subset(df, :relcycs .== 0)
-    dxp = groupby(dxp, [:cyc_batch, :cyc_match])
-    dxf = groupby(dxf, [:cyc_batch, :cyc_match])
-    dy = groupby(dy, [:cyc_batch, :cyc_match])
-    kxp, kxf, ky = keys(dxp.keymap), keys(dxf.keymap), keys(dy.keymap)
-    k = intersect(kxf,kxp,ky)
-    dxf = sort(vcat([dxf[kk] for kk in k]...), [:cyc_batch, :cyc_match], )
-    dxp = sort(vcat([dxp[kk] for kk in k]...), [:cyc_batch, :cyc_match], )
-    dy  = sort(vcat([dy[kk] for kk in k]...), [:cyc_batch, :cyc_match], )
-    Dict("pastcurr"=>(dxp, dy), "future"=>(dxf, dy))
+predkey(k::NamedTuple) = (;k..., bin=0)
+
+@info "finsished imports_isolated"
+
+
+
+"""
+    dataframe(G::Vector)
+Convert a vector of `DataFrame`s, `Vector`s, and `Dict`s to a single
+`DataFrame`.
+"""
+function todataframe(G::Vector)
+    DF = DataFrame()
+    @showprogress for g in G
+        df = if g isa DataFrame
+            g
+        elseif g isa Vector
+            dataframe(g)
+        elseif g isa Dict
+            dictdf=DataFrame()
+            # Convert to a dataframe row
+            for k in filter(k->g[k] !== nothing, keys(g))
+                try
+                if g[k] isa Vector
+                    dictdf[!,k] = [g[k]]
+                elseif g[k] isa AbstractDict
+                    for kk in keys(g[k])
+                        dictdf[!,string(k)*"_"*string(kk)] = [g[k][kk]]
+                    end
+                else
+                    dictdf[!,k] = [g[k]]
+                end
+                catch
+                    @info "Error in $k $(g[k])"
+                end
+            end
+            dictdf
+        elseif g isa Nothing
+            DataFrame()
+        end
+        append!(DF, df, cols=:union)
+    end
+    DF
 end
+
+# Write a function that takes a dict, and converts each value to
+# a Vector{Vector{Value}} if it's not a vector. If it is a vector,
+# then it should be a vector of vectors.
+
+"""
+    convert_to_vv(d::Dict)
+Convert a `Dict` to a `Dict` where each value is a `Vector` of `Vector`s.
+# Arguments
+ - d: a `Dict`
+# Returns
+- d: a `Dict` where each value is a `Vector` of `Vector`s.
+"""
+function convert_to_vv(d::Dict)
+    # if any values of the dict are a dict, then merge them with d
+    for (k,v) in d
+        if isa(v, AbstractDict)
+            d = copy(d)
+            d = merge(d, pop!(d, k))
+        end
+    end
+    # if any values of the dict are not a vector, then convert them to a vector
+    for (k,v) in d
+        if !isa(v, Vector)
+            d[k] = [v]
+        elseif !isa(v[1], Vector)
+            d[k] = [v]
+        end
+    end
+    d
+end
+

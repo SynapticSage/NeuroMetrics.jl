@@ -1,4 +1,4 @@
-include("imports_isolated.jl")
+include("./imports_isolated.jl")
 
 datasets = (
             ("RY16",36,:ca1ref), ("RY22",21,:ca1ref),  #("super", 0, :ca1ref),
@@ -8,7 +8,8 @@ datasets = (
 
 opt = Dict(
            :process_outoffield => false, # process out of field place fields?
-           :ploton=>true
+           :ploton=>true,
+           :matchprops=>[:x,:y,:speed,:startWell,:stopWell],
           )
 
 # Plotting turned on?
@@ -210,7 +211,7 @@ if init != 1; @warn("initial dataset is $init"); end
     end
 
     # Obtain the firing rate matrix
-    R = Munge.spiking.torate(allspikes, beh)
+    R = Munge.spiking.torate(allspikes, beh, gaussian=0.033)
 
     # Get PFC_units
     pfc_units = @subset(cells,:area.=="PFC").unit
@@ -228,8 +229,8 @@ if init != 1; @warn("initial dataset is $init"); end
     DIutils.filtreg.register(cycles, Rdf, on="time", 
                              transfer=["cycle"], 
                              match=:prev)
-    DIutils.filtreg.register(beh, Rdf, on="time", 
-                            transfer=String.(matchprops))
+    matchprops = opt[:matchprops]
+    DIutils.filtreg.register(beh, Rdf, on="time", transfer=String.(matchprops))
 
 
 end # end dataset loop

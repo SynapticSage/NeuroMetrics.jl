@@ -543,7 +543,7 @@ module isolated
     - `indexers`: the columns to use to index the cycles dataframe
     - `cycrange`: the number of cycles to grab around the cycle of interest
 
-    # Returns
+    # Return
     - `df`: a vector of dataframes, each containing the firing rate data
     - `cyc_error`: a dictionary of errors that occured during the loop
     """
@@ -571,7 +571,7 @@ module isolated
 
         # Grab a span of cycles around each isolated spike cycle
         # and grab a span around the null matched non-isolated cyles for each
-        #= Threads.@threads =# for (i,cyc) in collect(enumerate(iso_cycles))
+        Threads.@threads for (i,cyc) in collect(enumerate(iso_cycles))
             # unit = parse(Int,replace(string(f.lhs), "_i"=>""))
             try
                 tid = threading ? Threads.threadid() : 1
@@ -604,12 +604,11 @@ module isolated
             catch exception
                 print("exception")
                 cyc_error[cyc] = exception
-                @infiltrate
                 Threads.atomic_add!(E, 1)
             #     if mod(i, 100) == 0
             #         @info cyc_error
             #     end
-                sleep(0.05)
+                sleep(0.5)
                 next!(prog)
             end
         end
@@ -629,6 +628,10 @@ module isolated
             "\ntotal df cycles ", size(df,1),
             "\ntheoretical cycles ", length(iso_cycles) * ((2*cycrange)+1) * 4,
             color=:blink)
+        println("")
+        
+        # Make sure all cycles have a match and that the number of matches
+        # is greater than 1, otherwise we have a problem
         @assert :cyc_match ∈ propertynames(df) ||
             unique(df.cyc_match)>1 "FUCK"
 
@@ -638,16 +641,19 @@ module isolated
         neuroncols = names(df)[tryparse.(Int, names(df)) .!== nothing]
 
         #+TODO not INT because it's gaussian smoothed
-
+        
+        # Convert the firing rate values to the number of spikes per cycle
         df[:,neuroncols] .*= median(diff(beh.time)) 
+        # Round the firing rate values to the nearest integer
         df[:,neuroncols] .= round.(df[:,neuroncols])
+        # Convert the firing count values to integers
         df = DataFrames.transform(df, 
         neuroncols .=> n -> convert(Vector{Int64}, n), 
             renamecols=false)
-        # Clean data frame
+        # Clean data frame, remove columns with all zeros
         col_all_zero = map(v->all(skipmissing(v.==0)), eachcol(df))
         df = df[!, Not(names(df)[col_all_zero])]
-        (;df, cyc_error)
+        return (;df, cyc_error)
     end
 
     export grab_cycle_data
@@ -708,7 +714,7 @@ module isolated
             df[!,key] .= val
         end
         
-        df
+        return df
     end
     
     """
@@ -751,7 +757,7 @@ module isolated
             rename!(out, renames)
         end
         @assert "cyc_match" ∈ names(out)
-        out
+        return out
     end
 
     """
@@ -996,21 +1002,23 @@ module isolated
                   ytest=nothing, type=:pyglm, kws...)
 
         # Select the type of GLM to dispatch to
-         type = if type == :mlj_spec
+        type = if type in [:mlj_spec, :spec]
              SpecificGLM_MLJ()
-         elseif type == :mlj_custom
+        elseif type in [:mlj_custom, :custom]
              Custom_ElasticNetMLJ()
-         elseif type == :pyglm
+        elseif type in [:pyglm, :pyglmnet]
              PYGLM_ElasticNet()
-         elseif type == :matlab
+        elseif type == :matlab
              GLM_MATLAB()
         elseif type in [:r,:R]
              GLM_R()
-         else
-            @error "type=$type not recognized"
-         end
+        else
+            throw(ArgumentError("type=$type not recognized"))
+        end
+
         # Dispatch to the appropriate GLM method
         kv  = glm_(type, XX, y, Dist; kws...)
+
         # Merge the results with top level results and the values
         # to be predicted
         out = merge(Dict("type"=>string(type), "y"=>y,
@@ -1032,17 +1040,21 @@ module isolated
     - `y::AbstractVector`: Response vector
     - `Dist::Distribution`: Distribution to use
     """
-    function glm_(::PYGLM_ElasticNet, XX::AbstractMatrix, y, Dist=Binomial(); 
-        testXX=nothing, kws...)
+    function glm_(::PYGLM_ElasticNet, XX::AbstractMatrix, y, 
+                 Dist=Binomial(); testXX=nothing, ytest=nothing, kws...)
+        ytest  = ytest === nothing ? y : ytest
         testXX = testXX === nothing ? XX : testXX
         kws = (;tol=1e-3, score_metric="pseudo_R2", alpha=0.5, 
                 max_iter=100, cv=3, kws...)
         gl_glm = pyglmnet.GLMCV(;distr=diststr(Dist), kws...)
         gl_glm.fit(XX, y)
-        ypred = gl_glm.predict(XX)
+        ypred = gl_glm.predict(testXX)
+        score = gl_glm.score(testXX, ytest)
         out = Dict(string.(collect(keys(kws))) .=> collect(values(kws)))
         merge(out, Dict("y"=>y, "ypred"=>ypred), 
-        Dict("lambda"=>gl_glm.reg_lambda_opt_, "lambdas"=>gl_glm.reg_lambda))
+            Dict("lambda"=>gl_glm.reg_lambda_opt_, "lambdas"=>gl_glm.reg_lambda,
+            kws.score_metric=>score, "score"=>score)
+        )
     end
     glm_pyglm(XX, y, Dist, kws...) = glm_(PYGLM_ElasticNet(), XX, y, Dist;
                                      kws...)
@@ -1082,7 +1094,6 @@ module isolated
             ypred = ilif(MLJ.predict(m, XXin))
         catch exception
             println("Exception = $exception")
-            @infiltrate
         end
         Dict("m"=>m, "ypred"=>ypred, "coef"=> m.fitresult[1].coef_)
     end
@@ -1200,6 +1211,7 @@ module isolated
         y, ypred = vec(Float64.(y)), vec(Float64.(ypred))
         merge!(pre, Dict( "ypred"=>ypred, "y"=>y, 
              "coef"=>c[2:end], "intercept"=>c[1]))
+        merge!(pre, pop!(pre, "stats"))
     end
     glm_matlab(XX::AbstractMatrix, y, Dist, kws...) =
             glm_(GLM_MATLAB(), XX, y, Dist; kws...)
@@ -1310,7 +1322,6 @@ module isolated
             else
                 out_key = (;indep, x_key...)
             end
-            @infiltrate
 
             # Run GLM model 🤖
             try
@@ -1319,7 +1330,6 @@ module isolated
                                        type=glmtool, xtrans=xtrans, ytrans=ytrans)
                 cacheXY[out_key] = (;XX, y)
             catch exception
-                @infiltrate
                 modelz[(;indep, x_key, unit)] = exception
                 print("Error on $out_key, exception = $exception")
                 sleep(0.1)
@@ -1432,11 +1442,13 @@ module isolated
             replace(nameit(Dist),"link"=>"")
         end
 
+    export diststr
     """
         diststr(Dist::Distribution)
 
     Returns the name of the distribution
     """
-    diststr(Dist::Union{String,Distribution}) = Dist isa String ? Dist : nameit(Dist)
+    diststr(Dist::Union{String,Distribution}) = Dist isa String ? 
+                    Dist : nameit(Dist)
     
 end

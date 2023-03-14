@@ -198,7 +198,8 @@ checkbins(:cycles);
 df.cycle = df.cyc_central;
 # DIutils.filtreg.register(cycles, df, on="cycle",
 #     transfer=["epoch","time","bins"]);
-DIutils.filtreg.register(cycles, Rdf_sub, on="cycle", transfer=["epoch","bins"]);
+DIutils.filtreg.register(cycles, Rdf_sub, on="cycle", 
+    transfer=["epoch","bins"]);
 checkbins(:Rdf_sub);
 
 # (each iso/noniso cycle plus precedents and antecedents)
@@ -208,6 +209,12 @@ df, cyc_errors = df_FRpercycle_and_matched(cycles, Rdf_cycles,
 checkbins(:df);
 # Checkpoint
 commit_cycwise_vars()
+
+# Remove missing vals from isolated spike count columns
+for col in eachcol(df[!,[x for x in names(df) if occursin("_i", x)]] )
+    replace!(col, missing=>0)
+    col = convert(Vector{Union{Missing,Float64}}, col)
+end
 
 #    _  _      ____           _          
 # _| || |_   / ___|__ _  ___| |__   ___ 
@@ -243,13 +250,7 @@ dx_dy_bin = Dict(dx_dy_bin)
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-include(scriptsdir("isolated","imports_isolated.jl"))
 
-for col in eachcol(df[!,[x for x in names(df) if occursin("_i", x)]] )
-    replace!(col, missing=>0)
-    col = convert(Vector{Union{Missing,Float64}}, col)
-end
-df[!,[x for x in names(df) if occursin("_i", x)]]
 
 # =========================
 #  . .     ,---.|    ,-.-.
@@ -292,14 +293,21 @@ isolated.run_glm!(df, dx_dy, cells, construct_predict_spikecount, :matlab;
 # Test on indvidual formulae
 fca1pfc = construct_predict_spikecount(df, cells, "PFC")
 fpfcca1 = construct_predict_spikecount(df, cells, "CA1")
-glm_list_df = []
-@showprogress "df, run types" for type in [:matlab, :pyglm, :r]
-    A = glm_(fca1pfc, df, df, Poisson(); type, handle_exception=:warn,
+glm_dict_df = Dict()
+A=B=nothing
+sets = zip([:matlab, :pyglm, :r, :pyglm], 
+[Poisson(), Poisson(), Poisson(), "softplus"])
+(type, dist) = first(sets)
+@showprogress "df, run types" for (type, dist) in sets
+
+    A = glm_(fca1pfc, df, df, dist; type, handle_exception=:warn,
         desc=Dict("desc"=>"CA1->PFC", "typ"=>type))
-    push!(glm_list_df, A)
-    B = glm_(fpfcca1, df, df, Poisson(); type, handle_exception=:warn,
+    push!(glm_dict_df, (;type, dist=diststr(dist), dir="CA1->PFC")=>A)
+
+    B = glm_(fpfcca1, df, df, dist; type, handle_exception=:warn,
         desc=Dict("desc"=>"PFC->CA1", "typ"=>type))
-    push!(glm_list_df, B)
+    push!(glm_dict_df, (;type, dist=diststr(dist), dir="PFC->CA1")=>B)
+
 end
 
 # # Running for entire df (not by relcyc)
@@ -311,14 +319,17 @@ Rdf_unstack = unstack(Rdf_sub, :time, :unit, :value, combine=mean)
 # Test on indvidual formulae
 fca1pfc = construct_predict_spikecount(df, cells, "PFC")
 fpfcca1 = construct_predict_spikecount(df, cells, "CA1")
-glm_list_rdf = []
-@showprogress "Rdf, run types" for type in [:matlab, :pyglm, :r]
-    A = glm_(fca1pfc, Rdf_unstack, Rdf_unstack, Poisson(); type, 
+glm_dict_rdf = Dict()
+@showprogress "Rdf, run types" for (type, dist) in sets
+
+    A = glm_(fca1pfc, Rdf_unstack, Rdf_unstack, dist; type, 
         handle_exception=:warn, desc=Dict("desc"=>"CA1->PFC", "typ"=>type))
-    push!(glm_list_rdf, A)
-    B = glm_(fpfcca1, Rdf_unstack, Rdf_unstack, Poisson(); type, 
+    push!(glm_dict_rdf, (;type, dist, dir="CA1->PFC")=>A)
+
+    B = glm_(fpfcca1, Rdf_unstack, Rdf_unstack, dist; type, 
         handle_exception=:warn, desc=Dict("desc"=>"PFC->CA1", "typ"=>type))
-    push!(glm_list_rdf, B)
+    push!(glm_dict_rdf, (;type, dist, dir="PFC->CA1")=>B)
+
 end
 
 #    _  _     _____                  _ _ _         
@@ -334,7 +345,7 @@ end
 
 # Comparing the results from glming on Rdf_unst1ack and df
     # Convert res to dataframe
-    glm_df = Table.to_dataframe(glm_list_df)
+    glm_df  = Table.to_dataframe(glm_dict_df)
     glm_Rdf = Table.to_dataframe(glm_list_rdf)
     # Plot and compare the R2 values using
 #
@@ -346,7 +357,8 @@ end
                             title="R2 values for df")
 
     # Coefficient equality?
-    H = HypothesisTests.KruskalWallisTest(glm_Rdf[:,:coef], glm_df[:,:coef], 0.05)
+    H = HypothesisTests.KruskalWallisTest(glm_Rdf[:,:coef], 
+                                          glm_df[:,:coef], 0.05)
     @df glm_Rdf histogram(:coef, group=:desc, label=:desc, 
                             title="Coef values for Rdf")
     @df glm_df histogram(:coef, group=:desc, label=:desc,

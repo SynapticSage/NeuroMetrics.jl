@@ -21,6 +21,8 @@ module spiking
 
     bindefault = 0.020 # 20 milliseconds
     gaussiandefault = bindefault * 3
+    mag_constant = 0.5
+
 
     """
         nonlocality
@@ -103,7 +105,7 @@ module spiking
 
         if gaussian > 0
             type  = type === nothing ? Float32 : type
-            gaussian = gaussian * 0.1/δ
+            gaussian = gaussian * mag_constant/δ
             ker = Kernel.gaussian((gaussian,))
             val = convert(Vector{type}, imfilter(count.weights, ker))
         else
@@ -122,6 +124,13 @@ module spiking
 
     see torate(spikes::DataFrame, dims) for doc of the rest of the 
     functionalities
+
+    # Arguments
+    - `spikes::DataFrame`: dataframe of spikes
+    - `beh::DataFrame`: dataframe of behavior
+    - `dims=:unit`: dimensions to tensorize over
+    - `binning_ratio=1`: ratio of binning to behavioral sampling
+    - `kws...`: keyword arguments to pass to torate(spikes::DataFrame, dims)
     """
     function torate(spikes::DataFrame, beh::DataFrame, dims=:unit; 
             binning_ratio=1, kws...)
@@ -191,10 +200,24 @@ module spiking
                   Dim{:time}(centers))
     end
 
+    """
+        torate(times::AbstractArray; grid, gaussian=0, binsize=bindefault)
+
+    get rate matrix from a vector of times
+
+    # Arguments
+    - `times::AbstractArray`: vector of times
+    - `grid`: grid to bin times on
+    - `gaussian`: gaussian smoothing parameter
+    - `binsize`: binsize to use if grid is not provided
+
+    # Returns
+    - `DimArray`: rate matrix
+    """
     function torate(times::AbstractArray; grid, gaussian=gaussiandefault,
             binsize=grid[2]-grid[1])::DimArray
         count = fit(Histogram, vec(times), grid)
-        gaussian = gaussian * 0.1/binsize
+        gaussian = gaussian * mag_constant/binsize
         ker = Kernel.gaussian((gaussian,))
         centers = binning.edge_to_center(collect(grid))
         DimArray(imfilter(count.weights ./ binsize, ker),
