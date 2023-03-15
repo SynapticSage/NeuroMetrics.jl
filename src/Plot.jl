@@ -130,6 +130,54 @@ function stereoscopicgif(pos...;delta_angle=1,kws...)
     end
 end
 
+function Plot.plotsdir()
+    plotsdir(complete_folder_args...)
+end
+
+"""
+    printstate()
+
+Prints the current state of the plot module, the key variables
+
+- If plots are active
+- The plotdir pointed to by the module
+- The current append and prepend strings
+"""
+function printstate()
+    println("Plot module state:")
+    println("Active: ", active)
+    println("Plotdir: ", Plot.plotsdir())
+    println("Append: ", append)
+    println("Prepend: ", prepend)
+end
+
+"""
+    savetopowerpointslide(file::String, 
+                    slide::Int, desc...; rmexist=false)
+
+Saves the current plot to a powerpoint slide.
+"""
+function savetopowerpointslide(file::String, slide::Int, desc...; 
+    rmexist=false)
+    folder = plotsdir(parent_folder..., folder_args...)
+    append_string = append isa NamedTuple ? 
+             DIutils.namedtup.ntopt_string(append) : append
+    prepend_string = prepend isa NamedTuple ? 
+             DIutils.namedtup.ntopt_string(prepend) : prepend
+    name = join([prepend_string, file, append_string, "pptx"], ".")
+    name = startswith(name,".") ? name[2:end] : name
+    name = replace(name, ".."=>".")
+    name = joinpath(folder, name)
+    if rmexist === true
+        rm(name)
+    end
+    active ? begin 
+        @info "saving" name
+        # TODO https://asml-labs.github.io/PPTX.jl/dev/
+        end : nothing
+    Plots.CURRENT_PLOT
+end
+
 #include(srcdir("Plot", "raster.jl"))
 #@reexport using .raster
 
