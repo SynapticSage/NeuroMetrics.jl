@@ -25,7 +25,7 @@ module spiking
 
 
     """
-        nonlocality
+        nonlocality(X::DataFrame, R::ReceptiveField; hull=1)::BitVector
 
     whether a data frame of behavior or spikes is NOT in a place field
     """
@@ -38,7 +38,7 @@ module spiking
     end
 
     """
-        locality
+        locality(X::DataFrame, R::ReceptiveField; hull=1)::BitVector
 
     whether a data frame of behavior or spikes is in a place field
     """
@@ -151,7 +151,8 @@ module spiking
     end
 
     """
-        torate
+        torate(spikes::DataFrame, dims=:unit; binsize=bindefault, grid=nothing,
+                kws...)
 
     get rate matrix from a dataframe of spikes per cut of the data in 
     dims=:unit
@@ -184,6 +185,10 @@ module spiking
     torate(times::Missing; kws...)::DimArray = tocount(times; kws...)
 
 
+    """
+        torate_windowdia(times::AbstractArray; grid, windowsize::Real,
+            gaussian::Real=0)
+    """
     function torate_windowdia(times::AbstractArray; grid, windowsize::Real,
                               gaussian::Real=0)
         torate_windowrad(times; grid, radius=windowsize/2, gaussian)

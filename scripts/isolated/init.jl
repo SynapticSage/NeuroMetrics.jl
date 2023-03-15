@@ -6,11 +6,12 @@ datasets = (
            )
 (animal, day, tet) = datasets[2]
 
-opt = Dict(
+opt = isdefined(Main,:opt) ? Main.opt : Dict()
+opt = merge(opt, Dict(
            :process_outoffield => false, # process out of field place fields?
            :ploton=>true,
            :matchprops=>[:x,:y,:speed,:startWell,:stopWell],
-          )
+))
 
 # Plotting turned on?
 if opt[:ploton] 
@@ -25,6 +26,7 @@ if init != 1; @warn("initial dataset is $init"); end
 @showprogress "datasets" for (animal, day, tet) in datasets[init:end]
 
     @info "loop" animal day tet
+    animal, day, tet = opt["animal"], opt["day"], opt["tet"]
 
     isonames =  OrderedDict(false => :adjacent, true=>:isolated)
     filt_desc = OrderedDict(:all => "> 2cm/s")

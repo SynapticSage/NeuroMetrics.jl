@@ -19,7 +19,7 @@ module isolated
     using DataStructures: OrderedDict
     import Distributions
     import DIutils: Table
-    using ProgressMeter
+    using ProgressMeter, Random
     
     using GLMNet, MultivariateStats, MLJ, ScikitLearn, Metrics, GLM
     using MATLAB, PyCall, RCall
@@ -66,7 +66,14 @@ module isolated
     """
         load_iso(pos...)
 
-    Returns a dictionary of the isolated variables of interest
+    # Arguments
+    ----------
+    see also: path_iso for possible pos arguments
+
+    # Returns
+    -------
+    OrderedDict
+        keys are the variable names and values are the variables
     
     see also: path_iso
     """
@@ -178,27 +185,30 @@ module isolated
     # Returns
     - `formulae`: a list of StatsModels formulae
     """
-    function construct_predict_isospikecount(df, cells, input_area="CA1";
-            other_vars=[], other_ind_vars=[])
+    function construct_predict_isospikecount(df, cells, ind_area="CA1";
+            dep_area=nothing, other_vars=[], other_ind_vars=[])
         uArea = unique(cells.area)
         @assert length(uArea) == 2 "Only supports two area dataframes"
-        dependent_area = setdiff(uArea, [input_area])
-
-        dep_neurons = @subset(cells,:area .==dependent_area).unit
-        ind_neurons = @subset(cells,:area .==input_area).unit
+        dep_area = dep_area === nothing ? 
+            dep_area = setdiff(uArea, [ind_area]) : dep_area
+        dep_neurons = @subset(cells,:area .==dep_area).unit
+        ind_neurons = @subset(cells,:area .==ind_area).unit
         dep_neurons = string.(dep_neurons) .* "_i"
         ind_neurons = string.(ind_neurons) 
         filter!(n->n ∈ names(df), dep_neurons)
         filter!(n->n ∈ names(df), ind_neurons)
+        ind_eq_dep = ind_area == dep_area
         
         formulae = []
-        for nd in dep_neurons
-            ni = first(ind_neurons)
-            independents = GLM.Term(Symbol(ni))
-            for ni in ind_neurons[2:end]
-                independents += GLM.Term(Symbol(ni)) 
+        for n_dep in dep_neurons
+            ind_neuron_set = ind_eq_dep ? 
+                setdiff(ind_neurons, [n_dep]) : ind_neurons 
+            n_ind = first(ind_neurons)
+            independents = GLM.Term(Symbol(n_ind))
+            for n_ind in ind_neuron_set[2:end]
+                independents += GLM.Term(Symbol(n_ind)) 
             end
-            formula = GLM.Term(Symbol(nd)) ~ independents
+            formula = GLM.Term(Symbol(n_dep)) ~ independents
             push!(formulae, formula)
         end
         Vector{FormulaTerm}(formulae)
@@ -254,6 +264,14 @@ module isolated
     end
 
     export construct_predict_iso
+    """
+        construct_predict_iso(df, cells, input_area="CA1", type=:has;
+                dep_area=nothing, other_vars=[], other_ind_vars=[])
+
+    Returns a list of GLM formulae for predicting if a cycle contains
+    an isolated spike or the count of isolated spikes (but not neuron
+    specific). Just the count or has for the whole cycle.
+    """
     function construct_predict_iso(df, cells, input_area="CA1", type=:has;
             dep_area=nothing, other_vars=[], other_ind_vars=[])
         uArea = unique(cells.area)
@@ -486,8 +504,6 @@ module isolated
     function match_cycles!(cycles::DataFrame, Rdf::DataFrame, 
         occ::IndexedAdaptiveOcc; matches=3,
         iso_cycles = nothing)
-
-        cycles.hasocc = (!).(ismissing.(occ.datainds))
 
         if iso_cycles === nothing
            unique(@subset(Rdf, :isolated_sum .> 0, 
@@ -940,6 +956,48 @@ module isolated
         RES
     end
 
+    export shuffle_glm_
+    """
+        shuffle_glm_(f, XX, y, pos...; kwargs...)
+
+    Shuffle the cycle labels and run the GLM
+
+    # Arguments
+    - `f::FormulaTerm`: The formula to be used in the GLM
+    - `XX::DataFrame`: The data frame containing the predictors
+    - `y::DataFrame`: The data frame containing the response
+    - `pos...`: The positional arguments to pass to `glm_`
+    - `kwargs...`: The keyword arguments to pass to `glm_`
+
+    # Returns
+    - `Dict`: A dictionary containing the results of the GLM
+    """
+    function shuffle_glm_(f, XX, y, pos...; shufflekws=Dict(), kwargs...)
+        XX = shuffle_cyclelabels(XX; shufflekws...)
+        glm_(f, XX, y, pos...; kwargs...)
+    end
+
+    export shuffle_cvglm_
+    """
+        shuffleglm_(f, XX, y, pos...; kwargs...)
+
+    Shuffle the cycle labels and run the GLM with cross-validation
+
+    # Arguments
+    - `f::FormulaTerm`: The formula to be used in the GLM
+    - `XX::DataFrame`: The data frame containing the predictors
+    - `y::DataFrame`: The data frame containing the response
+    - `pos...`: The positional arguments to pass to `glm_`
+    - `kwargs...`: The keyword arguments to pass to `glm_`
+    
+    # Returns
+    - `Dict`: A dictionary containing the results of the GLM
+    """
+    function shuffle_cvglm_(f, XX, y, pos...; shufflekws=Dict(), kwargs...)
+        XX = shuffle_cyclelabels(XX; shufflekws...)
+        cvglm_(f, XX, y, pos...; kwargs...)
+    end
+
     """
         glm_(F::Array{FormulaTerm}, pos...; kwargs...)
 
@@ -1365,6 +1423,36 @@ module isolated
     end
 
 
+    export shuffle_cyclelabels
+    """
+        shuffle_cyclelabels(df, perm=[:cycs,:relcycs])
+
+    Shuffle the cycle labels in the dataframe `df` and return the shuffled
+    dataframe.
+
+    # Arguments
+     - `df`: a dataframe with columns `perm`
+     - `perm`: a vector of symbols, the columns to shuffle
+
+    # Returns
+     - `dfshuf`: a dataframe with the same columns as `df`, but with the
+    columns `perm` shuffled.
+    """
+    function shuffle_cyclelabels(df, perm=[:cycs,:relcycs])
+        # if "orig"*string(perm[1]) ∉ names(df)
+        #         df[!,"orig".*string(perm)] .= df[!, perm]
+        # end
+        inds = collect(1:size(df,1))
+        randperm!(inds)
+        dfshuf = DataFrames.transform(df, perm .=> 
+                x->x[inds], 
+                Not(perm), renamecols=false)
+        dfshuf = sort(dfshuf, perm)
+        @assert dfshuf != df
+        @assert dfshuf[!,perm] != df[!,perm]
+        return dfshuf
+    end
+
     # FOR INTERACTING WITH GLM MODEL DICTS
     """
         Table.to_dataframe(D::AbstractDict)::DataFrame
@@ -1451,4 +1539,5 @@ module isolated
     diststr(Dist::Union{String,Distribution}) = Dist isa String ? 
                     Dist : nameit(Dist)
     
+
 end

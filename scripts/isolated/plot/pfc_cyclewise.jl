@@ -8,6 +8,7 @@ else
     @time include(scriptsdir("isolated","load_isolated.jl"))
     @time include("../load_isolated.jl")
 end
+include(scriptsdir("isolated","imports_isolated.jl"))
 include("./imports_isolated.jl")
 include("../imports_isolated.jl")
 
@@ -98,9 +99,7 @@ DIutils.filtreg.register(cells, Rdf_sub, on="unit", transfer=["area"])
 
 # Annotate spikes and Rdf
 dropmissing!(Rdf_sub, :isolated_sum)
-iso_cycles = unique(@subset(Rdf_sub, :isolated_sum .> 0, 
-                    :hasocc .== true).cycle)
-indexers = [:time, :isolated_sum, :pfcisosum, :bins]
+
 commit_vars()
 
 # 
@@ -167,6 +166,16 @@ begin
 
     println("Percent cycles counted ",
             sum(occ.count)/size(dropmissing(cycles,matchprops),1))
+
+
+
+    cycles.hasocc = (!).(ismissing.(occ.datainds))
+    DIutils.filtreg.register(cycles, Rdf, on="cycle", transfer=["hasocc"])
+    DIutils.filtreg.register(cycles, Rdf_sub, on="cycle", transfer=["hasocc"])
+    iso_cycles = unique(@subset(Rdf_sub, :isolated_sum .> 0, 
+                        :hasocc .== true).cycle)
+    indexers = [:time, :isolated_sum, :pfcisosum, :bins]
+
 end
 
 # Match cycles
@@ -195,20 +204,20 @@ checkbins(:beh)
 DIutils.filtreg.register(beh, cycles, on="time",
     transfer=["epoch","bins"]);
 checkbins(:cycles);
-df.cycle = df.cyc_central;
 # DIutils.filtreg.register(cycles, df, on="cycle",
 #     transfer=["epoch","time","bins"]);
 DIutils.filtreg.register(cycles, Rdf_sub, on="cycle", 
     transfer=["epoch","bins"]);
+DIutils.filtreg.register(cycles, spikes, on="cycle", 
+    transfer=["bins"]);
 checkbins(:Rdf_sub);
 
 # (each iso/noniso cycle plus precedents and antecedents)
 Rdf_cycles  = groupby(Rdf_sub, [:cycle])
 df, cyc_errors = df_FRpercycle_and_matched(cycles, Rdf_cycles,
     beh, val; iso_cycles=iso_cycles, indexers, cycrange=opt["cycles"])
+df.cycle = df.cyc_central;
 checkbins(:df);
-# Checkpoint
-commit_cycwise_vars()
 
 # Remove missing vals from isolated spike count columns
 for col in eachcol(df[!,[x for x in names(df) if occursin("_i", x)]] )
@@ -216,6 +225,8 @@ for col in eachcol(df[!,[x for x in names(df) if occursin("_i", x)]] )
     col = convert(Vector{Union{Missing,Float64}}, col)
 end
 
+# Checkpoint
+commit_cycwise_vars()
 #    _  _      ____           _          
 # _| || |_   / ___|__ _  ___| |__   ___ 
 #|_  ..  _| | |   / _` |/ __| '_ \ / _ \
@@ -245,11 +256,120 @@ Threads.@threads for (relcyc, dfb, b) in sets
 end
 dx_dy_bin = Dict(dx_dy_bin)
 
-# @time dx_dy = merge(dx_dy, get_futurepast_blocks(df))
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# Sets to iterate GLM over
+# %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+model_spikecount = Dict()
+model_cellhasiso = Dict()
+B = [b for b in collect(keys(dx_dy_bin))]
+
+uAreas = unique(cells.area)
+ind_dep = [(ind, dep) for dep in uAreas, ind in uAreas]
+bf(F) = [(b, f) for b in B, f in F]
+begin # test first sets
+    (dep, ind) = first(ind_dep)
+    (b, f) = first(bf(construct_predict_spikecount(df, cells, ind;
+                dep_area=dep)))
+    (b, f) = first(bf(construct_predict_isospikecount(df, cells, ind;
+                dep_area=dep)))
+end
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+    # =============================================
+    # PREDICT SPIKCOUTNS ALL TIMES BY 10 minute BIN
+    # =============================================
+    @showprogress "area-interact" for (dep, ind) in ind_dep
+        F = construct_predict_spikecount(df, cells, ind; dep_area=dep)
+    @showprogress "single run" for (b,f) in bf(F)
+        XXb, yb = dx_dy_bin[b]
+        key = (;b..., unit=parse(Int,string(f.lhs)), dir="$ind => $dep")
+        if !opt["overwrite"] && haskey(model_spikecount, key)
+            continue
+        end
+        m = glm_(f, XXb, yb, "poisson"; type=:pyglm,
+            desc=Dict("bin"=>key.bin, "unit"=>key.unit, "relcyc"=>key.relcyc,
+                      "unit"=>string(f.lhs), "dir"=>"$ind => $dep",
+                "dep"=>dep, "ind"=>ind))
+        model_spikecount[key] = m
+    end
+    end
+    commit_cycwise_vars("model_spikecount")
+
+    shuffle_spikecount = initorget("shuffle_spikecount")
+    @showprogress "shuffle" for _ in 1:opt["shuffle"]
+        shuf = hash(rand())
+    @showprogres "area-interact" for (dep, ind) in ind_dep
+        F = construct_predict_spikecount(df, cells, ind; dep_area=dep)
+    @showprogress "ones shuf" for (b,f) in bf(F)
+        XXb, yb = dx_dy_bin[b]
+        key = (;shuf, relcyc=0, bin=b.bin, unit=parse(Int,string(f.lhs)))
+        if !opt["overwrite"] && haskey(shuffle_spikecount, key)
+            continue
+        end
+        s = shuffle_glm_(f, XXb, yb, "poisson"; type=:pyglm,
+            desc=Dict("bin"=>key.bin, "unit"=>key.unit, "relcyc"=>key.relcyc,
+                      "unit"=>string(f.lhs), "dir"=>"$ind => $dep",
+                "dep"=>dep, "ind"=>ind))
+        shuffle_spikecount[key] = m
+    end
+    end
+    end
+    commit_cycwise_vars("shuffle_spikecount")
+
+    # =============================================
+    # PREDICT CELL HAS ISO SPIKE BY 10 minute BIN
+    # =============================================
+    @showprogress "area-interact" for (dep, ind) in ind_dep
+        F = construct_predict_isospikecount(df, cells, ind; dep_area=dep)
+    @showprogress "single run" for (b,f) in bf(F)
+        XXb, yb = dx_dy_bin[b]
+        nonmiss = vec(any(
+                 (!).(ismissing.(Array(yb)) .|| ismissing.(Array(XXb)) ),
+            dims=2))
+        XXb, yb = XXb[nonmiss, :], yb[nonmiss,:]
+        yb[:,uicellcols(yb)] = Int.(yb[!,uicellcols(yb)] .> 0)
+        unit=parse(Int, replace(string(f.lhs), "_i"=>""))
+        b = (;b..., unit, dir="$ind => $dep", dist="binomial")
+        if !opt["overwrite"] && haskey(model_cellhasiso, b)
+            continue
+        end
+        m = glm_(f, XXb, yb, "binomial"; type=:pyglm,
+            desc=Dict("bin"=>b.bin, "unit"=>b.unit, "relcyc"=>b.relcyc,
+                      "unit"=>string(f.lhs), "dir"=>"$ind => $dep",
+                "dep"=>dep, "ind"=>ind))
+        model_cellhasiso[b] = m
+        sleep(0.001)
+    end
+    end
+    commit_cycwise_vars("model_cellhasiso")
+
+df_iso = Table.to_dataframe(model_cellhasiso, name="value", key_name="prop")
+commit_cycwise_vars("df_iso")
+
+@df @subset(df_iso, :prop .== "pseudo_R2") begin
+    histogram(:value, bins=100, alpha=0.5, label="pseudo_R2",
+        title="positive fraction = $(mean(:value .> 0))")
+end
+# BINS
+@df @subset(df_iso, :prop .== "pseudo_R2") begin
+    scatter(:relcyc, :value, alpha=0.1, label="pseudo_R2",
+        title="positive fraction = $(mean(:value .> 0))")
+end
+# BINS
+@df @subset(df_iso, :prop .== "pseudo_R2") begin
+    scatter(:bin, :value, alpha=0.1, label="pseudo_R2",
+        title="positive fraction = $(mean(:value .> 0))")
+end
+# BINS WITH POSITIVE PSEUDO R2
+d = @subset(df_iso, :prop .== "pseudo_R2", :value .> 0.0)
+scatter(d.bin, d.value, group=d.unit, alpha=0.5, label="",
+    title="positive fraction = $(mean(:value .> 0))",
+    ylims=(-0.001, 0.1))
+t = Plots.text.(d.dir, [8], ["black"])
+p=annotate!.(d.bin, d.value, t)
 
 
 # =========================
@@ -259,110 +379,27 @@ dx_dy_bin = Dict(dx_dy_bin)
 #  ` `     `---'`---'` ' '
 #  OF HAS isolated spike per cell  🔺
 # ========================
-model_cellhasiso, cacheiso, shuffle_cellhasiso = 
-                            initorget("model_cellhasiso"), ThreadSafeDict(),
-                            initorget("shuffle_cellhasiso"; obj=Dict())
-model_cellhasiso = OrderedDict()
-pos = (df, dx_dy, cells, construct_predict_isospikecount, :pyglm)
-pos = (df, Dict(first(dx_dy)), cells, construct_predict_isospikecount, :pyglm)
-kws = (Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""],
-    ytrans=x->Float64(x>0), xtrans=x->Float64(x), modelz=model_cellhasiso,
-    )
+# model_cellhasiso, cacheiso, shuffle_cellhasiso = 
+#                             initorget("model_cellhasiso"), ThreadSafeDict(),
+#                             initorget("shuffle_cellhasiso"; obj=Dict())
+# model_cellhasiso = OrderedDict()
+# pos = (df, dx_dy, cells, construct_predict_isospikecount, :pyglm)
+# pos = (df, Dict(first(dx_dy)), cells, construct_predict_isospikecount, :pyglm)
+# kws = (Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""],
+#     ytrans=x->Float64(x>0), xtrans=x->Float64(x), modelz=model_cellhasiso,
+#     )
 # isolated.run_glm!(pos...;kws...) 
 
 # Relative cycle 0 runs of the model
-isolated.run_glm!(df, dx_dy, cells, construct_predict_spikecount, :pyglm;
-    Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""],
-    ytrans=x->Float64(x>0), xtrans=x->Float64(x), modelz=model_cellhasiso,
-    )
+# isolated.run_glm!(df, dx_dy, cells, construct_predict_spikecount, :pyglm;
+#     Dist=Distributions.Binomial(), unitwise=true, unitrep=["_i"=>""],
+#     ytrans=x->Float64(x>0), xtrans=x->Float64(x), modelz=model_cellhasiso,
+#     )
 
-#    _  _     _____                _     _           _                 _   
-#  _| || |_  |_   _| __ ___  _   _| |__ | | ___  ___| |__   ___   ___ | |_ 
-# |_  ..  _|   | || '__/ _ \| | | | '_ \| |/ _ \/ __| '_ \ / _ \ / _ \| __|
-# |_      _|   | || | | (_) | |_| | |_) | |  __/\__ \ | | | (_) | (_) | |_ 
-#   |_||_|     |_||_|  \___/ \__,_|_.__/|_|\___||___/_| |_|\___/ \___/ \__|
-# TESTING WITH THE ENTIRE DATAFRAME
-model = Dict()
-
-# Dry run of the model
-isolated.run_glm!(df, dx_dy, cells, construct_predict_spikecount, :matlab;
-    Dist=Distributions.Poisson(), unitwise=true, 
-    xtrans=x->Float64(x), ytrans=x->Float64(x),
-    modelz=model, dryrun=true)
-
-# Test on indvidual formulae
-fca1pfc = construct_predict_spikecount(df, cells, "PFC")
-fpfcca1 = construct_predict_spikecount(df, cells, "CA1")
-glm_dict_df = Dict()
-A=B=nothing
-sets = zip([:matlab, :pyglm, :r, :pyglm], 
-[Poisson(), Poisson(), Poisson(), "softplus"])
-(type, dist) = first(sets)
-@showprogress "df, run types" for (type, dist) in sets
-
-    A = glm_(fca1pfc, df, df, dist; type, handle_exception=:warn,
-        desc=Dict("desc"=>"CA1->PFC", "typ"=>type))
-    push!(glm_dict_df, (;type, dist=diststr(dist), dir="CA1->PFC")=>A)
-
-    B = glm_(fpfcca1, df, df, dist; type, handle_exception=:warn,
-        desc=Dict("desc"=>"PFC->CA1", "typ"=>type))
-    push!(glm_dict_df, (;type, dist=diststr(dist), dir="PFC->CA1")=>B)
-
-end
 
 # # Running for entire df (not by relcyc)
 # isolated.run_glm!(df, cells, construct_predict_spikecount, :pyglm;
 #     Dist=Distributions.Binomial(), unitwise=true, modelz=model)
-
-# Testing full firing rate matrix, sans cycles
-Rdf_unstack = unstack(Rdf_sub, :time, :unit, :value, combine=mean)
-# Test on indvidual formulae
-fca1pfc = construct_predict_spikecount(df, cells, "PFC")
-fpfcca1 = construct_predict_spikecount(df, cells, "CA1")
-glm_dict_rdf = Dict()
-@showprogress "Rdf, run types" for (type, dist) in sets
-
-    A = glm_(fca1pfc, Rdf_unstack, Rdf_unstack, dist; type, 
-        handle_exception=:warn, desc=Dict("desc"=>"CA1->PFC", "typ"=>type))
-    push!(glm_dict_rdf, (;type, dist, dir="CA1->PFC")=>A)
-
-    B = glm_(fpfcca1, Rdf_unstack, Rdf_unstack, dist; type, 
-        handle_exception=:warn, desc=Dict("desc"=>"PFC->CA1", "typ"=>type))
-    push!(glm_dict_rdf, (;type, dist, dir="PFC->CA1")=>B)
-
-end
-
-#    _  _     _____                  _ _ _         
-#  _| || |_  | ____|__ _ _   _  __ _| (_) |_ _   _ 
-# |_  ..  _| |  _| / _` | | | |/ _` | | | __| | | |
-# |_      _| | |__| (_| | |_| | (_| | | | |_| |_| |
-#   |_||_|   |_____\__, |\__,_|\__,_|_|_|\__|\__, |
-#                     |_|                    |___/ 
-#   ___| |__   ___  ___| | _____ 
-#  / __| '_ \ / _ \/ __| |/ / __|
-# | (__| | | |  __/ (__|   <\__ \
-#  \___|_| |_|\___|\___|_|\_\___/
-
-# Comparing the results from glming on Rdf_unst1ack and df
-    # Convert res to dataframe
-    glm_df  = Table.to_dataframe(glm_dict_df)
-    glm_Rdf = Table.to_dataframe(glm_list_rdf)
-    # Plot and compare the R2 values using
-#
-    # R2 value equality?
-    H = HypothesisTests.KruskalWallisTest(glm_Rdf[:,:R2], glm_df[:,:R2], 0.05)
-    @df glm_Rdf histogram(:R2, group=:desc, label=:desc, 
-                            title="R2 values for Rdf")
-    @df glm_df histogram(:R2, group=:desc, label=:desc,
-                            title="R2 values for df")
-
-    # Coefficient equality?
-    H = HypothesisTests.KruskalWallisTest(glm_Rdf[:,:coef], 
-                                          glm_df[:,:coef], 0.05)
-    @df glm_Rdf histogram(:coef, group=:desc, label=:desc, 
-                            title="Coef values for Rdf")
-    @df glm_df histogram(:coef, group=:desc, label=:desc,
-                            title="Coef values for df")
 
 
 # tmp = shuffle_cellhasiso
