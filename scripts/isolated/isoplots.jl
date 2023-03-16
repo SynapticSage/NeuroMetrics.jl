@@ -3,7 +3,6 @@ if !(:lfp in names(Main))
     include("./load_isolated.jl")
 end
 
-
 # Add a column to our spikes dataframe about its cell's meanrate
 Load.register(cells, spikes, on="unit", transfer=["meanrate"])
 # Add a behavioral info to spikes

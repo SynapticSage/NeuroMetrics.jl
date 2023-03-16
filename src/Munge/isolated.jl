@@ -314,6 +314,7 @@ module isolated
     # Caching the dicts
     # -----------------
 
+    export get_dx_dy
     """
         function get_dx_dy(df::DataFrame, relcyc::Int)
     
@@ -587,7 +588,7 @@ module isolated
 
         # Grab a span of cycles around each isolated spike cycle
         # and grab a span around the null matched non-isolated cyles for each
-        Threads.@threads for (i,cyc) in collect(enumerate(iso_cycles))
+        #= Threads.@threads =# for (i,cyc) in collect(enumerate(iso_cycles))
             # unit = parse(Int,replace(string(f.lhs), "_i"=>""))
             try
                 tid = threading ? Threads.threadid() : 1
@@ -920,8 +921,9 @@ module isolated
                     desc::AbstractDict=Dict(), kws...)
         @assert size(XX,1) == size(y,1) "Rows must match"
         XX, y = ready_glm_vars(f, XX, y; xtrans, ytrans, kws...)
-        kws = DIutils.namedtup.pop(kws, [:zscoreX, :dummy_coding, 
-                                         :expand_relcycs])
+        remove = [:zscoreX, :dummy_coding, :expand_relcycs]
+        desc = merge(desc, Dict(k=>v for (k,v) in kws if k in remove))
+        kws = DIutils.namedtup.pop(kws, remove)
         merge(glm_(XX, y, Dist; kws...), desc, Dict("formula"=>f))
     end
 
@@ -940,18 +942,19 @@ module isolated
                     desc::AbstractDict=Dict(), cv=5, shuffle=true, kws...)
         @assert size(XX,1) == size(y,1) "Rows must match"
         XX, y = ready_glm_vars(f, XX, y; xtrans, ytrans, kws...)
-        kws = DIutils.namedtup.pop(kws, [:zscoreX, :dummy_coding, 
-                                         :expand_relcycs])
+        remove = [:zscoreX, :dummy_coding, :expand_relcycs]
+        desc = merge(desc, Dict(k=>v for (k,v) in kws if k in remove))
+        kws = DIutils.namedtup.pop(kws, remove)
         # Generate cross-validation sets using MLJ
         RES = OrdereredDict()
         cv = MLJ.CV(;nfolds=cv, shuffle)
         for (i,(train, test)) in enumerate(train_test_pairs(cv, 1:length(y)))
-            XXtrain, ytrain = XX[train,:], y[train]
-            XXtest, ytest = XX[test,:], y[test]
+            XXtrain, ytrain = XX[train, :], y[train]
+            XXtest,  ytest  = XX[test, :],  y[test]
             # Run the GLM
-            res = glm_(XXtrain, ytrain, Dist; XXtest, kws...)
-            merge!(res, desc, Dict("formula"=>f))
-            push!(RES, i=>res)
+            res = glm_(XXtrain, ytrain, Dist; XXtest, ytest, kws...)
+            merge!(res, desc, Dict("formula"=>f, "cv"=>i))
+            push!(RES, (;cv=i)=>res)
         end
         RES
     end
@@ -1056,8 +1059,10 @@ module isolated
     # Returns
     - `Dict`: A dictionary containing the results
     """ 
-    function glm_(XX::AbstractMatrix, y, Dist=Binomial(); 
+function glm_(XX::AbstractMatrix, y::AbstractVecOrMat, Dist=Binomial(); 
                   ytest=nothing, type=:pyglm, kws...)
+
+        ytest = ytest === nothing ? y : ytest
 
         # Select the type of GLM to dispatch to
         type = if type in [:mlj_spec, :spec]
@@ -1075,13 +1080,13 @@ module isolated
         end
 
         # Dispatch to the appropriate GLM method
-        kv  = glm_(type, XX, y, Dist; kws...)
+        kv  = glm_(type, XX, ytest, Dist; kws...)
 
         # Merge the results with top level results and the values
         # to be predicted
-        out = merge(Dict("type"=>string(type), "y"=>y,
-                          "yr"=>denserank(y)./length(y), 
-                          "ypredr"=>denserank(kv["ypred"])./length(y)
+        out = merge(Dict("type"=>string(type), "y"=>ytest,
+                          "yr"=>denserank(ytest)./length(ytest), 
+                          "ypredr"=>denserank(kv["ypred"])./length(ytest)
                     ), kv)
         out["ypred"], out["y"] = Float64.(out["ypred"]), Float64.(out["y"])
         measure_glm_dict!(out)
@@ -1098,8 +1103,9 @@ module isolated
     - `y::AbstractVector`: Response vector
     - `Dist::Distribution`: Distribution to use
     """
-    function glm_(::PYGLM_ElasticNet, XX::AbstractMatrix, y, 
-                 Dist=Binomial(); testXX=nothing, ytest=nothing, kws...)
+    function glm_(::PYGLM_ElasticNet, XX::AbstractMatrix,
+    y::Union{AbstractVector, AbstractMatrix}, Dist=Binomial();
+    testXX=nothing, ytest=nothing, kws...)
         ytest  = ytest === nothing ? y : ytest
         testXX = testXX === nothing ? XX : testXX
         kws = (;tol=1e-3, score_metric="pseudo_R2", alpha=0.5, 
@@ -1499,6 +1505,8 @@ module isolated
     grab columsn that correspond to cell props
     """
     ucellcols(df) = names(df)[tryparse.(Int, names(df)) .!== nothing]
+    cellcols(df) = ucellcols(df)
+    export cellcols
 
     export uicellcols
     """
@@ -1509,6 +1517,8 @@ module isolated
         names_cleaned = replace.(nms, ["_i"=>""])
         nms[tryparse.(Int, names_cleaned) .!== nothing]
     end
+    isolatedcellcols(df) = uicellcols(df)
+    export isolatedcellcols
 
 
     # STRING METHODS

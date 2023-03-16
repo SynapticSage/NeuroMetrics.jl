@@ -1,5 +1,6 @@
 using GoalFetchAnalysis
 using .Plot
+using Plots, StatsBase, StatsPlots, DataFrames, DataFramesMeta, HypothesisTests
 
 Plot.setparentfolder("cells")
 Plot.setfolder("held")
@@ -8,19 +9,25 @@ Plot.printstate()
 
 # All epochs
 # -----------
-@df combine(groupby(combine(groupby(spikes, :unit), :epoch => unique),:unit),nrow) histogram(:nrow, title="cells held for how many epochs")
+@df combine(groupby(combine(groupby(spikes, :unit), :epoch =>
+                unique),:unit),nrow) begin
+                histogram(:nrow, title="cells held for how many epochs")
+end
 
 # Run epochs
 # -----------
-@df combine(groupby(@subset(celleps, :task .== "cm"),:unit), nrow) histogram(:nrow, title="Held cells over runs")
-heldrun = combine(groupby(@subset(celleps, :task .== "cm"),:unit), nrow => :held_epochs)
+@df combine(groupby(@subset(celleps, :task .== "cm"),:unit), nrow) begin
+                histogram(:nrow, title="Held cells over runs")
+end
+heldrun = combine(groupby(@subset(celleps, :task .== "cm"),:unit), 
+                nrow => :held_epochs)
 Load.celltet.save_cell_taginfo(heldrun, "RY16", 36, "held_epochs")
 
 # Prepare for a 10 minute bucketed approach
 dT = diff(beh.time)
 bins = Int(maximum(floor.(cumsum(dT)/60/10))) #get number of 10 minute buckets
 beh.bins = DIutils.binning.digitize(beh.time, bins);
-DIutils.filtreg.register(beh, spikes, on="beh", 
+DIutils.filtreg.register(beh, spikes, on="time", 
     transfer=["bins"]);
 
 # Get the number of spikes in each 10 minute bucket
