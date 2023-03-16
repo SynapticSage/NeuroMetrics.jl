@@ -824,14 +824,18 @@ module isolated
         misses = (!).(ismissing.(y))
         XX, y = xtrans.(XX[misses,:]), ytrans.(y[misses])
         XX =  if dummy_coding  
-                @info "dummy coding"
-                DIutils.statistic.dummycode(XX)
-            elseif zscoreX
-                @info "zscoring"
-                hcat([zscore(x) for x in eachcol(XX)]...)
-            else
-                XX
-            end
+            @info "dummy coding"
+            DIutils.statistic.dummycode(XX)
+        elseif zscoreX
+            @info "zscoring"
+            hcat([zscore(x) for x in eachcol(XX)]...)
+        else
+            XX
+        end
+        nansearch = isnan.(XX) .|| isnan.(y)
+        goodcols = vec((!).(all(nansearch, dims=1)))
+        goodrows = vec((!).(all(nansearch, dims=2)))
+        XX, y = XX[goodrows, goodcols], y[goodrows]
         XX, y
     end
 
@@ -895,6 +899,8 @@ module isolated
     struct GLM_R
     end
 
+    GLMOUT = AbstractDict{String, Any}
+
     export glm_
     """
         glm_(type, XX, y, Dist=Binomial(); kws...)
@@ -939,7 +945,7 @@ module isolated
     """
     function cvglm_(f::FormulaTerm, XX::DataFrame, y::DataFrame, 
                      Dist=Binomial(); xtrans=identity, ytrans=identity,
-                    desc::AbstractDict=Dict(), cv=5, shuffle=true, kws...)
+                    desc::AbstractDict=Dict(), cv=5, shuffle=true, kws...)::GLMOUT
         @assert size(XX,1) == size(y,1) "Rows must match"
         XX, y = ready_glm_vars(f, XX, y; xtrans, ytrans, kws...)
         remove = [:zscoreX, :dummy_coding, :expand_relcycs]
@@ -1023,7 +1029,7 @@ module isolated
                     as the size of `F`.
     """
     function glm_(F::Array{FormulaTerm}, pos...; 
-                    handle_exception=:error, kwargs...)
+                    handle_exception=:error, kwargs...)::GLMOUT
         out = []
         @showprogress for f in F
             try
