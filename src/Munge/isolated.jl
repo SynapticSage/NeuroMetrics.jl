@@ -353,6 +353,7 @@ module isolated
     function get_dx_dy(df::DataFrame, relcyc::Int)
         dx = @subset(df, :relcycs .== relcyc)
         dy = @subset(df, :relcycs .== 0)
+        @infiltrate
         _register_frames(dx, dy)
     end
 
@@ -397,8 +398,11 @@ module isolated
         ```
     """
     function _register_frames(dx, dy; register= [:cyc_batch, :cyc_match])
+        # Sort the dataframes by the register columns
         dx, dy = sort(dx, register), sort(dy, register)
+        # Get the intersection of the register columns
         dxr, dyr = Matrix(dx[!,register]), Matrix(dy[!,register])
+        # If the register columns are not the same, then get the intersection
         if dxr != dyr
             dxr, dyr = eachrow.((dxr, dyr))
             D = intersect(dxr, dyr)
@@ -406,7 +410,10 @@ module isolated
             idy = [findfirst((y == d for y in dyr)) for d in D]
             dx, dy = dx[idx,:], dy[idy, :]
         end
+        # Assert that the register columns are the same
         @assert Matrix(dx[!,register]) == Matrix(dy[!,register])
+        # Assert that the register columns are the same size
+        @assert size(dx,1) == size(dy,1), "dx and dy are not the same size"
         dx, dy
     end
 
@@ -814,7 +821,7 @@ module isolated
               Matrix(XX[!,cols])
         end
         XX = if expand_relcycs && length(unique(XX.relcycs)) .> 1
-            @info "Expanding relative cycles"  
+            @debug "Expanding relative cycles"  
             unstack_relcycles(XX)
         else
             get_mat(XX, f)
@@ -824,10 +831,10 @@ module isolated
         misses = (!).(ismissing.(y))
         XX, y = xtrans.(XX[misses,:]), ytrans.(y[misses])
         XX =  if dummy_coding  
-            @info "dummy coding"
+            @debug "dummy coding"
             DIutils.statistic.dummycode(XX)
         elseif zscoreX
-            @info "zscoring"
+            @debug "zscoring"
             hcat([zscore(x) for x in eachcol(XX)]...)
         else
             XX
@@ -1145,7 +1152,7 @@ function glm_(XX::AbstractMatrix, y::AbstractVecOrMat, Dist=Binomial();
     function glm_(::Custom_ElasticNetMLJ, XX::AbstractMatrix, y, Dist=Binomial();
         testXX=nothing, kws...)
         testXX = testXX === nothing ? XX : testXX
-        @info "Custom $(typeof(Dist))"
+        @debug "Custom $(typeof(Dist))"
         yin, XXin = if Dist isa Binomial || Dist isa Poisson
             replace(y, 0=>1e-16), replace(XX, 0=>1e-16)
         else
@@ -1184,7 +1191,7 @@ function glm_(XX::AbstractMatrix, y::AbstractVecOrMat, Dist=Binomial();
                  testXX=nothing, kws...)
         testXX = testXX === nothing ? XX : testXX
         if Dist isa Binomial
-            @info "Spec binoomial"
+            @debug "Spec binoomial"
             XX, y = MLJ.table(XX), y
             R = LogisticCVClassifier(n_jobs=Threads.nthreads(),
                 penalty="elastic_net",
@@ -1194,7 +1201,7 @@ function glm_(XX::AbstractMatrix, y::AbstractVecOrMat, Dist=Binomial();
             ypred = MLJ.predict(m, XX)
             coef = m.fitresult[1]
         elseif Dist isa Poisson
-            @info "Spec poisson"
+            @debug "Spec poisson"
             sklearn = pyimport("sklearn")
             lm = sklearn.linear_model
             R = lm.PoissonRegressor()
@@ -1216,7 +1223,7 @@ function glm_(XX::AbstractMatrix, y::AbstractVecOrMat, Dist=Binomial();
     """
     function glm_(::GLMJL, XX, y; testXX=nothing, kws...)
         testXX = testXX === nothing ? XX : testXX
-        @info "GLM.jl"
+        @debug "GLM.jl"
         y =  expit.(Int.(y[misses]) .> 0)
         m =  GLM.glm(XX, y, Dist)
         ypred = GLM.predict(XX)
@@ -1255,10 +1262,10 @@ function glm_(XX::AbstractMatrix, y::AbstractVecOrMat, Dist=Binomial();
         dist = diststr(Dist)
         link = linkstr(link)
 
-        @info "matlab" link dist
+        @debug "matlab" link dist
 
         xnz, y = DIutils.arr.atleast2d(XX), DIutils.arr.atleast2d(y)
-        @info quick_and_dirty
+        @debug quick_and_dirty
         if pre === nothing
             if quick_and_dirty
                @time mat"[$B, ~, $stats] = glmfit(double($xnz), double($y), $dist);"

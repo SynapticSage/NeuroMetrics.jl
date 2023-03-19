@@ -238,15 +238,12 @@ begin
     dd = initorget("df")
     sort!(df, [:relcycs, :cycs])
     sort!(dd, [:relcycs, :cycs])
-
     size(df), size(dd)
     df[:, cellcols(df)] .== dd[:, cellcols(dd)]
-
     plot(
     heatmap(log10.(Matrix(df[:, cellcols(df)])), title="df"),
     heatmap(log10.(Matrix(dd[:, cellcols(dd)])), title="dd")
     )
-
     histogram(df.cycs, label="df")
     histogram!(dd.cycs, label="dd")
     dd.cycle = dd.cycs

@@ -29,7 +29,7 @@ module tensor
     export quantilize, relativize, equalize, gravity, digitize
     export tenmat
 
-    SymStr          = Union{Symbol, String}
+    SymStr          = Union{Symbol, String, Int} # allowed column names
     Tensor          = DimArray{<:Union{Missing,Array,Real}}
     DataFrameTensor = DimArray{<:Union{Missing,DataFrame}}
     AllTensor       = Union{Tensor, DataFrameTensor}
@@ -50,7 +50,7 @@ module tensor
     `T` -- Tensor; either a square array or stacked arrays of unequal dim
      
     """
-    function tensorize(X::DataFrame, dims::Vector, 
+    function tensorize(X::DataFrame, dims::Vector{T} where T<:SymStr, 
             var::Union{T, Vector{T}} where T<:SymStr;
             TensType::Type=Float64)::AllTensor
 

@@ -219,6 +219,26 @@ module manifold
     end
 
     export make_embedding_df
+    """
+        make_embedding_df(embedding::Dict, inds_of_t::Vector, score::Dict,
+        beh::DataFrame; vars=[], quantile_bounds=(0.001, 0.999))::DataFrame
+
+    # Arguments
+    - `embedding::Dict`: Dictionary of embeddings, with keys of the form
+        `:animal_day_n_neighbors_feature_metric_filt_s_dataset_dim`
+    - `inds_of_t::Vector`: Vector of indices of the time points in the embedding
+    - `score::Dict`: Dictionary of scores, with keys of the form
+        `:animal_day_n_neighbors_feature_metric_filt_s_dataset_dim`
+    - `beh::DataFrame`: DataFrame of behavior, with columns `:animal`, `:day`,
+        `:time`, and `:rip_sec`
+    - `vars::Vector`: Vector of variables to include in the dataframe. If empty,
+    
+    # Returns
+    - `DataFrame`: Dataframe of the embedding data, with each sample in a row
+        and each property in a column. The properties are the keys of the 
+        embedding dictionary. The dataframe also has a column for the score 
+        of the sample and a column for the behavior of the sample.
+    """
     function make_embedding_df(embedding::Dict, inds_of_t::Vector, 
             score::Dict, beh::DataFrame; vars=[],
             quantile_bounds=(0.001, 0.999))::DataFrame

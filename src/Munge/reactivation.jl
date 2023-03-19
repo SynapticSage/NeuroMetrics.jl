@@ -38,7 +38,7 @@ module reactivation
                       zY::Union{DimArray,Matrix}) = zX' * zY / size(zX, 1)
 
     """
-        function getPrecorrelationMatrix_fromICA(X::Union{DimArray,Matrix};
+        function getPattern_fromICA(X::Union{DimArray,Matrix};
             maxiter=100, tol=1e-5, do_whiten=true, usefastica=false)::ICA
 
     Returns the precorrelation matrix from the ICA of X.
@@ -53,13 +53,19 @@ module reactivation
     # Returns
     - `ICA`: ICA object.
     """
-    function getPrecorrelationMatrix_fromICA(X::Union{DimArray,Matrix};
+    function getPattern_fromICA(C::Union{DimArray,Matrix}, k=nothing;
         maxiter=100, tol=1e-5, do_whiten=true, usefastica=false)::ICA
 
         ica = ICA()
-        fit!(ica, X, minimum(size(X)) - 1;
+        fit!(ica, C, k;
             maxiter, tol, do_whiten)
         ica
+    end
+
+    function estimateKfromPCA(X::Union{DimArray,Matrix}, k)
+        pca = PCA()
+        fit!(pca, X, k)
+        # extract elbox of pca variance explained
     end
 
     """

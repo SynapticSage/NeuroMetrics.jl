@@ -18,10 +18,14 @@ splits = opt["splits"]
 #metrics      = unique((:CityBlock, :Euclidean,:Correlation,:Cosine))
 #dimset       = (2,   3)
 #min_dists    = (0.05,0.15,0.3)
-#n_neighborss = (5,50,150,400)
-min_dists, n_neighborss, metrics, dimset, features = [0.5], [400], [:Euclidean], 
-                                                     [2,3], [:zscore]
- function keyfunc(;dataset,dim,s,min_dist,n_neighbors,metric,feature)
+# #n_neighborss = (5,50,150,400)
+# min_dists, n_neighborss, metrics, dimset, features = [0.5], [400],
+# [:Euclidean], [2,3], [:zscore]
+# Input Wenbo's settings
+min_dists, n_neighborss, metrics, dimset, features = [0.3], [100], 
+                                        [:Cosine], [3], [:zscore]
+
+function keyfunc(;dataset,dim,s,min_dist,n_neighbors,metric,feature)
     (;dataset,dim,s,min_dist,n_neighbors,metric,feature)
 end
 
@@ -58,7 +62,8 @@ end
 
 println("Loading")
 @time global spikes, beh, ripples, cells = DI.load(opt["animal"], opt["day"])
-cells, spikes = DIutils.filtreg.register(cells, spikes; on="unit", transfer=["celltype"])
+cells, spikes = DIutils.filtreg.register(cells, spikes; on="unit",
+    transfer=["celltype"])
 beh.index = 1:size(beh,1)
 
 # ----------------
@@ -73,23 +78,25 @@ if opt["filt"] !== nothing
     global filtstr = "filt=$(opt["filt"])"
     filters = Filt.get_filters()[opt["filt"]]
     global behTrain, spikesTrain =
-                        DIutils.filtreg.filterAndRegister(copy(behTrain), copy(spikesTrain); filters,
-                                                       filter_skipmissingcols=true)
+                        DIutils.filtreg.filterAndRegister(copy(behTrain),
+            copy(spikesTrain); filters, filter_skipmissingcols=true)
 else
     global filtstr = "filt=nothing"
 end
-global festr   = opt["feature_engineer"] === nothing ? "feature=nothing" : "feature=$(opt["feature_engineer"])"
-global diststr = opt["distance"] === nothing ? "distance=euclidean" : lowercase("distance=$(opt["distance"])")
+global festr   = opt["feature_engineer"] === nothing ? "feature=nothing" :
+    "feature=$(opt["feature_engineer"])"
+global diststr = opt["distance"] === nothing ? "distance=euclidean" :
+    lowercase("distance=$(opt["distance"])")
 @info "run info" filtstr festr diststr 
 
 # Firing Rates
 # ------------
 println("Firing rate matrices")
-function get_R(beh, spikes)
-    
+
+function get_R(beh, spikes; gaussian=0.25)
     R = Dict(
              Symbol(lowercase(ar)) =>
-             Munge.spiking.torate(@subset(spikes,:area .== ar), beh)
+             Munge.spiking.torate(@subset(spikes,:area .== ar), beh; gaussian)
                     for ar in ("CA1","PFC")
     )
     R = merge(R, 
@@ -97,7 +104,7 @@ function get_R(beh, spikes)
                   Symbol(lowercase(ar) * "_" * String(ct)) => 
                   (sub=@subset(spikes, :area .== ar, :celltype .== ct);
                    if !isempty(sub)
-                       Munge.spiking.torate(sub, beh)
+                       Munge.spiking.torate(sub, beh; gaussian=gaussian)
                    else
                        []
                    end
@@ -109,6 +116,7 @@ function get_R(beh, spikes)
     merge(R,Dict(Symbol("z"*string(k))=>zscoredimarray(v) for (k,v) in R if v != []))
 end
 R      = get_R(beh, spikes)
+
 # Rtrain = get_R(behTrain, spikesTrain)
 Rtrain_inds = Dict(k=>DIutils.searchsortednearest.([beh.time], behTrain.time) for (k,_) in R)
 Rtrain = Dict(
@@ -174,6 +182,7 @@ try
 
     (metric,min_dist, n_neighbors, feature) = first(params)
     for (metric,min_dist, n_neighbors, feature) in params
+
         (dataset,dim,s) = first(datasets)
         for (dataset,dim,s) in datasets
 
@@ -210,42 +219,46 @@ try
                 lowercase(string(metric))
             end
 
-            train = Matrix(Rtrain[dataset]'); # train on everything with filters
-            #train = Matrix(Rtrain[area]'[:, # train on just this set of indices (dynamic manifold)
-                                         # Rtrain_matching[area, inds_of_t[s]]
-                                        # ]); 
-            # input = Matrix(R[dataset]'[:, # test on this set minus filters
-            #                         inds_of_t[s]
-            #                        ]);
-            input = Matrix(R[dataset]'); # test on everything minus filters
+            # train = Matrix(Rtrain[dataset]'); # train on everything with filters
+            train = Matrix(Rtrain[dataset]'[:, # train on just this set of indices (dynamic manifold)
+                                         Rtrain_matching[dataset, inds_of_t[s]]
+                                        ]); 
+            input = Matrix(R[dataset]'[:, # test on this set minus filters
+                                    inds_of_t[s]
+                                   ]);
+            # input = Matrix(R[dataset]'); # test on everything minus filters
 
             @debug "Processing"
             @time em, sc = if use_cuda # 1000x faster
                 @debug "fitter"
 
-                fitter=cuUMAP(n_neighbors=n_neighbors, min_dist=min_dist, 
-                              n_components=dim, metric=metric_str, local_connectivity=dim,
-                              target_metric="euclidean", n_epochs=10_000);
+                T = train
+                I = input
+                # T = project_onto_behavior(T', beh, inds_of_t[s], beh_vars)'
+                # I = project_onto_behavior(I, beh, inds_of_t[s], beh_vars)
+
+                fitter=cuUMAP(n_neighbors=n_neighbors, min_dist=min_dist,
+                n_components=dim, metric="cosine", local_connectivity=10,
+                repulsion_strength=1, negative_sample_rate=100,
+                target_metric="euclidean", n_epochs=10_000);
                 # local_connectivity: int (optional, default 1)
-                #     The local connectivity required -- i.e. the number of nearest
-                #     neighbors that should be assumed to be connected at a local level.
-                #     The higher this value the more connected the manifold becomes
-                #     locally. In practice this should be not more than the local intrinsic
-                #     dimension of the manifold.
+                #     The local connectivity required -- i.e. the number of
+        #     nearest neighbors that should be assumed to be connected at a
+        #     local level. The higher this value the more connected the
+        #     manifold becomes locally. In practice this should be not more
+        #     than the local intrinsic dimension of the manifold.
                 # n_epochs larger = more accurate, 500 for small, 200 for large
                 @debug "fit"
-                T = train
                 trained_umap = fitter.fit(T');
                 @debug "transform"
                 # randsamp(x,n) = x[:,Random.randperm(size(x,2))[1:n]]
                 # I = randsamp(input, 50_000)
-                I = input
                 em = trained_umap.transform(I');
                 @debug "trust"
                 sc = cuml.metrics.trustworthiness(I', em, n_neighbors=n_neighbors)
                 # t=@task Plot.stereoscopicgif( eachcol(E)... ;deltaangle=5, xlims=(-w,w), ylim=(-w,w), zlim=(-w,w), alphaasync =0.1*k)
-                
                 em, sc
+
             else # julia is suprisingly slow here
                 import UMAP
                 em = UMAP.umap(input, dim; min_dist, n_neighbors, metric_str)
@@ -285,8 +298,14 @@ finally
         save_manis(;embedding, scores, inds_of_t, filt, feature_engineer, use_cuda,
                    tag, splits, sps, N)
         printstyled("FINISHED UMAP.JL"; blink=true, color=:green)
+        cmd = 
+        `pushover-cli "Finished UMAP for animal $animal day $day filter $filt"`
+        run(cmd)
     catch
         printstyled("FAILED SAVE UMAP.JL"; blink=true, color=:light_red, reverse=true)
+        cmd = 
+        `pushover-cli "Unfinished UMAP for animal $animal day $day filter $filt"`
+        run(cmd)
     finally
         keyset = [keyfunc(;metric,min_dist,n_neighbors, feature, dataset,dim,s)  for
          (metric,min_dist, n_neighbors, feature) in params, (dataset,dim,s) in datasets]

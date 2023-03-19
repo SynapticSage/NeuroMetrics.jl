@@ -23,6 +23,7 @@ module spiking
     gaussiandefault = bindefault * 3
     mag_constant = 0.5
 
+    SymStr          = Union{Symbol, String, Int} # allowed column names
 
     """
         nonlocality(X::DataFrame, R::ReceptiveField; hull=1)::BitVector
@@ -132,7 +133,8 @@ module spiking
     - `binning_ratio=1`: ratio of binning to behavioral sampling
     - `kws...`: keyword arguments to pass to torate(spikes::DataFrame, dims)
     """
-    function torate(spikes::DataFrame, beh::DataFrame, dims=:unit; 
+    function torate(spikes::DataFrame, beh::DataFrame, 
+    dims::Union{T,Vector{T}} where T <: SymStr=:unit; 
             binning_ratio=1, kws...)
         grid = copy(beh.time)
         δ = median(diff(beh.time)) / binning_ratio
@@ -157,8 +159,9 @@ module spiking
     get rate matrix from a dataframe of spikes per cut of the data in 
     dims=:unit
     """
-    function torate(spikes::DataFrame, dims=:unit; binsize=bindefault,
-                    grid=nothing, kws...)
+    function torate(spikes::DataFrame, 
+    dims::Union{T, Vector{T}} where T<:SymStr=:unit; binsize=bindefault,
+    grid=nothing, kws...) 
 
         if grid === nothing
             grid = minimum(spikes.time):binsize:maximum(spikes.time)
@@ -237,6 +240,17 @@ module spiking
         StatsBase.crosscor(x, y, lags)
     end
 
+    """
+        xcorr(spikes::DataFrame; lags=-200:200, kws...)
+
+    get cross correlation matrix from a dataframe of spikes per cut of the data
+    in dims=:unit
+
+    # Arguments
+    - `spikes::DataFrame`: dataframe of spikes
+    - `lags=-200:200`: lags to compute xcorr over
+    - `kws...`: keyword arguments to pass to torate(spikes::DataFrame, dims)
+    """
     function xcorr(spikes::DataFrame; lags=-200:200, kws...)
         units1 = unique(spikes.unit)
         units2 = unique(spikes.unit)
