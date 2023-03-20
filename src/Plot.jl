@@ -11,9 +11,11 @@ exts = ["png", "pdf"]
 append, prepend = "", ""
 active = true
 
-setappend(val)  = @eval Plot append = $val
+setappend(val::String)  = @eval Plot append = $val
+setappend(val::NamedTuple)  = setappend(DIutils.namedtup.ntopt_string(val))
 appendtoappend(val)  = @eval Plot append = append * $val
-setprepend(val) = @eval Plot prepend = $val
+setprepend(val::String) = @eval Plot prepend = $val
+setprepend(val::NamedTuple)  = setprepend(DIutils.namedtup.ntopt_string(val))
 prependtoprepend(val)  = @eval Plot prepend = $val * prepend
 function off()
     @eval Plot active = false
@@ -100,6 +102,44 @@ function create_blank_plot(pos...;kws...)
     plot(pos...;legend=false, grid=false, framestyle=:none, background_color_inside=:match, kws...)
 end
 blank(pos...;kws...) = create_blank_plot(pos...;kws...)
+
+
+"""
+    deleteplotfolder()
+
+Deletes the current plot folder
+"""
+function deleteplotfolder()
+    folder = plotsdir(parent_folder..., folder_args...)
+    rm(folder, recursive=true)
+    mkpath(folder)
+end
+
+"""
+    deleteplotfiles()
+
+Deletes all files in the current plot folder
+"""
+function deleteplotfiles()
+    folder = plotsdir(parent_folder..., folder_args...)
+    # Prompt user if corret folder
+    println("Are you sure you want to delete all files in $folder? (y/n)")
+    if readline() != "y"
+        return
+    else
+        @info "Deleting all files in $folder" readdir(folder)
+    end
+    rm.(joinpath.(folder, readdir(folder)), force=true)
+end
+
+function reportplotsinfolder()
+    folder = plotsdir(parent_folder..., folder_args...)
+    println("Plots in folder: $folder")
+    files = readdir(folder)
+    # Constrain files to png, pdf, svg
+    files = filter(x -> occursin(r"\.(png|pdf|svg)$", x), files)
+    println(files)
+end
 
 
 # -----------------
