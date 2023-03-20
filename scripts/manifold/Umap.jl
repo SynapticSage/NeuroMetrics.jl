@@ -249,7 +249,15 @@ try
                 # than the local intrinsic dimension of the manifold.
                 # n_epochs larger = more accurate, 500 for small, 200 for large
                 @debug "fit"
-                trained_umap = fitter.fit(T');
+                py"def fit_and_catch_errors(T):
+                    try:
+                        return fitter.fit(T)
+                    except (ValueError, ArgumentError) as e:
+                        print(e)
+                        return None"
+                fit_func = py"fit_and_catch_errors"
+                # trained_umap = fitter.fit(T');
+                trained_umap = fit_and_catch_errors(T')
                 @debug "transform"
                 # randsamp(x,n) = x[:,Random.randperm(size(x,2))[1:n]]
                 # I = randsamp(input, 50_000)
@@ -291,7 +299,7 @@ finally
         @info "Finished! 😺" opt steps total steps/total
     end
     # Store them for later
-    using .Munge.manifold
+    using GoalFetchAnalysis.Munge.manifold
     savefile = path_manis(;filt,feature_engineer,tag)
     @info "save info" filt festr diststr savefile
     try
@@ -313,3 +321,4 @@ finally
         @info "failed keys => $failed_keys"
     end
 end
+
