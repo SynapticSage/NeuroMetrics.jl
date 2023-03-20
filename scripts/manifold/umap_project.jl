@@ -5,26 +5,61 @@ Project the data onto the behavior variables from UMAP -> PCA -> Linear project
 onto behavior
 """
 
+using MultivariateStats
+
 Plot.setparentfolder("manifold", "umap_project")
 Plot.setappend((;animal, day, filt, s)
 Plot.deleteplotfiles()
 Plot.printstate()
 
-# beh_vars = [:x, :y, :cuemem, :stopWell, :startWell, :headdir]
-beh_vars = [:x, :y, :cuemem]
-B = Matrix(beh[:, beh_vars])
+function SC(B)
+    B = (B .- minimum(B, dims=1)) ./ (maximum(B, dims=1) .- minimum(B, dims=1))
+    # Center 
+    B = B .- mean(B, dims=1)
+end
+"""
+    get_B_matrix(beh, inds_of_t, s; beh_vars, dummvars)
+Get the behavior matrix for the data fraction `s` from the behavior data `beh`.
+# Arguments
+- `beh`: The behavior data
+- `inds_of_t`: The indices of the data fraction
+- `s`: The data fraction
+- `beh_vars`: The behavior variables to include
+- `dummvars`: The dummy variables to include
+# Returns
+- `B`: The behavior matrix
+"""
+function get_B_matrix(beh, inds_of_t, s;
+    beh_vars = [:x, :y, :cuemem], dummvars=[:stopWell, :startWell], scale=true)
+    B = Matrix(beh[:, beh_vars])
+    for var in dummvars
+        # Create a dummy code for behavior stopWells
+        DS = DIutils.statistic.dummycode(beh[:,var])
+        stopWellVars = [Symbol("$(var)_$i") for i in 1:size(DS,2)]
+        B = hcat(B, DS)
+    end
+    # Subset for this data fraction
+    scale ? SC(B[inds_of_t[s], :]) : B[inds_of_t[s], :]
+end
+B = get_B_matrix(beh, inds_of_t, s; 
+    beh_vars = [:x, :y, :cuemem], dummvars=[:stopWell, :startWell])
 
-# Create a dummy code for behavior stopWells
-DS = DIutils.statistic.dummycode(beh[:,:stopWell])
-stopWellVars = [Symbol("stopWell_$i") for i in 1:size(DS,2)]
-B = hcat(B, DS)
-# Create a dummy code for behavior startWells
-DS = DIutils.statistic.dummycode(beh[:,:startWell])
-startWellVars = [Symbol("startWell_$i") for i in 1:size(DS,2)]
-B = hcat(B, DS)
-
-# Subset for this data fraction
-B = B[inds_of_t[s], :]
+"""
+        project_onto_behavior(R::Matrix, B::Matrix)"
+Project the data `R` onto the behavior variables `beh_vars` in `beh`.
+# Arguments
+- `R::Matrix`: The data to project, time x neurons
+- `B::Matrix`: The behavior data, time x properties
+# Returns
+- `Rproj::Matrix`: The projected behavior data, time x properties
+"""
+function project_onto_behavior(em::AbstractMatrix, B::AbstractMatrix)
+    lsq = llsq(Float64.(em), B);
+    emp = (em * lsq[1:end-1,:]) .+ DIutils.arr.atleast2d(lsq[end, :])'
+    lsq_coef = lsq[1:end-1,:]
+    lsq_bias = lsq[end, :]
+    return fit(PCA, emp, maxoutdim=3, pratio=1.0)
+end
 
 C(x;subset=Colon(),kws...)=DIutils.plotutils.getplotcolor(beh[subset,x], :vik; kws...)
 c=DIutils.plotutils.getplotcolor(beh[:,:cuemem], :vik)
@@ -50,11 +85,6 @@ pca2 = fit(PCA, Float64.(Matrix(B)), maxoutdim=3, pratio=1.0);
 
 # Normalize columsn to 0 to 1
 # Center
-function SC(B)
-    B = (B .- minimum(B, dims=1)) ./ (maximum(B, dims=1) .- minimum(B, dims=1))
-    # Center 
-    B = B .- mean(B, dims=1)
-end
 pca2all = fit(PCA, SC(B), maxoutdim=3, pratio=1.0);
 
 plot(eachcol(pca2all.proj)...;c, alpha=0.25, legend=false, 
@@ -65,12 +95,9 @@ plot(eachcol(pca.proj)...; c,
 Plot.save("em_pca_colorby_cuemem")
 
 
-using MultivariateStats
-lsq = llsq(Float64.(em), B[inds_of_t[s], :])
-emp = (em * lsq[1:end-1,:]) .+ DIutils.arr.atleast2d(lsq[end, :])'
-lsq_coef = lsq[1:end-1,:]
-lsq_bias = lsq[end, :]
-pca_emp = fit(PCA, emp, maxoutdim=3, pratio=1.0);
+pca_emp = project_onto_behavior(em, B)
+
+
 plot(
 plot(eachcol(pca_emp.proj)...; c),
 scatter(beh[:,:cuemem]; c, alpha=0.1)
@@ -109,6 +136,7 @@ plot(
 )
 Plot.save("Behaviorally relavant, color by $(x)")
 
+# HA TRAJ
 # Get dict translating haatrajnum to hatraj
 haatrajnum_to_hatraj = Dict(
     k=>v for (k,v) in zip(
@@ -117,7 +145,6 @@ haatrajnum_to_hatraj = Dict(
     )
     if !ismissing(k) && !ismissing(v)
 )
-
 x = :hatrajnum
 B = beh[inds_of_t[s], :]
 beh_sub = findall((!).(ismissing.(B[!, :hatrajnum])))
@@ -200,6 +227,74 @@ plot(
     background_color=:grey90
 )
 
+# Calculate overall xlim and ylim for pca_emp
+xlim = [minimum(pca_emp.proj[:,1]), maximum(pca_emp.proj[:,1])]
+ylim = [minimum(pca_emp.proj[:,2]), maximum(pca_emp.proj[:,2])]
+zlim = [minimum(pca_emp.proj[:,3]), maximum(pca_emp.proj[:,3])]
+
+# Plot single blocks of trajectories
+P = []
+x=:hatrajnum
+for block in unique(beh.block)
+    beh_sub = findall(B.block .== block)
+    if isempty(beh_sub)
+        continue
+    end
+    p=plot(
+        begin
+            scatter(eachcol(pca_emp.proj[beh_sub,:])...; 
+            c=C(x;subset=beh_sub,alpha=:none),
+            mani_kws..., xlim=xlim, ylim=ylim, zlim=zlim
+            );
+            plot!(eachcol(pca_emp.proj[beh_sub,:])...; 
+                c=C(x;subset=beh_sub,alpha=:none),
+                mani_kws...)
+        end
+            ,
+        # Set xticks to hatraj string labels
+        scatter(B[beh_sub,x]; c=C(x,subset=beh_sub,), alpha=0.1,
+            scatter_kws...
+        ),
+        title=string(x),
+        background_color=:grey90
+    )
+    Plot.save("Block $(block) $(x)")
+    push!(P, p)
+end
+plot(P..., tickfontsize=2, titlefontsize=6, label="", markersize=1)
+
+# Separate trajectories per block
+P = []
+x = :blocktraj
+for block in unique(beh.block)
+    beh_sub = findall(B.block .== block)
+    if isempty(beh_sub)
+        continue
+    end
+    p=plot(
+        begin
+            scatter(eachcol(pca_emp.proj[beh_sub,:])...; 
+            c=C(x;subset=beh_sub,alpha=:none),
+            mani_kws...
+            );
+            plot!(eachcol(pca_emp.proj[beh_sub,:])...; 
+                c=C(x;subset=beh_sub,alpha=:none),
+                mani_kws...)
+        end
+            ,
+        # Set xticks to hatraj string labels
+        scatter(B[beh_sub,x]; c=C(x,subset=beh_sub,), alpha=0.1,
+            scatter_kws...
+        ),
+        title=string(x),
+        background_color=:grey90
+    )
+    Plot.save("Block c by traj $(block) $(x)")
+    push!(P, p)
+end
+plot(P..., tickfontsize=2, titlefontsize=6, label="", markersize=1)
+
+
 # julia> cor([emp Matrix(beh[inds_of_t[s], [:x,:y,:cuemem]]) ])
 # 6×6 Matrix{Float64}:
 #   1.0         -0.0399363   0.966072     0.16858     -0.00230479   0.257325
@@ -210,21 +305,14 @@ plot(
 #   0.257325     0.0390151   0.266362     0.147966    -0.161629     1.0
 # Correlation with behavior variables not amazing
 
-# Get color of cuemem
-# Just looking at the correlation between the behavior variables 
-for beh_var in beh_vars
-    println("beh_var=$beh_var")
-    println(begin
-        combine(groupby(
-            DataFrame([beh[inds_of_t[s], beh_var] emp[:,:]], :auto), :x1),
-        [:x2,:x3,:x4] .=> mean)
-    end
-)
-end
-
-[emp B]
-
-
-# Cannonical corr
-out = fit(CCA, Float64.(pca.proj), pca2.proj)
-
+# # Get color of cuemem
+# # Just looking at the correlation between the behavior variables 
+# for beh_var in beh_vars
+#     println("beh_var=$beh_var")
+#     println(begin
+#         combine(groupby(
+#             DataFrame([beh[inds_of_t[s], beh_var] emp[:,:]], :auto), :x1),
+#         [:x2,:x3,:x4] .=> mean)
+#     end
+# )
+# end
