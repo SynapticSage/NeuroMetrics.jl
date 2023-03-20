@@ -23,7 +23,7 @@ splits = opt["splits"]
 # [:Euclidean], [2,3], [:zscore]
 # Input Wenbo's settings
 min_dists, n_neighborss, metrics, dimset, features = [0.3], [100], 
-                                        [:Cosine], [3], [:zscore]
+                                        [:Cosine], [6], [:zscore]
 
 function keyfunc(;dataset,dim,s,min_dist,n_neighbors,metric,feature)
     (;dataset,dim,s,min_dist,n_neighbors,metric,feature)
@@ -242,11 +242,11 @@ try
                 repulsion_strength=1, negative_sample_rate=100,
                 target_metric="euclidean", n_epochs=10_000);
                 # local_connectivity: int (optional, default 1)
-                #     The local connectivity required -- i.e. the number of
-        #     nearest neighbors that should be assumed to be connected at a
-        #     local level. The higher this value the more connected the
-        #     manifold becomes locally. In practice this should be not more
-        #     than the local intrinsic dimension of the manifold.
+                # The local connectivity required -- i.e. the number of
+                # nearest neighbors that should be assumed to be connected at a
+                # local level. The higher this value the more connected the
+                # manifold becomes locally. In practice this should be not more
+                # than the local intrinsic dimension of the manifold.
                 # n_epochs larger = more accurate, 500 for small, 200 for large
                 @debug "fit"
                 trained_umap = fitter.fit(T');
@@ -291,7 +291,7 @@ finally
         @info "Finished! 😺" opt steps total steps/total
     end
     # Store them for later
-    using Munge.manifold
+    using .Munge.manifold
     savefile = path_manis(;filt,feature_engineer,tag)
     @info "save info" filt festr diststr savefile
     try
