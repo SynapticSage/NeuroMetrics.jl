@@ -19,6 +19,7 @@ module manifold
     using DataFrames, DataFramesMeta
     using ArgParse
     using Statistics
+    using MultivariateStats
 
     import DI
     import DI: Filt
@@ -74,6 +75,10 @@ module manifold
                 help = "distance metric(s)"
                 default= :many
                 arg_type=Symbol
+            "--save_frequency",
+                help = "how often to save the manis"
+                default = 100
+                arg_type = Int
         end
         if return_parser
             return parser
@@ -297,6 +302,10 @@ module manifold
         df
     end
 
+    ########################################################
+    ############### Triggered Embedding ####################
+    ########################################################
+
     export EmbeddingFrameFetch
     mutable struct EmbeddingFrameFetch
         df::GroupedDataFrame
@@ -391,5 +400,92 @@ module manifold
     Base.iterate(em::EmbeddingFrameFetch) = em[1], 1
     Base.iterate(em::EmbeddingFrameFetch, count) = count != length(em) ? 
                                             (em[count+1], count+1) : nothing
+
+
+
+    ############################################
+    ####### Projection and Embedding ###########
+    ############################################
+    
+    export unity_scale
+    """
+        unity_scale(B)
+    Scale the matrix `B` columns to be between 0 and 1.
+    """
+    function unity_scale(B)
+        B = (B .- minimum(B, dims=1)) ./ (maximum(B, dims=1) .- minimum(B, dims=1))
+        # Center 
+        B = B .- mean(B, dims=1)
+    end
+
+    export get_B_matrix
+    """
+        get_B_matrix(beh, inds_of_t, s; beh_vars, dummvars)
+    Get the behavior matrix for the data fraction `s` from the behavior data `beh`.
+    # Arguments
+    - `beh`: The behavior data
+    - `inds_of_t`: The indices of the data fraction
+    - `s`: The data fraction
+    - `beh_vars`: The behavior variables to include
+    - `dummvars`: The dummy variables to include
+    - `weighting` : the weighting of each behavior variable after
+            scaling. Default is to weight all variables equally.
+            the weighting index across beh_vars and lumped entries
+            of each dummary variable.
+    # Returns
+    - `B`: The behavior matrix
+    """
+    function get_B_matrix(beh::DataFrame, inds_of_t, s;
+    beh_vars = [:x, :y, :cuemem], dummvars=[:stopWell, :startWell], scale=true, 
+        scaling=ones(length(beh_vars)+length(dummvars)))
+        lb = length(beh_vars)
+        B = Matrix(beh[:, beh_vars])
+        S = ones(size(B)) .* DIutils.arr.atleast2d(scaling[1:lb])'
+        for (v,var) in enumerate(dummvars)
+            # Create a dummy code for behavior stopWells
+            DS = DIutils.statistic.dummycode(beh[:,var])
+            stopWellVars = [Symbol("$(var)_$i") for i in 1:size(DS,2)]
+            B = hcat(B, DS)
+            sc = ones(size(DS)) .* scaling[lb+v]
+            S = hcat(S, sc)
+        end
+        # Subset for this data fraction
+        scale ? 
+            unity_scale(B[inds_of_t[s], :]) .* S[inds_of_t[s],:] : 
+            B[inds_of_t[s], :]
+    end
+
+    export project_onto_behavior
+    """
+            project_onto_behavior(R::Matrix, B::Matrix)"
+    Project the data `R` onto the behavior variables `beh_vars` in `beh`.
+    # Arguments
+    - `R::Matrix`: The data to project, time x neurons
+    - `B::Matrix`: The behavior data, time x properties
+    # Returns
+    - `Rproj::Matrix`: The projected behavior data, time x properties
+    """
+    function project_onto_behavior(em::AbstractMatrix, B::AbstractMatrix)
+        lsq = llsq(Float64.(em), B);
+        emp = (em * lsq[1:end-1,:]) .+ DIutils.arr.atleast2d(lsq[end, :])'
+        lsq_coef = lsq[1:end-1,:]
+        lsq_bias = lsq[end, :]
+        return fit(PCA, emp, maxoutdim=3, pratio=1.0)
+    end
+    # """
+    #         project_onto_behavior(R::Matrix, beh::DataFrame, beh_vars::Vector)
+    # Project the data `R` onto the behavior variables `beh_vars` in `beh`.
+    # # Arguments
+    # - `R::Matrix`: The data to project, time x neurons
+    # - `beh::DataFrame`: The behavior data, time x properties
+    # # Returns
+    # - `Rproj::Matrix`: The projected behavior data, time x properties
+    # """
+    # function project_onto_behavior(r::AbstractMatrix, beh::DataFrame, times, beh_vars::Vector)
+    #     B = Matrix(beh[times, beh_vars])
+    #     # Matrix(beh[times, beh_vars]) * r' * inv(r * r') * r
+    #     r * B' * pinv(B * B') * B
+    # end
+
 
 end

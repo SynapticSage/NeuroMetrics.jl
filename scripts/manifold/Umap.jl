@@ -6,12 +6,13 @@ exec julia -J "/home/ryoung/Code/projects/goal-code/GFA-dependencies-sysimage.so
 using GoalFetchAnalysis, 
       GoalFetchAnalysis.Munge.manifold, 
       DrWatson, Revise
+using GoalFetchAnalysis.Munge.manifold
 opt = Munge.manifold.parse()
-filt = opt["filt"]
+filt             = opt["filt"]
 feature_engineer = opt["feature_engineer"]
-distance = opt["distance"]
-sps = opt["sps"]
-splits = opt["splits"]
+distance         = opt["distance"]
+sps              = opt["sps"]
+splits           = opt["splits"]
 
 # Sets to explore
 # ---------------
@@ -24,6 +25,7 @@ splits = opt["splits"]
 # Input Wenbo's settings
 min_dists, n_neighborss, metrics, dimset, features = [0.3], [100], 
                                         [:Cosine], [6], [:zscore]
+negative_sample_rate = 100
 
 function keyfunc(;dataset,dim,s,min_dist,n_neighbors,metric,feature)
     (;dataset,dim,s,min_dist,n_neighbors,metric,feature)
@@ -56,9 +58,9 @@ for (key, value) in opt
 end
 #global areas            = (:ca1,:pfc)
 
+# ----------------
 # DI data
 # ----------------
-
 
 println("Loading")
 @time global spikes, beh, ripples, cells = DI.load(opt["animal"], opt["day"])
@@ -117,12 +119,16 @@ function get_R(beh, spikes; gaussian=0.25)
 end
 R      = get_R(beh, spikes)
 
+# ----------------
+#
+# ----------------
 # Rtrain = get_R(behTrain, spikesTrain)
 Rtrain_inds = Dict(k=>DIutils.searchsortednearest.([beh.time], behTrain.time) for (k,_) in R)
 Rtrain = Dict(
               k=>v[inds,:] for ((k,v),(k,inds)) in zip(R,Rtrain_inds)
              )
 
+# ----------------
 # Get sample runs
 # ----------------
 println("Generate partitions")
@@ -177,7 +183,35 @@ global steps, total = 0, (length(params) * length(datasets))
 
 trained_umap = em = sc = nothing
 exception_triggered = false
+fitter_params = nothing
 
+
+function save_results()
+    # Store them for later
+    savefile = path_manis(;filt,feature_engineer,tag)
+    @info "save info" filt festr diststr savefile
+    try
+        save_manis(;embedding, scores, inds_of_t, filt, feature_engineer, use_cuda,
+                   tag, splits, sps, N, fitter_params)
+        printstyled("FINISHED UMAP.JL"; blink=true, color=:green)
+        cmd = 
+        `pushover-cli "Finished UMAP for animal $animal day $day filter $filt"`
+        run(cmd)
+    catch
+        printstyled("FAILED SAVE UMAP.JL"; blink=true, color=:light_red, reverse=true)
+        cmd = 
+        `pushover-cli "Unfinished UMAP for animal $animal day $day filter $filt"`
+        run(cmd)
+    finally
+        keyset = [keyfunc(;metric,min_dist,n_neighbors, feature, dataset,dim,s)  for
+         (metric,min_dist, n_neighbors, feature) in params, (dataset,dim,s) in datasets]
+        failed_keys = [k for k in keyset if k ∉ keys(embedding)]
+        succes_keys = [k for k in keyset if k ∈ keys(embedding)]
+        @info "failed keys => $failed_keys"
+    end
+end
+
+steps = 0;
 try
 
     (metric,min_dist, n_neighbors, feature) = first(params)
@@ -185,6 +219,8 @@ try
 
         (dataset,dim,s) = first(datasets)
         for (dataset,dim,s) in datasets
+
+            steps += 1
 
             gc.collect()
             GC.gc(false)
@@ -239,8 +275,9 @@ try
 
                 fitter=cuUMAP(n_neighbors=n_neighbors, min_dist=min_dist,
                 n_components=dim, metric="cosine", local_connectivity=10,
-                repulsion_strength=1, negative_sample_rate=100,
+                repulsion_strength=1, negative_sample_rate=negative_sample_rate,
                 target_metric="euclidean", n_epochs=10_000);
+                fitter_params = fitter.get_params()
                 # local_connectivity: int (optional, default 1)
                 # The local connectivity required -- i.e. the number of
                 # nearest neighbors that should be assumed to be connected at a
@@ -251,13 +288,13 @@ try
                 @debug "fit"
                 py"def fit_and_catch_errors(T):
                     try:
-                        return fitter.fit(T)
+                        return $(fitter).fit(T)
                     except (ValueError, ArgumentError) as e:
                         print(e)
                         return None"
                 fit_func = py"fit_and_catch_errors"
                 # trained_umap = fitter.fit(T');
-                trained_umap = fit_and_catch_errors(T')
+                trained_umap = fit_func(T')
                 @debug "transform"
                 # randsamp(x,n) = x[:,Random.randperm(size(x,2))[1:n]]
                 # I = randsamp(input, 50_000)
@@ -274,6 +311,7 @@ try
                 @time sc = skmani.trustworthiness(input', em, 
                                                n_neighbors=n_neighbors, 
                                                metric=metric_str)
+                println("dataset $dataset, s $s, trustworthiness $sc")
                 em, sc
             end;
 
@@ -285,12 +323,18 @@ try
             pydecref(fitter);
             fitter = trained_umap = em = sc = nothing;
             next!(prog)
+
+            if steps % opt["save_frequency"] == 0
+                save_results()
+            end
+
         end
     end
 
 catch exception
     exception_triggered = true
     print(exception)
+    save_results()
 finally
     println("Finally section")
     if exception_triggered
@@ -298,27 +342,6 @@ finally
     else
         @info "Finished! 😺" opt steps total steps/total
     end
-    # Store them for later
-    using GoalFetchAnalysis.Munge.manifold
-    savefile = path_manis(;filt,feature_engineer,tag)
-    @info "save info" filt festr diststr savefile
-    try
-        save_manis(;embedding, scores, inds_of_t, filt, feature_engineer, use_cuda,
-                   tag, splits, sps, N)
-        printstyled("FINISHED UMAP.JL"; blink=true, color=:green)
-        cmd = 
-        `pushover-cli "Finished UMAP for animal $animal day $day filter $filt"`
-        run(cmd)
-    catch
-        printstyled("FAILED SAVE UMAP.JL"; blink=true, color=:light_red, reverse=true)
-        cmd = 
-        `pushover-cli "Unfinished UMAP for animal $animal day $day filter $filt"`
-        run(cmd)
-    finally
-        keyset = [keyfunc(;metric,min_dist,n_neighbors, feature, dataset,dim,s)  for
-         (metric,min_dist, n_neighbors, feature) in params, (dataset,dim,s) in datasets]
-        failed_keys = [k for k in keyset if k ∉ keys(embedding)]
-        @info "failed keys => $failed_keys"
-    end
+    save_results()
 end
 

@@ -493,17 +493,14 @@ module isolated
     """
         match_cycles!(cycles::DataFrame, Rdf::DataFrame,
             occ::IndexedAdaptiveOcc; matches=3, iso_cycles = nothing)
-    
     find null cycles non-iso spike cycles matched on behavior per
     iso spike cycle
-
     # Arguments
     - `cycles::DataFrame`: cycles dataframe
     - `Rdf::DataFrame`: firing rate matrix R in the form of a dataframe
     - `occ::IndexedAdaptiveOcc`: indexed adaptive occupancy object
     - `matches::Int`: number of matches to find per cycle
     - `iso_cycles::Vector{Int}`: vector of cycles containing isolated spikes
-
     # Output
     - `cycles::DataFrame`: cycles dataframe with a new column `matched` that
                            contains the matched cycles in terms of the behavior
@@ -511,13 +508,10 @@ module isolated
     """
     function match_cycles!(cycles::DataFrame, Rdf::DataFrame, 
         occ::IndexedAdaptiveOcc; matches=3,
-        iso_cycles = nothing)
-
+        iso_cycles = nothing, conditions=[:hasocc .== true])
         if iso_cycles === nothing
-           unique(@subset(Rdf, :isolated_sum .> 0, 
-                          :hasocc .== true).cycle) 
+           throw(ArgumentError("iso_cycles must be provided"))
         end
-
         DIutils.filtreg.register(cycles, Rdf, transfer=["hasocc"], on="cycle")
         
         cycles.matched = Vector{Union{Vector{Int32}, Missing}}(missing,
