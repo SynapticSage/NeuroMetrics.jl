@@ -1,6 +1,12 @@
 using Plots
 import Plot
 
+using GoalFetchAnalysis
+using DI
+
+animal, day = "RY16", 36
+beh = load_behavior(animal, day)
+
 Plot.setparentfolder()
 Plot.setfolder("behavior", "hatraj")
 Plot.setappend("_$animal.$day")

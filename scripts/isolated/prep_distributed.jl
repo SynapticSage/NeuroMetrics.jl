@@ -10,6 +10,9 @@ while length(workers()) < 16
     end
 end
 
+Trb = @async  addprocs(("ryoung_brandeis", 2))
+Trms = @async addprocs(("MountainSort", 2))
+
 @everywhere begin 
     using DrWatson
     quickactivate(expanduser("~/Projects/goal-code"))

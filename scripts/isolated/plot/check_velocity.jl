@@ -20,6 +20,12 @@ lf.vel = abs.(beh[lf.index, :velVec])
 @df @subset(lf,:vel .> 4, :vel .< 200) begin
     scatter(:vel, :amp_mean, alpha=0.02, label="", xlabel="velocity", ylabel="theta power")
 end
+hline!([275], label="upper theta power")
+
+# Compute upper .99 quantile of theta power when animal is running faster
+# than 2 cm/s
+upper = quantile(@subset(lf, :vel .> 2, :amp_mean .< 300).amp_mean, 0.995)
+lower = quantile(@subset(lf, :vel .> 2, :amp_mean .< 300).amp_mean, 0.005)
 
 using GLM
 form =@formula amp_mean ~ 1 + vel

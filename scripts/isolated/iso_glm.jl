@@ -126,6 +126,23 @@ summary(model_spikecount); summary(shuffle_spikecount);
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+    """
+        postprocess_model!(dx_dy_bin, dx_dy_key, f::FormulaTerm, dist; 
+                shuffle=false,
+                model::Dict, other_keys...)
+
+    Postprocess the model `model` for the given `dx_dy_key` and `f` and `dist`.
+    # Arguments
+    - `dx_dy_bin`: the `dx_dy_bin` dictionary
+    - `dx_dy_key`: the key for the `dx_dy_bin` dictionary
+    - `f`: the `FormulaTerm` used to create the model
+    - `dist`: the distribution used to create the model
+    - `shuffle`: whether the model was created by shuffling the data
+    
+    # Return
+    - `key`: the key for the `model` dictionary
+    - `model[key]`: the model
+    """
     function poisson_model!(dx_dy_bin, dx_dy_key, f::FormulaTerm, dist; 
                 shuffle=false,
                 model::Dict, other_keys...)
@@ -171,7 +188,6 @@ summary(model_spikecount); summary(shuffle_spikecount);
     # PREDICT SPIKCOUTNS ALL TIMES BY 10 minute BIN
     #
     # Distribution: POISSON / SOFTPLUS
-    #
     # =============================================
     @showprogress "single run" for (b, f, dist, dep, ind) in param_interactions_sc
         XXb, yb = dx_dy_bin[b]
@@ -284,7 +300,6 @@ summary(model_spikecount); summary(shuffle_spikecount);
     # PREDICT CELL HAS ISO SPIKE BY 10 minute BIN
     #
     # Distribution: BINOMIAL / PROBIT
-    #   
     # =============================================
     model_cellhasiso = Dict() #initorget("model_cellhasiso", Dict())
     @showprogress "single run" for (b, f, dist, dep, ind) in param_interactions_hc
@@ -307,7 +322,7 @@ summary(model_spikecount); summary(shuffle_spikecount);
     # ------------ Shuffle ------------------------
     shuffle_cellhasiso = Dict() #initorget("shuffle_spikecount", Dict())
 
-    opt["shuffle"] = 10
+    opt["shuffle"] = 100
     # dx_dy_bin = deepcopy(dx_dy_bin)
     @showprogress "SHUFFLE" for _ in 1:opt["shuffle"]
         shuf = hash(rand())

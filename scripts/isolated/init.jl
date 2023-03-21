@@ -1,10 +1,13 @@
 include("./imports_isolated.jl")
+# include(scriptsdir("isolated","imports_isolated.jl"))
 
 datasets = (
+
             ("RY16",36,:ca1ref), ("RY22",21,:ca1ref),  #("super", 0, :ca1ref),
-            ("RY16",36,:default),("RY22",21,:default), #("super", 0, :default)
+            # ("RY16",36,:default),("RY22",21,:default), #("super", 0, :default)
            )
-(animal, day, tet) = datasets[2]
+# (animal, day, tet) = datasets[2]
+@info datasets
 
 opt = isdefined(Main,:opt) ? Main.opt : Dict()
 opt = merge(opt, Dict(
@@ -23,19 +26,17 @@ end
 init = 1
 if init != 1; @warn("initial dataset is $init"); end
 (animal, day, tet) = datasets[1]
+@info "init dataset" init animal day tet
+
 @showprogress "datasets" for (animal, day, tet) in datasets[init:end]
-
     @info "loop" animal day tet
-    animal, day, tet = opt["animal"], opt["day"], opt["tet"]
-
+    # animal, day, tet = opt["animal"], opt["day"], opt["tet"]
     isonames =  OrderedDict(false => :adjacent, true=>:isolated)
     filt_desc = OrderedDict(:all => "> 2cm/s")
     save_kws = (;pfc_rate_analy=true)
     filt = Filt.get_filters()
     datacut = :all
-
     Plot.setappend((;animal,day,tet))
-
     # ===================
     # ACQUIRE DATA
     # ===================

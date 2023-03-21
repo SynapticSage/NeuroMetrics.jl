@@ -1,6 +1,8 @@
 # IMPORTS AND DATA
 # --------
 checkpoint = false
+include("../imports_isolated.jl")
+include("./imports_isolated.jl")
 if checkpoint
     include(scriptsdir("isolated","load_cyclewise_checkpoint.jl"))
     @time include("../load_cyclewise_checkpoint.jl")
@@ -9,8 +11,6 @@ else
     @time include("../load_isolated.jl")
 end
 include(scriptsdir("isolated","imports_isolated.jl"))
-include("./imports_isolated.jl")
-include("../imports_isolated.jl")
 
 
 # Filtration
@@ -118,6 +118,7 @@ commit_vars()
 #  non-isolated theta cycles)
 begin
 
+    # -----------------------------------------------------
     # (1) Place behavior into cycles
     # Obtain average of properties of interest per θ cycle
     # -----------------------------------------------------
@@ -142,6 +143,7 @@ begin
         cycles[!,prop] = replace(cycles[!,prop], NaN=>missing)
     end
 
+    # -----------------------------------------------------
     # (2) Get an adaptive grid
     # Get the grid binning and occupancy of these cycles
     # -----------------------------------------------------
@@ -168,12 +170,37 @@ begin
             sum(occ.count)/size(dropmissing(cycles,matchprops),1))
 
 
-
+    # --------------------------------------------------------------------
+    # Figure out theta cycles with theta power at least 1/2 std above mean
+    # and those which are accounted for in the grid occupancy
+    # --------------------------------------------------------------------
+    upper = quantile(@subset(lf, :vel .> 2, :amp_mean .< 300).amp_mean, 0.995)
+    lower = quantile(@subset(lf, :vel .> 2, :amp_mean .< 300).amp_mean, 0.005)
+    DataFrames.transform!(cycles, [:amp_mean] => (a-> a .> lower .&& 
+        a .< upper) => :theta_good, renamecols=false)
+    cycles.speed = Vector{Union{Missing,Float32}}(missing, size(cycles,1))
+    for (i,(start, stop)) in enumerate(zip(cycles.start, cycles.stop))
+        inds = DIutils.in_range(beh.time, [start, stop])
+        cycles[i, :speed] = mean(beh[inds,:speed])
+    end
+    # Label cyccles as having occupancy
     cycles.hasocc = (!).(ismissing.(occ.datainds))
-    DIutils.filtreg.register(cycles, Rdf, on="cycle", transfer=["hasocc"])
-    DIutils.filtreg.register(cycles, Rdf_sub, on="cycle", transfer=["hasocc"])
-    iso_cycles = unique(@subset(Rdf_sub, :isolated_sum .> 0, 
-                        :hasocc .== true).cycle)
+    # Register that across dataframes
+    kws = (;on="cycle", transfer=["hasocc", "theta_good", "speed"])
+    DIutils.filtreg.register(cycles, Rdf;     kws...)
+    DIutils.filtreg.register(cycles, Rdf_sub; kws...)
+
+
+    # -----------------------------------------------------
+    # Prepare to select good cycles
+    # -----------------------------------------------------
+    # Determine isolated cycles to look at
+    iso_cycles = unique(@subset(Rdf_sub, 
+                        :isolated_sum .> 0, 
+                        :hasocc .== true,
+                        :theta_good .== true,
+                        :speed .> 2
+    ).cycle)
     indexers = [:time, :isolated_sum, :pfcisosum, :bins]
 
 end
@@ -244,7 +271,7 @@ begin
     heatmap(log10.(Matrix(df[:, cellcols(df)])), title="df"),
     heatmap(log10.(Matrix(dd[:, cellcols(dd)])), title="dd")
     )
-    histogram(df.cycs, label="df")
+    histogram(df.cycs,  label="df")
     histogram!(dd.cycs, label="dd")
     dd.cycle = dd.cycs
     DIutils.filtreg.register(cycles, dd, on="cycle", transfer=["time"])
@@ -254,5 +281,5 @@ begin
 end
 
 
-import CSV
-CSV.write(expanduser("~/df_sub.csv"), df_sub)
+# import CSV
+# CSV.write(expanduser("~/df_sub.csv"), df_sub)
