@@ -30,6 +30,7 @@ if init != 1; @warn("initial dataset is $init"); end
 
 @showprogress "datasets" for (animal, day, tet) in datasets[init:end]
     @info "loop" animal day tet
+    opt["animal"], opt["day"], opt["tet"] = animal, day, tet
     # animal, day, tet = opt["animal"], opt["day"], opt["tet"]
     isonames =  OrderedDict(false => :adjacent, true=>:isolated)
     filt_desc = OrderedDict(:all => "> 2cm/s")
@@ -225,6 +226,7 @@ if init != 1; @warn("initial dataset is $init"); end
     # and add properties of interest
     # --------------------------------
     # Get dataframe of R
+    val = :value
     Rdf = DataFrame(R; name=val)
     # Set cycle via start cycle times
     cycles.time = cycles.start;
@@ -234,6 +236,8 @@ if init != 1; @warn("initial dataset is $init"); end
                              match=:prev)
     matchprops = opt[:matchprops]
     DIutils.filtreg.register(beh, Rdf, on="time", transfer=String.(matchprops))
+
+    commit_vars()
 
 
 end # end dataset loop

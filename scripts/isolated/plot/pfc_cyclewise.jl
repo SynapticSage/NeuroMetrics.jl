@@ -15,16 +15,21 @@ include(scriptsdir("isolated","imports_isolated.jl"))
 
 # Filtration
 pyramidal = cells[cells.meanrate .< 5, :unit]
-spikecount = combine(groupby(spikes, :unit), nrow=>:spikecount, 
-                             :isolated=>sum=>:isospikecount)
+spikecount = combine(groupby(spikes, :unit), 
+    nrow=>:spikecount, :isolated=>(x->sum(collect(skipmissing(x))))=>:isospikecount)
+replace!(spikecount.isospikecount, missing=>0)
+replace!(spikecount.spikecount, missing=>0)
 spikecount_criteria = 
-    spikecount[spikecount.isospikecount .> 5 .&& 
-        spikecount.spikecount .> 50,:unit]
+    spikecount[spikecount.isospikecount .> 5 .&& spikecount.spikecount .> 50,:unit]
 neurons_of_interest = intersect(pyramidal, spikecount_criteria)
 spikes_sub = @subset(spikes, :unit .∈ (neurons_of_interest,))
 Rdf_sub    = @subset(Rdf, :unit .∈ (neurons_of_interest,))
 cells_sub  = @subset(cells, :unit .∈ (neurons_of_interest,))
 @assert size(spikes,1) != size(spikes_sub,1)
+spikes_sub = dropmissing(spikes_sub, :isolated)
+
+commit_vars()
+commit_cycwise_vars()
 
 #   _  _     ____            _        _                     _ _        
 # _| || |_  | __ )  __ _ ___(_) ___  (_)___  ___  ___ _ __ (_) | _____ 
@@ -174,8 +179,9 @@ begin
     # Figure out theta cycles with theta power at least 1/2 std above mean
     # and those which are accounted for in the grid occupancy
     # --------------------------------------------------------------------
-    upper = quantile(@subset(lf, :vel .> 2, :amp_mean .< 300).amp_mean, 0.995)
-    lower = quantile(@subset(lf, :vel .> 2, :amp_mean .< 300).amp_mean, 0.005)
+    DIutils.filtreg.register(beh, lfp, on="time", transfer=["speed"])
+    upper = quantile(@subset(cycles, :speed .> 2, :amp_mean .< 300).amp_mean, 0.995)
+    lower = quantile(@subset(cycles, :speed .> 2, :amp_mean .< 300).amp_mean, 0.005)
     DataFrames.transform!(cycles, [:amp_mean] => (a-> a .> lower .&& 
         a .< upper) => :theta_good, renamecols=false)
     cycles.speed = Vector{Union{Missing,Float32}}(missing, size(cycles,1))
@@ -261,7 +267,6 @@ opt["commit"] = true
 opt["overwrite"] = true
 
 # Compare df to loaded df
-begin 
     dd = initorget("df")
     sort!(df, [:relcycs, :cycs])
     sort!(dd, [:relcycs, :cycs])
@@ -278,7 +283,6 @@ begin
     DIutils.filtreg.register(cycles, df, on="cycle", transfer=["time"])
     histogram(df.time, label="df")
     histogram!(dd.time, label="dd")
-end
 
 
 # import CSV

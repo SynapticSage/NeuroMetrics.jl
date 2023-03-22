@@ -589,7 +589,7 @@ module isolated
 
         # Grab a span of cycles around each isolated spike cycle
         # and grab a span around the null matched non-isolated cyles for each
-        #= Threads.@threads =# for (i,cyc) in collect(enumerate(iso_cycles))
+        Threads.@threads for (i,cyc) in collect(enumerate(iso_cycles))
             # unit = parse(Int,replace(string(f.lhs), "_i"=>""))
             try
                 tid = threading ? Threads.threadid() : 1
@@ -633,6 +633,7 @@ module isolated
 
         printstyled("Cycles without match ", M[]/length(iso_cycles), 
               "\nErrored cycles ", E[]/length(iso_cycles), color=:blink)
+        @infiltrate
 
         # Because we are using threading, we need to combine the dataframes
         # we aggregated from each thread
