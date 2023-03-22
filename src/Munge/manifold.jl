@@ -20,6 +20,10 @@ module manifold
     using ArgParse
     using Statistics
     using MultivariateStats
+    import StatsAPI
+    using StatsBase
+    import DIutils.plotutils: get_lims
+    import DIutils.arr: get_quantile_filtered
 
     import DI
     import DI: Filt
@@ -486,6 +490,56 @@ module manifold
     #     # Matrix(beh[times, beh_vars]) * r' * inv(r * r') * r
     #     r * B' * pinv(B * B') * B
     # end
+    
+
+    """
+        register_two_manis(ref_emp, this_emp)
+    Register two manifolds together using canonical correlation analysis.
+    # Arguments
+    - `ref_emp::EmbeddingProjection`: The reference embedding projection
+    - `this_emp::EmbeddingProjection`: The embedding projection to register
+    - `B::Matrix`: The behavior matrix, if you want to project onto behavior
+    - `beh::DataFrame`: The behavior data, if you want to color plots by behavior
+    - `filter_quantiles`: Whether to filter the data by quantiles
+    # Returns
+    - `M::CCA`: The CCA object
+    - `Z1::Matrix`: The projection of the reference embedding onto the common space
+    - `Z2::Matrix`: The projection of the embedding to register onto the common space
+    - `C::Matrix`: The correlation between the projections
+    """ 
+    function pairwise_register(ref_emp::PCA, this_emp::PCA; B=nothing, beh=nothing,
+            filter_quantiles=false, outdim=3)
+        pairwise_register(ref_emp.proj, this_emp.proj; B=B, beh=beh,
+            filter_quantiles=filter_quantiles, colorby=colorby, ploton=ploton, outdim=outdim)
+    end
+    function pairwise_register(ref_emp::Matrix, this_emp::Matrix; B=nothing, beh=nothing,
+            filter_quantiles=false, outdim=3)
+            # Cannonical corr
+            XX = (ref_emp)'
+            YY=  (this_emp)'
+            if B !== nothing
+                XX = project_onto_behavior(XX, B).proj
+                YY = project_onto_behavior(YY, B).proj
+            end
+            if filter_quantiles
+                xx = get_quantile_filtered(XX)
+                yy = get_quantile_filtered(YY)
+            else
+                xx = XX
+                yy = YY
+            end
+            # Randomly sample the same number of points
+            n = min(size(xx,2), size(yy,2))
+            xx = xx[:, sample(1:size(xx,2), n, replace=false)]
+            yy = yy[:, sample(1:size(yy,2), n, replace=false)]
+            M = fit(CCA, xx, yy, outdim=outdim)
+            # Bring both into a common space
+            a = xprojection(M);
+            b = yprojection(M);
+            Z1 = StatsAPI.predict(M, (XX), :x)
+            Z2 = StatsAPI.predict(M, (YY), :y)
+            return (;M, Z1, Z2)
+    end
 
 
 end

@@ -22,6 +22,8 @@ function cycleplot(lf::DataFrame; otherfield=nothing, kws=(;))
     end
     if otherfields !== nothing 
         for (otherfield,kw) in zip(otherfields,kws)
+            if otherfield === nothing; continue; end
+            @assert otherfield isa Symbol "otherfield=$otherfield should be a symbol"
             @df lf[1:2500, :] begin
                 Plots.plot!(:time, 100 * nannorm_extrema(lf[1:2500,otherfield], (-1,1)); label=string(otherfield), kw...) 
             end

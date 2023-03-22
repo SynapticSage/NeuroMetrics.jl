@@ -310,7 +310,6 @@ module spiking
                 sleep(0.1)
             end
         end
-        @infiltrate
         combine(spikes, identity)
     end
     function isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle, include_samples::Bool=false, overwrite=false)

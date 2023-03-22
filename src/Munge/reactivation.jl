@@ -63,9 +63,7 @@ module reactivation
     end
 
     function estimateKfromPCA(X::Union{DimArray,Matrix}, k)
-        pca = PCA()
-        fit!(pca, X, k)
-        # extract elbox of pca variance explained
+        k = size(fit!(PCA, X, k),2) # julia MultivariateStats.jl auto estimates k
     end
 
     """
