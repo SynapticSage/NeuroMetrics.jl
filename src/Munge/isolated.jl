@@ -638,9 +638,12 @@ module isolated
         # Because we are using threading, we need to combine the dataframes
         # we aggregated from each thread
         dfs = Vector{DataFrame}(undef, length(df))
+        @info "Combining each thread's list"
         for i in eachindex(df)
-            dfs[i] = vcat(skipmissing(df[i])...)
+            df[i]  = DIutils.arr.undef_to_missing(df[i])
+            dfs[i] = vcat(skipmissing(df[i])...) # TODO this is slow
         end
+        @info "Combining all threads' lists"
         df = vcat(dfs...)
 
         printstyled("Isocycles ", length(iso_cycles), 
@@ -658,8 +661,6 @@ module isolated
         df.has_iso = df.isolated_sum .> 0
         # Obtain the columns who encode the firing rate of each neuron
         neuroncols = names(df)[tryparse.(Int, names(df)) .!== nothing]
-
-        #+TODO not INT because it's gaussian smoothed
         
         # Convert the firing rate values to the number of spikes per cycle
         df[:,neuroncols] .*= median(diff(beh.time)) 
@@ -672,6 +673,7 @@ module isolated
         # Clean data frame, remove columns with all zeros
         col_all_zero = map(v->all(skipmissing(v.==0)), eachcol(df))
         df = df[!, Not(names(df)[col_all_zero])]
+
         return (;df, cyc_error)
     end
 

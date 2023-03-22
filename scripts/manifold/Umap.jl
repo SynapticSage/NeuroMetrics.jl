@@ -7,7 +7,8 @@ using GoalFetchAnalysis,
       GoalFetchAnalysis.Munge.manifold, 
       DrWatson, Revise
 using GoalFetchAnalysis.Munge.manifold
-opt = Munge.manifold.parse()
+
+opt = Munge.manifold.parse(Main)
 filt             = opt["filt"]
 feature_engineer = opt["feature_engineer"]
 distance         = opt["distance"]
@@ -212,6 +213,7 @@ function save_results()
 end
 
 steps = 0;
+
 try
 
     (metric,min_dist, n_neighbors, feature) = first(params)

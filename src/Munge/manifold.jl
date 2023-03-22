@@ -30,7 +30,24 @@ module manifold
     using DIutils
     using DIutils.Table 
     import DIutils.namedtup: ntopt_string
+    
 
+    """
+        parse(mod::Module, args=nothing; Bool=false)
+
+    parse command line arguments for manifold related analyses
+    """
+    function parse(mod::Module, args...; Bool=false)
+        if isdefined(mod, :opt)
+            opt = mod.opt
+        else
+            opt = Dict()
+        end
+        postprocess(parse(opt, args...; return_parser=Bool))
+    end
+    function parse(opt::Dict, pos...; kws...)
+        postprocess( merge(parse(pos...; kws...), opt))
+    end
     """
         parse(args=nothing; return_parser::Bool=false)
 
@@ -78,8 +95,8 @@ module manifold
             "--distance", "-d"
                 help = "distance metric(s)"
                 default= :many
-                arg_type=Symbol
-            "--save_frequency",
+                arg_type = Symbol
+            "--save_frequency"
                 help = "how often to save the manis"
                 default = 100
                 arg_type = Int
