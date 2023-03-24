@@ -213,7 +213,6 @@ function save_results()
 end
 
 steps = 0;
-
 try
 
     (metric,min_dist, n_neighbors, feature) = first(params)

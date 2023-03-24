@@ -26,12 +26,13 @@ using Infiltrator, ThreadSafeDicts, JLD2, Serialization, CausalityTools,
       Entropies, DataFrames, DataFramesMeta, Statistics, NaNStatistics,
       HypothesisTests, Plots, StatsPlots, ColorSchemes, ProgressMeter,
       SoftGlobalScope, ElectronDisplay, ArgParse
-using GoalFetchAnalysis, Plot, Munge, Munge.manifold, Munge.causal,
-       Munge.triggering, Utils.binning, Munge.causal, Plot.cause,
-       Labels
+using GoalFetchAnalysis, GoalFetchAnalysis.Plot, GoalFetchAnalysis.Munge,
+GoalFetchAnalysis.Munge.manifold, GoalFetchAnalysis.Munge.causal,
+GoalFetchAnalysis.Munge.triggering, DIutils.binning,
+GoalFetchAnalysis.Munge.causal, GoalFetchAnalysis.Plot.cause, DI.Labels
 using DataStructures: OrderedDict
 using Utils.namedtup: ntopt_string
-using Plot.cause: plotmeancause, plotmediancause, plotmedianplushist, 
+using GoalFetchAnalysis.Plot.cause: plotmeancause, plotmediancause, plotmedianplushist, 
                    plotcausediff, getdiff, getmean, getmedian, 
                    getcausedistovertime
 parser = causal.argparse(return_parser=true)
@@ -70,8 +71,8 @@ animal, day, filt, N = opt["animal"], opt["day"], opt["filt"], opt["N"]
 
 arena_ca1pfc_color(i,n) = get(ColorSchemes.Blues, 0.10 + 0.85*(i/n))
 arena_pfcca1_color(i,n) = get(ColorSchemes.Reds,  0.10 + 0.85*(i/n))
-home_ca1pfc_color(i,n) = get(ColorSchemes.Greens, 0.10 + 0.85*(i/n))
-home_pfcca1_color(i,n) = get(ColorSchemes.Oranges,  0.10 + 0.85*(i/n))
+home_ca1pfc_color(i,n) =  get(ColorSchemes.Greens, 0.10 + 0.85*(i/n))
+home_pfcca1_color(i,n) =  get(ColorSchemes.Oranges,  0.10 + 0.85*(i/n))
 function link!(P::Plots.Plot)
     if opt["link"] == :y
         yl = Utils.plotutils.get_ylims(P)

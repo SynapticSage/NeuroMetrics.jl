@@ -22,6 +22,7 @@ module causal
     import ..Munge.manifold: make_embedding_df, EmbeddingFrameFetch
     import DIutils
     import DIutils: Table
+    import DIutils.namedtup: bestpartialmatch
 
     function argparse(args=nothing;return_parser=false)
         parser = Munge.manifold.parse(return_parser=true)
@@ -55,17 +56,21 @@ module causal
 
     export get_paired_emeddings
     function get_paired_embeddings(embeddings::AbstractDict,
-                                  valuesX, valuesY; prop=:area)::Dict
+                                  valuesX, valuesY; prop=:dataset)::Dict
 
         kz = keys(embeddings)
-        kz = unique(DIutils.namedtup.pop.(kz,[:area]))
+        kz = unique(DIutils.namedtup.pop.(kz,[:dataset]))
 
         results = Dict{NamedTuple, Tuple}()
         for k in kz
             # For right now, these pairing dimensions are hard-coded
-            kX, kY = (;k..., area=valuesX), (;k..., area=valuesY)
-            kX = DIutils.bestpartialmatch(keys(embeddings),kX)
-            kY = DIutils.bestpartialmatch(keys(embeddings),kY)
+            kX, kY = (;k..., dataset=valuesX), 
+                     (;k..., dataset=valuesY)
+            kX = bestpartialmatch(keys(embeddings),kX)
+            kY = bestpartialmatch(keys(embeddings),kY)
+            if valuesX != valuesY
+                @assert kX != kY "kX and kY should be different if valuesX != valuesY"
+            end
             results[k] = (embeddings[kX], embeddings[kY])
         end
         results
