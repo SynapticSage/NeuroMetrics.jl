@@ -139,6 +139,18 @@ module nonlocal
 
         isempty(iso_sum) ? @error("iso_sum is innapropriately empty") : nothing
 
+        # Add a string column that summarizes cuemem and correct
+        iso_sum.cortsk = Vector{Union{String,Missing}}(missing, nrow(iso_sum))
+        for (i, (cuemem, correct)) in enumerate(zip(iso_sum.cuemem, iso_sum.correct))
+            key = [Int64(cuemem), Int64(correct)]
+            if !haskey(Labels.cortsk, key)
+                continue
+            end
+            inds = findall(x->x.cuemem  == cuemem && 
+                              x.correct == correct, eachrow(iso_sum))
+            iso_sum.cortsk[inds] .= Labels.cortsk[key]
+        end
+
         # Acqruire events per time as events  / time spent
         iso_sum = transform(iso_sum, :x1 => :events)[:,Not(:x1)]
         iso_sum.events_per_time = iso_sum.events ./ (iso_sum.timespent)

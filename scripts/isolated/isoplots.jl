@@ -1,13 +1,20 @@
+# 
+# ---------
+# Shantanu
+# ---------
+# Split by cuemem
+# Split by interneuron
+# Split by 
 
-if !(:lfp in names(Main))
-    include("./load_isolated.jl")
-end
+include("./imports_isolated.jl")
+include("./load_isolated.jl")
+using DI.Labels
 
 # Add a column to our spikes dataframe about its cell's meanrate
 DIutils.filtreg.register(cells, spikes, on="unit", transfer=["meanrate"])
 # Add a behavioral info to spikes
 DIutils.filtreg.register(beh, spikes, on="time", transfer=["velVec", "period","correct", 
-    "hatraj"])
+    "hatraj", "ha"])
 @assert :period ∈ propertynames(spikes)
 
 # Acquire the isolation table
@@ -40,7 +47,21 @@ subset!(iso_sum_celltype_per, :events_per_time => x-> (!).(isinf.(x)))
 iso_sum_celltype_per
 
 iso_sum_celltype_hatraj = 
-    get_isolation_summary(spikes, [:cuemem, :interneuron, :period, :correct, :hatraj])
+    get_isolation_summary(spikes, [:cuemem, :interneuron, :period, :correct,
+        :hatraj])
+dropmissing!(iso_sum_celltype_hatraj)
+
+iso_celltype_hatraj = 
+    get_isolation_summary(spikes, [:cuemem, :interneuron, :hatraj, :correct])
+dropmissing!(iso_celltype_hatraj)
+
+iso_ct_ha = 
+    get_isolation_summary(spikes, [:cuemem, :interneuron, :ha, :correct])
+dropmissing!(iso_ct_ha)
+per_ct_ha =
+    get_isolation_summary(spikes, [:cuemem, :interneuron, :ha, :period,
+        :correct])
+dropmissing!(per_ct_ha)
 
 jldopen(filename, "a") do storage
     storage["iso_sum_celltype_per"] = iso_sum_celltype_per
@@ -638,3 +659,99 @@ Plot.save("nearest spike isolation")
 # ======================================================
 
 
+# ======================================================
+#  _   _    _      _____           _ 
+# | | | |  / \    |_   _| __ __ _ (_)
+# | |_| | / _ \     | || '__/ _` || |
+# |  _  |/ ___ \    | || | | (_| || |
+# |_| |_/_/   \_\   |_||_|  \__,_|/ |
+#                               |__/ 
+# ======================================================
+# plot ha traj
+# ------------------------------
+iso_celltype_hatraj = @subset(sort(iso_celltype_hatraj, 
+                [:area, :interneuron, :cuemem, :hatraj]),
+                first.(:hatraj) .!= '*')
+cuemem_color = Dict(0=>:blue, 1=>:red)
+correct_color = Dict(0=>:black, 1=>:green)
+correct_fillstyle = Dict(0=>:/, 1=>nothing)
+interneuron_style = Dict(true=>:dash, false=>:solid)
+interneuron_string = Dict(true=>"Interneuron", false=>"Pyramidal")
+interneuron_area_ylim = Dict((true,"CA1")=>(0, 12), (false,"CA1")=>(0, 1),
+    (true,"PFC")=>(0, 0.06), (false,"PFC")=>(0, 1))
+ha_string = Dict('A'=>"Arena", 'H'=>"Home")
+
+P = []
+for (cuemem, area, interneuron) in 
+    Iterators.product([0, 1], ["CA1", "PFC"], [true, false])
+    ich_pyr = sort(@subset(iso_celltype_hatraj, :interneuron .== interneuron, 
+        :area .== area, :correct .== 1, :cuemem .== cuemem),
+        [:cuemem, :hatraj])
+    p=@df ich_pyr begin
+       plot(:hatraj, :events_per_time, group=:cuemem, xlabel="HATRAJ", 
+            ylabel="MUA events per second\n$(filt_desc[:all])", alpha=0.5,
+            linewidth=2, 
+            title="Interneuron: $interneuron, Area: $area, CueMem: $cuemem",
+            linestyle=interneuron_style[interneuron], color=cuemem_color[cuemem],
+            ylims=interneuron_area_ylim[(interneuron, area)])
+    end
+    push!(P, p)
+end
+plot(P..., layout=(4,2), size=(1000, 800))
+
+# ==============================
+# plot ha traj
+# ==============================
+ich = nothing
+iters = Iterators.product(['H','A'], ["CA1", "PFC"], [true, false])
+(ha, area, interneuron) = first(iters)
+P = []
+for (ha, area, interneuron) in iters
+    ich = sort(@subset(iso_ct_ha, :interneuron .== interneuron, 
+        :area .== area, :ha .== ha, :cuemem .!= -1, :correct .!= -1),
+        [:cuemem, :ha])
+    ich_per = sort(@subset(per_ct_ha, :interneuron .== interneuron, 
+        :area .== area, :ha .== ha, :cuemem .!= -1, :correct .!= -1),
+        [:cuemem, :ha])
+    p=plot()
+    for (cuemem, correct) in Iterators.product([0, 1], [0, 1])
+        XX = @subset(ich, :correct.== correct, :cuemem .== cuemem)
+        if isempty(XX)
+            continue
+        end
+        @df XX begin
+            bar!(:cortsk, :events_per_time, group=:correct,
+                xlabel="CueMem", 
+                ylabel="MUA events per second\n$(filt_desc[:all])", alpha=0.5,
+                title="$(interneuron_string[interneuron]), $area, $(ha_string[ha])",
+                linestyle=interneuron_style[interneuron], 
+                color=cuemem_color[cuemem],
+                fillstyle=(println(correct_fillstyle[correct]); 
+                                 correct_fillstyle[correct]),
+                linewidth=0,
+                fillcolor=cuemem_color[cuemem],
+                label="",
+            )
+        end
+        Xper = @subset(ich_per, :correct.== correct, :cuemem .== cuemem)
+        @infiltrate
+        @df Xper begin
+            scatter!(:cortsk, :events_per_time, group=:correct,
+                xlabel="CueMem", 
+                ylabel="MUA events per second\n$(filt_desc[:all])", alpha=0.5,
+                title="$(interneuron_string[interneuron]), $area, $(ha_string[ha])",
+                linestyle=interneuron_style[interneuron], 
+                color=cuemem_color[cuemem],
+                fillstyle=(println(correct_fillstyle[correct]); 
+                                 correct_fillstyle[correct]),
+                linewidth=0,
+                fillcolor=cuemem_color[cuemem],
+                label="",
+            )
+        end
+    push!(P, p)
+end
+end
+plot(P..., layout=(4,2), size=(1000, 800))
+    
+# ich = @subset(iso_ct_ha, 

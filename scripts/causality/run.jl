@@ -3,8 +3,9 @@ GoalFetchAnalysis.Munge.manifold
 using DIutils.namedtup: ntopt_string
 import GoalFetchAnalysis.Plot
 using DI.Labels
-
-using DrWatson, Infiltrator, ProgressMeter, Serialization, CausalityTools, Entropies, Plots, DataFrames, Statistics, NaNStatistics, HypothesisTests, StatsPlots, JLD2, DiskBackedDicts, ThreadSafeDicts, SoftGlobalScope
+using DrWatson, Infiltrator, ProgressMeter, Serialization, CausalityTools,
+Entropies, Plots, DataFrames, Statistics, NaNStatistics, HypothesisTests,
+StatsPlots, JLD2, ThreadSafeDicts, SoftGlobalScope
 using DataStructures: OrderedDict
 function Base.fetch(X::AbstractDict)
     Dict(k=>(try;fetch(v);catch;missing;end) for (k,v) in X)
@@ -14,21 +15,21 @@ end
 ## CONSTANTS
 ## ----------
 corerr,tsk,cortsk = Labels.correct, Labels.cuemem, Labels.cortsk
-
 ## ----------
 ## PARAMS
 ## ----------
 opt = Dict(
            :use_existing_predasym      => true, # use existing predasym[🔑]
-           :skipexisting_predasym_keys => true, # skip existing predasym dict (if not, we can extend a key's results)
+           :skipexisting_predasym_keys => true, # skip existing predasym dict 
+                #(if not, we can extend a key's results)
           )
 PROPS = [[:cuemem, :correct],
          [:cuemem,:correct,:hatraj], 
          [:cuemem, :correct, :hatraj, :moving], 
          [:cuemem,:correct,:ha], 
          [:cuemem, :correct, :ha, :moving]]
-datasets = (("RY22", 21, 6, nothing), 
-            ("RY16", 36, 6, nothing))
+datasets = (("RY22", 21, 6, :all), 
+            ("RY16", 36, 6, :all))
 #datasets = (("RY16", 36, 100, nothing),)
 #datasets = (("RY22", 21, 100, nothing), )
 @info "datasets" datasets
@@ -41,7 +42,8 @@ global predasym, savefile, loadfile = nothing, nothing, nothing
     report_jobs_finished(C_pfcca1)
 summarizes which threads are done, failed, or missing
 # Arguments
-- `C_pfcca1::Dict{Symbol,Dict{Symbol,Task}}`: a dictionary of dictionaries of tasks
+- `C_pfcca1::Dict{Symbol,Dict{Symbol,Task}}`: a dictionary of dictionaries of
+tasks
 """
 function report_jobs_finished(C_pfcca1, 🔑, props, animal, day, N)
     itd(vv) = vv isa AbstractArray || istaskdone(vv)
@@ -53,18 +55,17 @@ function report_jobs_finished(C_pfcca1, 🔑, props, animal, day, N)
                 for v in [V for V in values(C_pfcca1)]]...)
     Imissing=hcat([[!ismissing(vv) && itf(vv) for vv in values(v)] 
                    for v in [V for V in values(C_pfcca1)]]...)
-    condition_data_plot = Plots.plot(Plots.heatmap(Idone, title="done"), 
-                               heatmap(Ifail,title="fail"), heatmap(Imissing,title="missing"))
+    condition_data_plot = Plots.plot(Plots.heatmap(Idone, title="done"),
+        heatmap(Ifail,title="fail"), heatmap(Imissing,title="missing"))
     setindex!.([info[🔑]], [Idone, Ifail, Imissing], ["done","fail","missing"])
     Plot.save("$animal.$day.$N.$props")
 end
 
 
+animal = day = N = filt = predasym = nothing
 @showprogress "datasets" for (animal, day, N, filt) in datasets
-
     @info "dataset" animal day N filt
     predasym = nothing
-
     ## ----------
     ## PARAMETERS
     ## ----------
@@ -72,18 +73,17 @@ end
     distance = :many
     feature_engineer = :many # many | nothing
     esttype = :binned
-    est, params = get_est_preset(esttype, horizon=1:60, thread=true, binning=7, window=1.25)
-
+    est, params = get_est_preset(esttype, horizon=1:60, thread=true, binning=7,
+        window=1.25)
     # Loads
     manifold.load_manis_workspace(Main, animal, day; filt, 
                                   areas, distance, feature_engineer, 
                                   N)
     spikes, beh, ripples, cells  = DI.load(animal, day)
-
     # Save and load files
     savefile = get_alltimes_savefile(animal, day, N; params)
-    loadfile = get_alltimes_savefile(animal, day, N; params, allowlowerhorizon=true)
-
+    loadfile = get_alltimes_savefile(animal, day, N; params,
+        allowlowerhorizon=true)
 
     ## -----------------------------
     ## COMPUTE
@@ -103,12 +103,10 @@ end
         JLD2.jldsave(savefile; CA1PFC, PFCCA1, CA1CA1, PFCPFC, animal, day, N,
             params)
     end
-
     if CA1PFC == PFCCA1
         while (true); sleep(1); end
     end
     @assert first(values(CA1PFC)) != first(values(PFCCA1))
-
     # SETUP
     begin
         # Threading
@@ -144,7 +142,6 @@ end
         info = Dtype()
         GC.gc()
     end
-
     # Function that handles computing conditional causal
     # measures
     """
