@@ -29,7 +29,7 @@ function setparentfolder(args::String...)
     @eval Plot parent_folder = $args
     @eval Plot complete_folder_args = [parent_folder...,folder_args...]
 
-    folder = plotsdir(parent_folder..., folder_args...)
+    folder = DrWatson.plotsdir(parent_folder..., folder_args...)
     !(isdir(folder)) ? mkpath(folder) : nothing
     folder
 end
@@ -37,12 +37,12 @@ function setfolder(args::String...)
     @eval Plot folder_args = $args
     @eval Plot complete_folder_args = [parent_folder...,folder_args...]
 
-    folder = plotsdir(parent_folder..., folder_args...)
+    folder = DrWatson.plotsdir(parent_folder..., folder_args...)
     !(isdir(folder)) ? mkpath(folder) : nothing
     folder
 end
 function path_to_folderargs(arg::String)
-    standard = plotsdir()
+    standard = DrWatson.plotsdir()
     @assert occursin(standard, arg)
     args = replace(arg, standard => "")
     if startswith(args, "/")
@@ -61,7 +61,7 @@ function save(desc::String; rmexist=nothing)
                    "String" => "",
                    "Float32" => "", "Float64" => "", "{," => "", 
                    "{"=>"", "}" => "")
-    folder = plotsdir(parent_folder..., folder_args...)
+    folder = DrWatson.plotsdir(parent_folder..., folder_args...)
     append_string = append isa NamedTuple ? 
              DIutils.namedtup.ntopt_string(append) : append
     prepend_string = prepend isa NamedTuple ? 
@@ -110,7 +110,7 @@ blank(pos...;kws...) = create_blank_plot(pos...;kws...)
 Deletes the current plot folder
 """
 function deleteplotfolder()
-    folder = plotsdir(parent_folder..., folder_args...)
+    folder = DrWatson.plotsdir(parent_folder..., folder_args...)
     rm(folder, recursive=true)
     mkpath(folder)
 end
@@ -121,7 +121,7 @@ end
 Deletes all files in the current plot folder
 """
 function deleteplotfiles()
-    folder = plotsdir(parent_folder..., folder_args...)
+    folder = DrWatson.plotsdir(parent_folder..., folder_args...)
     # Prompt user if corret folder
     println("Are you sure you want to delete all files in $folder? (y/n)")
     if readline() != "y"
@@ -133,7 +133,7 @@ function deleteplotfiles()
 end
 
 function reportplotsinfolder()
-    folder = plotsdir(parent_folder..., folder_args...)
+    folder = DrWatson.plotsdir(parent_folder..., folder_args...)
     println("Plots in folder: $folder")
     files = readdir(folder)
     # Constrain files to png, pdf, svg
@@ -170,8 +170,8 @@ function stereoscopicgif(pos...;delta_angle=1,kws...)
     end
 end
 
-function Plot.plotsdir()
-    plotsdir(complete_folder_args...)
+function plotzdir()
+    DrWatson.plotsdir(complete_folder_args...)
 end
 
 """
@@ -199,7 +199,7 @@ Saves the current plot to a powerpoint slide.
 """
 function savetopowerpointslide(file::String, slide::Int, desc...; 
     rmexist=false)
-    folder = plotsdir(parent_folder..., folder_args...)
+    folder = DrWatson.plotsdir(parent_folder..., folder_args...)
     append_string = append isa NamedTuple ? 
              DIutils.namedtup.ntopt_string(append) : append
     prepend_string = prepend isa NamedTuple ? 
