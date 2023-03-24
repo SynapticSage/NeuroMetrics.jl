@@ -4,9 +4,10 @@ if !(:lfp in names(Main))
 end
 
 # Add a column to our spikes dataframe about its cell's meanrate
-Load.register(cells, spikes, on="unit", transfer=["meanrate"])
+DIutils.filtreg.register(cells, spikes, on="unit", transfer=["meanrate"])
 # Add a behavioral info to spikes
-Load.register(beh, spikes, on="time", transfer=["velVec", "period","correct"])
+DIutils.filtreg.register(beh, spikes, on="time", transfer=["velVec", "period","correct", 
+    "hatraj"])
 @assert :period ∈ propertynames(spikes)
 
 # Acquire the isolation table
@@ -37,6 +38,10 @@ sort!(iso_sum_celltype_per, [:area, :interneuron, :cuemem, :period])
                                (:cuemem .== 1 .&& :correct .!= -1))
 subset!(iso_sum_celltype_per, :events_per_time => x-> (!).(isinf.(x)))
 iso_sum_celltype_per
+
+iso_sum_celltype_hatraj = 
+    get_isolation_summary(spikes, [:cuemem, :interneuron, :period, :correct, :hatraj])
+
 jldopen(filename, "a") do storage
     storage["iso_sum_celltype_per"] = iso_sum_celltype_per
 end

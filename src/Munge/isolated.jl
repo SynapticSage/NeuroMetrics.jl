@@ -351,9 +351,9 @@ module isolated
         ```
     """
     function get_dx_dy(df::DataFrame, relcyc::Int)
+        @infiltrate
         dx = @subset(df, :relcycs .== relcyc)
         dy = @subset(df, :relcycs .== 0)
-        @infiltrate
         _register_frames(dx, dy)
     end
 
@@ -633,7 +633,6 @@ module isolated
 
         printstyled("Cycles without match ", M[]/length(iso_cycles), 
               "\nErrored cycles ", E[]/length(iso_cycles), color=:blink)
-        @infiltrate
 
         # Because we are using threading, we need to combine the dataframes
         # we aggregated from each thread
