@@ -100,7 +100,7 @@ module nonlocal
     # Returns
     A summary table
     """
-    function get_isolation_summary(spikes,split=[:cuemem]; 
+    function get_isolation_summary(spikes, split=[:cuemem]; 
             unfiltered_behavior=unfiltered_behavior, minvel=2)
         if unfiltered_behavior === nothing 
             @error("\nMust either pass in unfiltered behavior or\n"*
@@ -132,8 +132,7 @@ module nonlocal
             dropmissing!(task_pers, :cuemem)
             # Total that time and register that column to the isolation summary
             task_pers = combine(groupby(task_pers, [:cuemem]), 
-                                [:δ,:frac] =>
-                                ((x,y)->sum(x.*y)) => :timespent)
+                                [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
             DIutils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
         end
 
