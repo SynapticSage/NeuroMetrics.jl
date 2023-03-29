@@ -48,9 +48,25 @@ module adaptive
     #AdaptiveFieldDict()  = OrderedDict{NamedTuple,   AdaptiveRF}()
 
     """
-        yartsev(spikes, behavior, props; kws...)
+        yartsev(behavior::DataFrame, spikes::DataFrame, props::Vector;
+            splitby::CItype_plusNull=[:unit],
+            filters::Union{<:AbstractDict,Nothing}=nothing,
+            metrics::Union{Function,Vector{Function},Nothing}=metric_def,
+            thread_field::Bool=thread_field_default,
+            thread_fields::Bool=thread_fields_default,
+            prog_fields::Bool=false,
+            grid_kws...)::Union{AdaptiveFieldDict,AdaptiveRF}
 
     computes an adaptive grid and ratemap based on methods in yartsev papers
+
+    # Arguments
+    - `behavior::DataFrame`: the behavior data
+    - `spikes::DataFrame`: the spike data
+    - `props::Vector`: the properties to use for the grid
+    - `splitby::CItype_plusNull`: the columns to split the data by
+    - `filters::Union{<:AbstractDict,Nothing}`: the filters to apply to the data
+    - `metrics::Union{Function,Vector{Function},Nothing}`: the metrics to compute
+    - `thread_field::Bool`: whether to thread the field computation
     """
     function yartsev(behavior::DataFrame, spikes::DataFrame, props::Vector;
         splitby::CItype_plusNull=[:unit],

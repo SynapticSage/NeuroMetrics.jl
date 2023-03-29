@@ -106,7 +106,9 @@ module nonlocal
             @error("\nMust either pass in unfiltered behavior or\n"*
                  "set it in this module using `setunfilteredbeh`")
         end
-        iso_sum = combine(groupby(dropmissing(spikes,[:isolated,:nearestcyc, :meancyc]), [:area, split...]), 
+        split = unique([:area, split...])
+        iso_sum = combine(
+        groupby(dropmissing(spikes,[:isolated,:nearestcyc, :meancyc]), split), 
                           [:isolated,:nearestcyc,:meancyc,:velVec] .=> mean, (x->nrow(x)))
         if :period ∈ split
             # Calculate time animal spends in each cuemem segment

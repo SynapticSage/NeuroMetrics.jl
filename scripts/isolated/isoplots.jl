@@ -1,8 +1,13 @@
+# -------
+# INFO:
+# -------
+# - iso_* : a dataframe with summarized information
+# - per_* : a dataframe with information about each period
 # --------
 # BUG:
 # --------
-# DO NOT trust any non-`period` field containing call to get_isolation_summary just yet!
-# 
+# DO NOT trust any non-`period` field containing call to get_isolation_summary
+# just yet!
 # ---------
 # TODO:
 # Shantanu
@@ -26,6 +31,7 @@ DIutils.filtreg.register(beh, spikes, on="time", transfer=["velVec", "period","c
 
 # Acquire the isolation table
 iso_sum = get_isolation_summary(spikes)
+filename = Munge.isolated.path_iso(opt)
 jldopen(filename, "a") do storage
     storage["iso_sum"] = iso_sum
 end
@@ -38,10 +44,10 @@ isolated = last(groupby(subset(spikes, :isolated=>x->(!).(isnan.(x))) ,
 # Select interneuron, roughly
 spikes.interneuron = spikes.meanrate .> 5
 histogram(cells.meanrate)
-iso_sum_celltype = get_isolation_summary(spikes,[:cuemem, :interneuron])
-sort!(iso_sum_celltype, [:area, :interneuron, :cuemem])
+iso_ct = get_isolation_summary(spikes,[:cuemem, :interneuron])
+sort!(iso_ct, [:area, :interneuron, :cuemem])
 jldopen(filename, "a") do storage
-    storage["iso_sum_celltype"] = iso_sum_celltype
+    storage["iso_ct"] = iso_ct
 end
 
 per_ct = get_isolation_summary(spikes, [:cuemem, :interneuron, :period, :correct])
@@ -53,18 +59,8 @@ sort!(per_ct, [:area, :interneuron, :cuemem, :period])
 subset!(per_ct, :events_per_time => x-> (!).(isinf.(x)))
 per_ct
 
-iso_sum_celltype_hatraj = 
-    get_isolation_summary(spikes, [:cuemem, :interneuron, :period, :correct,
-        :hatraj])
-dropmissing!(iso_sum_celltype_hatraj)
-
-iso_celltype_hatraj = 
-    get_isolation_summary(spikes, [:cuemem, :interneuron, :hatraj, :correct])
-dropmissing!(iso_celltype_hatraj)
-
-
 jldopen(filename, "a") do storage
-    storage["iso_sum_celltype_per"] = per_ct
+    storage["per_ct"] = per_ct
 end
 
 
@@ -113,11 +109,11 @@ end
 
 # =========PLOTS ===SPLIT BY CELL STATE 🔺🔺/ 🔵 =======
 begin
-    @df iso_sum_celltype bar(:cuearea, :events_per_time, ylabel="MUA events per second\n$(filt_desc[:all])", group=:interneuron; kws..., legendtitle="is interneuron?", alpha=0.5)
+    @df iso_ct bar(:cuearea, :events_per_time, ylabel="MUA events per second\n$(filt_desc[:all])", group=:interneuron; kws..., legendtitle="is interneuron?", alpha=0.5)
     Plot.save((;desc="MUA per second, celltype"))
-    @df iso_sum_celltype bar(:cuearea, :isolated_mean, ylabel="Isolated Spikes / All spikes\nsign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:interneuron; kws..., legendtitle="is interneuron?", alpha=0.5)
+    @df iso_ct bar(:cuearea, :isolated_mean, ylabel="Isolated Spikes / All spikes\nsign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:interneuron; kws..., legendtitle="is interneuron?", alpha=0.5)
     Plot.save((;desc="fraction of isolated spikes, celltype"))
-    @df iso_sum_celltype bar(:cuearea, :isolated_events_per_time, ylabel="Isolated MUA × sec⁻1\n(sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:interneuron; kws..., legendtitle="is interneuron?", alpha=0.5)
+    @df iso_ct bar(:cuearea, :isolated_events_per_time, ylabel="Isolated MUA × sec⁻1\n(sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:interneuron; kws..., legendtitle="is interneuron?", alpha=0.5)
     Plot.save((;desc="isolated spikes per second, celltype"))
 end
 # ======================================================
@@ -668,18 +664,26 @@ Plot.save("nearest spike isolation")
 #                               |__/ 
 # ======================================================
 # ==============================
-# plot ha traj
+# GET VARIABLES OF INTEREST
 # ==============================
+per_hatraj = 
+    get_isolation_summary(spikes, [:cuemem, :interneuron, :hatraj, :correct,
+                                  :period])
+dropmissing!(per_hatraj)
+per_hatraj = 
+    DIutils.arr.get_quantile_filtered(per_hatraj, :events_per_time, 0.02)
 per_ctha =
     get_isolation_summary(spikes, [:area, :cuemem, :interneuron, :ha, :correct,
         :period])
 dropmissing!(per_ctha)
 # filter out top 0.1% of values
 per_ctha = DIutils.arr.get_quantile_filtered(per_ctha, :events_per_time, 0.02)
+# per_hatraj.cortsk = replace.(per_hatraj.cortsk, " " => "\n")
 
-# plot ha traj
 # ------------------------------
-iso_celltype_hatraj = @subset(sort(iso_celltype_hatraj, 
+# plot ha + trajectory labels
+# ------------------------------
+iso_celltype_hatraj = @subset(sort(per_hatraj, 
                 [:area, :interneuron, :cuemem, :hatraj]),
                 first.(:hatraj) .!= '*')
 cuemem_color = Dict(0=>:blue, 1=>:red)
@@ -687,43 +691,75 @@ correct_color = Dict(0=>:black, 1=>:green)
 correct_fillstyle = Dict(0=>:/, 1=>nothing)
 interneuron_style = Dict(true=>:dash, false=>:solid)
 interneuron_string = Dict(true=>"Interneuron", false=>"Pyramidal")
-interneuron_area_ylim = Dict((true,"CA1")=>(0, 12), (false,"CA1")=>(0, 1),
-    (true,"PFC")=>(0, 0.06), (false,"PFC")=>(0, 1))
+interneuron_area_ylim = Dict(
+(interneuron, area) => (0, maximum(@subset(per_ctha, :area .== area, :interneuron .==
+        interneuron)[:,:events_per_time]))
+    for (interneuron, area) in Iterators.product([true, false], 
+                                                 ["CA1", "PFC"]))
 ha_string = Dict('A'=>"Arena", 'H'=>"Home")
 ca1_pfc_background_color = Dict("CA1"=>colorant"white", "PFC"=>colorant"lightgray")
 area_interneuron_ylim = Dict((;area,interneuron) => 
         DIutils.plotutils.get_lims(@subset(per_ctha, :area .== area, :interneuron .== interneuron)[:,:events_per_time], 0.01)
     for (area, interneuron) in Iterators.product(["CA1", "PFC"], [true, false]))
 
+# Trying to figure out where MEM ERROR is ... why blank for several groupby
+# labels
+timespent_in_memerror = 
+    sum(@subset(per_ctha, :area .== "CA1", :correct .== 0, :cuemem .== 1, 
+).timespent)
+println("timespent_in_memerror: $timespent_in_memerror seconds")
+
+# 
 P = []
-for (cuemem, area, interneuron) in 
-    Iterators.product([0, 1], ["CA1", "PFC"], [true, false])
-    ich_pyr = sort(@subset(iso_celltype_hatraj, :interneuron .== interneuron, 
+iters = Iterators.product([0, 1], ["CA1", "PFC"], [true, false])
+(cuemem, area, interneuron) = first(iters)
+for (cuemem, area, interneuron) in iters
+    ich_per = sort(@subset(iso_celltype_hatraj, :interneuron .== interneuron, 
         :area .== area, :correct .== 1, :cuemem .== cuemem),
         [:cuemem, :hatraj])
-    p=@df ich_pyr begin
-       plot(:hatraj, :events_per_time, group=:cuemem, xlabel="HATRAJ", 
+    ich = combine(groupby(ich_per, [:cuemem, :hatraj]),
+        :events_per_time=>x->nanmean(skipmissing(x)),
+        :events_per_time=>(x->lower_stat_quant(mean, x, 0.005))=>:lower,
+        :events_per_time=>(x->upper_stat_quant(mean, x, 0.975))=>:upper;
+        renamecols=false)
+    p=@df ich begin
+       plot(:hatraj, :events_per_time, xlabel="HATRAJ", 
+            cue_color=cuemem_color[cuemem],
             ylabel="MUA events per second\n$(filt_desc[:all])", alpha=0.5,
-            linewidth=2, 
-            title="Interneuron: $interneuron, Area: $area, CueMem: $cuemem",
+            linewidth=2, label="",
+            ribbon=(:lower, :upper), fillalpha=0.2, 
+            fillcolor=cuemem_color[cuemem],
+            title="$(interneuron_string[interneuron]),"*
+                    "\nArea: $area, CueMem: $cuemem",
             linestyle=interneuron_style[interneuron], color=cuemem_color[cuemem],
             ylims=interneuron_area_ylim[(interneuron, area)])
     end
+    @df ich_per scatter!(:hatraj, :events_per_time, 
+        c=:black, label="", alpha=0.2, markersize=3)
     push!(P, p)
 end
 plot(P..., layout=(4,2), size=(1000, 800))
 
-
-
+# ------------------------------
+# HA labels only
+# ------------------------------
+# ISSUE:
+# 1. Where is the MEM ERROR?
+# 3. Xaxis tick labels too wide
+using DIutils.plotutils
 ich = nothing
 iters = Iterators.product(['H','A'], ["CA1", "PFC"], [true, false])
 (ha, area, interneuron) = first(iters)
 P = OrderedDict()
 for (ha, area, interneuron) in iters
     key = (;ha, area, interneuron)
-    ich_per = sort(@subset(per_ctha, :interneuron .== interneuron, 
+    ich_per = sort(@subset(per_ctha, 
+        :interneuron .== interneuron, 
         :area .== area, :ha .== ha, :cuemem .!= -1, :correct .!= -1),
         [:cuemem, :ha])
+    ich_per = @subset(ich_per, 
+    (!).(isnan.(:events_per_time)),
+    (!).(isinf.(:events_per_time)))
     ich = combine(groupby(ich_per, [:cortsk, :correct, :cuemem]), 
         :events_per_time=>x->nanmean(skipmissing(x)),
         :events_per_time=>(x->lower_stat_quant(mean,x,0.025))=>:lower,
@@ -743,7 +779,7 @@ for (ha, area, interneuron) in iters
                 yerror=(:lower, :higher),
                 group=:correct,
                 xlabel="CueMem", 
-                ylabel="MUA events per second\n$(filt_desc[:all])", alpha=0.5,
+                alpha=0.5,
                 title="$(interneuron_string[interneuron]), $area, $(ha_string[ha])",
                 color=cuemem_color[cuemem],
                 fillstyle=(println(correct_fillstyle[correct]); 
@@ -759,7 +795,7 @@ for (ha, area, interneuron) in iters
                 group=:correct,
                 marker=:none, markeralpha=0.0,
                 xlabel="CueMem", 
-                ylabel="MUA events per second\n$(filt_desc[:all])", alpha=0.5,
+                alpha=0.5,
                 title="$(interneuron_string[interneuron]), $area, $(ha_string[ha])",
                 color=cuemem_color[cuemem],
                 linewidth=5,
@@ -769,20 +805,30 @@ for (ha, area, interneuron) in iters
             )
         end
         Xper = @subset(ich_per, :correct.== correct, :cuemem .== cuemem)
+        @infiltrate
+        T = HypothesisTests.UnequalVarianceTTest
+        ttest = T(@subset(Xper, :cuemem .== 0, :correct .== 1)[:, :events_per_time],
+                  @subset(Xper, :cuemem .== 1, :correct .== 1)[:, :events_per_time]
+        )
+        pval = pvalue(ttest)
         @df Xper begin
             scatter!(:cortsk, :events_per_time ,
                 group=:correct,
                 xlabel="CueMem", 
-                ylabel="MUA events per second\n$(filt_desc[:all])", 
+                ylabel="MUA events/second\n$(filt_desc[:all])", 
                 alpha=0.1,
-                title="$(interneuron_string[interneuron]), $area, $(ha_string[ha])",
+                title="$(interneuron_string[interneuron])," *
+                    "\n $area, $(ha_string[ha])" *
+                    "ttest2 mem - cue =$(round(pval, digits=3))",
                 linestyle=interneuron_style[interneuron], 
                 color=cuemem_color[cuemem],
                 fillstyle=(println(correct_fillstyle[correct]); 
                                  correct_fillstyle[correct]),
                 linewidth=0,
                 fillcolor=cuemem_color[cuemem],
+                markersize=2,
                 label="",
+                ylims=interneuron_area_ylim[(interneuron, area)],
             )
         end
     end
@@ -794,7 +840,6 @@ for (ha, area, interneuron) in iters
     for ser in sers
         ser[:x] = ser[:x] .+ randn(length(ser[:x])) .* 0.1
     end
-    @infiltrate
     p.attr[:background_color]         = ca1_pfc_background_color[area]
     p.attr[:foreground_color] = ca1_pfc_background_color[area]
     push!(P, key=>p)
@@ -803,7 +848,10 @@ end
 pca1 = filter(P) do (k, v)
    k.area == "CA1"  
 end |> values |> collect
-
 plot(pca1..., layout=(1,4), size=(1000, 200))
     
-# ich = @subset(iso_ct_ha, 
+ppfc = filter(P) do (k, v)
+   k.area == "PFC"
+end |> values |> collect
+plot(ppfc..., layout=(1,4), size=(1000, 200))
+Plot.save("HA_pfc.svg")
