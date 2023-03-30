@@ -21,6 +21,7 @@ include("./load_isolated.jl")
 include(scriptsdir("isolated", "imports_isolated.jl"))
 include(scriptsdir("isolated", "load_isolated.jl"))
 using DI.Labels
+using DIutils.plotutils
 
 # Add a column to our spikes dataframe about its cell's meanrate
 DIutils.filtreg.register(cells, spikes, on="unit", transfer=["meanrate"])
@@ -691,93 +692,154 @@ correct_color = Dict(0=>:black, 1=>:green)
 correct_fillstyle = Dict(0=>:/, 1=>nothing)
 interneuron_style = Dict(true=>:dash, false=>:solid)
 interneuron_string = Dict(true=>"Interneuron", false=>"Pyramidal")
-interneuron_area_ylim = Dict(
-(interneuron, area) => (0, maximum(@subset(per_ctha, :area .== area, :interneuron .==
-        interneuron)[:,:events_per_time]))
-    for (interneuron, area) in Iterators.product([true, false], 
-                                                 ["CA1", "PFC"]))
 ha_string = Dict('A'=>"Arena", 'H'=>"Home")
 ca1_pfc_background_color = Dict("CA1"=>colorant"white", "PFC"=>colorant"lightgray")
-area_interneuron_ylim = Dict((;area,interneuron) => 
-        DIutils.plotutils.get_lims(@subset(per_ctha, :area .== area, :interneuron .== interneuron)[:,:events_per_time], 0.01)
-    for (area, interneuron) in Iterators.product(["CA1", "PFC"], [true, false]))
+ylabel_for_props = Dict(
+    :events_per_time=>"Events per time",
+    :isolated_mean=>"Fraction isolated spikes",
+)
 
-# Trying to figure out where MEM ERROR is ... why blank for several groupby
-# labels
-timespent_in_memerror = 
-    sum(@subset(per_ctha, :area .== "CA1", :correct .== 0, :cuemem .== 1, 
-).timespent)
-println("timespent_in_memerror: $timespent_in_memerror seconds")
+"""
+    subset_conservative_hatraj(per_hatraj)
+Subset the data to only include the conservative hatraj labels:
+CUE: A1,A2,H1,H2
+MEM: A3,A4,H3,H4
+"""
+function subset_conservative_hatraj(per_hatraj)
+    sub=@subset(per_hatraj, 
+        (:cuemem .== 0 .&& in.(:hatraj, [("A1", "A2", "H1", "H2")])) .|
+        (:cuemem .== 1 .&& in.(:hatraj, [("A3", "A4", "H3", "H4")]))
+)
+    @assert "H3" ∉ @subset(sub, :cuemem .== 0).hatraj .&&
+            "H5" ∉ @subset(sub, :cuemem .== 1).hatraj .&&
+            "A3" ∉ @subset(sub, :cuemem .== 0).hatraj .&&
+            "A5" ∉ @subset(sub, :cuemem .== 1).hatraj
+    sub
+end
 
-# 
-P = []
-iters = Iterators.product([0, 1], ["CA1", "PFC"], [true, false])
-(cuemem, area, interneuron) = first(iters)
-for (cuemem, area, interneuron) in iters
-    ich_per = sort(@subset(iso_celltype_hatraj, :interneuron .== interneuron, 
-        :area .== area, :correct .== 1, :cuemem .== cuemem),
-        [:cuemem, :hatraj])
-    ich = combine(groupby(ich_per, [:cuemem, :hatraj]),
-        :events_per_time=>x->nanmean(skipmissing(x)),
-        :events_per_time=>(x->lower_stat_quant(mean, x, 0.005))=>:lower,
-        :events_per_time=>(x->upper_stat_quant(mean, x, 0.975))=>:upper;
-        renamecols=false)
-    p=@df ich begin
-       plot(:hatraj, :events_per_time, xlabel="HATRAJ", 
+"""
+    get_ylim_vars(per_ctha, prop)
+Get the ylims for the plots.
+"""
+function get_ylim_vars(per_ctha, prop)
+    area_interneuron_ylim = Dict((;area,interneuron) => 
+            DIutils.plotutils.get_lims(@subset(per_ctha, :area .== area, :interneuron .== interneuron)[:,:events_per_time], 0.01)
+        for (area, interneuron) in Iterators.product(["CA1", "PFC"], [true, false]))
+    interneuron_area_ylim = Dict(
+    (interneuron, area) => (0, maximum(@subset(per_ctha, :area .== area, :interneuron .==
+            interneuron)[:,prop]))
+        for (interneuron, area) in Iterators.product([true, false], 
+                                                     ["CA1", "PFC"]))
+    return area_interneuron_ylim, interneuron_area_ylim
+end
+
+
+# ------------------------------
+# plot ha alone, no traj labels
+# ------------------------------
+"""
+    plot_HAtraj(per_ctha, prop=:events_per_time)
+Plot the number of events per time for each head angle.
+# Arguments
+- `per_ctha::DataFrame`: The data frame with the data to plot.
+- `prop::Symbol`: The property to plot.
+# Returns
+# - `P::Array{Plots.Plot,1}`: The array of plots.
+"""
+function plot_HAtraj(iso_celltype_hatraj, prop=:events_per_time; 
+    conservative_hatraj=true)
+    if conservative_hatraj
+        @info "Using conservative hatraj labels"
+        iso_celltype_hatraj = subset_conservative_hatraj(iso_celltype_hatraj)
+    end
+    area_interneuron_ylim, interneuron_area_ylim = 
+        get_ylim_vars(iso_celltype_hatraj, prop)
+    P = []
+    iters = Iterators.product([0, 1], ["CA1", "PFC"], [true, false])
+    (cuemem, area, interneuron) = first(iters)
+    for (cuemem, area, interneuron) in iters
+        ich_per = sort(@subset(iso_celltype_hatraj, :interneuron .== interneuron, 
+            :area .== area, :correct .== 1, :cuemem .== cuemem),
+            [:cuemem, :hatraj])
+        ich = combine(groupby(ich_per, [:cuemem, :hatraj]),
+            prop=>x->nanmean(filter(x) do y
+                !isnan(y) & !isinf(y) & !ismissing(y)
+            end, x),
+            prop=>(x->lower_stat_quant(mean, filter(x) do y
+                    !isnan(y) & !isinf(y) & !ismissing(y)
+            end, 0.005))=>:lower,
+            prop=>(x->upper_stat_quant(mean, filter(x) do y
+                !isnan(y) & !isinf(y) & !ismissing(y) 
+            end, 0.975))=>:upper;
+            renamecols=false)
+        p= plot(ich.hatraj, ich[!,prop], xlabel="HATRAJ", 
             cue_color=cuemem_color[cuemem],
-            ylabel="MUA events per second\n$(filt_desc[:all])", alpha=0.5,
+            ylabel="$(ylabel_for_props[prop])\n$(filt_desc[:all])", alpha=0.5,
             linewidth=2, label="",
-            ribbon=(:lower, :upper), fillalpha=0.2, 
+            ribbon=(ich.lower, ich.upper), fillalpha=0.2, 
             fillcolor=cuemem_color[cuemem],
             title="$(interneuron_string[interneuron]),"*
                     "\nArea: $area, CueMem: $cuemem",
             linestyle=interneuron_style[interneuron], color=cuemem_color[cuemem],
             ylims=interneuron_area_ylim[(interneuron, area)])
+        scatter!(ich.hatraj, ich[!,prop], 
+            c=:black, label="", alpha=0.2, markersize=3)
+        push!(P, p)
     end
-    @df ich_per scatter!(:hatraj, :events_per_time, 
-        c=:black, label="", alpha=0.2, markersize=3)
-    push!(P, p)
+    return P
 end
+
+P = plot_HAtraj(iso_celltype_hatraj, :events_per_time, conservative_hatraj=true)
 plot(P..., layout=(4,2), size=(1000, 800))
 
-# ------------------------------
+P = plot_HAtraj(per_hatraj, :isolated_mean)
+plot(P..., layout=(4,2), size=(1000, 800))
+
+# ==============================
 # HA labels only
-# ------------------------------
-# ISSUE:
-# 1. Where is the MEM ERROR?
-# 3. Xaxis tick labels too wide
-using DIutils.plotutils
-ich = nothing
-iters = Iterators.product(['H','A'], ["CA1", "PFC"], [true, false])
-(ha, area, interneuron) = first(iters)
-P = OrderedDict()
-for (ha, area, interneuron) in iters
-    key = (;ha, area, interneuron)
-    ich_per = sort(@subset(per_ctha, 
-        :interneuron .== interneuron, 
-        :area .== area, :ha .== ha, :cuemem .!= -1, :correct .!= -1),
-        [:cuemem, :ha])
-    ich_per = @subset(ich_per, 
-    (!).(isnan.(:events_per_time)),
-    (!).(isinf.(:events_per_time)))
-    ich = combine(groupby(ich_per, [:cortsk, :correct, :cuemem]), 
-        :events_per_time=>x->nanmean(skipmissing(x)),
-        :events_per_time=>(x->lower_stat_quant(mean,x,0.025))=>:lower,
-        :events_per_time=>(x->upper_stat_quant(mean,x,0.975))=>:higher;
-        # :events_per_time=>(x-> quantile(skipmissing(x), 0.025))=>:lower,
-        # :events_per_time=>(x-> quantile(skipmissing(x), 0.975))=>:higher;
-        renamecols=false)
-    transform!(ich, :lower=>x->abs.(x), :higher=>x->abs.(x), renamecols=false)
-    p=plot()
-    for (cuemem, correct) in Iterators.product([0, 1], [0, 1])
-        XX = @subset(ich, :correct.== correct, :cuemem .== cuemem)
-        if isempty(XX)
-            continue
-        end
-        @df XX begin
-            bar!(:cortsk, :events_per_time, 
-                yerror=(:lower, :higher),
-                group=:correct,
+# ==============================
+"""
+    plot_HA(per_ctha, prop=:events_per_time)
+Plot the number of events per time for each head angle.
+# Arguments
+- `per_ctha::DataFrame`: The data frame with the data to plot.
+- `prop::Symbol`: The property to plot.
+# Returns
+# - `P::Array{Plots.Plot,1}`: The array of plots.
+"""
+function plot_HA(per_ctha, prop)
+    area_interneuron_ylim, interneuron_area_ylim = 
+        get_ylim_vars(per_ctha, prop)
+    ich = nothing
+    iters = Iterators.product(['H','A'], ["CA1", "PFC"], [true, false])
+    (ha, area, interneuron) = first(iters)
+    P = OrderedDict()
+    for (ha, area, interneuron) in iters
+        key = (;ha, area, interneuron)
+        ich_per = sort(@subset(per_ctha, 
+            :interneuron .== interneuron, 
+            :area .== area, :ha .== ha, :cuemem .!= -1, :correct .!= -1),
+            [:cuemem, :ha])
+        ich_per = ich_per[
+        (!).(isnan.(ich_per[!,prop])) .&&
+        (!).(isinf.(ich_per[!,prop])), :]
+        ich = combine(groupby(ich_per, [:cortsk, :correct, :cuemem]), 
+            prop=>x->nanmean(skipmissing(x)),
+            prop=>(x->lower_stat_quant(mean,x,0.025))=>:lower,
+            prop=>(x->upper_stat_quant(mean,x,0.975))=>:higher;
+            # prop=>(x-> quantile(skipmissing(x), 0.025))=>:lower,
+            # prop=>(x-> quantile(skipmissing(x), 0.975))=>:higher;
+            renamecols=false)
+        transform!(ich, :lower=>x->abs.(x), :higher=>x->abs.(x), renamecols=false)
+        p=plot()
+        for (cuemem, correct) in Iterators.product([0, 1], [0, 1])
+            XX = @subset(ich, :correct.== correct, :cuemem .== cuemem)
+            if isempty(XX)
+                continue
+            end
+            bar!(XX.cortsk, XX[!,prop], 
+                yerror=(XX.lower, XX.higher),
+                group=XX.correct,
                 xlabel="CueMem", 
                 alpha=0.5,
                 title="$(interneuron_string[interneuron]), $area, $(ha_string[ha])",
@@ -788,11 +850,9 @@ for (ha, area, interneuron) in iters
                 fillcolor=cuemem_color[cuemem],
                 label="",
             )
-        end
-        @df XX begin
-            scatter!(:cortsk, :events_per_time, 
-                yerror=(:lower, :higher),
-                group=:correct,
+            scatter!(XX.cortsk, XX[!,prop], 
+                yerror=(XX.lower, XX.higher),
+                group=XX.correct,
                 marker=:none, markeralpha=0.0,
                 xlabel="CueMem", 
                 alpha=0.5,
@@ -803,23 +863,25 @@ for (ha, area, interneuron) in iters
                 linestroke=(2,:dash),
                 label="",
             )
-        end
-        Xper = @subset(ich_per, :correct.== correct, :cuemem .== cuemem)
-        @infiltrate
-        T = HypothesisTests.UnequalVarianceTTest
-        ttest = T(@subset(Xper, :cuemem .== 0, :correct .== 1)[:, :events_per_time],
-                  @subset(Xper, :cuemem .== 1, :correct .== 1)[:, :events_per_time]
-        )
-        pval = pvalue(ttest)
-        @df Xper begin
-            scatter!(:cortsk, :events_per_time ,
-                group=:correct,
+            Xper = @subset(ich_per, :correct.== correct, :cuemem .== cuemem)
+            pval = nothing
+            try
+                T = HypothesisTests.UnequalVarianceTTest
+                ttest = T(@subset(Xper, :cuemem .== 0, :correct .== 1)[:, prop],
+                          @subset(Xper, :cuemem .== 1, :correct .== 1)[:, prop]
+                )
+                pval = pvalue(ttest)
+            catch
+                pval = NaN
+            end
+            scatter!(Xper.cortsk, Xper[!,prop],
+                group=Xper.correct,
                 xlabel="CueMem", 
                 ylabel="MUA events/second\n$(filt_desc[:all])", 
                 alpha=0.1,
                 title="$(interneuron_string[interneuron])," *
                     "\n $area, $(ha_string[ha])" *
-                    "ttest2 mem - cue =$(round(pval, digits=3))",
+                    "\nttest2 mem - cue =$(round(pval, digits=3))",
                 linestyle=interneuron_style[interneuron], 
                 color=cuemem_color[cuemem],
                 fillstyle=(println(correct_fillstyle[correct]); 
@@ -831,27 +893,53 @@ for (ha, area, interneuron) in iters
                 ylims=interneuron_area_ylim[(interneuron, area)],
             )
         end
+        # Get scatter series elements
+        sers = filter(p.series_list) do ser
+            ser[:seriestype] == :scatter && length(ser[:y]) > 1
+        end
+        # Add jitter to the :x property of each sers element
+        for ser in sers
+            ser[:x] = ser[:x] .+ randn(length(ser[:x])) .* 0.1
+        end
+        p.attr[:background_color]         = ca1_pfc_background_color[area]
+        p.attr[:foreground_color] = ca1_pfc_background_color[area]
+        push!(P, key=>p)
     end
-    # Get scatter series elements
-    sers = filter(p.series_list) do ser
-        ser[:seriestype] == :scatter && length(ser[:y]) > 1
-    end
-    # Add jitter to the :x property of each sers element
-    for ser in sers
-        ser[:x] = ser[:x] .+ randn(length(ser[:x])) .* 0.1
-    end
-    p.attr[:background_color]         = ca1_pfc_background_color[area]
-    p.attr[:foreground_color] = ca1_pfc_background_color[area]
-    push!(P, key=>p)
+    return P
 end
 
-pca1 = filter(P) do (k, v)
-   k.area == "CA1"  
-end |> values |> collect
-plot(pca1..., layout=(1,4), size=(1000, 200))
-    
-ppfc = filter(P) do (k, v)
-   k.area == "PFC"
-end |> values |> collect
-plot(ppfc..., layout=(1,4), size=(1000, 200))
-Plot.save("HA_pfc.svg")
+# -------EVENTS PER TIME------------------------------------
+    P = plot_HA(per_ctha, :events_per_time)
+
+    pca1 = filter(P) do (k, v)
+       k.area == "CA1"  
+    end |> values |> collect
+    plot(pca1..., layout=(1,4), size=(1000, 200))
+
+    Plot.save("HA_ca1.svg")
+        
+    ppfc = filter(P) do (k, v)
+       k.area == "PFC"
+    end |> values |> collect
+    plot(ppfc..., layout=(1,4), size=(1000, 200))
+
+    Plot.save("HA_pfc.svg")
+# ----------------------------------------------------------
+
+# -----------ISOLATED MEAN----------------------------------
+    P = plot_HA(per_ctha, :isolated_mean)
+
+    pca1 = filter(P) do (k, v)
+       k.area == "CA1"  
+    end |> values |> collect
+    plot(pca1..., layout=(1,4), size=(1000, 200))
+
+    Plot.save("HA_ca1_isolated.svg")
+
+    ppfc = filter(P) do (k, v)
+       k.area == "PFC"
+    end |> values |> collect
+    plot(ppfc..., layout=(1,4), size=(1000, 200))
+
+    Plot.save("HA_pfc_isolated.svg")
+# ----------------------------------------------------------
