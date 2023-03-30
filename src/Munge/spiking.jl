@@ -383,6 +383,10 @@ module spiking
 
     converts a rate dimarray (or count dimarray) to a dataframe, and populates columns labeling the
     times from other dataframes
+
+    # Arguments
+    - `X`: a DimArray with time as the first dimension
+    - `registrant`: a tuple of (df, time_col, cols_to_transfer)
     """
     function rate_todataframe(X::DimArray, registrant::Tuple{DataFrame, String, Vector{String}}...)::DataFrame
         Table.from_dimarrary(X, registrant...)

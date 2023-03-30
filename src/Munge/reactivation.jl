@@ -10,6 +10,7 @@ https://www.sciencedirect.com/science/article/pii/S0165027013001489?via%3Dihub
 module reactivation
 
     using MultivariateStats
+    using DimensionalData
 
     """
         zscoreFRmatrix(X::Union{DimArray,Matrix})

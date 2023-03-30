@@ -63,6 +63,8 @@ end
 
 
 animal = day = N = filt = predasym = nothing
+animal, day, N, filt = first(datasets)
+@assert N > 0 "N must be > 0"
 @showprogress "datasets" for (animal, day, N, filt) in datasets
     @info "dataset" animal day N filt
     predasym = nothing
@@ -76,6 +78,7 @@ animal = day = N = filt = predasym = nothing
     est, params = get_est_preset(esttype, horizon=1:60, thread=true, binning=7,
         window=1.25)
     # Loads
+    @assert N > 0 "N must be > 0"
     manifold.load_manis_workspace(Main, animal, day; filt, 
                                   areas, distance, feature_engineer, 
                                   N)
@@ -100,6 +103,7 @@ animal = day = N = filt = predasym = nothing
         @time PFCCA1=Munge.causal.get_paired_embeddings(embedding, :zpfc, :zca1)
         @time CA1CA1=Munge.causal.get_paired_embeddings(embedding, :zca1, :zca1)
         @time PFCPFC=Munge.causal.get_paired_embeddings(embedding, :zpfc, :zpfc)
+        @assert N > 0 "N must be > 0"
         JLD2.jldsave(savefile; CA1PFC, PFCCA1, CA1CA1, PFCPFC, animal, day, N,
             params)
     end
@@ -229,11 +233,13 @@ animal = day = N = filt = predasym = nothing
         predasym[🔑]["ca1ca1"] = C_ca1ca1
         predasym[🔑]["pfcpfc"] = C_pfcpfc
         predasym = fetch(predasym)
+        @assert N > 0 "N must be > 0"
         report_jobs_finished(C_pfcca1, 🔑, props, animal, day, N)
         # ==========
         # Checkpoint
         # ==========
         using JLD2
+        @assert N > 0 "N must be > 0"
         S=JLD2.jldsave(savefile; CA1PFC, PFCCA1, animal, day, N, params, est, 
                        predasym, info)
         run(`pushover-cli saved $animal iteration $i, key count = $(length(keys(C_ca1pfc)))`)
@@ -255,6 +261,7 @@ animal = day = N = filt = predasym = nothing
 
     # Checkpoint
     using JLD2
+    @assert N > 0 "N must be > 0"
     S=JLD2.jldsave(savefile; CA1PFC, PFCCA1, animal, day, N, params, est, 
                    predasym, info)
 

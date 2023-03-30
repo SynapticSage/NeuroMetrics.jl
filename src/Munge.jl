@@ -22,6 +22,8 @@ module Munge
     include("Munge/isolated.jl")
     #include(srcdir("Munge","dynamic.jl"))
     include("Munge/nonlocal.jl")
+    include("Munge/groupop.jl")
+    include("Munge/reactivation.jl")
 
 end
 

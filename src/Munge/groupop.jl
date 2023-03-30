@@ -1,6 +1,8 @@
 __precompile__(false)
 module groupop
 
+    using DataFrames
+
     export Distribute
     struct Distribute
         X
@@ -25,6 +27,13 @@ module groupop
             out[i, j] = f(d1.X[i], d2.X[j])
         end
         return out
+    end
+
+    function Base.:*(d1::Distribute, d2::Distribute)
+        prod(*, d1, d2)
+    end
+    function Base.:+(d1::Distribute, d2::Distribute)
+        prod(+, d1, d2)
     end
 
     function _index(X)

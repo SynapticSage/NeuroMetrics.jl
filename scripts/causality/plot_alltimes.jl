@@ -21,6 +21,7 @@ exec julia -J "/home/ryoung/Code/projects/goal-code/GFA-dependencies-sysimage.so
 # @eval Base USER_ARGS = split("--animal RY36 --day 36 --filt all --N 100 --diff")
 
 # IMPORTS AND CONFIG OPTIONS
+using GoalFetchAnalysis
 using DrWatson
 using Infiltrator, ThreadSafeDicts, JLD2, Serialization, CausalityTools,
       Entropies, DataFrames, DataFramesMeta, Statistics, NaNStatistics,
@@ -31,23 +32,15 @@ GoalFetchAnalysis.Munge.manifold, GoalFetchAnalysis.Munge.causal,
 GoalFetchAnalysis.Munge.triggering, DIutils.binning,
 GoalFetchAnalysis.Munge.causal, GoalFetchAnalysis.Plot.cause, DI.Labels
 using DataStructures: OrderedDict
-using Utils.namedtup: ntopt_string
-using GoalFetchAnalysis.Plot.cause: plotmeancause, plotmediancause, plotmedianplushist, 
+using DIutils.namedtup: ntopt_string
+import GoalFetchAnalysis.Plot.cause: plotmeancause, plotmediancause, plotmedianplushist, 
                    plotcausediff, getdiff, getmean, getmedian, 
                    getcausedistovertime
-parser = causal.argparse(return_parser=true)
+import DIutils
 
-@add_arg_table parser begin
-    "--diff"
-        action=:store_true
-        help="Take the diff of the measurements"
-    "--save"
-        action=:store_true
-        help="Whether to save the plots"
-end
-
-opt = isdefined(Main, :USER_ARGS) ? 
-        parse_args(USER_ARGS, parser) : parse_args(parser)
+opt = isdefined(Main, :opt) ? opt : Dict()
+opt = causal.argparse(opt, return_parser=false)
+@assert opt["N"] > 0 "N must be > 0"
 
 # =============
 # Control panel
@@ -68,7 +61,7 @@ opt = merge(opt, Dict(
 )
 summaryget = opt["summaryget"]
 animal, day, filt, N = opt["animal"], opt["day"], opt["filt"], opt["N"]
-
+@assert N > 0 "N must be > 0"
 arena_ca1pfc_color(i,n) = get(ColorSchemes.Blues, 0.10 + 0.85*(i/n))
 arena_pfcca1_color(i,n) = get(ColorSchemes.Reds,  0.10 + 0.85*(i/n))
 home_ca1pfc_color(i,n) =  get(ColorSchemes.Greens, 0.10 + 0.85*(i/n))
@@ -80,11 +73,13 @@ function link!(P::Plots.Plot)
         ylims!(P, yl )
     end
 end
+tagstr = "$animal.$day.$N"
+DIutils.pushover("Starting $tagstr")
 
 ## ----------
 ## LOAD DATA
 ## ----------
-spikes, beh, ripples, cells  = Load.load(animal, day)
+spikes, beh, ripples, cells  = DI.load(animal, day)
 areas = (:ca1,:pfc)
 distance = :many
 feature_engineer = :many # many | nothing
@@ -104,14 +99,11 @@ if opt["summaryget"] !== getmean
     opt["summaryget"] === getmedian ? Plot.appendtoappend("_median") : nothing
 end
 opt["save"] ? Plot.on() : Plot.off()
-
 Plot.setappend("$animal.$day.$N")
 if opt["link"] != :y
     Plot.appendtoappend(replace("_link=$link",":"=>""))
 end
-
 x_time = collect(1:last(params[:horizon])) .* 1/30
-
 G_ca1pfc, G_pfcca1 = predasym["alltimes"]["ca1pfc"], predasym["alltimes"]["pfcca1"]
 C_ca1pfc, C_pfcca1 = predasym["props=[cuemem,correct]"]["ca1pfc"], 
                      predasym["props=[cuemem,correct]"]["pfcca1"]
@@ -123,27 +115,16 @@ h_ca1pfc, h_pfcca1 =  predasym["props=[cuemem,correct,ha]"]["ca1pfc"],
                       predasym["props=[cuemem,correct,ha]"]["pfcca1"]
 Hm_ca1pfc, Hm_pfcca1 =  predasym["props=[cuemem,correct,hatraj,moving]"]["ca1pfc"], 
                       predasym["props=[cuemem,correct,hatraj,moving]"]["pfcca1"]
-
+DIutils.pushover("Loaded data in plot_alltimes.jl, $animal.$day.$N")
 ## ----------
 ## CONSTANTS
 ## ----------
 corerr,tsk,lab = Labels.corerr, Labels.tsk, 
                  Labels.cortsk
-
 ## ----------
 ## PARAMETERS
 ## ----------
 est, params = get_est_preset(:binned, binning=7, window=1.25, horizon=1:30, thread=false)
-datasets = (("RY16", 36, 100), ("RY22", 21, 100))
-
-(animal, day, N) = datasets[1]
-
-## ----------
-## LOAD
-## ----------
-spikes, beh, ripples, cells  = Load.load(animal, day)
-storage = load_alltimes_savefile(animal, day, N; params)
-tagstr = "$animal.$day.$N"
 
 # ---------------
 # Embedding trust

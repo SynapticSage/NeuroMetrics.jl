@@ -37,13 +37,13 @@ module manifold
 
     parse command line arguments for manifold related analyses
     """
-    function parse(mod::Module, args...; Bool=false)
+    function parse(mod::Module, args...; kws...)
         if isdefined(mod, :opt)
             opt = mod.opt
         else
             opt = Dict()
         end
-        postprocess(parse(opt, args...; return_parser=Bool))
+        postprocess(parse(opt, args...; kws..., return_parser=true))
     end
     function parse(opt::Dict, pos...; kws...)
         postprocess( merge(parse(pos...; kws...), opt))
@@ -102,7 +102,7 @@ module manifold
                 arg_type = Int
         end
         if return_parser
-            return parser
+            return (;parser, postprocess)
         else
             if args !== nothing
                 opt = postprocess(parse_args(args, parser))
@@ -118,6 +118,7 @@ module manifold
         if opt["N"] == -1
             opt["N"] = opt["sps"] * opt["splits"]
         end
+        @assert opt["N"] != -1
         opt
     end
 

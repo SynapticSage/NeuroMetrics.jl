@@ -24,13 +24,35 @@ module causal
     import DIutils: Table
     import DIutils.namedtup: bestpartialmatch
 
+    """
+        argparse(args=nothing;return_parser=false)
+
+    Parse the command line arguments using ArgParse. If `return_parser` is true, 
+    then return the parser object. Otherwise, return the parsed arguments.
+    # Arguments
+    - `args`: The arguments to parse. If `nothing`, then parse the command line
+    arguments.
+    - `return_parser`: If true, return the parser object. Otherwise, return the
+    """
     function argparse(args=nothing;return_parser=false)
-        parser = Munge.manifold.parse(return_parser=true)
-        if return_parser
-            parser
-        else
-            args === nothing ? parse_args(parser) : parse_args(parser, args)
+        parser, postprocess = Munge.manifold.parse(return_parser=true)
+        @add_arg_table parser begin
+            "--diff"
+                action=:store_true
+                help="Take the diff of the measurements"
+            "--save"
+                action=:store_true
+                help="Whether to save the plots"
         end
+        if return_parser
+            (;parser, postprocess)
+        else
+            opt = args === nothing ? parse_args(parser) : parse_args(parser, args)
+            postprocess(opt)
+        end
+    end
+    function argparse(opt::Dict, args...; kws...)
+        merge(argparse(args...; kws..., return_parser=false), opt)
     end
 
     export get_est_preset
