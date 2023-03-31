@@ -167,13 +167,32 @@ module reactivation
     - `Zarea2::Matrix`: Matrix of z-scores of the firing rates of neurons in area 2.
     - `k::Int`: Number of components to use for ICA.
     """
-    function reactscore(Zarea1::Matrix, Zarea2::Matrix; 
-            k::Union{Int,Nothing}=nothing, ica=true)
-        if  Zarea1 === Zarea2
-            P = correlationMatrix(Zarea1)
+    function reactscore(Zarea1::Matrix, Zarea2::Matrix, P, 
+        ica::Union{Nothing,ICA}; 
+            k::Union{Int,Nothing}=nothing)
+        if Zarea1 !== Zarea2
+            Z, Zarea1, Zarea2 = get_Z(Zarea1, Zarea2)
+        end
+        if  ica === nothing
+            Zarea1 = Matrix(predict(ica, Zarea1')')
+            Zarea2 = Matrix(predict(ica, Zarea2')')
+            Z = Matrix(predict(ica, Z')')
+        end
+        reactscore(Zarea1, P, Zarea2)
+    end
+
+    """
+        function get_Z(Zarea1::Matrix, Zarea2::Matrix)
+
+    Transforms the z-scores of the firing rates of neurons in area 1 and area 2
+    into a single matrix, Z, and returns Z, and returns zero-padded single-area
+    matrices, Zarea1 and Zarea2.
+    """
+    function get_Z(Zarea1::Matrix, Zarea2::Matrix)
+        if Zarea1 === Zarea2
             Z = Zarea1
         else
-            Z      = [Zarea1 Zarea2]
+            Z = [Zarea1 Zarea2]
             z1 = zeros(size(Zarea1))
             z2 = zeros(size(Zarea2))
             Zarea1 = [Zarea1 z2]
@@ -183,20 +202,31 @@ module reactivation
         Z = disallowmissing(Z)
         Zarea1 = disallowmissing(Zarea1)
         Zarea2 = disallowmissing(Zarea2)
+        Z, Zarea1, Zarea2
+    end
+
+    """
+        function reactivationSauce(Zarea1::Matrix, Zarea2::Matrix, k=nothing)
+
+    Returns the materials/sauce needed to calculate the reactivation score between
+    two areas, Zarea1 and Zarea2, Zarea1 and Zarea2 are matrices of z-scores of the
+    firing rates of neurons in area 1 and area 2, respectively.
+    """
+    function reactivationSauce(Zarea::Matrix, Zarea2::Matrix,
+        k=Union{Int,Nothing}=nothing, ica=true)
+        Z, Zarea, Zarea2 = get_Z(Zarea, Zarea2)
         if ica
             if k === nothing
                 k = estimateKfromPCA(Z)
             end
             ica    = getPattern_fromICA(Z, k)
-            Zarea1 = Matrix(predict(ica, Zarea1')')
-            Zarea2 = Matrix(predict(ica, Zarea2')')
-            Z = Matrix(predict(ica, Z')')
             P = correlationMatrix(Z)
         else
+            ica = nothing
             P = correlationMatrix(Z)
         end
-        @infiltrate
-        reactscore(Zarea1, P, Zarea2)
+        return (;P, ica)
     end
+
 
 end
