@@ -64,7 +64,7 @@ module reactivation
     Returns the precorrelation matrix from the ICA of X.
 
     # Arguments
-    - `X::Union{DimArray,Matrix}`: Matrix of z-scores of the firing rates of neurons.
+    - `Z::Union{DimArray,Matrix}`: Matrix of z-scores of the firing rates of neurons.
     - `maxiter::Int`: Maximum number of iterations.
     - `tol::Float64`: Tolerance.
     - `do_whiten::Bool`: Whether to whiten the data.
@@ -73,14 +73,26 @@ module reactivation
     # Returns
     - `ICA`: ICA object.
     """
-    function getPattern_fromICA(C::Union{DimArray,Matrix}, k=nothing;
-        maxiter=100, tol=1e-5, do_whiten=true, usefastica=false)
+    function getPattern_fromICA(Z::Union{DimArray,Matrix}, k=nothing;
+        maxiter=100, restarts=10, tol=1e-5, do_whiten=true, usefastica=false)
         if k === nothing
-            k = size(C, 2)
+            k = estimateKfromPCA(Z)
         end
-        ica = fit(ICA, C', k;
-            maxiter, tol, do_whiten)
-        ica
+        # where Z has dimensions (time bins, neurons/dimensions)
+        @assert(size(Z, 1) ≥ size(Z, 2), 
+                "time bins must be greater than neurons")
+        @info "ICA with $k components, maxiter=$maxiter, tol=$tol, do_whiten=$do_whiten" size(Z)
+        ica = except = nothing
+        while ica === nothing && restarts > 0
+            try
+                restarts -= 1
+                ica=fit(ICA, Z', k; maxiter, tol, do_whiten)
+            catch e
+                @warn "ICA failed" e restarts
+                except = ConvergenceException(maxiter, NaN, tol)
+            end
+        end
+        ica isa ICA ? ica : except
     end
 
     """
@@ -91,11 +103,20 @@ module reactivation
                                    neurons.
     """
     function estimateKfromPCA(Z::Union{DimArray,Matrix})
-        pca = fit(PCA, Z, maxoutdim=size(Z, 2))
+        @info "Estimating K from PCA" size(Z)
+        pca = nothing
+        try
+            pca = fit(PCA, Z, maxoutdim=size(Z, 2))
+        catch e
+            @infiltrate
+            throw(e)
+        end
         # Fit a Marcenko-Pastur distribution to the eigenvalues of the covariance
         p_lambda = marcenko_pasteur(eigvals(pca), pca.proj)
         # Find the first eigenvalue that is less than the Marcenko-Pastur distribution
-        sum(eigvals(pca) .> p_lambda.lambda_max)
+        K = sum(eigvals(pca) .> p_lambda.lambda_max)
+        @info "K from PCA" K
+        K
     end
 
     export marcenko_pasteur
@@ -110,7 +131,6 @@ module reactivation
     https://bnikolic.co.uk/blog/python/2019/11/28/marchenko-pastur.html
     """
     function marcenko_pasteur(lambdas::Vector{Float64}, pca_predict::Matrix)
-        @infiltrate
         B = size(pca_predict, 1) # time bins
         N = size(pca_predict, 2) # number of dimensions
         # lamdamax = (1+sqrt((total_ctx_neuron + total_hp_neuron)/length(qW1_spike(1,:)))).^2;
@@ -125,60 +145,18 @@ module reactivation
         (;lambda_max, lambda_min, p_lambda)
     end
 
-    export reactscore
     """
-        function reactivationScore(Zarea1, W, Zarea2)
-
-    Returns the reactivation score between two areas, Zarea1 and Zarea2,
-
-    Zarea1 and Zarea2 are matrices of z-scores of the firing rates of neurons in
-    area 1 and area 2, respectively. W is the pattern matrix.
-
-    # Arguments
-    - `Zarea1::Matrix`: Matrix of z-scores of the firing rates of neurons in area 1.
-    - `W::Matrix`: Project pattern matrix containing the assemblies
-    - `Zarea2::Matrix`: Matrix of z-scores of the firing rates of neurons in area 2.
+        preICA_Z
+    Preprocessed Z-transformed firing rate matrices
+    # Fields
+    - `Z::Matrix`: Z-transformed firing rate matrix, concatenated if area1 and area2 are different.
+    - `Zarea1::Matrix`: Z-transformed firing rate matrix for area 1.
+    - `Zarea2::Matrix`: Z-transformed firing rate matrix for area 2.
     """
-    function reactscore(Zarea1::Matrix, P::Matrix, Zarea2::Matrix)
-        r = Zarea1 * P; 
-        R = r .* Matrix(Zarea2) 
-    end
-    """
-        function reactivationScore(Zarea1, W, Zarea2)
-
-    Returns the reactivation score between two areas, Zarea1 and Zarea2,
-    
-    # Arguments
-    - `Zarea1::Matrix`: Matrix of z-scores of the firing rates of neurons in area 1.
-    - `W::ICA`: ICA object containing the assemblies
-    - `Zarea2::Matrix`: Matrix of z-scores of the firing rates of neurons in area 2.
-    """
-    function reactscore(Zarea1, P::ICA, Zarea2)
-        reactscore(Zarea1, P.W, Zarea2)
-    end
-
-    """
-        reactivationScore(Zarea1, Zarea2, k=nothing)
-
-    Returns the reactivation score between two areas, Zarea1 and Zarea2
-    
-    # Arguments
-    - `Zarea1::Matrix`: Matrix of z-scores of the firing rates of neurons in area 1.
-    - `Zarea2::Matrix`: Matrix of z-scores of the firing rates of neurons in area 2.
-    - `k::Int`: Number of components to use for ICA.
-    """
-    function reactscore(Zarea1::Matrix, Zarea2::Matrix, P, 
-        ica::Union{Nothing,ICA}; 
-            k::Union{Int,Nothing}=nothing)
-        if Zarea1 !== Zarea2
-            Z, Zarea1, Zarea2 = get_Z(Zarea1, Zarea2)
-        end
-        if  ica === nothing
-            Zarea1 = Matrix(predict(ica, Zarea1')')
-            Zarea2 = Matrix(predict(ica, Zarea2')')
-            Z = Matrix(predict(ica, Z')')
-        end
-        reactscore(Zarea1, P, Zarea2)
+    struct preICA_Z
+        Z::Matrix
+        Zarea1::Matrix
+        Zarea2::Matrix
     end
 
     """
@@ -199,34 +177,101 @@ module reactivation
             Zarea2 = [z1 Zarea2]
             @assert size(Zarea1, 2) == size(Zarea2, 2)
         end
-        Z = disallowmissing(Z)
+        Z      = disallowmissing(Z)
         Zarea1 = disallowmissing(Zarea1)
         Zarea2 = disallowmissing(Zarea2)
-        Z, Zarea1, Zarea2
+        # Remove any all NaN columns
+        @infiltrate
+        Z      = Z[:,findall(.!vec(all(isnan.(Z), dims=1)))]
+        Zarea1 = Zarea1[:, findall(.!vec(all(isnan.(Zarea1), dims=1)))]
+        Zarea2 = Zarea2[:, findall(.!vec(all(isnan.(Zarea2), dims=1)))]
+        # Remove any all NaN rows
+        Z      = Z[findall(.!vec(all(isnan.(Z), dims=2))), :]
+        Zarea1 = Zarea1[findall(.!vec(all(isnan.(Zarea1), dims=2))), :]
+        Zarea2 = Zarea2[findall(.!vec(all(isnan.(Zarea2), dims=2))), :]
+        preICA_Z(Z, Zarea1, Zarea2)
     end
 
+    export reactscore
     """
-        function reactivationSauce(Zarea1::Matrix, Zarea2::Matrix, k=nothing)
+        function reactivationScore(Zarea1, W, Zarea2)
 
-    Returns the materials/sauce needed to calculate the reactivation score between
-    two areas, Zarea1 and Zarea2, Zarea1 and Zarea2 are matrices of z-scores of the
-    firing rates of neurons in area 1 and area 2, respectively.
+    Returns the reactivation score between two areas, Zarea1 and Zarea2,
+
+    Zarea1 and Zarea2 are matrices of z-scores of the firing rates of neurons in
+    area 1 and area 2, respectively. W is the pattern matrix.
+
+    # Arguments
+    - `Zarea1::Matrix`: Matrix of z-scores of the firing rates of neurons in area 1.
+    - `W::Matrix`: Project pattern matrix containing the assemblies
+    - `Zarea2::Matrix`: Matrix of z-scores of the firing rates of neurons in area 2.
     """
-    function reactivationSauce(Zarea::Matrix, Zarea2::Matrix,
-        k=Union{Int,Nothing}=nothing, ica=true)
-        Z, Zarea, Zarea2 = get_Z(Zarea, Zarea2)
+    function reactscore(Zarea1::Matrix, P::Matrix, Zarea2::Matrix)
+        if size(Zarea1, 2) == size(P,1)
+            r = Zarea1 * P; 
+            R = r .* Matrix(Zarea2) 
+        else
+            r = Zarea1' * P; 
+            R = r .* Matrix(Zarea2') 
+        end
+    end
+
+    export react
+    """
+        function react(Zarea1::Matrix, Zarea2::Matrix, k=nothing)
+
+    Returns the materials/sauce needed to calculate the reactivation score
+    between two areas, Zarea1 and Zarea2, Zarea1 and Zarea2 are matrices of
+    z-scores of the firing rates of neurons in area 1 and area 2, respectively.
+    # Arguments
+    - `Zarea1::Matrix`: Matrix of z-scores of the firing rates of neurons in area 1.
+    - `Zarea2::Matrix`: Matrix of z-scores of the firing rates of neurons in area 2.
+    - `k::Int`: Number of components to use for ICA.
+    - `ica::Bool`: Whether to use ICA or not.
+    """
+    function react(preZ::preICA_Z;
+        k::Union{Int,Nothing}=nothing, ica=true)
+        Z, Zarea1, Zarea2 = preZ.Z, preZ.Zarea1, preZ.Zarea2
         if ica
-            if k === nothing
-                k = estimateKfromPCA(Z)
+            ica  = getPattern_fromICA(Z, k)
+            if typeof(ica) <: ConvergenceException
+                P = nothing
+            else
+                P = correlationMatrix(Matrix(predict(ica, Z')'))
             end
-            ica    = getPattern_fromICA(Z, k)
-            P = correlationMatrix(Z)
         else
             ica = nothing
             P = correlationMatrix(Z)
         end
-        return (;P, ica)
+        return (;P, ica, k)
+    end
+    function react(Zarea1::Matrix, Zarea2::Matrix;
+        k::Union{Int,Nothing}=nothing, ica=true)
+        preZ = get_Z(Zarea1, Zarea2)
+        react(preZ, k=k, ica=ica)
     end
 
+    """
+        function reactivationScore(Zarea1::Matrix, Zarea2::Matrix, k=nothing)
+    Returns the reactivation score between two areas, Zarea1 and Zarea2,
+    Zarea1 and Zarea2 are matrices of z-scores of the firing rates of neurons in
+    area 1 and area 2, respectively.
+    # Arguments
+    - `Zarea1::Matrix`: Matrix of z-scores of the firing rates of neurons in area 1.
+    - `Zarea2::Matrix`: Matrix of z-scores of the firing rates of neurons in area 2.
+    - `k::Int`: Number of components to use for ICA.
+    - `ica::Bool`: Whether to use ICA or not.
+    """
+    function reactscore(Zarea1::Matrix, Zarea2::Matrix;
+        k::Union{Int,Nothing}=nothing, ica=true)
+        preZ      = get_Z(Zarea1, Zarea2)
+        P, ica, k = react(preZ, k=k, ica=ica)
+        if typeof(ica) <: ConvergenceException
+            @warn "ICA did not converge" ica
+            return NaN
+        end
+        z1, z2 = predict(ica, preZ.Zarea1'), predict(ica, preZ.Zarea2')
+        reactscore(z1, P, z2)
+    end
 
 end
