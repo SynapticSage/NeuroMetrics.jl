@@ -83,6 +83,16 @@ module reactivation
     function reactivationScore(Zarea1, P::Matrix, Zarea2)
         Zarea1' * P * Zarea2 / (norm(Zarea1) * norm(Zarea2))
     end
+    """
+        function reactivationScore(Zarea1, W, Zarea2)
+
+    Returns the reactivation score between two areas, Zarea1 and Zarea2,
+    
+    # Arguments
+    - `Zarea1::Matrix`: Matrix of z-scores of the firing rates of neurons in area 1.
+    - `W::ICA`: ICA object containing the assemblies
+    - `Zarea2::Matrix`: Matrix of z-scores of the firing rates of neurons in area 2.
+    """
     function reactivationScore(Zarea1, P::ICA, Zarea2)
         reactivationScore(Zarea1, P.W, Zarea2)
     end

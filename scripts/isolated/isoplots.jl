@@ -908,6 +908,9 @@ function plot_HA(per_ctha, prop)
     return P
 end
 
+# ISSUE:
+# 1. yaxis should be either quantile or K*mean, whichever comes first
+
 # -------EVENTS PER TIME------------------------------------
     P = plot_HA(per_ctha, :events_per_time)
 
@@ -942,4 +945,22 @@ end
     plot(ppfc..., layout=(1,4), size=(1000, 200))
 
     Plot.save("HA_pfc_isolated.svg")
+# ----------------------------------------------------------
+
+# -----------ISOLATED MEAN----------------------------------
+    P = plot_HA(per_ctha, :isolated_events_per_time)
+
+    pca1 = filter(P) do (k, v)
+       k.area == "CA1"  
+    end |> values |> collect
+    plot(pca1..., layout=(1,4), size=(1000, 200))
+
+    Plot.save("HA_ca1_isolated_events_per_time.svg")
+
+    ppfc = filter(P) do (k, v)
+       k.area == "PFC"
+    end |> values |> collect
+    plot(ppfc..., layout=(1,4), size=(1000, 200))
+
+    Plot.save("HA_pfc_isolated_events_per_time.svg")
 # ----------------------------------------------------------

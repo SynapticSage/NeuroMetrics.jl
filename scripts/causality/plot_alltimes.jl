@@ -37,10 +37,10 @@ import GoalFetchAnalysis.Plot.cause: plotmeancause, plotmediancause, plotmedianp
                    plotcausediff, getdiff, getmean, getmedian, 
                    getcausedistovertime
 import DIutils
-
 opt = isdefined(Main, :opt) ? opt : Dict()
 opt = causal.argparse(opt, return_parser=false)
 @assert opt["N"] > 0 "N must be > 0"
+DIutils.pushover("Plotting all times: modules loaded")
 
 # =============
 # Control panel
