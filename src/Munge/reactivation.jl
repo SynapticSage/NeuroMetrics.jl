@@ -90,7 +90,40 @@ module reactivation
     - `X::Union{DimArray,Matrix}`: Matrix of z-scores of the firing rates of
                                    neurons.
     """
-    estimateKfromPCA(X::Union{DimArray,Matrix}) = size(fit(PCA, X), 2)
+    function estimateKfromPCA(Z::Union{DimArray,Matrix})
+        pca = fit(PCA, Z, maxoutdim=size(Z, 2))
+        # Fit a Marcenko-Pastur distribution to the eigenvalues of the covariance
+        p_lambda = marcenko_pasteur(eigvals(pca), pca.proj)
+        # Find the first eigenvalue that is less than the Marcenko-Pastur distribution
+        sum(eigvals(pca) .> p_lambda.lambda_max)
+    end
+
+    export marcenko_pasteur
+    """
+        marcenko_pasteur(lambdas::Vector{Float64}, pca_predict::Matrix)
+    Returns the Marcenko-Pasteur distribution for the eigenvalues of the covariance
+    # Arguments
+    - `lambdas::Vector{Float64}`: Eigenvalues of the covariance matrix.
+    - `pca_predict::Matrix`: PCA projection matrix.
+    # Returns
+    - `Vector{Float64}`: Marcenko-Pasteur distribution.
+    https://bnikolic.co.uk/blog/python/2019/11/28/marchenko-pastur.html
+    """
+    function marcenko_pasteur(lambdas::Vector{Float64}, pca_predict::Matrix)
+        @infiltrate
+        B = size(pca_predict, 1) # time bins
+        N = size(pca_predict, 2) # number of dimensions
+        # lamdamax = (1+sqrt((total_ctx_neuron + total_hp_neuron)/length(qW1_spike(1,:)))).^2;
+        gamma = B / N # also called q in some papers
+        @assert gamma ≥ 1 # has to be greater than one
+        sigma² = 1 # because we're using z-scores
+        lambda_max = sigma² * (1 + sqrt(gamma))^2
+        lambda_min = sigma² * (1 - sqrt(gamma))^2
+        m(x) = max.(x, 0)
+        p_lambda = ((gamma / (2π * sigma²)) * 
+        sqrt.(m(lambda_max .- lambdas) .* m(lambdas .- lambda_min)) ./ lambdas)
+        (;lambda_max, lambda_min, p_lambda)
+    end
 
     export reactscore
     """
@@ -147,16 +180,22 @@ module reactivation
             Zarea2 = [z1 Zarea2]
             @assert size(Zarea1, 2) == size(Zarea2, 2)
         end
-        P = correlationMatrix(Z)
+        Z = disallowmissing(Z)
+        Zarea1 = disallowmissing(Zarea1)
+        Zarea2 = disallowmissing(Zarea2)
         if ica
             if k === nothing
                 k = estimateKfromPCA(Z)
             end
-            @infiltrate
-            ica = getPattern_fromICA(Z, k)
-            Zarea1 = predict(ica, Zarea1')'
-            Zarea2 = predict(ica, Zarea2')'
+            ica    = getPattern_fromICA(Z, k)
+            Zarea1 = Matrix(predict(ica, Zarea1')')
+            Zarea2 = Matrix(predict(ica, Zarea2')')
+            Z = Matrix(predict(ica, Z')')
+            P = correlationMatrix(Z)
+        else
+            P = correlationMatrix(Z)
         end
+        @infiltrate
         reactscore(Zarea1, P, Zarea2)
     end
 
