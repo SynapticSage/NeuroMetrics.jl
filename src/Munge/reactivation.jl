@@ -87,6 +87,9 @@ module reactivation
             try
                 restarts -= 1
                 ica=fit(ICA, Z', k; maxiter, tol, do_whiten)
+                # X = Z
+                # S_hat = Z * ica.W 
+                # @infiltrate
             catch e
                 @warn "ICA failed" e restarts
                 except = ConvergenceException(maxiter, NaN, tol)
@@ -180,15 +183,21 @@ module reactivation
         Z      = disallowmissing(Z)
         Zarea1 = disallowmissing(Zarea1)
         Zarea2 = disallowmissing(Zarea2)
-        # Remove any all NaN columns
-        @infiltrate
-        Z      = Z[:,findall(.!vec(all(isnan.(Z), dims=1)))]
-        Zarea1 = Zarea1[:, findall(.!vec(all(isnan.(Zarea1), dims=1)))]
-        Zarea2 = Zarea2[:, findall(.!vec(all(isnan.(Zarea2), dims=1)))]
+        # Zero any NaN cols
+        cols = union(findall(vec(all(isnan.(Z), dims=1))),
+                     findall(vec(all(isnan.(Zarea1), dims=1))),
+                     findall(vec(all(isnan.(Zarea2), dims=1))))
+        Z[:,cols] .= 0
+        Zarea1[:, cols] .= 0 
+        Zarea2[:, cols] .= 0
         # Remove any all NaN rows
-        Z      = Z[findall(.!vec(all(isnan.(Z), dims=2))), :]
-        Zarea1 = Zarea1[findall(.!vec(all(isnan.(Zarea1), dims=2))), :]
-        Zarea2 = Zarea2[findall(.!vec(all(isnan.(Zarea2), dims=2))), :]
+        rows = union(findall(vec(all(isnan.(Z), dims=2))),
+                     findall(vec(all(isnan.(Zarea1), dims=2))),
+                     findall(vec(all(isnan.(Zarea2), dims=2))))
+        Z[rows, :] .= 0 
+        Zarea1[rows, :] .= 0 
+        Zarea2[rows, :] .= 0 
+        @assert size(Zarea1, 2) == size(Zarea2, 2) == size(Z, 2)
         preICA_Z(Z, Zarea1, Zarea2)
     end
 
@@ -273,5 +282,28 @@ module reactivation
         z1, z2 = predict(ica, preZ.Zarea1'), predict(ica, preZ.Zarea2')
         reactscore(z1, P, z2)
     end
+
+    """
+        function reactivationScore(Zarea1::Matrix, Zarea2::Matrix, ica::ICA)
+
+    Returns the reactivation score between two areas, Zarea1 and Zarea2,
+    Zarea1 and Zarea2 are matrices of z-scores of the firing rates of neurons in
+    area 1 and area 2, respectively.
+    # Arguments
+    - `Zarea1::Matrix`: Matrix of z-scores of the firing rates of neurons in area 1.
+    - `Zarea2::Matrix`: Matrix of z-scores of the firing rates of neurons in area 2.
+    - `ica::ICA`: ICA object.
+    # Returns
+    - `Matrix{Float64}`: Reactivation score.
+    """
+    function reactscore(Zarea1::Matrix, Zarea2::Matrix, ica::ICA)
+        preZ = get_Z(Zarea1, Zarea2)
+        Z, Zarea1, Zarea2 = preZ.Z, preZ.Zarea1, preZ.Zarea2
+        P = correlationMatrix(Matrix(predict(ica, Z')'))
+        Zarea1 = predict(ica, Zarea1')
+        Zarea2 = predict(ica, Zarea2')
+        reactscore(Zarea1, P, Zarea2)
+    end
+
 
 end

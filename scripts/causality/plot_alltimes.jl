@@ -40,7 +40,6 @@ import DIutils
 opt = isdefined(Main, :opt) ? opt : Dict()
 opt = causal.argparse(opt, return_parser=false)
 @assert opt["N"] > 0 "N must be > 0"
-DIutils.pushover("Plotting all times: modules loaded")
 
 # =============
 # Control panel
@@ -74,7 +73,6 @@ function link!(P::Plots.Plot)
     end
 end
 tagstr = "$animal.$day.$N"
-DIutils.pushover("Starting $tagstr")
 
 ## ----------
 ## LOAD DATA
