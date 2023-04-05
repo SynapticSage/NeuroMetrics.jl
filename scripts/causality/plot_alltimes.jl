@@ -27,8 +27,8 @@ using Infiltrator, ThreadSafeDicts, JLD2, Serialization, CausalityTools,
       Entropies, DataFrames, DataFramesMeta, Statistics, NaNStatistics,
       HypothesisTests, Plots, StatsPlots, ColorSchemes, ProgressMeter,
       SoftGlobalScope, ElectronDisplay, ArgParse
-using GoalFetchAnalysis, GoalFetchAnalysis.Plot, GoalFetchAnalysis.Munge,
-GoalFetchAnalysis.Munge.manifold, GoalFetchAnalysis.Munge.causal,
+using GoalFetchAnalysis, GoalFetchAnalysis.Plot, GoalFetchAnalysis.Munge
+using GoalFetchAnalysis.Munge.manifold, GoalFetchAnalysis.Munge.causal,
 GoalFetchAnalysis.Munge.triggering, DIutils.binning,
 GoalFetchAnalysis.Munge.causal, GoalFetchAnalysis.Plot.cause, DI.Labels
 using DataStructures: OrderedDict
@@ -40,6 +40,10 @@ import DIutils
 opt = isdefined(Main, :opt) ? opt : Dict()
 opt = causal.argparse(opt, return_parser=false)
 @assert opt["N"] > 0 "N must be > 0"
+
+opt["splits"] = 3
+opt["sps"] = 2
+opt["N"] = opt["splits"] * opt["sps"]
 
 # =============
 # Control panel
@@ -73,6 +77,7 @@ function link!(P::Plots.Plot)
     end
 end
 tagstr = "$animal.$day.$N"
+DIutils.pushover("Starting $tagstr")
 
 ## ----------
 ## LOAD DATA
@@ -83,7 +88,7 @@ distance = :many
 feature_engineer = :many # many | nothing
 esttype = :binned
 est, params = get_est_preset(esttype, horizon=1:60, thread=true, binning=7, window=1.25)
-manifold.load_manis_workspace(Main, animal, day; filt, 
+load_manis_workspace(Main, animal, day; filt, 
                               areas, distance, feature_engineer, N)
 storage = load_alltimes_savefile(animal, day, N; params)
 diffed, predasym = false, storage["predasym"]

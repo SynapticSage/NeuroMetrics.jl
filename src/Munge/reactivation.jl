@@ -168,29 +168,34 @@ module reactivation
         samearea::Bool
     end
 
-    mutable struct M_CATPCAICA
+    abstract type m_React end
+    mutable struct M_CATPCAICA <: m_React
         K::Int # Number of components
         P::Matrix #
         decomp
     end
     M_CATPCAICA(K=0, P=Matrix([]), decomp=PCAICA(K)) = M_CATPCAICA(K, P, 
                                                                    nothing)
+    empty(M::M_CATPCAICA) = M.K == 0 && isempty(M.P)
     export M_PCAICA, M_PCA, M_CORR, M_CATPCAICA
-    mutable struct M_PCAICA
-        K::Int # Number of components
+    mutable struct M_PCAICA <: m_React
+        K::Union{Int, Vector{Int}} # Number of components
         P::Matrix #
     end
     M_PCAICA(K=0, P=Matrix{Float64}(undef,0,0)) = M_PCAICA(K, P)
-    mutable struct M_PCA
+    empty(M::M_PCAICA) = M.K == 0 && isempty(M.P)
+    mutable struct M_PCA <: m_React
         K::Union{Int,Vector{Int}} # Number of components
         P::Matrix #
     end
     M_PCA(K=0, P=Matrix([])) = M_PCA(K, P)
-    mutable struct M_CORR
-        K::Int # Number of components
+    empty(M::M_PCA) = M.K == 0 && isempty(M.P)
+    mutable struct M_CORR <: m_React
+        K::Union{Int,Vector{Int}} # Number of components
         P::Matrix #
     end
     M_CORR(K=0, P=Matrix([])) = M_CORR(K, P)
+    empty(M::M_CORR) = M.K == 0 && isempty(M.P)
 
     export TrainReact
     """
@@ -294,16 +299,16 @@ module reactivation
                                         train.Zarea2, train.samearea
         if samearea
             k = KfromPCA(Zarea1)
-            @exfiltrate
             decomposition = fit(PCA, Zarea1, maxoutdim=k)
             P = correlationMatrix(Zarea1)
             u,s,v = svd(P)
             proj = u[:, 1:k] 
-            Z1 = Matrix(Zarea1)
+            Z1 = Zarea1 * proj
             K, W, S, X_mean = pyd.fastica(Z1, nothing, return_X_mean=true)
-            V = proj' * W
-            P = V'V
-            return M_PCA(k, P)
+            V = proj * W
+            P = V * V'
+            # cor(vec(P), vec(correlationMatrix(Zarea1)))
+            return M_PCAICA(k, P)
         else
             k1, k2   = KfromPCA(Zarea1), KfromPCA(Zarea2)
             u1,s1,v1 = svd(correlationMatrix(Zarea1))
@@ -312,7 +317,7 @@ module reactivation
             Z1 = Zarea1 * proj1
             Z2 = Zarea2 * proj2
             fail_fastica = true
-            n_components = size(Z1,2)
+            n_components, W1 = size(Z1,2), nothing
             while fail_fastica
                 try
                     @debug "Trying to run fastica, n_compo = $n_components"
@@ -325,7 +330,7 @@ module reactivation
                 end
             end
             fail_fastica = true
-            n_components = size(Z2,2)
+            n_components, W2 = size(Z2,2), nothing
             while fail_fastica
                 try
                     @debug "Trying to run fastica, n_compo = $n_components"
@@ -382,18 +387,12 @@ module reactivation
     - `k::Int`: Number of components to use for ICA.
     - `ica::Bool`: Whether to use ICA or not.
     """
-    function reactscore(Zarea1::Matrix, Zarea2::Matrix;
-        k::Union{Int,Nothing}=nothing, ica=true, method=:m1)
-        if method == :m1
-            preZ      = TrainReact(Zarea1, Zarea2)
-        elseif method == :m2
-            preZ      = TrainReact(Zarea1, Zarea2)
-        else
-            error("method must be :m1 or :m2")
+    function reactscore(m::m_React, Zarea1::Matrix, Zarea2::Matrix)
+        train = TrainReact(m, Zarea1, Zarea2)
+        if empty(m)
+            m = ingredients(m, train)
         end
-        M = ingredients(preZ, k=k, ica=ica)
-        z1, z2 = predict(ica, preZ.Zarea1'), predict(ica, preZ.Zarea2')
-        reactscore(z1, P, z2)
+        reactscore(Zarea1, m.P, Zarea2)
     end
 
     """
