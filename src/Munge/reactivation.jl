@@ -16,6 +16,8 @@ module reactivation
     using Infiltrator
     using Missings
     using LinearAlgebra
+    using PyCall
+    pyd = pyimport("sklearn.decomposition")
 
     export zscoreFRmatrix
     """
@@ -180,7 +182,7 @@ module reactivation
     end
     M_PCAICA(K=0, P=Matrix{Float64}(undef,0,0)) = M_PCAICA(K, P)
     mutable struct M_PCA
-        K::Int # Number of components
+        K::Union{Int,Vector{Int}} # Number of components
         P::Matrix #
     end
     M_PCA(K=0, P=Matrix([])) = M_PCA(K, P)
@@ -255,7 +257,8 @@ module reactivation
         Zarea2[rows, :] .= 0 
         Zarea1 = disallowmissing(Zarea1)
         Zarea2 = disallowmissing(Zarea2)
-        @assert size(Zarea1, 2) == size(Zarea2, 2) 
+        @assert(size(Zarea1, 1) == size(Zarea2, 1),
+                "Time bins must be the same for both areas")
         return TrainReact(Matrix{Float64}(undef,0,0), Zarea1, Zarea2, samearea)
     end
 
@@ -286,7 +289,7 @@ module reactivation
     end
 
     function ingredients(::M_PCAICA, train::TrainReact;
-        k::Union{Int,Nothing}=nothing, ica=true)
+        k::Union{Int,Nothing}=nothing, ica=true)::M_PCAICA
         _, Zarea1, Zarea2, samearea = train.Z, train.Zarea1, 
                                         train.Zarea2, train.samearea
         if samearea
@@ -295,26 +298,53 @@ module reactivation
             decomposition = fit(PCA, Zarea1, maxoutdim=k)
             P = correlationMatrix(Zarea1)
             u,s,v = svd(P)
-            # uz, sz, vz = svd((Zarea1))
             proj = u[:, 1:k] 
-            # proj1 = (uz[:, 1:k] * Diagonal(sz[1:k]) * vz[:,1:k]')[:,1:k]
-            # proj2 = decomposition.proj
-            proj3 = (u[:, 1:k]' * Zarea1')'
-            # plot(heatmap(proj1), heatmap(proj2), heatmap(proj3))
-            # sigma = Diagonal(s)^2
-            ica = fit(ICA, Zarea1', size(Zarea1, 2), maxiter=1000, tol=1e-5)
-            V = proj * ica.W
+            Z1 = Matrix(Zarea1)
+            K, W, S, X_mean = pyd.fastica(Z1, nothing, return_X_mean=true)
+            V = proj' * W
             P = V'V
+            return M_PCA(k, P)
         else
             k1, k2   = KfromPCA(Zarea1), KfromPCA(Zarea2)
             u1,s1,v1 = svd(correlationMatrix(Zarea1))
             u2,s2,v2 = svd(correlationMatrix(Zarea2))
+            proj1, proj2 = u1[:, 1:k1], u2[:, 1:k2]
+            Z1 = Zarea1 * proj1
+            Z2 = Zarea2 * proj2
+            fail_fastica = true
+            n_components = size(Z1,2)
+            while fail_fastica
+                try
+                    @debug "Trying to run fastica, n_compo = $n_components"
+                @time K1, W1, S1, X_mean1 = pyd.fastica(Z1, size(Z1,2), 
+                        return_X_mean=true, whiten=false,
+                        max_iter=1_000, tol=1e-5)
+                    fail_fastica = false
+                catch e
+                    n_components -= 1
+                end
+            end
+            fail_fastica = true
+            n_components = size(Z2,2)
+            while fail_fastica
+                try
+                    @debug "Trying to run fastica, n_compo = $n_components"
+                    @time K2, W2, S2, X_mean2 = pyd.fastica(Z2, n_components, 
+                    return_X_mean=true, whiten=false)
+                    fail_fastica = false
+                catch e
+                    n_components -= 1
+                end
+            end
+            projection_op(X) = X * pinv(X'X) * X';
+            V1, V2 = proj1 * W1, proj2 * W2
+            z1=Zarea1 * projection_op(V1)
+            z2=Zarea2 * projection_op(V2)
+            P = correlationMatrix(z1, z2)
+            return M_PCAICA([k1,k2], P) 
         end
-        P = correlationMatrix(Zarea1, Zarea2) 
-        return M_PCA(k, P)
     end
     function ingredients(::M_PCA, Zarea1::Matrix, Zarea2::Matrix; method)
-         
     end
 
     export reactscore
@@ -385,6 +415,10 @@ module reactivation
         Zarea1 = predict(M_PCAICA.decomp, Zarea1')
         Zarea2 = predict(M_PCAICA.decomp, Zarea2')
         reactscore(Zarea1, M_PCAICA.P, Zarea2)
+    end
+
+    function helloworld()
+        println("Hello World!")
     end
 
 
