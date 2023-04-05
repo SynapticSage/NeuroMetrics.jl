@@ -433,3 +433,4 @@ $RECYCLE.BIN/
 *.jld2
 src-*
 .Rhistory
+.CondaPkg/

@@ -76,7 +76,7 @@ module reactivation
     function getPattern_fromICA(Z::Union{DimArray,Matrix}, k=nothing;
         maxiter=100, restarts=10, tol=1e-5, do_whiten=true, usefastica=false)
         if k === nothing
-            k = estimateKfromPCA(Z)
+            k = KfromPCA(Z)
         end
         # where Z has dimensions (time bins, neurons/dimensions)
         @assert(size(Z, 1) ≥ size(Z, 2), 
@@ -105,7 +105,7 @@ module reactivation
     - `X::Union{DimArray,Matrix}`: Matrix of z-scores of the firing rates of
                                    neurons.
     """
-    function estimateKfromPCA(Z::Union{DimArray,Matrix})
+    function KfromPCA(Z::Union{DimArray,Matrix})
         @info "Estimating K from PCA" size(Z)
         pca = nothing
         try
@@ -115,7 +115,8 @@ module reactivation
             throw(e)
         end
         # Fit a Marcenko-Pastur distribution to the eigenvalues of the covariance
-        p_lambda = marcenko_pasteur(eigvals(pca), pca.proj)
+        # p_lambda = marcenko_pasteur(eigvals(pca), size(pca.proj)...)
+        p_lambda = marcenko_pasteur(eigvals(pca), size(Z)...)
         # Find the first eigenvalue that is less than the Marcenko-Pastur distribution
         K = sum(eigvals(pca) .> p_lambda.lambda_max)
         @info "K from PCA" K
@@ -133,9 +134,11 @@ module reactivation
     - `Vector{Float64}`: Marcenko-Pasteur distribution.
     https://bnikolic.co.uk/blog/python/2019/11/28/marchenko-pastur.html
     """
-    function marcenko_pasteur(lambdas::Vector{Float64}, pca_predict::Matrix)
-        B = size(pca_predict, 1) # time bins
-        N = size(pca_predict, 2) # number of dimensions
+    function marcenko_pasteur(lambdas::Vector{Float64}, 
+    nTimes, nDims)
+        @exfiltrate
+        B = nTimes
+        N = nDims
         # lamdamax = (1+sqrt((total_ctx_neuron + total_hp_neuron)/length(qW1_spike(1,:)))).^2;
         gamma = B / N # also called q in some papers
         @assert gamma ≥ 1 # has to be greater than one
@@ -149,29 +152,57 @@ module reactivation
     end
 
     """
-        preICA_Z
+        Train
     Preprocessed Z-transformed firing rate matrices
     # Fields
     - `Z::Matrix`: Z-transformed firing rate matrix, concatenated if area1 and area2 are different.
     - `Zarea1::Matrix`: Z-transformed firing rate matrix for area 1.
     - `Zarea2::Matrix`: Z-transformed firing rate matrix for area 2.
     """
-    struct preICA_Z
+    struct TrainReact
         Z::Matrix
         Zarea1::Matrix
         Zarea2::Matrix
+        samearea::Bool
     end
 
+    mutable struct M_CATPCAICA
+        K::Int # Number of components
+        P::Matrix #
+        decomp
+    end
+    M_CATPCAICA(K=0, P=Matrix([]), decomp=PCAICA(K)) = M_CATPCAICA(K, P, 
+                                                                   nothing)
+    export M_PCAICA, M_PCA, M_CORR, M_CATPCAICA
+    mutable struct M_PCAICA
+        K::Int # Number of components
+        P::Matrix #
+    end
+    M_PCAICA(K=0, P=Matrix{Float64}(undef,0,0)) = M_PCAICA(K, P)
+    mutable struct M_PCA
+        K::Int # Number of components
+        P::Matrix #
+    end
+    M_PCA(K=0, P=Matrix([])) = M_PCA(K, P)
+    mutable struct M_CORR
+        K::Int # Number of components
+        P::Matrix #
+    end
+    M_CORR(K=0, P=Matrix([])) = M_CORR(K, P)
+
+    export TrainReact
     """
-        function get_Z(Zarea1::Matrix, Zarea2::Matrix)
+        function pre_area1(Zarea1::Matrix, Zarea2::Matrix)
 
     Transforms the z-scores of the firing rates of neurons in area 1 and area 2
     into a single matrix, Z, and returns Z, and returns zero-padded single-area
     matrices, Zarea1 and Zarea2.
     """
-    function get_Z(Zarea1::Matrix, Zarea2::Matrix)
+    function TrainReact(::M_CATPCAICA, Zarea1::Matrix, Zarea2::Matrix)
+        samearea = false
         if Zarea1 === Zarea2
             Z = Zarea1
+            samearea = true
         else
             Z = [Zarea1 Zarea2]
             z1 = zeros(size(Zarea1))
@@ -198,7 +229,92 @@ module reactivation
         Zarea1[rows, :] .= 0 
         Zarea2[rows, :] .= 0 
         @assert size(Zarea1, 2) == size(Zarea2, 2) == size(Z, 2)
-        preICA_Z(Z, Zarea1, Zarea2)
+        return TrainReact(Z, Zarea1, Zarea2, samearea)
+    end
+
+    """
+        function TrainReact(Zarea1::Matrix, Zarea2::Matrix)
+
+    Transforms the z-scores of the firing rates of neurons in area 1 and area 2
+    into a single matrix, Z, and returns Z, and returns zero-padded single-area
+    matrices, Zarea1 and Zarea2.
+    """
+    function TrainReact(::Any, Zarea1::Matrix, Zarea2)
+        samearea = Zarea1 === Zarea2
+        # Zero any NaN cols
+        cols = union(
+                     findall(vec(all(isnan.(Zarea1), dims=1))),
+                     findall(vec(all(isnan.(Zarea2), dims=1))))
+        Zarea1[:, cols] .= 0 
+        Zarea2[:, cols] .= 0
+        # Remove any all NaN rows
+        rows = union(
+                     findall(vec(all(isnan.(Zarea1), dims=2))),
+                     findall(vec(all(isnan.(Zarea2), dims=2))))
+        Zarea1[rows, :] .= 0 
+        Zarea2[rows, :] .= 0 
+        Zarea1 = disallowmissing(Zarea1)
+        Zarea2 = disallowmissing(Zarea2)
+        @assert size(Zarea1, 2) == size(Zarea2, 2) 
+        return TrainReact(Matrix{Float64}(undef,0,0), Zarea1, Zarea2, samearea)
+    end
+
+
+    export ingredients
+    """
+        function ingredients(Zarea1::Matrix, Zarea2::Matrix, k=nothing)
+
+    Returns the materials/sauce needed to calculate the reactivation score
+    between two areas, Zarea1 and Zarea2, Zarea1 and Zarea2 are matrices of
+    z-scores of the firing rates of neurons in area 1 and area 2, respectively.
+    # Arguments
+    - `Zarea1::Matrix`: Matrix of z-scores of the firing rates of neurons in area 1.
+    - `Zarea2::Matrix`: Matrix of z-scores of the firing rates of neurons in area 2.
+    - `k::Int`: Number of components to use for ICA.
+    - `ica::Bool`: Whether to use ICA or not.
+    """
+    function ingredients(::M_CATPCAICA, train::TrainReact;
+        k::Union{Int,Nothing}=nothing, ica=true)
+        Z, _, _, samearea = train.Z, train.Zarea1, train.Zarea2
+        decomposition  = getPattern_fromICA(Z, k)
+        if typeof(decomposition) <: ConvergenceException
+            P = nothing
+        else
+            P = correlationMatrix(Matrix(predict(decomposition, Z')'))
+        end
+        return M_PCAICA(k, P, decomposition)
+    end
+
+    function ingredients(::M_PCAICA, train::TrainReact;
+        k::Union{Int,Nothing}=nothing, ica=true)
+        _, Zarea1, Zarea2, samearea = train.Z, train.Zarea1, 
+                                        train.Zarea2, train.samearea
+        if samearea
+            k = KfromPCA(Zarea1)
+            @exfiltrate
+            decomposition = fit(PCA, Zarea1, maxoutdim=k)
+            P = correlationMatrix(Zarea1)
+            u,s,v = svd(P)
+            # uz, sz, vz = svd((Zarea1))
+            proj = u[:, 1:k] 
+            # proj1 = (uz[:, 1:k] * Diagonal(sz[1:k]) * vz[:,1:k]')[:,1:k]
+            # proj2 = decomposition.proj
+            proj3 = (u[:, 1:k]' * Zarea1')'
+            # plot(heatmap(proj1), heatmap(proj2), heatmap(proj3))
+            # sigma = Diagonal(s)^2
+            ica = fit(ICA, Zarea1', size(Zarea1, 2), maxiter=1000, tol=1e-5)
+            V = proj * ica.W
+            P = V'V
+        else
+            k1, k2   = KfromPCA(Zarea1), KfromPCA(Zarea2)
+            u1,s1,v1 = svd(correlationMatrix(Zarea1))
+            u2,s2,v2 = svd(correlationMatrix(Zarea2))
+        end
+        P = correlationMatrix(Zarea1, Zarea2) 
+        return M_PCA(k, P)
+    end
+    function ingredients(::M_PCA, Zarea1::Matrix, Zarea2::Matrix; method)
+         
     end
 
     export reactscore
@@ -225,41 +341,6 @@ module reactivation
         end
     end
 
-    export react
-    """
-        function react(Zarea1::Matrix, Zarea2::Matrix, k=nothing)
-
-    Returns the materials/sauce needed to calculate the reactivation score
-    between two areas, Zarea1 and Zarea2, Zarea1 and Zarea2 are matrices of
-    z-scores of the firing rates of neurons in area 1 and area 2, respectively.
-    # Arguments
-    - `Zarea1::Matrix`: Matrix of z-scores of the firing rates of neurons in area 1.
-    - `Zarea2::Matrix`: Matrix of z-scores of the firing rates of neurons in area 2.
-    - `k::Int`: Number of components to use for ICA.
-    - `ica::Bool`: Whether to use ICA or not.
-    """
-    function react(preZ::preICA_Z;
-        k::Union{Int,Nothing}=nothing, ica=true)
-        Z, Zarea1, Zarea2 = preZ.Z, preZ.Zarea1, preZ.Zarea2
-        if ica
-            ica  = getPattern_fromICA(Z, k)
-            if typeof(ica) <: ConvergenceException
-                P = nothing
-            else
-                P = correlationMatrix(Matrix(predict(ica, Z')'))
-            end
-        else
-            ica = nothing
-            P = correlationMatrix(Z)
-        end
-        return (;P, ica, k)
-    end
-    function react(Zarea1::Matrix, Zarea2::Matrix;
-        k::Union{Int,Nothing}=nothing, ica=true)
-        preZ = get_Z(Zarea1, Zarea2)
-        react(preZ, k=k, ica=ica)
-    end
-
     """
         function reactivationScore(Zarea1::Matrix, Zarea2::Matrix, k=nothing)
     Returns the reactivation score between two areas, Zarea1 and Zarea2,
@@ -272,13 +353,15 @@ module reactivation
     - `ica::Bool`: Whether to use ICA or not.
     """
     function reactscore(Zarea1::Matrix, Zarea2::Matrix;
-        k::Union{Int,Nothing}=nothing, ica=true)
-        preZ      = get_Z(Zarea1, Zarea2)
-        P, ica, k = react(preZ, k=k, ica=ica)
-        if typeof(ica) <: ConvergenceException
-            @warn "ICA did not converge" ica
-            return NaN
+        k::Union{Int,Nothing}=nothing, ica=true, method=:m1)
+        if method == :m1
+            preZ      = TrainReact(Zarea1, Zarea2)
+        elseif method == :m2
+            preZ      = TrainReact(Zarea1, Zarea2)
+        else
+            error("method must be :m1 or :m2")
         end
+        M = ingredients(preZ, k=k, ica=ica)
         z1, z2 = predict(ica, preZ.Zarea1'), predict(ica, preZ.Zarea2')
         reactscore(z1, P, z2)
     end
@@ -296,13 +379,12 @@ module reactivation
     # Returns
     - `Matrix{Float64}`: Reactivation score.
     """
-    function reactscore(Zarea1::Matrix, Zarea2::Matrix, ica::ICA)
-        preZ = get_Z(Zarea1, Zarea2)
+    function reactscore(Zarea1::Matrix, Zarea2::Matrix, decomp::M_PCAICA)
+        preZ = TrainReact(Zarea1, Zarea2)
         Z, Zarea1, Zarea2 = preZ.Z, preZ.Zarea1, preZ.Zarea2
-        P = correlationMatrix(Matrix(predict(ica, Z')'))
-        Zarea1 = predict(ica, Zarea1')
-        Zarea2 = predict(ica, Zarea2')
-        reactscore(Zarea1, P, Zarea2)
+        Zarea1 = predict(M_PCAICA.decomp, Zarea1')
+        Zarea2 = predict(M_PCAICA.decomp, Zarea2')
+        reactscore(Zarea1, M_PCAICA.P, Zarea2)
     end
 
 
