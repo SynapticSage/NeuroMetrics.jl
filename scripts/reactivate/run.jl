@@ -4,53 +4,53 @@ else
     include("imports.jl")
 end
 
-# Get the data
-spikes = DI.load_spikes(opt["animal"],   opt["day"])
-beh    = DI.load_behavior(opt["animal"], opt["day"])
-cells  = DI.load_cells(opt["animal"],    opt["day"])
-# Get firing rate DimArray
-R = spiking.torate(spikes, beh, gaussian=0.20)
-# Create dataframe of R
-Rdf = DataFrame(R, name=:rate)
-DIutils.pushover("Finished creating Rdf")
-
-# Create a new field enumerating (startWell, stopWell) combinations
-# with integers
-S  = eachrow(Matrix(beh[:, [:startWell, :stopWell]])) |> collect
-uS = unique(S, dims=1)
-sf = [findfirst(isequal(s), uS) for s in S]
-beh[:, :startstopWell] = sf
-# Create a field specifying whether the animal is still or moving
-beh[:, :moving] = beh[:, :speed] .> 2 # cm/s
-groupings = [:startstopWell, :startWell, :stopWell, :moving, :ha, :correct, 
-    :epoch]
-# Register that to Rdf
-register(beh, Rdf,   on="time", transfer=["traj",string.(groupings)...])
-Rdf = @subset(Rdf,  
-                    :stopWell .!= -1,
-                    :startWell .!= 1)
-register(cells, Rdf, on="unit", transfer=["area"])
-ca1, pfc = groupby(Rdf, :area)[1:2];
-@assert(ca1.area[1] == "CA1" && pfc.area[1] == "PFC", 
-"Areas are not CA1 and PFC")
-ca1 = ca1[:, Not(:area)];
-pfc = pfc[:, Not(:area)];
-Rdf = Rdf[:, Not(:area)];
-dropmissing!(ca1, :startstopWell)
-dropmissing!(pfc, :startstopWell)
-DIutils.pushover("Finished creating area splits")
-ca1.ha = replace(ca1.ha, missing => 'm')
-ca1    = groupby(ca1, groupings);
-pfc    = groupby(pfc, groupings);
-
+# Get and prep the data!
+# ------------------------------------------------------------------
+    spikes = DI.load_spikes(opt["animal"],   opt["day"])
+    beh    = DI.load_behavior(opt["animal"], opt["day"])
+    cells  = DI.load_cells(opt["animal"],    opt["day"])
+    # Get firing rate DimArray
+    R = spiking.torate(spikes, beh, gaussian=0.20)
+    # Create dataframe of R
+    Rdf = DataFrame(R, name=:rate)
+    DIutils.pushover("Finished creating Rdf")
+    # Create a new field enumerating (startWell, stopWell) combinations
+    # with integers
+    S  = eachrow(Matrix(beh[:, [:startWell, :stopWell]])) |> collect
+    uS = unique(S, dims=1)
+    sf = [findfirst(isequal(s), uS) for s in S]
+    beh[:, :startstopWell] = sf
+    # Create a field specifying whether the animal is still or moving
+    beh[:, :moving] = beh[:, :speed] .> 2 # cm/s
+    groupings = [:startstopWell, :startWell, :stopWell, :moving, :ha, :correct, 
+        :epoch]
+    # Register that to Rdf
+    register(beh, Rdf,   on="time", transfer=["traj",string.(groupings)...])
+    Rdf = @subset(Rdf,  
+                        :stopWell .!= -1,
+                        :startWell .!= 1)
+    register(cells, Rdf, on="unit", transfer=["area"])
+    ca1, pfc = groupby(Rdf, :area)[1:2];
+    @assert(ca1.area[1] == "CA1" && pfc.area[1] == "PFC", 
+    "Areas are not CA1 and PFC")
+    ca1 = ca1[:, Not(:area)];
+    pfc = pfc[:, Not(:area)];
+    Rdf = Rdf[:, Not(:area)];
+    dropmissing!(ca1, :startstopWell)
+    dropmissing!(pfc, :startstopWell)
+    DIutils.pushover("Finished creating area splits")
+    ca1.ha = replace(ca1.ha, missing => 'm')
+    ca1    = groupby(ca1, groupings);
+    pfc    = groupby(pfc, groupings);
+# ------------------------------------------------------------------
 # Which data will we accept?, right now I'm only accepting combinations
 # that have more than num_cells samples
-# ----------------
+# ------------------------------------------------------------------
 # BUG:
 # why so many 'h' 'a' missing? especially when start and stopwell are both
 # defined? 
 # It turns out ALL of the missing values hail from the incorrect trials
-# ---------------
+# ------------------------------------------------------------------
 accepted = begin
     accepted = 
         Base.map(Base.filter(map(x->groupby(x,:unit)|>first,collect(ca1))) do x
@@ -68,13 +68,16 @@ accepted = begin
     accepted = dropmissing(accepted)
     # accepted |> Voyager()
         p=@df accepted scatter(:correct, :ha)
-        p.subplots[1].series_list[1][:x] .+= 0.02randn(size(p.subplots[1].series_list[1][:x]))
-        p.subplots[1].series_list[1][:y] .+= 0.05randn(size(p.subplots[1].series_list[1][:y]))
+        p.subplots[1].series_list[1][:x] .+= 
+                    0.02randn(size(p.subplots[1].series_list[1][:x]))
+        p.subplots[1].series_list[1][:y] .+= 
+                    0.05randn(size(p.subplots[1].series_list[1][:y]))
         plot(p)
     unicodeplots()
         histogram((accepted.size * 0.033333)./60)
         histogram(accepted.ntraj, xlims=(0,20))
-        histogram(combine(groupby(accepted,[:startstopWell,:epoch]),:ntraj=>sum).ntraj_sum)
+        histogram(combine(groupby(accepted,[:startstopWell,:epoch]),
+                :ntraj=>sum).ntraj_sum)
     gr()
     accepted
 end
@@ -123,7 +126,7 @@ end
     # )
 end
 
-
+# ----------------------------------
 # Now convert these back to DimArrays
 # ----------------------------------
 ca1 = map(zip(keys(ca1),ca1) |> collect) do (k,x)
@@ -190,24 +193,30 @@ end
 # Now we grab all the information for reactivation
 # ------------------------------------------------
 # ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ ↑ 
-    coefs = OrderedDict()
-    iters = enumerate( zip(Z_ca1, Z_pfc))
-    (i, (z_ca1, z_pfc)) = first(iters)
-    @showprogress for (i,(z_ca1, z_pfc)) in iters
-        println("Iteration:", i)
-        key, v_ca1 = z_ca1
-        k, v_pfc = z_pfc
-        @assert(key == k)
-        println("iteration", i)
-        m = M_PCAICA()
-        try
-            m = reactivation.ingredients(m, v_ca1, v_pfc)
-        catch e
-            println("Error on iteration: $s with error: $e") 
-        end
-        coefs[k] = m
+coefs = OrderedDict()
+iters = enumerate( zip(Z_ca1, Z_pfc))
+(i, (z_ca1, z_pfc)) = first(iters)
+@showprogress for (i,(z_ca1, z_pfc)) in iters
+    println("Iteration:", i)
+    key, v_ca1 = z_ca1
+    k, v_pfc = z_pfc
+    @assert(key == k)
+    println("iteration", i)
+    m_ca1pfc = M_PCAICA()
+    m_ca1ca1 = M_PCAICA()
+    m_pfcpfc = M_PCAICA()
+    try
+        m_ca1ca1 = reactivation.ingredients(m_ca1ca1, v_ca1, v_ca1)
+        m_pfcpfc = reactivation.ingredients(m_pfcpfc, v_pfc, v_pfc)
+        m_ca1pfc = reactivation.ingredients(m_ca1pfc, v_ca1, v_pfc)
+    catch e
+        println("Error on iteration: $s with error: $e") 
     end
-    println("Length of coefs: ", length(coefs))
+    coefs[k, "ca1-pfc"] = m_ca1pfc
+    coefs[k, "ca1-ca1"] = m_ca1ca1
+    coefs[k, "pfc-pfc"] = m_pfcpfc
+end
+println("Length of coefs: ", length(coefs))
 
 
 # Save the original logger
@@ -220,32 +229,64 @@ global_logger(ConsoleLogger(stderr, Logging.Error));
 # Before the loop ends, we will create a dataframe with the _props
 # dataframe information plus the reactivation scores, and slowly
 # append to it to an overall dataframe
-iters = enumerate(Iterators.product(keys(coefs), keys(coefs)))
-(i,( k_train, k_test )) = collect(iters)[2]
-Scores, DF = OrderedDict(), DataFrame()
-@showprogress "Test on trainings" for (i,(k_train, k_test)) in iters
-    # println("Iteration:" , i)
-    # println("Training on $k_train")
-    # println("Testing on $k_test")
-    m = coefs[k_train]
-    z_ca1, z_pfc = Z_ca1[k_test], Z_pfc[k_test]
-    # Get reactivation scores
-    r = reactivation.reactscore(m, z_ca1, z_pfc)
+"""
+    get_df(m, z_ca1, z_pfc; kws...)
+Returns a dataframe with the reactivation scores for the model `m`
+on the data `z_ca1` and `z_pfc`. The keyword arguments are used
+to add additional columns to the dataframe.
+"""
+function get_df(m, z1, z2; k_test, k_train, kws...)
+    # Measure reactivation and conver to dimarray
+    r = reactivation.reactscore(m, z1, z2)
     ti = Dim{:time}(props_ca1[k_test].time)
     r=DimArray(r, (ti, :component))
-    Scores[k_train, k_test] = r
-    # Setup dataframe
+    # Setup dataframe from dimarray data
     df=DataFrame(r)
+    # Append extra data from kws
+    for (k,v) in kws
+        df[!, Symbol(k)] .= v
+    end
+    # Get a dataframe of properties regarding the test and train datasets
     ptrain=DataFrame(props_ca1[k_train])
     nms = setdiff(names(ptrain),["time"])
     rename!(ptrain, nms .=> Symbol.(string.(nms, "_train")))
     ptest = DataFrame(props_ca1[k_test])
-    # rename!(ptest, 
-    #     Symbol.(string.(setdiff(names(ptest),"time"), "_test")))
-    DIutils.filtreg.register(ptrain,df,on="time",
-        transfer=setdiff(names(ptrain),["time"]))
-    DIutils.filtreg.register(ptest,df,on="time",
-        transfer=setdiff(names(ptest),["time"]))
+    # Register those properties to the reactivation dataframe
+    for nm in names(ptrain)
+        df[!, nm] .= ptrain[1, nm]
+    end
+    for nm in names(ptest)
+        df[!, nm] .= ptest[1, nm]
+    end
+    return r, df
+end
+ckeys = unique(map(keys(coefs) |> collect) do (prop, areas)
+    prop
+end)
+iters = enumerate(Iterators.product(enumerate(ckeys), 
+                                    enumerate(ckeys)))
+(i,( train, test )) = collect(iters)[2]
+Scores, DF = OrderedDict(), DataFrame()
+@showprogress "Test on trainings" for (i,(train, test)) in iters
+    i_train, k_train = train
+    i_test, k_test   = test
+    z_ca1, z_pfc = Z_ca1[k_test], Z_pfc[k_test]
+    kws = (;i, k_train, k_test)
+    # Get reactivation scores
+    m = coefs[k_train, "ca1-pfc"]
+    r, df = get_df(m, z_ca1, z_pfc; k_train=k_train, k_test=k_test,
+                   areas="ca1-pfc", kws...)
+    Scores[k_train, k_test, "ca1-pfc"] = r
+    append!(DF, df)
+    m = coefs[k_train, "ca1-ca1"]
+    r, df = get_df(m, z_ca1, z_ca1; k_train=k_train, k_test=k_test;
+                   areas="ca1-ca1", kws...)
+    Scores[k_train, k_test, "ca1-ca1"] = r
+    append!(DF, df)
+    m = coefs[k_train, "pfc-pfc"]
+    r, df = get_df(m, z_pfc, z_pfc; k_train=k_train, k_test=k_test;
+                   areas="pfc-pfc", kws...)
+    Scores[k_train, k_test, "pfc-pfc"] = r
     append!(DF, df)
 end
 # Restore the original logger
@@ -253,6 +294,19 @@ global_logger(original_logger);
 
 # Checkpoint all our work
 commit_react_vars()
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #    _  _     _   _               _            _   _             
 #  _| || |_  | | | |_   _ _ __   | |_ ___  ___| |_(_)_ __   __ _ 
