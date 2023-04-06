@@ -17,6 +17,7 @@ module reactivation
     using Missings
     using LinearAlgebra
     using PyCall
+    using DrWatson
     pyd = pyimport("sklearn.decomposition")
 
     export path_react
@@ -26,8 +27,8 @@ module reactivation
     Returns the path to the reactivation data for the given animal, day, and
     tet. The default tet is the ca1ref tet.
     """
-    function path_react(animal::String, day::Int, tet=:ca1ref)::String
-        datadir("react","react_animal=$(animal)_day=$(day)_tet=$(tet).jld2")
+    function path_react(animal::String, day::Int)::String
+        datadir("react","react_animal=$(animal)_day=$(day).jld2")
     end
     """
         path_react(opt::AbstractDict)::String
@@ -36,7 +37,7 @@ module reactivation
     tet. The default tet is the ca1ref tet.
     """
     function path_react(opt::AbstractDict)::String
-        path_react(opt["animal"], opt["day"], opt["tet"])
+        path_react(opt["animal"], opt["day"])
     end
     """
         path_react(pos...; append::String="_cyclewise")::String
