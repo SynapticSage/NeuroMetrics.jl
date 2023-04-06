@@ -53,7 +53,6 @@ module isolated
     end
     """
         path_iso(pos...; append::String="_cyclewise")::String
-
     Returns the path to the isolated data for the given animal, day, and
     tet. The default tet is the ca1ref tet. Optionally, append a string.
     """

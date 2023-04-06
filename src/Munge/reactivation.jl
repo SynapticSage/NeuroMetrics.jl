@@ -19,6 +19,36 @@ module reactivation
     using PyCall
     pyd = pyimport("sklearn.decomposition")
 
+    export path_react
+    """
+        path_react(animal::String, day::Int, tet=:ca1ref)::String
+    
+    Returns the path to the reactivation data for the given animal, day, and
+    tet. The default tet is the ca1ref tet.
+    """
+    function path_react(animal::String, day::Int, tet=:ca1ref)::String
+        datadir("react","react_animal=$(animal)_day=$(day)_tet=$(tet).jld2")
+    end
+    """
+        path_react(opt::AbstractDict)::String
+    
+    Returns the path to the reactivation data for the given animal, day, and
+    tet. The default tet is the ca1ref tet.
+    """
+    function path_react(opt::AbstractDict)::String
+        path_react(opt["animal"], opt["day"], opt["tet"])
+    end
+    """
+        path_react(pos...; append::String="_cyclewise")::String
+    Returns the path to the reactivation data for the given animal, day, and
+    tet. The default tet is the ca1ref tet.
+    """
+    function path_react(pos...; append::String)::String
+        f = path_react(pos...)
+        replace(f, ".jld2" => "$(append).jld2")
+    end
+
+
     export zscoreFRmatrix
     """
         zscoreFRmatrix(X::Union{DimArray,Matrix})
@@ -249,17 +279,15 @@ module reactivation
     function TrainReact(::Any, Zarea1::Matrix, Zarea2)
         samearea = Zarea1 === Zarea2
         # Zero any NaN cols
-        cols = union(
-                     findall(vec(all(isnan.(Zarea1), dims=1))),
-                     findall(vec(all(isnan.(Zarea2), dims=1))))
-        Zarea1[:, cols] .= 0 
-        Zarea2[:, cols] .= 0
+        cols1, cols2 = findall(vec(all(isnan.(Zarea1), dims=1))),
+                      findall(vec(all(isnan.(Zarea2), dims=1)))
+        Zarea1[:, cols1] .= 0 
+        Zarea2[:, cols2] .= 0
         # Remove any all NaN rows
-        rows = union(
-                     findall(vec(all(isnan.(Zarea1), dims=2))),
-                     findall(vec(all(isnan.(Zarea2), dims=2))))
-        Zarea1[rows, :] .= 0 
-        Zarea2[rows, :] .= 0 
+        rows1, rows2 = findall(vec(all(isnan.(Zarea1), dims=2))),
+                       findall(vec(all(isnan.(Zarea2), dims=2)))
+        Zarea1[rows1, :] .= 0 
+        Zarea2[rows2, :] .= 0 
         Zarea1 = disallowmissing(Zarea1)
         Zarea2 = disallowmissing(Zarea2)
         @assert(size(Zarea1, 1) == size(Zarea2, 1),
@@ -349,7 +377,9 @@ module reactivation
             return M_PCAICA([k1,k2], P) 
         end
     end
-    function ingredients(::M_PCA, Zarea1::Matrix, Zarea2::Matrix; method)
+    function ingredients(m::m_React, Zarea1::Matrix, Zarea2::Matrix;kws...)
+        train = TrainReact(m, Zarea1, Zarea2)
+        return ingredients(m, train;kws...)
     end
 
     export reactscore
