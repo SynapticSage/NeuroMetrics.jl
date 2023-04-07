@@ -264,11 +264,11 @@ end
 ckeys = unique(map(keys(coefs) |> collect) do (prop, areas)
     prop
 end)
-iters = enumerate(Iterators.product(enumerate(ckeys), 
+train_iters = enumerate(Iterators.product(enumerate(ckeys), 
                                     enumerate(ckeys)))
-(i,( train, test )) = collect(iters)[2]
+(i,( train, test )) = collect(train_iters)[2]
 Scores, DF = OrderedDict(), DataFrame()
-@showprogress "Test on trainings" for (i,(train, test)) in iters
+@showprogress "Test on trainings" for (i,(train, test)) in train_iters
     i_train, k_train = train
     i_test, k_test   = test
     i, i_train, i_test = Int16.((i, i_train, i_test))
@@ -320,7 +320,6 @@ DFS = combine(groupby(DF, [:i_train, :i_test, :component, :areas]),
         renamecols=false
 )
 
-
 #    _  _     _   _               _            _   _             
 #  _| || |_  | | | |_   _ _ __   | |_ ___  ___| |_(_)_ __   __ _ 
 # |_  ..  _| | |_| | | | | '_ \  | __/ _ \/ __| __| | '_ \ / _` |
@@ -333,10 +332,12 @@ DF_q = DIutils.arr.get_quantile_filtered(DF, :value, 0.001)
 general_conditions = [:moving_train => x -> x .== true
                       :moving => x -> x .== false]
 
-match_cols = [[:startWell, :stopWell, :startstopWell, :ha],
+default_match_cols =  [[:startWell, :stopWell, :startstopWell, :ha],
 [:startWell_train, :stopWell_train, :startstopWell_train, :ha_train]]
+match_cols = copy(default_match_cols)
 DFS.match = all(Matrix(DFS[!, match_cols[1]]) .== Matrix(DFS[!, match_cols[2]]),
                 dims=2) |> vec
+DFS.exclude = DFS.n .< 10
 
 
 function subset_dfs(pos...)
@@ -345,10 +346,14 @@ function subset_dfs(pos...)
                           general_conditions..., pos...)
     dfs_nonmatch = subset(DFS, :match => x -> x .== false,
                           general_conditions..., pos...)
+    # If exclude defined in column
+    if :exclude in propertynames(dfs_match)
+        dfs_match =    subset(dfs_match,   :exclude => x -> x .== false)
+        dfs_nonmatch = subset(dfs_nonmatch, :exclude => x -> x .== false)
+    end
     return dfs_match, dfs_nonmatch
 end
 dfs_match, dfs_nonmatch = subset_dfs()
-
 
 # ------------------------------------------------
 function difference_in_react_match_nonmatch(dfs_match, dfs_nonmatch)
@@ -398,5 +403,57 @@ end
 plot(h..., layout=(1,3), size=(1200, 400))
 
 # ------------------------------------------------
+# Same as above section, but split out by different startWell to the
+# same stopWell given (train_startWell, train_stopWell)
+#
+# Step 1: Change .match to encode match excepting the startWell
+# Step 2: function that subsets, hypothesis tests to the REPL, and
+#         plots the histogram as above
+# ------------------------------------------------
+# Step 1
+unmatch = :startWell
+match_cols = [[x for x in default_match_cols[1] if !occursin(string(unmatch), string(x))],
+              [x for x in default_match_cols[2] if !occursin(string(unmatch), string(x))]]
+DFS.match = all(Matrix(DFS[!, match_cols[1]]) .== Matrix(DFS[!, match_cols[2]]),
+                dims=2) |> vec;
+DFS.exclude = DFS.startWell == -1 || DFS.stopWell == -1 || 
+              DFS.startWell_train == -1 || DFS.stopWell_train == -1
+dfs, _ = subset_dfs()
+U = Dict(x=>unique(dfs[!, x]) for x in propertynames(dfs))
+train_dims = [:startWell_train, :stopWell_train]
+test_dims = [:startWell]
+# Step 2
+h = []
+train_iters = Iterators.product([U[x] for x in train_dims]...)
+item = first(train_iters)
+for item in train_iters
+    selector = [train_dims[i] => x -> x .== item[i] for i in 1:length(item)]
+    dfs_match, dfs_nonmatch = subset_dfs( selector...)
+    test_iters = Iterators.product([U[x] for x in test_dims]...)
+    matching    = Array{Any}(undef, size(train_iters)..., size(test_iters)...)
+    nonmatching = Array{Any}(undef, size(train_iters))
+    startWell = first(test_iters)
+    for (i,startWell) in enumerate(unique(dfs.startWell))
+        dm = dfs_match[
+            dfs_match.startWell .== startWell, :]
+        dn = dfs_match[
+            dfs_match.startWell .== startWell, :]
+        if startWell_train == startWell
+            push!(matching, dm)
+        else
+            push!(nonmatching, dn)
+        end
+    end
+end
 
+
+
+
+# ------------------------------------------------
+# Register traj with DF and explore trajectory-wise reactivation scores
+# ------------------------------------------------
+beh.traj = replace(beh.traj, NaN=>-1)
+beh.traj = convert(Vector{Int16}, beh.traj)
+DIutils.filtreg.register(beh, DF, on="time", transfer=["traj"])
+commit_react_vars()
 
