@@ -65,9 +65,22 @@ end
 animal = day = N = filt = predasym = nothing
 animal, day, N, filt = first(datasets)
 @assert N > 0 "N must be > 0"
+#    _  _     __  __       _         _                   
+#  _| || |_  |  \/  | __ _(_)_ __   | | ___   ___  _ __  
+# |_  ..  _| | |\/| |/ _` | | '_ \  | |/ _ \ / _ \| '_ \ 
+# |_      _| | |  | | (_| | | | | | | | (_) | (_) | |_) |
+#   |_||_|   |_|  |_|\__,_|_|_| |_| |_|\___/ \___/| .__/ 
+#                                                 |_|    
 @showprogress "datasets" for (animal, day, N, filt) in datasets
+
     @info "dataset" animal day N filt
     predasym = nothing
+
+    opt["animal"] = animal
+    opt["day"] = day
+    opt["N"] = N
+    opt["filt"] = filt
+
     ## ----------
     ## PARAMETERS
     ## ----------
@@ -76,7 +89,7 @@ animal, day, N, filt = first(datasets)
     feature_engineer = :many # many | nothing
     esttype = :binned
     est, params = get_est_preset(esttype, horizon=1:60, thread=true, binning=7,
-        window=1.25)
+                                 window=1.25)
     # Loads
     @assert N > 0 "N must be > 0"
     manifold.load_manis_workspace(Main, animal, day; filt, 
@@ -259,6 +272,19 @@ animal, day, N, filt = first(datasets)
         run(`pushover-cli finished $animal alltimes`)
     end
 
+    # Turn predasym and each item inside predasym into a Dict
+    function convert_to_dict!(X::AbstractDict)
+        for (k,v) in X
+            if isa(v, AbstractDict)
+                X[k] = convert_to_dict!(v)
+            else
+                X[k] = fetch(v)
+            end
+        end
+        X
+    end
+    convert_to_dict!(predasym)
+
     # Checkpoint
     using JLD2
     @assert N > 0 "N must be > 0"
@@ -266,3 +292,4 @@ animal, day, N, filt = first(datasets)
                    predasym, info)
 
 end # Animal dataset loop!
+

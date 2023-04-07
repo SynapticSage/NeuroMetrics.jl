@@ -6,6 +6,8 @@ module cause
     using Infiltrator
     
     rect_default=true
+    params_default = (;)
+    setparams(p::NamedTuple) = @eval cause params_default = $p
 
     @userplot PlotMeanCause
     @recipe function plotmeancause(plt::PlotMeanCause; transform=identity, 
@@ -106,7 +108,6 @@ module cause
     key_filter = nothing
     """
         setkeyfilter
-
     sets a module variable used to filter the results in a predictiveasmmetry
     dictionary. all of the downstream plotX functions use this filter key.
 
@@ -116,10 +117,8 @@ module cause
          @eval cause key_filter = $K
     """
         getcausedistovertime
-
     Designed to look into dict of predictive asymmetry results
     and return values by time
-
     Returns matrix of (Xᵢ, Yⱼᵢ) elements. 
         Xᵢ = timeᵢ = a sample index i scaled by 1/30 (our camera framerate)
         Yⱼᵢ is a value for value j and sample i
@@ -130,7 +129,6 @@ module cause
     end
     """
         getmedian
-
     per behavior key Kᵦ ∈ set_cause::Dict, we have a dictionary of values for the different
     subsets of the data. This takes the *MEDIAN* of those subsets for each Kᵦ.
     """
@@ -144,7 +142,6 @@ module cause
     end
     """
         getmean
-
     per behavior key Kᵦ ∈ set_cause::Dict, we have a dictionary of values for the different
     subsets of the data. This takes the *MEAN* of those subsets for each Kᵦ.
     """
@@ -162,7 +159,6 @@ module cause
     end
     """
         getdiff
-
     transforms the data at the bottom of the Dict tree to a diff instead of
     predictive asymmetry's cumulative form
     """
@@ -175,14 +171,13 @@ module cause
     function getdiff(X::Missing)
         missing
     end
-
     """
         plotmedianplushist
-
     Standard plot, gives the MEDIAN curve for each Kᵦ, and to summarize the variation, gives a histogram
     of the samples that contribute to each median
     """
-    function plotmedianplushist(C::Dict;ch=:black,cmc=:black,labelmc="",histalpha=0.6,kws...)
+    function plotmedianplushist(C::Dict;ch=:black,cmc=:black,labelmc="",
+    histalpha=0.6,params=params_default,kws...)
         if key_filter !== nothing
             C = Dict(k=>v for (k,v) in C if k ∈ key_filter)
         end 
@@ -210,9 +205,9 @@ module cause
     # Jacknife summaries
     func_full = x->getmean(x)
     func_bin = x->mean(bin_the_curves.(x),dims=1)
+    export leaveoneout
     """
         leaveoneout
-
     "Leave one out" function for jacknifing
     """
     function leaveoneout(D::AbstractDict; func)

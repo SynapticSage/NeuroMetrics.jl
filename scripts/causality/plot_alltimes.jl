@@ -33,9 +33,9 @@ GoalFetchAnalysis.Munge.triggering, DIutils.binning,
 GoalFetchAnalysis.Munge.causal, GoalFetchAnalysis.Plot.cause, DI.Labels
 using DataStructures: OrderedDict
 using DIutils.namedtup: ntopt_string
-import GoalFetchAnalysis.Plot.cause: plotmeancause, plotmediancause, plotmedianplushist, 
-                   plotcausediff, getdiff, getmean, getmedian, 
-                   getcausedistovertime
+import GoalFetchAnalysis.Plot.cause: plotmeancause, plotmediancause, 
+        plotmedianplushist, plotcausediff, getdiff, getmean, getmedian,
+            getcausedistovertime
 import DIutils
 opt = isdefined(Main, :opt) ? opt : Dict()
 opt = causal.argparse(opt, return_parser=false)
@@ -48,7 +48,8 @@ opt["N"] = opt["splits"] * opt["sps"]
 # =============
 # Control panel
 # =============
-opt = merge(opt, Dict(
+opt = merge(opt, 
+    Dict(
     # What transformations on the data?
     "summaryget" => getmean,
     "link" => :y,  # :none, :x, :xy, :y
@@ -64,6 +65,7 @@ opt = merge(opt, Dict(
 )
 summaryget = opt["summaryget"]
 animal, day, filt, N = opt["animal"], opt["day"], opt["filt"], opt["N"]
+
 @assert N > 0 "N must be > 0"
 arena_ca1pfc_color(i,n) = get(ColorSchemes.Blues, 0.10 + 0.85*(i/n))
 arena_pfcca1_color(i,n) = get(ColorSchemes.Reds,  0.10 + 0.85*(i/n))
@@ -91,6 +93,7 @@ est, params = get_est_preset(esttype, horizon=1:60, thread=true, binning=7, wind
 load_manis_workspace(Main, animal, day; filt, 
                               areas, distance, feature_engineer, N)
 storage = load_alltimes_savefile(animal, day, N; params)
+
 diffed, predasym = false, storage["predasym"]
 if opt["diff"] && !diffed
     Plot.setprepend("diff_")
@@ -127,7 +130,9 @@ corerr,tsk,lab = Labels.corerr, Labels.tsk,
 ## ----------
 ## PARAMETERS
 ## ----------
-est, params = get_est_preset(:binned, binning=7, window=1.25, horizon=1:30, thread=false)
+est, params = get_est_preset(:binned, binning=7, window=1.25, horizon=1:30, 
+    thread=false)
+Plot.cause.setparams(params)
 
 # ---------------
 # Embedding trust
@@ -137,14 +142,12 @@ if opt[:plot][:manifold_check]
     # Can we trust the embedding?
     Plot.setfolder("manifold", "trust")
     em = Munge.causal.make_embedding_df(embedding, inds_of_t, scores, beh)
-    histogram(em.score, bins=100)
+    histogram(em.score, bins=100, title="Embedding trust")
     Plot.save(tagstr)
-
     # Embedding trust per area
-    @df em histogram(:score, bins=100, grouping=:area)
+    @df em histogram(:score, bins=100, grouping=:area, title="Embedding trust per area")
     Plot.save(tagstr * "_split=area")
-
-    @df em histogram(:score, bins=100, grouping=:feature)
+    @df em histogram(:score, bins=100, grouping=:feature, title="Embedding trust per feature")
     Plot.save(tagstr * "_split=feature")
 end
 
@@ -156,28 +159,35 @@ end
 K = nothing
 Plot.cause.setkeyfilter(K)
 
+# A funtion that counts the samples available in at the leaves of a tree
+# of dicts which are not missing values
+function count_samples(d)
+    if d isa AbstractDict
+        return sum(count_samples.(values(d)))
+    else
+        return !ismissing(d)
+    end
+end
+
 # --------------------------------------------------
 if opt[:plot][:gen_causal]
     @info "plot_alltimes.jl" "gen causal"
     Plot.setfolder("manifold","GEN_CAUSAL")
-
     caukws=(;bins=2 .* (30,100))
     plot(plotmedianplushist(G_ca1pfc; cmc=:red,  labelmc="ca1 → pfc",caukws...),
          plotmedianplushist(G_pfcca1; cmc=:blue, labelmc="pfc → ca1",caukws...);
-         ylim=(-0.0010, 0.0010), 
+         ylim=(-0.0050, 0.0050), 
          size=(1200,600),
          caukws...
     )
-
     Plot.save("GEN_CAUSAL-$tagstr")
     caukws=(;bins=2 .* (30,100))
     plot(plotmedianplushist(G_ca1pfc; cmc=:red, labelmc="ca1 → pfc",caukws...,histalpha=1),
          plotmedianplushist(G_pfcca1; cmc=:blue, labelmc="pfc → ca1",caukws...,histalpha=1);
-         ylim=(-0.0010, 0.0010), 
+         ylim=(-0.0050, 0.0050), 
          size=(1200,600),
          caukws
        )
-
     Plot.save("GEN_CAUSAL-$tagstr-opaque")
 end
 
@@ -185,9 +195,7 @@ end
 # CONDITIONAL CAUSAL
 # ==================================================
 if opt[:plot][:cond_causal]
-
     Plot.setfolder("manifold","COND_CAUSAL")
-
     # --------------------------
     # A. Standard time course plots
     # --------------------------
@@ -199,9 +207,7 @@ if opt[:plot][:cond_causal]
              plotmedianplushist(C_pfcca1[[1,0]];title="PFC→CA1, MEM error",  cmc=:blue,caukws...,bins=(60,300));
         condkws...
     )
-
     Plot.save("MEM-$tagstr")
-
     P1= plot(
              plotmedianplushist(C_ca1pfc[[1,1]];title="CA1→PFC, MEM correct",cmc=:red,caukws...,bins=(60,200), histalpha=1),
              plotmedianplushist(C_pfcca1[[1,1]];title="PFC→CA1, MEM correct",cmc=:blue,caukws...,bins=(60,150), histalpha=1),
@@ -209,11 +215,7 @@ if opt[:plot][:cond_causal]
              plotmedianplushist(C_pfcca1[[1,0]];title="PFC→CA1, MEM error",cmc=:blue,caukws...,bins=(60,300), histalpha=1);
         condkws...
     )
-
     Plot.save("MEM-$tagstr-opaque")
-
-
-
     P2= plot(
          plotmedianplushist(C_ca1pfc[[0,1]];title="CA1→PFC, CUE correct",cmc=:red,caukws...,bins=(60,100)),
          plotmedianplushist(C_pfcca1[[0,1]];title="PFC→CA1, CUE correct",cmc=:blue,caukws...,bins=(60,100)),
@@ -221,9 +223,7 @@ if opt[:plot][:cond_causal]
          plotmedianplushist(C_pfcca1[[0,0]];title="PFC→CA1, CUE error",cmc=:blue,caukws..., bins=(60,300));
         condkws...
     )
-
     Plot.save("CUE-$tagstr")
-
     P2= plot(
          plotmedianplushist(C_ca1pfc[[0,1]];title="CA1→PFC, CUE correct",cmc=:red,caukws...,bins=(60,100), histalpha=1),
          plotmedianplushist(C_pfcca1[[0,1]];title="PFC→CA1, CUE correct",cmc=:blue,caukws...,bins=(60,100), histalpha=1),
@@ -231,9 +231,7 @@ if opt[:plot][:cond_causal]
          plotmedianplushist(C_pfcca1[[0,0]];title="PFC→CA1, CUE error",cmc=:blue,caukws..., bins=(60,300), histalpha=1);
         condkws...
     )
-
     Plot.save("CUE-$tagstr-opaque")
-
     # Create shorcut structures
     C_ca1pfc=OrderedDict(k=>C_ca1pfc[k] for k in keys(lab))
     C_pfcca1=OrderedDict(k=>C_pfcca1[k] for k in keys(lab))
@@ -241,29 +239,27 @@ if opt[:plot][:cond_causal]
     Cd_pfcca1=OrderedDict(k=>getdiff(C_pfcca1[k]) for k in keys(lab))
     Cm_ca1pfc=OrderedDict("CA1→PFC "*lab[k] => summaryget(v) for (k,v) in C_ca1pfc)
     Cm_pfcca1=OrderedDict("PFC→CA1 "*lab[k] => summaryget(v) for (k,v) in C_pfcca1)
-
     # --------------------------
     # B. Just the means
     # --------------------------
     # PLOT CA1 → PFC
-    plot([plot(x_time,v; fill=0, label=k, c=:red) for (k,v) in Cm_ca1pfc]..., xlabel="time", ylabel="𝔸", alpha=0.5)
+    plot([plot(x_time,v; fill=0, label=k, c=:red) for (k,v) in Cm_ca1pfc]...,
+        xlabel="time", ylabel="𝔸", alpha=0.5)
     # PLOT PFC → CA1
-    plot([plot(x_time,v; fill=0, label=k, c=:skyblue) for (k,v) in Cm_pfcca1]..., xlabel="time",  ylabel="𝔸", alpha=0.5)
-
-
+    plot([plot(x_time,v; fill=0, label=k, c=:skyblue) for (k,v) in
+        Cm_pfcca1]..., xlabel="time",  ylabel="𝔸", alpha=0.5)
     # --------------------------
     # C1. Jacknived flows
     # --------------------------
     kws = (;link=opt["link"])
     Plot.setfolder("manifold","COND_CAUSAL", "jacknived flows")
-    getjacknives(x) = leaveoneout(x; func=func_full)
+    getjacknives(x) = leaveoneout(x; func=opt["summaryget"])
     # How do those bins look on my image?
     plot([(plot(x_time, summaryget(v); fill=0, label=k, c=:skyblue); 
            plot!(x_time, getjacknives(v); c=:black, linestyle=:dash, alpha=0.25, label="");
            vline!(collect(Iterators.flatten(bins)), c=:black, linestyle=:dash, label=""))
            for (k,v) in C_ca1pfc]..., xlabel="time", ylabel="𝔸", alpha=0.5, kws...)
     Plot.save((;direction="ca1-pfc", params...))
-
     # PLOT PFC → CA1
     plot([(plot(x_time, summaryget(v); fill=0, label=k, c=:red); 
            plot!(x_time, getjacknives(v); c=:black, linestyle=:dash, alpha=0.25, label="");
@@ -271,7 +267,6 @@ if opt[:plot][:cond_causal]
           for (k,v) in C_pfcca1]..., xlabel="time", ylabel="𝔸", alpha=0.5, kws...,
          ylim=(-0.003, 0.002))
     Plot.save((;direction="pfc-ca1", params...))
-
     # BOTH 
     p=plot([(plot(x_time, summaryget(v1); fill=0, label="ca1→pfc",  legend_title="direction",
                   title=lab[k1], c=:red, alpha=0.5); 
@@ -281,16 +276,13 @@ if opt[:plot][:cond_causal]
            vline!(collect(Iterators.flatten(bins)), c=:black, linestyle=:dash, label=""))
           for ((k1,v1),(k2,v2)) in zip(C_ca1pfc, C_pfcca1)]..., 
            xlabel="time", ylabel="𝔸", alpha=0.5, kws..., ylim=(-0.0034, 0.0034), xlim=(0,3.5), size=(1000,400))
-
     Plot.save((;direction="both ca1-pfc pfc-ca1", params...))
-
     # --------------------
     # C2. Summary of jacknived
     # --------------------
     Plot.setfolder("manifold","COND_CAUSAL")
     Plot.setappend("$animal-$day")
     Plot.save("summary all on same axis")
-
     # ---------------------------------------
     # D. "Early, intermediate, late" analysis
     # ---------------------------------------
@@ -317,7 +309,6 @@ if opt[:plot][:cond_causal]
                        alpha=0.5, ylabel="Binned 𝔸")
         end
         Plot.save("ca1pfc - groupedbar")
-
         B = bin_the_curves(values(Cm_pfcca1)...; bins, x_time)
         V = collect(skipmissing(values(first(values(C_pfcca1)))))
         J = [leaveoneout(V; func=func_bin) for V in collect(values(C_pfcca1))]
@@ -341,9 +332,6 @@ if opt[:plot][:cond_causal]
         end
         Plot.save("pfcca1 - groupedbar")
     end
-
-
-
     # ------------
     # Summarizing the statsics of the flow
     # ------------
@@ -352,14 +340,12 @@ if opt[:plot][:cond_causal]
                                   for (k,v) in C_pfcca1)
     @time Cb_ca1pfc = OrderedDict(k=>bin_the_curves(collect(values(v))...) 
                                   for (k,v) in C_ca1pfc)
-
     v = first(values(C_pfcca1))
     heatmap(v;clim=0.07 .* (-1,1), c=:vik, 
             title="visualizing the raw data that comes out")
 
     # Bootrap summaries
-
-
+    
     # Hypothesis tests
     combos = Iterators.product( zip(["ca1pfc","pfcca1"], [Cb_ca1pfc, Cb_pfcca1]), 
                                 Iterators.product([1,0],[1,0]))
