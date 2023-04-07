@@ -242,6 +242,7 @@ function get_df(m, z1, z2; k_test, k_train, kws...)
     r=DimArray(r, (ti, :component))
     # Setup dataframe from dimarray data
     df=DataFrame(r)
+    df[!,:component] = convert(Vector{Int8}, df.component)
     # Append extra data from kws
     for (k,v) in kws
         df[!, Symbol(k)] .= v
@@ -252,7 +253,7 @@ function get_df(m, z1, z2; k_test, k_train, kws...)
     rename!(ptrain, nms .=> Symbol.(string.(nms, "_train")))
     ptest = DataFrame(props_ca1[k_test])
     # Register those properties to the reactivation dataframe
-    for nm in names(ptrain)
+    for nm in setdiff(names(ptrain),["time"])
         df[!, nm] .= ptrain[1, nm]
     end
     for nm in names(ptest)
@@ -270,8 +271,9 @@ Scores, DF = OrderedDict(), DataFrame()
 @showprogress "Test on trainings" for (i,(train, test)) in iters
     i_train, k_train = train
     i_test, k_test   = test
+    i, i_train, i_test = Int16.((i, i_train, i_test))
     z_ca1, z_pfc = Z_ca1[k_test], Z_pfc[k_test]
-    kws = (;i, k_train, k_test)
+    kws = (;i, i_train, i_test)
     # Get reactivation scores
     m = coefs[k_train, "ca1-pfc"]
     r, df = get_df(m, z_ca1, z_pfc; k_train=k_train, k_test=k_test,
@@ -279,33 +281,44 @@ Scores, DF = OrderedDict(), DataFrame()
     Scores[k_train, k_test, "ca1-pfc"] = r
     append!(DF, df)
     m = coefs[k_train, "ca1-ca1"]
-    r, df = get_df(m, z_ca1, z_ca1; k_train=k_train, k_test=k_test;
+    r, df = get_df(m, z_ca1, z_ca1; k_train=k_train, k_test=k_test,
                    areas="ca1-ca1", kws...)
     Scores[k_train, k_test, "ca1-ca1"] = r
     append!(DF, df)
     m = coefs[k_train, "pfc-pfc"]
-    r, df = get_df(m, z_pfc, z_pfc; k_train=k_train, k_test=k_test;
+    r, df = get_df(m, z_pfc, z_pfc; k_train=k_train, k_test=k_test,
                    areas="pfc-pfc", kws...)
     Scores[k_train, k_test, "pfc-pfc"] = r
     append!(DF, df)
 end
 # Restore the original logger
 global_logger(original_logger);
-
-# Checkpoint all our work
+# Shrink memory footprint of variables
+DF.i = convert(Vector{Int16}, DF.i)
+DF.i_train = convert(Vector{Int16}, DF.i_train)
+DF.i_test = convert(Vector{Int16},  DF.i_test)
+DF.startstopWell = convert(Vector{Int8}, DF.startstopWell)
+DF.startstopWell_train = convert(Vector{Int8}, DF.startstopWell_train)
+DF.stopWell = convert(Vector{Int8}, DF.stopWell)
+DF.startWell = convert(Vector{Int8}, DF.startWell)
+DF.startWell_train = convert(Vector{Int8}, DF.startWell_train)
+DF.stopWell_train = convert(Vector{Int8}, DF.stopWell_train)
+DF.component = convert(Vector{Int8}, DF.component)
+# Checkpoint
 commit_react_vars()
 
-
-
-
-
-
-
-
-
-
-
-
+# ------------------------------------------------
+# Whole i_train, i_test summaries
+# ------------------------------------------------
+other_cols = setdiff(propertynames(DF), 
+[:i, :i_train, :i_test, :component, :areas, :value, :time])
+DFS = combine(groupby(DF, [:i_train, :i_test, :component, :areas]), 
+        other_cols .=> [first],
+        :value => mean => :mean,
+        :value => std => :std,
+        :value => length => :n,
+        renamecols=false
+)
 
 
 #    _  _     _   _               _            _   _             
@@ -314,44 +327,76 @@ commit_react_vars()
 # |_      _| |  _  | |_| | |_) | | ||  __/\__ \ |_| | | | | (_| |
 #   |_||_|   |_| |_|\__, | .__/   \__\___||___/\__|_|_| |_|\__, |
 #                   |___/|_|                               |___/ 
-# Get sizes of each coef.ica.W
-pure_coefs = [coef for coef in coefs if 
-!(typeof(coef[2]) <: Exception)];
-sizes = map(pure_coefs) do x
-size(x[2].ica.W)
+# ------------------------------------------------
+DF_q = DIutils.arr.get_quantile_filtered(DF, :value, 0.001)
+# Want to select train=moving and test=stationary
+general_conditions = [:moving_train => x -> x .== true
+                      :moving => x -> x .== false]
+
+match_cols = [[:startWell, :stopWell, :startstopWell, :ha],
+[:startWell_train, :stopWell_train, :startstopWell_train, :ha_train]]
+DFS.match = all(Matrix(DFS[!, match_cols[1]]) .== Matrix(DFS[!, match_cols[2]]),
+                dims=2) |> vec
+
+
+function subset_dfs(pos...)
+    # Subset of DF where k_train == k_test
+    dfs_match    = subset(DFS, :match => x -> x .== true, 
+                          general_conditions..., pos...)
+    dfs_nonmatch = subset(DFS, :match => x -> x .== false,
+                          general_conditions..., pos...)
+    return dfs_match, dfs_nonmatch
 end
-print("Sizes of each coef.ica.W: ", sizes)
+dfs_match, dfs_nonmatch = subset_dfs()
 
-# TODO: Axes are not at all labeled
-# 1. Mapping from startstopWell to startWell, stopWell
-# 2. Store the patterns that succeed at y-axis
 
-# Now we can grab the reactivation of each Z_ca1, Z_pfc
-# pair to each of the pattern coefficients in coef
-score = Matrix{Matrix}(undef, length(coefs), length(Z_ca1))
-@showprogress "data" for (i,(s,z_ca1, z_pfc)) in 
-            enumerate(zip(startstop, Z_ca1, Z_pfc))
-    @showprogress "ica pattern" for (j, coef) in enumerate(coefs)
-    score[j,i] = reactscore(z_ca1, z_pfc, coef[2].ica)
+# ------------------------------------------------
+function difference_in_react_match_nonmatch(dfs_match, dfs_nonmatch)
+    # do matching sets have a higher reactivation score?
+    begin
+        println("Matched sets have a higher reactivation score than non-matched sets?")
+        # HypothesisTests.UnequalVarianceTTest(df_match.value, 
+        #                                      df_nonmatch.value)
+        println("DFS:")
+        HypothesisTests.UnequalVarianceTTest(dfs_match.mean, 
+                                             dfs_nonmatch.mean)
     end
+    h=histogram(dfs_match.mean, label="Matched", 
+              title="Reactivation scores for matched sets", alpha=0.5)
+    histogram!(dfs_nonmatch.mean, label="Non-matched", 
+               title="Reactivation scores for non-matched sets", alpha=0.5)
+    vline!([0], label="", linecolor=:black, linestyle=:dash)
+    vline!([mean(dfs_match.mean)], label="Mean matched", 
+           linecolor=:blue, linestyle=:dashdot)
+    vline!([mean(dfs_nonmatch.mean)], label="Mean non-matched",
+            linecolor=:red, linestyle=:dashdot)
+    xlims!(-0.2, 1)
+    ylims!(0, 10000)
+    return h
 end
+difference_in_react_match_nonmatch(dfs_match, dfs_nonmatch)
+# ------------------------------------------------
 
-# Test hypothesis that reactivation is strongest when
-# measured against the original pattern trained on
-# startWell,stopWell for each startstopWell
-tmp=combine(groupby(beh, :startstopWell), 
-        :startWell=>first, :stopWell=>first,
-        :startstopWell=>first, renamecols=false)
-m=Dict(v.startstopWell=>(;startWell=v.startWell, stopWell=v.stopWell) for v in eachrow(tmp))
-ytick = (1:length(coefs), map(collect(keys(coefs))) do x
-"s=$(m[x].startWell), e=$(m[x].stopWell)"
-end)
+h = []
+for k in 1:8
+    dfs_match, dfs_nonmatch = subset_dfs(:component => x-> x .== k)
+    hh = difference_in_react_match_nonmatch(dfs_match, dfs_nonmatch)
+    push!(h, 
+    plot(hh, xlabel="Reactivation score", ylabel="Count"))
+end
+plot(h..., layout=(2,4), size=(1200, 800), 
+title="Reactivation scores for component 1-8")
 
-μ = mean.(score)
-X = 1:size(μ,1), Y = 1:size(μ,2)
-heatmap(X, Y, μ, clim=(-0.1,0.1), c=:vik, title="Mean reactivation score",
-yticks=ytick)
-    
+
+h=[]
+for areas in ["ca1-pfc", "ca1-ca1", "pfc-pfc"]
+    dfs_match, dfs_nonmatch = subset_dfs(:areas => x-> x .== areas)
+    hh=difference_in_react_match_nonmatch(dfs_match, dfs_nonmatch)
+    push!(h,plot(hh, title="Reactivation scores for matched sets $areas", 
+        xlabel="Reactivation score", ylabel="Count"))
+end
+plot(h..., layout=(1,3), size=(1200, 400))
+
 # ------------------------------------------------
 
 
