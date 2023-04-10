@@ -35,12 +35,12 @@ function commit_react_vars(vars::Union{Nothing,Vector,Tuple,String}=nothing)
     if opt["commits"] == false; 
         println("Not committing variables to file.")
     return Nothing; end
-    if vars === nothing || "DF" in vars
+    if vars === nothing || "DF" in vars && isdefined(Main, :DF)
         @info "Committing $(path_react(opt))"
         arrow_file = replace(path_react(opt),"jld2"=>"arrow")
         Arrow.write(arrow_file, DF, compress=:lz4)
     end
-    if vars === nothing || "DFS" in vars
+    if vars === nothing || "DFS" in vars && isdefined(Main, :DFS)
         @info "Committing $(path_react(opt;append="_summary"))"
         arrow_file = replace(path_react(opt;append="_summary"),"jld2"=>"arrow")
         Arrow.write(arrow_file, DFS, compress=:lz4)
@@ -48,8 +48,8 @@ function commit_react_vars(vars::Union{Nothing,Vector,Tuple,String}=nothing)
 end
 
 def = isdefined(Main, :opt)
+opt = def ? opt : Dict()
 begin
-    opt = def ? opt : Dict()
     if !def
         opt["animal"] = "RY16"
         opt["day"] = 36
