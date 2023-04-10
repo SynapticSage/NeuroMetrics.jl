@@ -113,40 +113,44 @@ plot(h..., layout=(1,3), size=(1200, 400))
 # Step 2: function that subsets, hypothesis tests to the REPL, and
 #         plots the histogram as above
 # ------------------------------------------------
-# Step 1
-unmatch = :startWell
+# Step 1 : Match all properties except unmatch variable
+split_tmpl_match = :startWell
 match_cols = [[x for x in default_match_cols[1] if 
-                !occursin(string(unmatch), string(x))],
+                !occursin(string(split_tmpl_match), string(x))],
               [x for x in default_match_cols[2] if 
-                !occursin(string(unmatch), string(x))]]
+                !occursin(string(split_tmpl_match), string(x))]]
 DFS.match = all(Matrix(DFS[!, match_cols[1]]) .== Matrix(DFS[!, match_cols[2]]),
                 dims=2) |> vec;
-DFS.exclude = DFS.startWell == -1 || DFS.stopWell == -1 || 
-              DFS.startWell_tmpl == -1 || DFS.stopWell_tmpl == -1
+DFS.exclude = DFS.startWell .== -1      .|| DFS.stopWell .== -1 .|| 
+              DFS.startWell_tmpl .== -1 .|| DFS.stopWell_tmpl .== -1
 dfs, _ = subset_dfs()
 U = Dict(x=>unique(dfs[!, x]) for x in propertynames(dfs))
-train_dims = [:startWell_tmpl, :stopWell_tmpl]
-test_dims = [:startWell]
+template_dims = [:startWell_tmpl, :stopWell_tmpl]
+test_dims =     [split_tmpl_match]
 # Step 2
 h = []
-train_iters = Iterators.product([U[x] for x in train_dims]...)
-item = first(train_iters)
-for item in train_iters
-    selector_tr = [train_dims[i] => x -> x .== item[i] for i in 1:length(item)]
-    dfs_match, dfs_nonmatch = subset_dfs( selector_tr...)
+tmpl_iters = Iterators.product([U[x] for x in template_dims]...)
+tmpl = first(tmpl_iters)
+global matching    = Array{Union{DataFrame,Missing}}(missing, size(tmpl_iters)..., size(test_iters)...)
+global nonmatching = Array{Union{DataFrame, Missing}}(missing, size(tmpl_iters)..., size(test_iters)...)
+global count = 0
+for tmpl in tmpl_iters
+    global count = count + 1
+    selector_tmpl = [template_dims[i] => 
+                        x -> x .== tmpl[i] for i in 1:length(tmpl)]
+    dfs_match, dfs_nonmatch = subset_dfs( selector_tmpl...)
     test_iters = Iterators.product([U[x] for x in test_dims]...)
-    matching    = Array{Any}(undef, size(train_iters)..., size(test_iters)...)
-    nonmatching = Array{Any}(undef, size(train_iters))
     startWell = first(test_iters)
     for (i,startWell) in enumerate(unique(dfs.startWell))
         selector_te = [test_dims[i] => x -> x .== startWell for i in 1:length(startWell)]
+        global count
         dm = subset(dfs_match, selector_te...)
         dn = subset(dfs_nonmatch, selector_te...)
-        if startWell_tmpl == startWell
-            push!(matching, dm)
-        else
-            push!(nonmatching, dn)
-        end
+        global matching[count]    = dm
+        global nonmatching[count] = dn
+        #TODO: put template_vars == match var here!, same size as matching[]
+        # and nonmatching[]
+        # BUG: count does not cover the size of matching and nonmatching
     end
 end
 

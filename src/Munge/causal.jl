@@ -119,13 +119,13 @@ module causal
     - `::Vector{Tuple{Vector{Float64}, Vector{Float64}}}`: A vector of tuples
     containing the X and Y data for each ensemble.
     """
-    function ensembling(uniX::Vector, uniY::Vector, n::Int, horizon::Int)
+    function ensembling(uniX::Vector, uniY::Vector, n::T where T <: Int, horizon::T where T <: Union{UnitRange,Int})
         l = length(uniX)
         starts = rand(1:l, n)
-        ends_ranges = UnitRange.(starts .+ horizon, l)
+        ends_ranges = UnitRange.(starts .+ maximum(horizon), [l])
         ends = rand.(ends_ranges)
-        ((uniX[start:stop], uniY[start:stop]) for (start,stop) 
-         in zip(starts,ends))
+        ((uniX[start:stop], uniY[start:stop]) 
+         for (start,stop) in zip(starts,ends))
     end
 
     
@@ -217,12 +217,19 @@ module causal
                                                 normalize=true, f)
             end
         else
-            begin
-                PA = CausalityTools.predictive_asymmetry(uniX, 
-                                                    uniY, 
+            PA = Vector{Union{Missing,Vector}}(undef, 100)
+            iters = enumerate(ensembling(uniX, uniY, 100, params[:horizon]))
+            Threads.@threads for (i,(ux,uy)) in collect(iters)
+                try
+                        pa=CausalityTools.predictive_asymmetry(ux,
+                                                    uy,
                                                     est,
                                                     params[:horizon];
                                                     normalize=true, f)
+                        PA[i] = pa
+                catch
+                    PA[i] = missing
+                end
             end
         end
     end
