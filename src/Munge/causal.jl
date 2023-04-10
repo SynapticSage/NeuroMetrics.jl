@@ -106,6 +106,28 @@ module causal
         norm::Vector{Float64}
     end
 
+    """
+        function ensembling(uniX, uniY, n, horizon)
+    Ensembles the data by randomly selecting `n` start and end points. The
+    start and end points are used to create different windows of the data.
+    # Arguments
+    - `uniX`: The univariate time series for the X variable
+    - `uniY`: The univariate time series for the Y variable
+    - `n`: The number of ensembles to create
+    - `horizon`: The horizon to use for the PA calculation
+    # Returns
+    - `::Vector{Tuple{Vector{Float64}, Vector{Float64}}}`: A vector of tuples
+    containing the X and Y data for each ensemble.
+    """
+    function ensembling(uniX::Vector, uniY::Vector, n::Int, horizon::Int)
+        l = length(uniX)
+        starts = rand(1:l, n)
+        ends_ranges = UnitRange.(starts .+ horizon, l)
+        ends = rand.(ends_ranges)
+        ((uniX[start:stop], uniY[start:stop]) for (start,stop) 
+         in zip(starts,ends))
+    end
+
     
     ## ---------- GLOBAL WITH AN ESTIMATOR ------------------
     export predictiveasymmetry
@@ -191,7 +213,8 @@ module causal
                                                 uniX, 
                                                 uniY, 
                                                 est,
-                                                params[:horizon])
+                                                params[:horizon];
+                                                normalize=true, f)
             end
         else
             begin
@@ -199,7 +222,7 @@ module causal
                                                     uniY, 
                                                     est,
                                                     params[:horizon];
-                                                    normalize=true, f=0.001)
+                                                    normalize=true, f)
             end
         end
     end
