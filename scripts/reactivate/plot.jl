@@ -10,13 +10,45 @@ include("run.jl") # Just so language-server protocol can find the symbols
 # ------------------------------------------------------------
 DF = DIutils.arr.get_quantile_filtered(DF, :value, 0.001)
 # Want to select train=moving and test=stationary
-general_conditions = [:moving_tmpl => x -> x .== true,
+enforce_conditions = [:moving_tmpl => x -> x .== true,
                       :moving       => x -> x .== false]
 
 default_match_cols =  [[:startWell, :stopWell, :startstopWell, :ha, :epoch],
-[:startWell_tmpl, :stopWell_tmpl, :startstopWell_tmpl, :ha_tmpl, :epoch_tmpl]]
-match_cols = copy(default_match_cols)
-DFS.match = all(Matrix(DFS[!, match_cols[1]]) .== Matrix(DFS[!, match_cols[2]]),
+                       [:startWell_tmpl, :stopWell_tmpl, :startstopWell_tmpl, 
+                        :ha_tmpl, :epoch_tmpl]]
+"""
+    get_pmatch_cols(decouple_cols)
+Return the columns to partially match the actual labels of the samples (what
+animals actually did) against the labels of the templates (the reactivation
+template that was used).
+# Globals used
+- `default_match_cols`: Default columns to match.
+# Arguments
+- `decouple_cols`: Columns to decouple from the default matching columns.
+"""
+function get_pmatch_cols(decouple_cols)
+    [[x for x in default_match_cols[1] if 
+                    !occursin(string(decouple_cols), string(x))],
+     [x for x in default_match_cols[2] if 
+                    !occursin(string(decouple_cols), string(x))]]
+end
+"""
+    set_pmatch!(decouple_cols)
+Set the `:pmatch` column in `DFS` to `true` if 
+are equal.
+# Globals used
+- `DFS`: Dataframe to set the `:pmatch` column in.
+- `default_match_cols`: Default columns to match.
+# Arguments
+- `decouple_cols`: Columns to decouple from the default matching columns.
+"""
+function set_pmatch!(decouple_cols)
+    match_cols = get_pmatch_cols(decouple_cols)
+    DFS.pmatch = all(Matrix(DFS[!, match_cols[1]]) .== Matrix(DFS[!, match_cols[2]]),
+                    dims=2) |> vec
+    nothing
+end
+DFS.pmatch = all(Matrix(DFS[!, match_cols[1]]) .== Matrix(DFS[!, match_cols[2]]),
                 dims=2) |> vec
 DFS.exclude = DFS.n .< 10
 
@@ -28,15 +60,18 @@ Subset the dataframe `DFS` by the conditions in `general_conditions` and
 where `:exclude` is `true`.
 We generate two subsets of `DFS` where `:match` is `true` and `false`,
 respectively. Match 
+# Globals used
+- `DFS`: Dataframe to subset.
+- `general_conditions`: Conditions to subset `DFS` by.
 # Arguments
 - `pos...`: Conditions to subset `DFS` by.
 """
 function subset_dfs(pos...)
     # Subset of DF where k_tmpl == k_test
     dfs_match    = subset(DFS, :match => x -> x .== true, 
-                          general_conditions..., pos...)
+                          enforce_conditions..., pos...)
     dfs_nonmatch = subset(DFS, :match => x -> x .== false,
-                          general_conditions..., pos...)
+                          enforce_conditions..., pos...)
     # If exclude defined in column
     if :exclude in propertynames(dfs_match)
         dfs_match =    subset(dfs_match,   :exclude => x -> x .== false)
@@ -109,51 +144,78 @@ plot(h..., layout=(1,3), size=(1200, 400))
 # In other words, we want to collect FOR each matching set (matched 
 # on stopWell, ha, epoch) the reactivation score for each startWell
 #
-# Step 1: Change .match to encode match excepting the startWell
+# Step 1: Change .pmatch to encode match excepting the startWell
 # Step 2: function that subsets, hypothesis tests to the REPL, and
 #         plots the histogram as above
 # ------------------------------------------------
-# Step 1 : Match all properties except unmatch variable
-split_tmpl_match = :startWell
-match_cols = [[x for x in default_match_cols[1] if 
-                !occursin(string(split_tmpl_match), string(x))],
-              [x for x in default_match_cols[2] if 
-                !occursin(string(split_tmpl_match), string(x))]]
-DFS.match = all(Matrix(DFS[!, match_cols[1]]) .== Matrix(DFS[!, match_cols[2]]),
-                dims=2) |> vec;
 DFS.exclude = DFS.startWell .== -1      .|| DFS.stopWell .== -1 .|| 
               DFS.startWell_tmpl .== -1 .|| DFS.stopWell_tmpl .== -1
-dfs, _ = subset_dfs()
-U = Dict(x=>unique(dfs[!, x]) for x in propertynames(dfs))
-template_dims = [:startWell_tmpl, :stopWell_tmpl]
-test_dims =     [split_tmpl_match]
-# Step 2
-h = []
-tmpl_iters = Iterators.product([U[x] for x in template_dims]...)
-tmpl = first(tmpl_iters)
-global matching    = Array{Union{DataFrame,Missing}}(missing, size(tmpl_iters)..., size(test_iters)...)
-global nonmatching = Array{Union{DataFrame, Missing}}(missing, size(tmpl_iters)..., size(test_iters)...)
-global count = 0
-for tmpl in tmpl_iters
-    global count = count + 1
-    selector_tmpl = [template_dims[i] => 
-                        x -> x .== tmpl[i] for i in 1:length(tmpl)]
-    dfs_match, dfs_nonmatch = subset_dfs( selector_tmpl...)
-    test_iters = Iterators.product([U[x] for x in test_dims]...)
-    startWell = first(test_iters)
-    for (i,startWell) in enumerate(unique(dfs.startWell))
-        selector_te = [test_dims[i] => x -> x .== startWell for i in 1:length(startWell)]
-        global count
-        dm = subset(dfs_match, selector_te...)
-        dn = subset(dfs_nonmatch, selector_te...)
-        global matching[count]    = dm
-        global nonmatching[count] = dn
-        #TODO: put template_vars == match var here!, same size as matching[]
-        # and nonmatching[]
-        # BUG: count does not cover the size of matching and nonmatching
+
+"""
+    match_nonmatch_splits(split_tmpl_match = [:startWell],
+                          template_dims = [:startWell_tmpl, :stopWell_tmpl])
+Measure the difference in reactivation scores between tmpl and test
+sets (we iterate these). Additionally, the .pmatch property of the dataframe
+operated upon is used to further split these data into two result pools:
+"matched" and "non-matched".
+I may need to play around with the semantics of these. It's confusing the hear
+the word "match" in two contexts within this function.
+# Arguments
+- `split_actual_dims`: which actual dimensions to split on (ie what actually
+happened to the animal when measurements are taken)
+- `template_dims`: which template dimensions to split on (ie which reactivation
+template was used to measure against)
+# Returns
+- `matching`: an array of dataframe cuts where .pmatch column is true
+- `nonmatching`: an array of dataframe cuts where .pmatch column is false
+- `tml_matches` : whether the `actual_indices` match the `template_indices`
+                  per entry
+"""
+function match_nonmatch_splits(actual_dims   = [:startWell],
+        template_dims = [:startWell_tmpl, :stopWell_tmpl])
+    # Step 0 : Handle input types
+    actual_dims = actual_dims isa Symbol ? [actual_dims] : actual_dims
+    template_dims = template_dims isa Symbol ? [template_dims] : template_dims
+    # Step 1 : Match all properties except unmatch variable
+    dfs, _ = subset_dfs()
+    U = Dict(x=>unique(dfs[!, x]) for x in propertynames(dfs))
+    #ISSUE: why U[:startWell] has only 4 values?
+    template_dims = [:startWell_tmpl, :stopWell_tmpl]
+    match_dims = Symbol.(replace.(string.(template_dims),"_tmpl"=>"")) .==
+                 (actual_dims...,)
+    # Step 2 : Prepare our loop variables
+    tmpl_iters = Iterators.product([U[x] for x in template_dims]...)
+    tmpl = first(tmpl_iters)
+    actual_iters = Iterators.product([U[x] for x in actual_dims]...)
+    actual_iter_indices = collect(Iterators.product(axes(actual_iters)...))
+    matching    = Array{Union{DataFrame,Missing}}(missing,
+    size(tmpl_iters)..., size(actual_iters)...)
+    nonmatching = Array{Union{DataFrame, Missing}}(missing,
+    size(tmpl_iters)..., size(actual_iters)...)
+    tmpl_matches = Array{Union{Missing,Bool}}(missing, size(tmpl_iters)..., size(actual_iters)...)
+    tmp_iter_indices = collect(Iterators.product(axes(tmpl_iters)...))
+    for (tmpl_ind, tmpl) in zip(tmp_iter_indices, tmpl_iters)
+        selector_tmpl = [template_dims[i] => 
+                            x -> x .== tmpl[i] for i in 1:length(tmpl)]
+        dfs_match, dfs_nonmatch = subset_dfs( selector_tmpl...)
+        (i, actual) = (1,first(actual_iters))
+        for (actual_ind, actual) in zip(actual_iter_indices, actual_iters)
+            selector_te = [actual_dims[i] => x -> x .== startWell for i in
+                1:length(startWell)]
+            dm = subset(dfs_match, selector_te...)
+            dn = subset(dfs_nonmatch, selector_te...)
+            matching[tmpl_ind..., actual_ind...]    = dm
+            nonmatching[tmpl_ind..., actual_ind...] = dn
+            tmpl_matches[tmpl_ind..., actual_ind...] = 
+                        all(tmpl[match_dims] .== actual)
+        end
     end
+    return matching, nonmatching, tmpl_matches
 end
 
+# Measure for template=[startWell, stopWell] and actual=[startWell]
+matching, nonmatching, tmpl_matches = match_nonmatch_splits()
+print("tmpl_matches: ");
+tmpl_matches
 
-
-
+# 
