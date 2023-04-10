@@ -322,6 +322,22 @@ module reactivation
         return M_PCAICA(k, P, decomposition)
     end
 
+    """
+        ingredients(Zarea1::Matrix, Zarea2::Matrix, k=nothing)
+    
+    Returns the materials/sauce needed to calculate the reactivation score
+    between two areas, Zarea1 and Zarea2, Zarea1 and Zarea2 are matrices of
+    z-scores of the firing rates of neurons in area 1 and area 2, respectively.
+
+    # Arguments
+    - `Zarea1::Matrix`: Matrix of z-scores of the firing rates of neurons in area 1.
+    - `Zarea2::Matrix`: Matrix of z-scores of the firing rates of neurons in area 2.o
+    - `k::Int`: Number of components to use for ICA.
+    - `ica::Bool`: Whether to use ICA or not.
+    # Returns
+    - `M_PCAICA`: A struct containing the materials/sauce needed to calculate the
+    reactivation score.
+    """
     function ingredients(::M_PCAICA, train::TrainReact;
         k::Union{Int,Nothing}=nothing, ica=true)::M_PCAICA
         _, Zarea1, Zarea2, samearea = train.Z, train.Zarea1, 

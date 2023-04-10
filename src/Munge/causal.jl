@@ -98,22 +98,47 @@ module causal
         results
     end
 
+    mutable struct NormPA
+        f::Real
+        horizon::Int
+        PA::Vector{Float64}
+        TE::Vector{Float64}
+        norm::Vector{Float64}
+    end
+
     
     ## ---------- GLOBAL WITH AN ESTIMATOR ------------------
     export predictiveasymmetry
     function predictiveasymmetry(embeddingX::Dataset,
-            embeddingY::Dataset, est; thread=true, params...)
+            embeddingY::Dataset, est; thread=true, f=1, params...)
         if thread
-            Threads.@spawn CausalityTools.predictive_asymmetry(
+            Threads.@spawn begin
+                PA = CausalityTools.predictive_asymmetry(
                                                 embeddingX, 
                                                 embeddingY, 
                                                 est,
                                                 params[:horizon])
-        else
-            CausalityTools.predictive_asymmetry(embeddingX, 
+                TE = CausalityTools.transferentropy(
+                                                embeddingX, 
                                                 embeddingY, 
                                                 est,
                                                 params[:horizon])
+                norm = PA ./ ((f/params[:horizon]) * sum(TE))
+                NormPA(f, params[:horizon], PA, TE, norm)
+            end
+        else
+            begin
+                PA=CausalityTools.predictive_asymmetry(embeddingX, 
+                                                embeddingY, 
+                                                est,
+                                                params[:horizon])
+                TE=CausalityTools.transferentropy(embeddingX, 
+                                                embeddingY, 
+                                                est,
+                                                params[:horizon])
+                norm = PA ./ ((f/params[:horizon]) * sum(TE))
+                NormPA(f, params[:horizon], PA, TE, norm)
+            end
         end
     end
     function predictiveasymmetry(embeddingX::AbstractArray,
@@ -142,7 +167,7 @@ module causal
 
     ## ---------- GLOBAL WITHOUT AN ESTIMATOR ------------------
     function predictiveasymmetry(embeddingX::Dataset,
-            embeddingY::Dataset; thread=true, params...)
+            embeddingY::Dataset; thread=true, f=1, params...)
 
         # Subset by a condition?
         if :condition_inds ∈ keys(params) && 
@@ -172,16 +197,33 @@ module causal
         if isempty(embeddingX)
             missing
         elseif thread
-            Threads.@spawn @time CausalityTools.predictive_asymmetry(
+            Threads.@spawn begin
+                PA = CausalityTools.predictive_asymmetry(
                                                 uniX, 
                                                 uniY, 
                                                 est,
                                                 params[:horizon])
-        else
-            CausalityTools.predictive_asymmetry(uniX, 
+                TE = CausalityTools.transferentropy(
+                                                uniX, 
                                                 uniY, 
                                                 est,
                                                 params[:horizon])
+                normPA = PA ./ ((f/params[:horizon]) * sum(TE))
+                NormPA(f, params[:horizon], PA, TE, normPA)
+            end
+        else
+            begin
+                PA = CausalityTools.predictive_asymmetry(uniX, 
+                                                    uniY, 
+                                                    est,
+                                                    params[:horizon])
+                TE = CausalityTools.transferentropy(uniX,
+                                                    uniY, 
+                                                    est,
+                                                    params[:horizon])
+                normPA = PA ./ ((f/params[:horizon]) * sum(TE))
+                NormPA(f, params[:horizon], PA, TE, normPA)
+            end
         end
     end
     function predictiveasymmetry(embeddingX::AbstractArray,
