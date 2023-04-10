@@ -111,6 +111,7 @@ module causal
     export predictiveasymmetry
     function predictiveasymmetry(embeddingX::Dataset,
             embeddingY::Dataset, est; thread=true, f=1, params...)
+        @infiltrate
         if thread
             Threads.@spawn begin
                 PA = CausalityTools.predictive_asymmetry(
@@ -118,26 +119,14 @@ module causal
                                                 embeddingY, 
                                                 est,
                                                 params[:horizon])
-                TE = CausalityTools.transferentropy(
-                                                embeddingX, 
-                                                embeddingY, 
-                                                est,
-                                                params[:horizon])
-                norm = PA ./ ((f/params[:horizon]) * sum(TE))
-                NormPA(f, params[:horizon], PA, TE, norm)
             end
         else
             begin
+                @infiltrate
                 PA=CausalityTools.predictive_asymmetry(embeddingX, 
                                                 embeddingY, 
                                                 est,
                                                 params[:horizon])
-                TE=CausalityTools.transferentropy(embeddingX, 
-                                                embeddingY, 
-                                                est,
-                                                params[:horizon])
-                norm = PA ./ ((f/params[:horizon]) * sum(TE))
-                NormPA(f, params[:horizon], PA, TE, norm)
             end
         end
     end
@@ -203,26 +192,14 @@ module causal
                                                 uniY, 
                                                 est,
                                                 params[:horizon])
-                TE = CausalityTools.transferentropy(
-                                                uniX, 
-                                                uniY, 
-                                                est,
-                                                params[:horizon])
-                normPA = PA ./ ((f/params[:horizon]) * sum(TE))
-                NormPA(f, params[:horizon], PA, TE, normPA)
             end
         else
             begin
                 PA = CausalityTools.predictive_asymmetry(uniX, 
                                                     uniY, 
                                                     est,
-                                                    params[:horizon])
-                TE = CausalityTools.transferentropy(uniX,
-                                                    uniY, 
-                                                    est,
-                                                    params[:horizon])
-                normPA = PA ./ ((f/params[:horizon]) * sum(TE))
-                NormPA(f, params[:horizon], PA, TE, normPA)
+                                                    params[:horizon];
+                                                    normalize=true, f=0.001)
             end
         end
     end

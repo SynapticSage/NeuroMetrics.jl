@@ -159,6 +159,7 @@ animal, day, N, filt = first(datasets)
         info = Dtype()
         GC.gc()
     end
+
     # Function that handles computing conditional causal
     # measures
     """
@@ -186,6 +187,7 @@ animal, day, N, filt = first(datasets)
         else
             groups=nothing
         end
+        println("params: ", params)
         @info "runconditional" "ca1pfc" conditionals
         conditional_pred_asym(ca1pfc, CA1PFC, beh, conditionals; groups, 
                               inds_of_t, params...)
@@ -211,10 +213,11 @@ animal, day, N, filt = first(datasets)
 
     # Obtain conditional runs
     C_ca1pfc = C_pfcca1 = C_ca1ca1 = C_pfcpfc = nothing
+    (i,props) = (1,first(PROPS))
     @softscope for (i,props) in enumerate(PROPS)
         🔑 = "props=" * replace(string(props),":"=>""," "=>"")
         @info "props" 🔑
-        if 🔑 ∉ keys(predasym)
+        if 🔑 ∉ keys(predasym) || opt[:overwrite]
             predasym[🔑], info[🔑] = Dict{String,Any}(), Dict{String,Any}()
         elseif opt[:skipexisting_predasym_keys]
             print("🔑 in predasym, skipping...")
