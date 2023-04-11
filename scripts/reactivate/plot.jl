@@ -300,3 +300,5 @@ TT = nothing
 GC.gc()
 TT = tensor.tensorize(DFc, [:traj, :startWell, :stopWell, :startWell_tmpl, :stopWell_tmpl], [:time,:value])
 #: BUG: WHY ARE THERE ONLY 12 trajectories?
+
+

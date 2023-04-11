@@ -24,12 +24,14 @@ beh[:, :startstopWell] = sf
 beh[:, :moving] = beh[:, :speed] .> 2 # cm/s
 groupings = [:startstopWell, :startWell, :stopWell, :moving, :ha, :correct, 
     :epoch]
+
 # Register that to Rdf
+sort!(Rdf, [:time, :unit])
 register(beh, Rdf,   on="time", transfer=["traj",string.(groupings)...])
-Rdf = @subset(Rdf,  
-                    :stopWell .!= -1,
-                    :startWell .!= 1)
+# Rdf = @subset(Rdf, :stopWell .!= -1, :startWell .!= 1)
+sort!(Rdf, [:unit, :time])
 register(cells, Rdf, on="unit", transfer=["area"])
+sort!(Rdf, [:time, :unit])
 ca1, pfc = groupby(Rdf, :area)[1:2];
 @assert(ca1.area[1] == "CA1" && pfc.area[1] == "PFC", 
 "Areas are not CA1 and PFC")
@@ -42,6 +44,8 @@ DIutils.pushover("Finished creating area splits")
 ca1.ha = replace(ca1.ha, missing => 'm')
 ca1    = groupby(ca1, groupings);
 pfc    = groupby(pfc, groupings);
+# INFO: up to this point, all startWell elements exist!
+
 # ------------------------------------------------------------------
 # Which data will we accept?, right now I'm only accepting combinations
 # that have more than num_cells samples
@@ -52,10 +56,18 @@ pfc    = groupby(pfc, groupings);
 # It turns out ALL of the missing values hail from the incorrect trials
 # ------------------------------------------------------------------
 accepted = begin
+    # This line works as follows: 
+    # 1. Take the first row of each cell group
+    # 2. Filter out the groups that have less than num_cells samples
+    # 3. Filter out the groups that have less than 3 trajectories
+    # 4. Map the groups to a new dataframe with the groupings as columns
+    #    and the size of the group and number of unique trajectories in the
+    #    group as new columns
     accepted = 
-        Base.map(Base.filter(map(x->groupby(x,:unit)|>first,collect(ca1))) do x
-            size(x,1) > size(cells,1) && length(unique(x.traj)) ≥ 3
-    end) do x
+        Base.map(
+        Base.filter(map(x->groupby(x,:unit)|>first ,collect(ca1))) do x #1
+        size(x,1) > size(@subset(cells,:area.=="CA1"),1) && length(unique(x.traj)) ≥ 3 #2,3
+    end) do x #4
         sz = size(x,1)
         ntraj = length(unique(x.traj))
         x=DataFrame(x[1,groupings])
@@ -81,6 +93,12 @@ accepted = begin
     gr()
     accepted
 end
+# INFO: `accepted` :: there are no accepted startWell=1 combinations for RY16,36
+
+# IF startWell=1 is actually, being rejected, I need to actually plot the conditions
+# that lead to its rejection
+@subset(Rdf, :startWell .== 1) |> Voyager()
+@subset(beh, :startWell .== 1) |> Voyager()
 
 # ------------------------------------------
 # Recombine ca1 and pfc, filter, and re-split
@@ -171,7 +189,7 @@ end
 # Testing: DONE: PCAICA
 # ----------------------------
 begin
-    zca1, zpfc = Z_ca1[1], Z_pfc[1]
+    zca1, zpfc = Z_ca1 |> values |> first, Z_pfc |> values |> first
     m = M_PCAICA()
     train = reactivation.TrainReact(m, zca1, zca1)
     m = ingredients(m, train)
@@ -239,9 +257,10 @@ to add additional columns to the dataframe.
 """
 function get_df(m, z1, z2; k_test, k_tmpl, kws...)
     # Measure reactivation and conver to dimarray
+    @infiltrate
     r = reactivation.reactscore(m, z1, z2)
     ti = Dim{:time}(props_ca1[k_test].time)
-    r=DimArray(r, (ti, :component))
+    r  = DimArray(r, (ti, :component))
     # Setup dataframe from dimarray data
     df=DataFrame(r)
     df[!,:component] = convert(Vector{Int8}, df.component)
@@ -250,24 +269,27 @@ function get_df(m, z1, z2; k_test, k_tmpl, kws...)
         df[!, Symbol(k)] .= v
     end
     # Get a dataframe of properties regarding the test and train datasets
-    ptrain=DataFrame(props_ca1[k_tmpl])
-    nms = setdiff(names(ptrain),["time"])
+    ptrain = DataFrame(props_ca1[k_tmpl])
+    nms    = setdiff(names(ptrain),["time"])
     rename!(ptrain, nms .=> Symbol.(string.(nms, "_tmpl")))
     ptest = DataFrame(props_ca1[k_test])
     # Register those properties to the reactivation dataframe
+    dropmissing!(ptrain)
     for nm in setdiff(names(ptrain),["time"])
         df[!, nm] .= ptrain[1, nm]
     end
+    dropmissing!(ptest)
     for nm in names(ptest)
         df[!, nm] .= ptest[1, nm]
     end
     return r, df
 end
+# ISSUE: Already missing my startWell=1
 ckeys = unique(map(keys(coefs) |> collect) do (prop, areas)
     prop
 end)
 train_iters = enumerate(Iterators.product(enumerate(ckeys), 
-                                    enumerate(ckeys)))
+              enumerate(ckeys)))
 (i,( train, test )) = collect(train_iters)[2]
 Scores, DF = OrderedDict(), DataFrame()
 @showprogress "Test on trainings" for (i,(train, test)) in train_iters
@@ -296,6 +318,7 @@ end
 # Restore the original logger
 global_logger(original_logger);
 # Shrink memory footprint of variables
+sort!(DF, [:time, :i])
 DF.i                  = convert(Vector{Int16}, DF.i)
 DF.i_tmpl             = convert(Vector{Int16}, DF.i_tmpl)
 DF.i_test             = convert(Vector{Int16},  DF.i_test)
