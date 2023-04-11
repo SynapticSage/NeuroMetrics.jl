@@ -128,27 +128,75 @@ module causal
          for (start,stop) in zip(starts,ends))
     end
 
+
+    """
+        ensembledpredictiveasymmetry(uniX, uniY, est, params;
+            f=1, n=100)
+
+    Calculate the predictive asymmetry for the ensembled data using the
+    `predictive_asymmetry` function from `CausalityTools`.
+    # Arguments
+    - `uniX`: The univariate time series for the X variable
+    - `uniY`: The univariate time series for the Y variable
+    - `est`: The estimator to use for the PA calculation
+    - `params`: The parameters to use for the PA calculation
+    # Optional Arguments
+    - `f`: The fraction of the data to use for the PA calculation
+    - `n`: The number of ensembles to create
+    # Returns
+    - `::Vector{Float64}`: The predictive asymmetry for each ensemble 
+                           component
+    """
+    function ensembledpredictiveasymmetry(uniX, uniY, est, params;
+        f=1, n=100, kws...)
+        PA = Vector{Union{Missing,Vector}}(missing, n)
+        iters = enumerate(ensembling(uniX, uniY, n, params[:horizon]))
+        prog = Progress(length(iters), 1, 
+                        "Predictive Asymmetry-ensembling")
+        Threads.@threads for (i,(ux,uy)) in collect(iters)
+            try
+                    pa=CausalityTools.predictive_asymmetry(ux,
+                                                uy,
+                                                est,
+                                                params[:horizon];
+                                                normalize=true, f, kws...)
+                    PA[i] = pa
+            catch
+                PA[i] = missing
+            end
+        end
+        PA = filter(x->x!==missing, PA)
+        PA = hcat(PA...)'
+    end
     
     ## ---------- GLOBAL WITH AN ESTIMATOR ------------------
     export predictiveasymmetry
     function predictiveasymmetry(embeddingX::Dataset,
             embeddingY::Dataset, est; thread=true, f=1, params...)
-        @infiltrate
+
+        if :ensemble ∈ keys(params)
+            ensemble = params[:ensemble]
+            additionalkws = (;n=ensemble)
+            func = ensembledpredictiveasymmetry
+        else
+            additionalkws = (;)
+            func = CausalityTools.predictive_asymmetry
+        end
+
         if thread
             Threads.@spawn begin
-                PA = CausalityTools.predictive_asymmetry(
-                                                embeddingX, 
-                                                embeddingY, 
-                                                est,
-                                                params[:horizon])
+                func(embeddingX, 
+                     embeddingY, 
+                     est,
+                     params[:horizon]; f, additionalkws...)
             end
         else
             begin
                 @infiltrate
-                PA=CausalityTools.predictive_asymmetry(embeddingX, 
-                                                embeddingY, 
-                                                est,
-                                                params[:horizon])
+                func(embeddingX, 
+                     embeddingY, 
+                     est,
+                     params[:horizon]; f, additionalkws...)
             end
         end
     end
@@ -190,6 +238,15 @@ module causal
         else
             #@info "not indexing"
         end
+
+        # Which function to use?
+        if :ensemble ∈ keys(params)
+            additional_kws = (;n=params[:ensemble])
+            func = ensembledpredictiveasymmetry
+        else
+            additional_kws = (;)
+            func = CausalityTools.predictive_asymmetry
+        end
         
         # Embed into univariate space
         if !isempty(embeddingX)
@@ -209,28 +266,15 @@ module causal
             missing
         elseif thread
             Threads.@spawn begin
-                PA = CausalityTools.predictive_asymmetry(
-                                                uniX, 
-                                                uniY, 
-                                                est,
-                                                params[:horizon];
-                                                normalize=true, f)
+                PA = func(uniX, 
+                          uniY, 
+                          est,
+                          params[:horizon];
+                          normalize=true, f, additional_kws...)
             end
         else
-            PA = Vector{Union{Missing,Vector}}(undef, 100)
-            iters = enumerate(ensembling(uniX, uniY, 100, params[:horizon]))
-            Threads.@threads for (i,(ux,uy)) in collect(iters)
-                try
-                        pa=CausalityTools.predictive_asymmetry(ux,
-                                                    uy,
-                                                    est,
-                                                    params[:horizon];
-                                                    normalize=true, f)
-                        PA[i] = pa
-                catch
-                    PA[i] = missing
-                end
-            end
+            func(uniX, uniY, est, params[:horizon]; 
+                       f, additional_kws...)
         end
     end
     function predictiveasymmetry(embeddingX::AbstractArray,
