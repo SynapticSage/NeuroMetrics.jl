@@ -1,47 +1,47 @@
 if defined(Main, :DrWatson)
     include(scriptsdir("reactivate","imports.jl"))
 else
-    include("imports.jl")
+    include("imports.jl") # include(scriptsdir("reactivate","imports.jl"))
 end
 
 # Get and prep the data!
 # ------------------------------------------------------------------
-    spikes = DI.load_spikes(opt["animal"],   opt["day"])
-    beh    = DI.load_behavior(opt["animal"], opt["day"])
-    cells  = DI.load_cells(opt["animal"],    opt["day"])
-    # Get firing rate DimArray
-    R = spiking.torate(spikes, beh, gaussian=0.20)
-    # Create dataframe of R
-    Rdf = DataFrame(R, name=:rate)
-    DIutils.pushover("Finished creating Rdf")
-    # Create a new field enumerating (startWell, stopWell) combinations
-    # with integers
-    S  = eachrow(Matrix(beh[:, [:startWell, :stopWell]])) |> collect
-    uS = unique(S, dims=1)
-    sf = [findfirst(isequal(s), uS) for s in S]
-    beh[:, :startstopWell] = sf
-    # Create a field specifying whether the animal is still or moving
-    beh[:, :moving] = beh[:, :speed] .> 2 # cm/s
-    groupings = [:startstopWell, :startWell, :stopWell, :moving, :ha, :correct, 
-        :epoch]
-    # Register that to Rdf
-    register(beh, Rdf,   on="time", transfer=["traj",string.(groupings)...])
-    Rdf = @subset(Rdf,  
-                        :stopWell .!= -1,
-                        :startWell .!= 1)
-    register(cells, Rdf, on="unit", transfer=["area"])
-    ca1, pfc = groupby(Rdf, :area)[1:2];
-    @assert(ca1.area[1] == "CA1" && pfc.area[1] == "PFC", 
-    "Areas are not CA1 and PFC")
-    ca1 = ca1[:, Not(:area)];
-    pfc = pfc[:, Not(:area)];
-    Rdf = Rdf[:, Not(:area)];
-    dropmissing!(ca1, :startstopWell)
-    dropmissing!(pfc, :startstopWell)
-    DIutils.pushover("Finished creating area splits")
-    ca1.ha = replace(ca1.ha, missing => 'm')
-    ca1    = groupby(ca1, groupings);
-    pfc    = groupby(pfc, groupings);
+spikes = DI.load_spikes(opt["animal"],   opt["day"])
+beh    = DI.load_behavior(opt["animal"], opt["day"])
+cells  = DI.load_cells(opt["animal"],    opt["day"])
+# Get firing rate DimArray
+R = spiking.torate(spikes, beh, gaussian=0.20)
+# Create dataframe of R
+Rdf = DataFrame(R, name=:rate)
+DIutils.pushover("Finished creating Rdf")
+# Create a new field enumerating (startWell, stopWell) combinations
+# with integers
+S  = eachrow(Matrix(beh[:, [:startWell, :stopWell]])) |> collect
+uS = unique(S, dims=1)
+sf = [findfirst(isequal(s), uS) for s in S]
+beh[:, :startstopWell] = sf
+# Create a field specifying whether the animal is still or moving
+beh[:, :moving] = beh[:, :speed] .> 2 # cm/s
+groupings = [:startstopWell, :startWell, :stopWell, :moving, :ha, :correct, 
+    :epoch]
+# Register that to Rdf
+register(beh, Rdf,   on="time", transfer=["traj",string.(groupings)...])
+Rdf = @subset(Rdf,  
+                    :stopWell .!= -1,
+                    :startWell .!= 1)
+register(cells, Rdf, on="unit", transfer=["area"])
+ca1, pfc = groupby(Rdf, :area)[1:2];
+@assert(ca1.area[1] == "CA1" && pfc.area[1] == "PFC", 
+"Areas are not CA1 and PFC")
+ca1 = ca1[:, Not(:area)];
+pfc = pfc[:, Not(:area)];
+Rdf = Rdf[:, Not(:area)];
+dropmissing!(ca1, :startstopWell)
+dropmissing!(pfc, :startstopWell)
+DIutils.pushover("Finished creating area splits")
+ca1.ha = replace(ca1.ha, missing => 'm')
+ca1    = groupby(ca1, groupings);
+pfc    = groupby(pfc, groupings);
 # ------------------------------------------------------------------
 # Which data will we accept?, right now I'm only accepting combinations
 # that have more than num_cells samples
