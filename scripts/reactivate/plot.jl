@@ -283,8 +283,20 @@ heatmap.(eachslice(μN, dims=3))
 
 # TRYING A SEPARATE APPROACH
 # ------------------------------------------------
+GC.gc()
+match_cols = get_pmatch_cols([:startWell,:stopWell])
+DF[!,:pmatch] = all(Matrix(DF[!, match_cols[1]]) .== Matrix(DF[!, match_cols[2]]),
+                dims=2) |> vec
+DFc = @subset(DF, :areas .== "ca1-ca1", :ha .== 'A', 
+              :component .<= 5)
+GC.gc()
+
 using GoalFetchAnalysis.Munge.tensor
 T = tensor.tensorize(DFS, [:startWell, :stopWell, :startWell_tmpl, :pmatch, :areas], [:mean])
 heatmap.(eachslice(T[:, :, :, 1],dims=3))
 
-TT = tensor.tensorize(DF, [:startWell, :stopWell, :startWell_tmpl, :pmatch, :areas], [:mean])
+#: TODO: RUN THIS
+TT = nothing
+GC.gc()
+TT = tensor.tensorize(DFc, [:traj, :startWell, :stopWell, :startWell_tmpl, :stopWell_tmpl], [:time,:value])
+#: BUG: WHY ARE THERE ONLY 12 trajectories?
