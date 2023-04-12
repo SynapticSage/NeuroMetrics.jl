@@ -24,11 +24,12 @@ beh[:, :startstopWell] = sf
 beh[:, :moving] = beh[:, :speed] .> 2 # cm/s
 groupings = [:startstopWell, :startWell, :stopWell, :moving, :ha, :correct, 
     :epoch]
+println("Available trajectories:", unique(beh[:, :traj]))
 
 # Register that to Rdf
 sort!(Rdf, [:time, :unit])
 register(beh, Rdf,   on="time", transfer=["traj",string.(groupings)...])
-# Rdf = @subset(Rdf, :stopWell .!= -1, :startWell .!= 1)
+Rdf = @subset(Rdf, :stopWell .!= -1, :startWell .!= 1)
 sort!(Rdf, [:unit, :time])
 register(cells, Rdf, on="unit", transfer=["area"])
 sort!(Rdf, [:time, :unit])
@@ -45,6 +46,15 @@ ca1.ha = replace(ca1.ha, missing => 'm')
 ca1    = groupby(ca1, groupings);
 pfc    = groupby(pfc, groupings);
 # INFO: up to this point, all startWell elements exist!
+println("Available trajectories, Rdf:", unique(Rdf[:, :traj]))
+println("Available trajectories, ca1:", unique(ca1[:, :traj]))
+
+# IF startWell=1 is actually, being rejected, I need to actually plot the conditions
+# that lead to its rejection
+@subset(Rdf, :startWell .== 1) |> Voyager()
+@subset(beh, :startWell .== 1) |> Voyager()
+
+GC.gc()
 
 # ------------------------------------------------------------------
 # Which data will we accept?, right now I'm only accepting combinations
@@ -95,10 +105,6 @@ accepted = begin
 end
 # INFO: `accepted` :: there are no accepted startWell=1 combinations for RY16,36
 
-# IF startWell=1 is actually, being rejected, I need to actually plot the conditions
-# that lead to its rejection
-@subset(Rdf, :startWell .== 1) |> Voyager()
-@subset(beh, :startWell .== 1) |> Voyager()
 
 # ------------------------------------------
 # Recombine ca1 and pfc, filter, and re-split
@@ -143,6 +149,7 @@ end
     # (x,y) -> size(x,1) == size(y,1), collect(ca1), collect(pfc)),
     # )
 end
+println("Available trajectories, ca1:", unique(ca1[:, :traj]))
 
 # ----------------------------------
 # Now convert these back to DimArrays
@@ -257,7 +264,6 @@ to add additional columns to the dataframe.
 """
 function get_df(m, z1, z2; k_test, k_tmpl, kws...)
     # Measure reactivation and conver to dimarray
-    @infiltrate
     r = reactivation.reactscore(m, z1, z2)
     ti = Dim{:time}(props_ca1[k_test].time)
     r  = DimArray(r, (ti, :component))
@@ -321,7 +327,7 @@ global_logger(original_logger);
 sort!(DF, [:time, :i])
 DF.i                  = convert(Vector{Int16}, DF.i)
 DF.i_tmpl             = convert(Vector{Int16}, DF.i_tmpl)
-DF.i_test             = convert(Vector{Int16},  DF.i_test)
+DF.i_test             = convert(Vector{Int16}, DF.i_test)
 DF.startstopWell      = convert(Vector{Int8}, DF.startstopWell)
 DF.startstopWell_tmpl = convert(Vector{Int8}, DF.startstopWell_tmpl)
 DF.stopWell           = convert(Vector{Int8}, DF.stopWell)
