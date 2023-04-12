@@ -335,19 +335,36 @@ function get_df(m, z1, z2; k_test, k_tmpl, kws...)
     for nm in setdiff(names(ptest),["time"])
         df[!, nm] .= ptest[1, nm]
     end
-    sort!(df, [:time, :component])
-    DIutils.filtreg.register(ptest, df, on="time", transfer=["traj"]) 
+    # These steps are essential BUT they are costly ... on my machine
+    # adds 15 minutes to a 20 minute loop.
+        sort!(df, [:time, :component])
+        DIutils.filtreg.register(ptest, df, on="time", transfer=["traj"]) 
     return r, df
+end
+function convert_df!(df)
+    df.i                  = convert(Vector{Int16}, df.i)
+    df.i_tmpl             = convert(Vector{Int16}, df.i_tmpl)
+    df.i_test             = convert(Vector{Int16}, df.i_test)
+    df.startstopWell      = convert(Vector{Int8},  df.startstopWell)
+    df.startstopWell_tmpl = convert(Vector{Int8},  df.startstopWell_tmpl)
+    df.stopWell           = convert(Vector{Int8},  df.stopWell)
+    df.startWell          = convert(Vector{Int8},  df.startWell)
+    df.startWell_tmpl     = convert(Vector{Int8},  df.startWell_tmpl)
+    df.stopWell_tmpl      = convert(Vector{Int8},  df.stopWell_tmpl)
+    df.component          = convert(Vector{Int8},  df.component)
+    df
 end
 # ISSUE: Already missing my startWell=1
 ckeys = unique(map(keys(coefs) |> collect) do (prop, areas)
     prop
 end)
 train_iters = enumerate(Iterators.product(enumerate(ckeys), 
-              enumerate(ckeys)))
+              enumerate(ckeys))) |> collect
 (i,( train, test )) = collect(train_iters)[2]
-Scores, DF = OrderedDict(), DataFrame()
-@showprogress "Test on trainings" for (i,(train, test)) in train_iters
+prog = Progress(length(train_iters); desc="Reactivation Scores")
+Scores, DF = OrderedDict(), Matrix{Union{Missing,DataFrame}}(missing, length(train_iters), 3)
+println("Garbage colleting:", GC.gc())
+Threads.@threads for (i,(train, test)) in train_iters
     i_tmpl, k_tmpl = train
     i_test, k_test   = test
     i, i_tmpl, i_test = Int16.((i, i_tmpl, i_test))
@@ -358,32 +375,24 @@ Scores, DF = OrderedDict(), DataFrame()
     r, df = get_df(m, z_ca1, z_pfc; k_tmpl=k_tmpl, k_test=k_test,
                    areas="ca1-pfc", kws...)
     Scores[k_tmpl, k_test, "ca1-pfc"] = r
-    append!(DF, df)
+    DF[i, 1] = convert_df!(df)
     m = coefs[k_tmpl, "ca1-ca1"]
     r, df = get_df(m, z_ca1, z_ca1; k_tmpl=k_tmpl, k_test=k_test,
                    areas="ca1-ca1", kws...)
     Scores[k_tmpl, k_test, "ca1-ca1"] = r
-    append!(DF, df)
+    DF[i, 2] = convert_df!(df)
     m = coefs[k_tmpl, "pfc-pfc"]
     r, df = get_df(m, z_pfc, z_pfc; k_tmpl=k_tmpl, k_test=k_test,
                    areas="pfc-pfc", kws...)
     Scores[k_tmpl, k_test, "pfc-pfc"] = r
-    append!(DF, df)
-    if i == 1
-        DF.i                  = convert(Vector{Int16}, DF.i)
-        DF.i_tmpl             = convert(Vector{Int16}, DF.i_tmpl)
-        DF.i_test             = convert(Vector{Int16}, DF.i_test)
-        DF.startstopWell      = convert(Vector{Int8}, DF.startstopWell)
-        DF.startstopWell_tmpl = convert(Vector{Int8}, DF.startstopWell_tmpl)
-        DF.stopWell           = convert(Vector{Int8}, DF.stopWell)
-        DF.startWell          = convert(Vector{Int8}, DF.startWell)
-        DF.startWell_tmpl     = convert(Vector{Int8}, DF.startWell_tmpl)
-        DF.stopWell_tmpl      = convert(Vector{Int8}, DF.stopWell_tmpl)
-        DF.component          = convert(Vector{Int8}, DF.component)
-    end
+    DF[i, 3] = convert_df!(df)
+    next!(prog)
 end
 # Restore the original logger
 global_logger(original_logger);
+
+
+
 # Shrink memory footprint of variables
 sort!(DF, [:time, :i])
 # Rename any vars with _train to _tmpl
