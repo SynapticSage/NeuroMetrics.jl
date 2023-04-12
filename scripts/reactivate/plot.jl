@@ -7,7 +7,6 @@ include("run.jl")
 # Just so language-server protocol can find the symbols
 # from the script that generated the data.
 load_react_vars()
-using DimensionalData
 
 
 # ------------------------------------------------
@@ -85,8 +84,10 @@ function difference_in_react_match_nonmatch(dfs_match, dfs_nonmatch)
                                              dfs_nonmatch.mean)
     end
     h=histogram(dfs_match.mean, label="Matched", 
+                linewidth=0, strokealpha=0.01,
               title="Reactivation scores for matched sets", alpha=0.5)
     histogram!(dfs_nonmatch.mean, label="Non-matched", 
+                linewidth=0, strokealpha=0.01,
                title="Reactivation scores for non-matched sets", alpha=0.5)
     vline!([0], label="", linecolor=:black, linestyle=:dash)
     vline!([mean(dfs_match.mean)], label="Mean matched", 
@@ -201,10 +202,11 @@ h=[]
 for areas in ["ca1-pfc", "ca1-ca1", "pfc-pfc"]
     dfs_match, dfs_nonmatch = subset_dfs(:areas => x-> x .== areas)
     hh=difference_in_react_match_nonmatch(dfs_match, dfs_nonmatch)
-    push!(h,plot(hh, title="Reactivation scores for matched sets $areas", 
+    push!(h,plot(hh, title="Reactivation scores\nfor matched sets $areas\n\n\n\n", 
         xlabel="Reactivation score", ylabel="Count"))
 end
 plot(h..., layout=(1,3), size=(1200, 400))
+ylims!(0,2000)
 
 h=[]
 for epochs in unique(DF.epoch)
@@ -285,8 +287,8 @@ heatmap.(eachslice(μN, dims=3))
 # ------------------------------------------------
 GC.gc()
 match_cols = get_pmatch_cols([:startWell,:stopWell])
-DF[!,:pmatch] = all(Matrix(DF[!, match_cols[1]]) .== Matrix(DF[!, match_cols[2]]),
-                dims=2) |> vec
+DF[!,:pmatch] = all(Matrix(DF[!, match_cols[1]]) .== 
+    Matrix(DF[!, match_cols[2]]), dims=2) |> vec
 DFc = @subset(DF, :areas .== "ca1-ca1", :ha .== 'A', 
               :component .<= 5)
 GC.gc()
@@ -298,7 +300,8 @@ heatmap.(eachslice(T[:, :, :, 1],dims=3))
 #: TODO: RUN THIS
 TT = nothing
 GC.gc()
-TT = tensor.tensorize(DFc, [:traj, :startWell, :stopWell, :startWell_tmpl, :stopWell_tmpl], [:time,:value])
+TT = tensor.tensorize(DFc, [:traj, :startWell, :stopWell, :startWell_tmpl, :stopWell_tmpl], 
+[:time,:value])
 #: BUG: WHY ARE THERE ONLY 12 trajectories?
 
 

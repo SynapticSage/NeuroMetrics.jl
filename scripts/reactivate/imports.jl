@@ -2,7 +2,7 @@
 # This script grabs reactivation scores with my Munge.reactivation module
 using GoalFetchAnalysis
 using GoalFetchAnalysis.Munge.reactivation, GoalFetchAnalysis.Munge.spiking,
-      GoalFetchAnalysis.Munge.groupop
+      GoalFetchAnalysis.Munge.groupop, GoalFetchAnalysis.Munge.tensor
 import GoalFetchAnalysis.Munge.reactivation: path_react
 using DI
 import Dates
@@ -13,6 +13,7 @@ using DataFrames, ProgressMeter, DataFramesMeta, StatsPlots
 using GoalFetchAnalysis.Munge.spiking, DIutils.arr, Infiltrator, Statistics, 
 LinearAlgebra, NaNStatistics
 using Plots, DataVoyager, Logging, JLD2
+using DimensionalData
 import DataStructures: OrderedDict
 LinearAlgebra.BLAS.set_num_threads(16)
 using MKL

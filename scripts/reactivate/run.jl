@@ -255,7 +255,8 @@ begin
         labelfontsize=3, legendfontsize=3)
     plot(Div..., marker=:circle, markersize=1, fontsize=3, tickfontsize=3,
         labelfontsize=3, legendfontsize=3)
-    plot(DC..., marker=:circle, markersize=1, fontsize=3, tickfontsize=3, fillalpha=0.2, linewidth=0, get_markerstrokewidth=0, markerstrokealpha=0, labelfontsize=3, legendfontsize=3)
+    plot(DC..., marker=:circle, markersize=1, fontsize=3, tickfontsize=3, fillalpha=0.2, linewidth=0, 
+        markerstrokewidth=0, markerstrokealpha=0, labelfontsize=3, legendfontsize=3)
 end
 
 
@@ -391,6 +392,16 @@ end
 # Restore the original logger
 global_logger(original_logger);
 
+# Need to now combine the dataframes
+DFnew = DataFrame()
+DF = DF[:]
+while !isempty(DF)
+    append!(DFnew, popfirst!(DF))
+end
+if !isempty(DFnew)
+    DF = DFnew
+end
+GC.gc()
 
 
 # Shrink memory footprint of variables
