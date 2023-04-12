@@ -11,7 +11,7 @@ using DIutils.filtreg
 import DIutils
 using DataFrames, ProgressMeter, DataFramesMeta, StatsPlots
 using GoalFetchAnalysis.Munge.spiking, DIutils.arr, Infiltrator, Statistics, 
-LinearAlgebra
+LinearAlgebra, NaNStatistics
 using Plots, DataVoyager, Logging, JLD2
 import DataStructures: OrderedDict
 LinearAlgebra.BLAS.set_num_threads(16)

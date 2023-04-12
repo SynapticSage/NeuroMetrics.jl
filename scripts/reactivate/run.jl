@@ -47,7 +47,7 @@ ca1    = groupby(ca1, groupings);
 pfc    = groupby(pfc, groupings);
 # INFO: up to this point, all startWell elements exist!
 println("Available trajectories, Rdf:", unique(Rdf[:, :traj]))
-println("Available trajectories, ca1:", unique(ca1[:, :traj]))
+println("Available trajectories, ca1:", unique(combine(ca1,identity)[:, :traj]))
 
 # IF startWell=1 is actually, being rejected, I need to actually plot the conditions
 # that lead to its rejection
@@ -149,21 +149,23 @@ end
     # (x,y) -> size(x,1) == size(y,1), collect(ca1), collect(pfc)),
     # )
 end
-println("Available trajectories, ca1:", unique(ca1[:, :traj]))
+println("Available trajectories, ca1:", 
+    unique(combine(ca1,identity)[:, :traj]))
+println("Number of trajectories, ca1:", 
+    length(unique(combine(ca1,identity)[:, :traj])))
 
 # ----------------------------------
 # Now convert these back to DimArrays
 # ----------------------------------
 ca1 = map(zip(keys(ca1),ca1) |> collect) do (k,x)
-    NamedTuple(k) => unstack(x, [:time,groupings...], 
+    NamedTuple(k) => unstack(x, [:time,:traj,groupings...], 
         :unit, :rate; combine=mean)
 end
 pfc = map(zip(keys(pfc),pfc) |> collect) do (k,x)
-    NamedTuple(k) => unstack(x, [:time,groupings...], 
+    NamedTuple(k) => unstack(x, [:time,:traj,groupings...], 
         :unit, :rate; combine=mean)
 end
 ca1, pfc = Dict(ca1), Dict(pfc)
-
 # ---------------------------
 # Get props of each area split
 # ---------------------------
@@ -174,7 +176,7 @@ startstop_pfc = map(values(pfc) |> collect) do x
     x.startstopWell[1]
 end
 @assert startstop == startstop_pfc
-props = [groupings..., :time]
+props = [groupings..., :time, :traj]
 props_ca1 = map(ca1 |> collect) do (key,x)
     key=>NamedTuple([k=>x[!,k] for k in props])
 end
@@ -209,8 +211,53 @@ begin
     heatmap(replace(cor(r2), NaN=>0), c=:vik, clim=(-1,1))
     heatmap(replace(cor([r1 r2]), NaN=>0), c=:vik, clim=(-1,1))
     cor(sum(r1, dims=2), sum(r2, dims=2))
-    plot(sum(r1, dims=2), sum(r2, dims=2), seriestype=:scatter)
+    plot(sum(r1, dims=2), sum(r2, dims=2), seriestype=:scatter,
+        xlabel="CA1-CA1", ylabel="CA1-PFC", legend=false
+    )
+    # Normalize each component to be length 1
+    # (this might better be served by projection to search for
+    # entangled and disentangled components)
+    P, Curling, Div, DC = [], [], [], []
+    for k in 1:min(size(r1,2),size(r2,2))
+        rr1 = r1[:,1:k]
+        rr2 = r2[:,1:k]
+        rr1 = rr1 ./ sqrt.(sum(rr1.^2, dims=1)) ./ size(rr1,2)
+        rr2 = rr2 ./ sqrt.(sum(rr2.^2, dims=1)) ./ size(rr2,2)
+        rr1 = nansum(rr1, dims=2)
+        rr2 = nansum(rr2, dims=2)
+        p=plot(rr1, rr2, seriestype=:scatter,
+            xlabel="CA1-CA1", ylabel="CA1-PFC", legend=false
+        )
+        curling = [rr1 rr2] * [-1; 1] # there may be a better way to get the
+                                      # curling component
+        h=histogram(curling, bins=100, xlabel="Curling", ylabel="Count",
+            edgealpha=0, linewidth=0, fillalpha=0.5, legend=false
+        )
+        vline!([0], c=:black, linewidth=2, linestyle=:dash, legend=false,
+        )
+        diving = [rr1 rr2] * [1; 1]
+        h2=histogram(diving, bins=100, xlabel="Diving", ylabel="Count",
+            edgealpha=0, linewidth=0, fillalpha=0.5, legend=false
+        )
+        h3=plot(
+            # histogram(abs.(diving)./abs.(curling), bins=100, xlabel="Diving/Curling", ylabel="Count", edgealpha=0, linewidth=0, fillalpha=0.5, legend=false), 
+            plot(abs.(diving), abs.(curling), seriestype=:scatter,
+                    xlabel="Diving", ylabel="Curling", legend=false
+                ))
+        push!(P, p)
+        push!(Curling, h)
+        push!(Div, h2)
+        push!(DC, h3)
+    end
+    plot(P..., marker=:circle, markersize=1, fontsize=3, tickfontsize=3,
+        labelfontsize=3, legendfontsize=3)
+    plot(Curling..., marker=:circle, markersize=1, fontsize=3, tickfontsize=3,
+        labelfontsize=3, legendfontsize=3)
+    plot(Div..., marker=:circle, markersize=1, fontsize=3, tickfontsize=3,
+        labelfontsize=3, legendfontsize=3)
+    plot(DC..., marker=:circle, markersize=1, fontsize=3, tickfontsize=3, fillalpha=0.2, linewidth=0, get_markerstrokewidth=0, markerstrokealpha=0, labelfontsize=3, legendfontsize=3)
 end
+
 
 # ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ ↓ 
 # ------------------------------------------------
@@ -285,9 +332,11 @@ function get_df(m, z1, z2; k_test, k_tmpl, kws...)
         df[!, nm] .= ptrain[1, nm]
     end
     dropmissing!(ptest)
-    for nm in names(ptest)
+    for nm in setdiff(names(ptest),["time"])
         df[!, nm] .= ptest[1, nm]
     end
+    sort!(df, [:time, :component])
+    DIutils.filtreg.register(ptest, df, on="time", transfer=["traj"]) 
     return r, df
 end
 # ISSUE: Already missing my startWell=1
@@ -320,31 +369,34 @@ Scores, DF = OrderedDict(), DataFrame()
                    areas="pfc-pfc", kws...)
     Scores[k_tmpl, k_test, "pfc-pfc"] = r
     append!(DF, df)
+    if i == 1
+        DF.i                  = convert(Vector{Int16}, DF.i)
+        DF.i_tmpl             = convert(Vector{Int16}, DF.i_tmpl)
+        DF.i_test             = convert(Vector{Int16}, DF.i_test)
+        DF.startstopWell      = convert(Vector{Int8}, DF.startstopWell)
+        DF.startstopWell_tmpl = convert(Vector{Int8}, DF.startstopWell_tmpl)
+        DF.stopWell           = convert(Vector{Int8}, DF.stopWell)
+        DF.startWell          = convert(Vector{Int8}, DF.startWell)
+        DF.startWell_tmpl     = convert(Vector{Int8}, DF.startWell_tmpl)
+        DF.stopWell_tmpl      = convert(Vector{Int8}, DF.stopWell_tmpl)
+        DF.component          = convert(Vector{Int8}, DF.component)
+    end
 end
 # Restore the original logger
 global_logger(original_logger);
 # Shrink memory footprint of variables
 sort!(DF, [:time, :i])
-DF.i                  = convert(Vector{Int16}, DF.i)
-DF.i_tmpl             = convert(Vector{Int16}, DF.i_tmpl)
-DF.i_test             = convert(Vector{Int16}, DF.i_test)
-DF.startstopWell      = convert(Vector{Int8}, DF.startstopWell)
-DF.startstopWell_tmpl = convert(Vector{Int8}, DF.startstopWell_tmpl)
-DF.stopWell           = convert(Vector{Int8}, DF.stopWell)
-DF.startWell          = convert(Vector{Int8}, DF.startWell)
-DF.startWell_tmpl     = convert(Vector{Int8}, DF.startWell_tmpl)
-DF.stopWell_tmpl      = convert(Vector{Int8}, DF.stopWell_tmpl)
-DF.component          = convert(Vector{Int8}, DF.component)
 # Rename any vars with _train to _tmpl
 nms = names(DF)[occursin.("_train", names(DF))]
 rename!(DF, nms .=> replace.(nms, "_train" => "_tmpl"))
+println("Number of trajectories: $(length(unique(DF.traj)))")
 
 # ------------------------------------------------
 # Register traj with DF and explore trajectory-wise reactivation scores
 # ------------------------------------------------
-beh.traj = replace(beh.traj, NaN=>-1)
-beh.traj = convert(Vector{Int16}, beh.traj)
-DIutils.filtreg.register(beh, DF, on="time", transfer=["traj"])
+# beh.traj = replace(beh.traj, NaN=>-1)
+# beh.traj = convert(Vector{Int16}, beh.traj)
+# DIutils.filtreg.register(beh, DF, on="time", transfer=["traj"])
 
 # ------------------------------------------------
 # Whole i_tmpl, i_test summaries
@@ -358,6 +410,7 @@ DFS = combine(groupby(DF, [:i_tmpl, :i_test, :component, :areas]),
         :value => length => :n,
         renamecols=false
 )
+
 # Checkpoint
 commit_react_vars()
 
