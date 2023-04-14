@@ -3,9 +3,11 @@ DrWatson.quickactivate("/home/ryoung/Projects/goal-code-run/")
 cd(scriptsdir("reactivate"))
 DrWatson.quickactivate("/home/ryoung/Projects/goal-code")
 include("imports.jl") # include(scriptsdir("reactivate", "imports.jl"))
+
 if !isdefined(Main, :opt)
     include("run.jl") 
 end
+
 # Just so language-server protocol can find the symbols
 # from the script that generated the data.
 load_react_vars()
@@ -322,64 +324,92 @@ yax    = [:startWell_tmpl, :stopWell_tmpl]
 DFc = subset(DF, subs...)
 sort!(DFc, [:areas, :component, :time]) # BUG: α how does sorting affect this?
 
-Chunks = groupby(DFc, chunks)
+
+DFcc = copy(DFc)
+sort!(DFc, [:areas, :component, :time]) # BUG: α how does sorting affect this?
+
 C = OrderedDict()
 group = :component
 # Plotting columnar chunks
 chunk = Chunks |> first
-for chunk in Chunks
+# for (c,chunk) in enumerate(Chunks)
+    Rows = groupby(chunk, rows)    
+    R = OrderedDict()
+    # Setup rows of a subplots
+    (k, row) = zip(keys(Rows), Rows) |> first
+    # for (k,row) in zip(keys(Rows), Rows)
+        dur = extrema(row.time) |> x-> round(x[2] - x[1], digits=2)
+        p = plot(title="dur=$dur")
+        m = maximum(row.value)
+        Yax = groupby(row, yax)
+        i,y = 1,(Yax |> first)
+        global startmove = stopmove = nothing
+        for (i, y) in enumerate(Yax)
+            plot!(p, y.time, (i-1).*m .+ y.value; 
+                   group=y[!,group], markersize=1,
+                fillalpha=0.2, linealpha=0.2, legend=false)
+            yc = groupby(y, :component) |> first
+            difs  = diff([Int8(0); Int8.(yc.moving)])
+            global startmove = yc[findall(difs .== 1), :time]
+            global stopmove  = yc[findall(difs .== -1), :time]
+        end
+        ylabels = map(Yax |> collect) do y
+            y=first(eachrow(y))
+            actual = "$(y.startWell)-$(y.stopWell)"
+            label  = "$(y.startWell_tmpl)-$(y.stopWell_tmpl)"
+            actual == label ? "ACTUAL: $label" : label
+        end
+        vspan!(p, startmove, stopmove; fillalpha=0.2, linealpha=0.2)
+        yticks = ((axes(Yax, 1) .- 1) .* m, ylabels)
+        actual = "$(row.startWell[1])-$(row.stopWell[1])"
+        plot!(;yticks, xlabel="time", ylabel="react per tmpl", 
+            title="dur=$dur, act=$actual", legend=false)
+        # R[k] = p
+    # end
+    # C[c] = R
+# end
+
+C = OrderedDict()
+group = :component
+# Plotting columnar chunks
+chunk = Chunks |> first
+for (c,chunk) in enumerate(Chunks)
     Rows = groupby(chunk, rows)    
     R = OrderedDict()
     # Setup rows of a subplots
     (k, row) = zip(keys(Rows), Rows) |> first
     for (k,row) in zip(keys(Rows), Rows)
-        # Each yax is a different color line
-        p = plot()
-        Yax = groupby(row, yax)
-        y = Yax |> first
-        for y in Yax
-            firstmove = findfirst(y.moving)
-            lastmove = findlast(y.moving)
-            X = [y.time[firstmove]; y.time[lastmove]]
-            plot!(p, y.time, y.value; group=y[!,group])
-            vspan!(p, X;
-                   color=:black, alpha=0.1, legend=false, xlims=x
-            )
-        end
-    end
-printlnend
-
-
-DFcc = copy(DFc)
-sort!(DFc, [:areas, :component, :time]) # BUG: α how does sorting affect this?
-Chunks = groupby(DFc, chunks)
-C = OrderedDict()
-group = :component
-# Plotting columnar chunks
-chunk = Chunks |> first
-    Rows = groupby(chunk, rows)    
-    R = OrderedDict()
-    # Setup rows of a subplots
-    (k, row) = zip(keys(Rows), Rows) |> first
         dur = extrema(row.time) |> x-> round(x[2] - x[1], digits=2)
         p = plot(title="dur=$dur")
+        m = maximum(row.value)
         Yax = groupby(row, yax)
         y = Yax |> first
-            plot!(p, y.time, y.value; group=y[!,group], markersize=1,
-                 fill=0, fillalpha=0.2, linealpha=0.2, legend=false)
+        for (i, y) in enumerate(Yax)
+            plot!(p, y.time, (i-1)*m .+ y.value; 
+                group=y[!,group], markersize=1,
+                 # fill=0, 
+                fillalpha=0.2, linealpha=0.2, legend=false)
             yc = groupby(y, :component) |> first
-            difs  = diff([Int8(0); Int8.(y.moving)])
+            difs  = diff([Int8(0); Int8.(yc.moving)])
             startmove = findall(difs .== 1)
             stopmove  = findall(difs .== -1)
-            if firstmove !== lastmove !== nothing
-                X = [y.time[startmove] y.time[stopmove]]
-                vspan!(p, X;
-                       color=:black, alpha=0.1, legend=false, xlims=x
-                )
-            end
-            # tmp=groupby(y, [:component, :time])[1]
-            # U = Dict(x=>unique(tmp[!, x]) for x in propertynames(tmp))
-            # BUG: α why are there 21 unique :value when each other labeled
-            # column only has a single value?
-            # this probably doesn't have to be anything in particular
-# DFc
+        end
+        R[k] = p
+    end
+    C[c] = R
+end
+
+
+# Question: How many template combos does each trajectory have (it should be
+# stable or nearly all)?
+tmp=combine(groupby(DF, [:traj]),
+[:startWell_tmpl, :stopWell_tmpl] => ((x,y)->length(unique(eachrow([x y])))) => :tmpl_combos)
+histogram(tmp.tmpl_combos, bins=1:1:10, normed=true, 
+    title="Histogram of template combos per trajectory", 
+    xlabel="Number of template combos", ylabel="Frequency")
+
+
+# Corrplot of the variables above
+DFr = DFc[rand(1:nrow(DFc),10_000), :]
+@df DFr corrplot([:startWell :stopWell :startWell_tmpl :stopWell_tmpl], 
+    grid = false, method = :pearson, order = :hclust)

@@ -1,10 +1,8 @@
 module Munge
-
     using Revise
     using Reexport
     using DrWatson
     import ..GoalFetchAnalysis: Timeshift
-
     include("Munge/chrono.jl")
     include("Munge/behavior.jl")
     include("Munge/lfp.jl")
@@ -24,6 +22,5 @@ module Munge
     include("Munge/nonlocal.jl")
     include("Munge/groupop.jl")
     include("Munge/reactivation.jl")
-
 end
 
