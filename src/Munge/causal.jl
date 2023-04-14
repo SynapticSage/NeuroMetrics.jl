@@ -119,10 +119,17 @@ module causal
     - `::Vector{Tuple{Vector{Float64}, Vector{Float64}}}`: A vector of tuples
     containing the X and Y data for each ensemble.
     """
-    function ensembling(uniX::Vector, uniY::Vector, n::T where T <: Int, horizon::T where T <: Union{UnitRange,Int})
+    function ensembling(uniX::Vector, uniY::Vector, n::T where T <: Int, 
+            horizon::T where T <: Union{UnitRange,Int}; horizon_max=nothing)
         l = length(uniX)
         starts = rand(1:l, n)
-        ends_ranges = UnitRange.(starts .+ maximum(horizon), [l])
+        if horizon_max === nothing
+            ends_ranges = UnitRange.(starts .+ maximum(horizon), [l])
+        else
+            ends_ranges = UnitRange.(starts .+ maximum(horizon), 
+                                     starts .+ horizon_max)
+        end
+        ends_ranges = UnitRange.(starts .+ maximum(horizon), ends)
         ends = rand.(ends_ranges)
         ((uniX[start:stop], uniY[start:stop]) 
          for (start,stop) in zip(starts,ends))
@@ -148,9 +155,20 @@ module causal
                            component
     """
     function ensembledpredictiveasymmetry(uniX, uniY, est, params;
-        f=1, n=100, kws...)
+        f=1, n=100, method=:anylegalsize, 
+        horizon_max::Union{Nothing,Int}=nothing, kws...)
         PA = Vector{Union{Missing,Vector}}(missing, n)
-        iters = enumerate(ensembling(uniX, uniY, n, params[:horizon]))
+        if method == :anylegalsize
+            generator = ensembling(uniX, uniY, n, params[:horizon])
+        elseif method == :timeresolved
+            horizon_max = horizon_max === nothing ? 2*params[:horizon][end] : 
+                horizon_max
+            generator = ensembling(uniX, uniY, n, params[:horizon];
+                                   horizon_max)
+        else
+            @error "Unknown method $method"
+        end
+        iters = enumerate()
         prog = Progress(length(iters), 1, 
                         "Predictive Asymmetry-ensembling")
         Threads.@threads for (i,(ux,uy)) in collect(iters)
