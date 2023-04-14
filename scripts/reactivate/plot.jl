@@ -3,7 +3,9 @@ DrWatson.quickactivate("/home/ryoung/Projects/goal-code-run/")
 cd(scriptsdir("reactivate"))
 DrWatson.quickactivate("/home/ryoung/Projects/goal-code")
 include("imports.jl") # include(scriptsdir("reactivate", "imports.jl"))
-include("run.jl") 
+if !isdefined(Main, :opt)
+    include("run.jl") 
+end
 # Just so language-server protocol can find the symbols
 # from the script that generated the data.
 load_react_vars()
@@ -172,7 +174,8 @@ end
 #   |_||_|   |_| |_|\__, | .__/   \__\___||___/\__|_|_| |_|\__, |
 #                   |___/|_|                               |___/ 
 # ------------------------------------------------------------
-DF = DIutils.arr.get_quantile_filtered(DF, :value, 0.001)
+
+# DF = DIutils.arr.get_quantile_filtered(DF, :value, 0.001)
 # Want to select train=moving and test=stationary
 enforce_conditions = [:moving_tmpl =>  x -> x .== true,
                       :moving       => x -> x .== false]
@@ -186,122 +189,197 @@ DFS.exclude = DFS.n .< 10
 dfs, dfsn = subset_dfs()
 difference_in_react_match_nonmatch(dfs, dfsn)
 # ------------------------------------------------
+begin
+    h = []
+    for k in 1:8
+        dfs_match, dfs_nonmatch = subset_dfs(:component => x-> x .== k)
+        hh = difference_in_react_match_nonmatch(dfs_match, dfs_nonmatch)
+        push!(h, 
+        plot(hh, xlabel="Reactivation score", ylabel="Count"))
+    end
+    plot(h..., layout=(2,4), size=(1200, 800), 
+    title="Reactivation scores for component 1-8")
 
-h = []
-for k in 1:8
-    dfs_match, dfs_nonmatch = subset_dfs(:component => x-> x .== k)
-    hh = difference_in_react_match_nonmatch(dfs_match, dfs_nonmatch)
-    push!(h, 
-    plot(hh, xlabel="Reactivation score", ylabel="Count"))
+
+    h=[]
+    for areas in ["ca1-pfc", "ca1-ca1", "pfc-pfc"]
+        dfs_match, dfs_nonmatch = subset_dfs(:areas => x-> x .== areas)
+        hh=difference_in_react_match_nonmatch(dfs_match, dfs_nonmatch)
+        push!(h,plot(hh, title="Reactivation scores\nfor matched sets $areas\n\n\n\n", 
+            xlabel="Reactivation score", ylabel="Count"))
+    end
+    plot(h..., layout=(1,3), size=(1200, 400))
+    ylims!(0,2000)
+
+    h=[]
+    for epochs in unique(DF.epoch)
+        dfs_match, dfs_nonmatch = subset_dfs(:epoch => x-> x .== epochs)
+        hh=difference_in_react_match_nonmatch(dfs_match, dfs_nonmatch)
+        push!(h,plot(hh, title="Reactivation scores for matched sets\nepoch=$epochs", 
+                         xlabel="Reactivation score", ylabel="Count"))
+    end
+    plot(h..., layout=(1,3), size=(1200, 400))
 end
-plot(h..., layout=(2,4), size=(1200, 800), 
-title="Reactivation scores for component 1-8")
 
+begin
+    # ------------------------------------------------
+    # Same as above section, but split out by different startWell to the
+    # same stopWell given (train_startWell, train_stopWell)
+    #
+    # In other words, we want to collect FOR each matching set (matched 
+    # on stopWell, ha, epoch) the reactivation score for each startWell
+    #
+    # Step 1: Change .pmatch to encode match excepting the startWell
+    # Step 2: function that subsets, hypothesis tests to the REPL, and
+    #         plots the histogram as above
+    # ------------------------------------------------
+    DFS.exclude = DFS.startWell      .== -1 .|| DFS.stopWell .== -1 .|| 
+                  DFS.startWell_tmpl .== -1 .|| DFS.stopWell_tmpl .== -1
+    decouple_cols = [:startWell]
+    match_cols = get_pmatch_cols(decouple_cols)
+    @assert(!(decouple_cols ⊆ match_cols[1]), "decouple_cols must not be in match_cols")
+    println("Matching columns: ", match_cols)
+    DFS[!,:pmatch] = all(Matrix(DFS[!, match_cols[1]]) .== Matrix(DFS[!, match_cols[2]]),
+                    dims=2) |> vec
+    println("Fraction of matches: ", mean(DFS.pmatch))
+    dfs,dfsn = subset_dfs()
 
-h=[]
-for areas in ["ca1-pfc", "ca1-ca1", "pfc-pfc"]
-    dfs_match, dfs_nonmatch = subset_dfs(:areas => x-> x .== areas)
-    hh=difference_in_react_match_nonmatch(dfs_match, dfs_nonmatch)
-    push!(h,plot(hh, title="Reactivation scores\nfor matched sets $areas\n\n\n\n", 
-        xlabel="Reactivation score", ylabel="Count"))
+    # ISSUE: houston, we have a problem.  why is startwell_tmpl always ==
+    #         startwell?  
+    #------------------------------------------------
+    @assert .!all(DFS.startWell_tmpl .== DFS.startWell)
+    @assert .!all(dfs.startWell_tmpl .== dfs.startWell)
+    @assert .!all(dfsn.startWell_tmpl .== dfsn.startWell)
+    dfss = combine(groupby(dfs, [:startWell_tmpl, :stopWell_tmpl, :startWell]),
+        :mean => mean, :mean => std, :mean => length)
+    sort!(dfss, [:stopWell_tmpl, :startWell_tmpl, :startWell, ])
+    dfss
+    #ISSUE:----------------------------------------------------------------
+
+    # Measure for template=[startWell, stopWell] and actual=[startWell]
+    @time matching, nonmatching, tmpl_matches = match_nonmatch_splits()
+    print("tmpl_matches: ");
+    tmpl_matches
+
+    # Now we want to summarize the effects and plot them out
+    tmpl_matches
+    μM = DimArray(map(collect(matching)) do x
+        if x === missing
+            missing
+        else
+            mean(x.mean)
+        end
+    end, matching.dims)
+    μM = map(collect(matching)) do x
+        if x === missing
+            missing
+        else
+            mean(x.startWell)
+        end
+    end
+    μN = map(collect(nonmatching)) do x
+        if x === missing
+            missing
+        else
+            mean(x.mean)
+        end
+    end
+
+    heatmap.(eachslice(μN, dims=3))
+    #: ISSUE: THESE LOOK WRONG
+
 end
-plot(h..., layout=(1,3), size=(1200, 400))
-ylims!(0,2000)
-
-h=[]
-for epochs in unique(DF.epoch)
-    dfs_match, dfs_nonmatch = subset_dfs(:epoch => x-> x .== epochs)
-    hh=difference_in_react_match_nonmatch(dfs_match, dfs_nonmatch)
-    push!(h,plot(hh, title="Reactivation scores for matched sets\nepoch=$epochs", 
-                     xlabel="Reactivation score", ylabel="Count"))
-end
-plot(h..., layout=(1,3), size=(1200, 400))
 
 # ------------------------------------------------
-# Same as above section, but split out by different startWell to the
-# same stopWell given (train_startWell, train_stopWell)
-#
-# In other words, we want to collect FOR each matching set (matched 
-# on stopWell, ha, epoch) the reactivation score for each startWell
-#
-# Step 1: Change .pmatch to encode match excepting the startWell
-# Step 2: function that subsets, hypothesis tests to the REPL, and
-#         plots the histogram as above
-# ------------------------------------------------
-DFS.exclude = DFS.startWell      .== -1 .|| DFS.stopWell .== -1 .|| 
-              DFS.startWell_tmpl .== -1 .|| DFS.stopWell_tmpl .== -1
-decouple_cols = [:startWell]
-match_cols = get_pmatch_cols(decouple_cols)
-@assert(!(decouple_cols ⊆ match_cols[1]), "decouple_cols must not be in match_cols")
-println("Matching columns: ", match_cols)
-DFS[!,:pmatch] = all(Matrix(DFS[!, match_cols[1]]) .== Matrix(DFS[!, match_cols[2]]),
-                dims=2) |> vec
-println("Fraction of matches: ", mean(DFS.pmatch))
-dfs,dfsn = subset_dfs()
-
-# ISSUE: houston, we have a problem.  why is startwell_tmpl always ==
-#         startwell?  
-#------------------------------------------------
-@assert .!all(DFS.startWell_tmpl .== DFS.startWell)
-@assert .!all(dfs.startWell_tmpl .== dfs.startWell)
-@assert .!all(dfsn.startWell_tmpl .== dfsn.startWell)
-dfss = combine(groupby(dfs, [:startWell_tmpl, :stopWell_tmpl, :startWell]),
-    :mean => mean, :mean => std, :mean => length)
-sort!(dfss, [:stopWell_tmpl, :startWell_tmpl, :startWell, ])
-dfss
-#ISSUE:----------------------------------------------------------------
-
-# Measure for template=[startWell, stopWell] and actual=[startWell]
-@time matching, nonmatching, tmpl_matches = match_nonmatch_splits()
-print("tmpl_matches: ");
-tmpl_matches
-
-# Now we want to summarize the effects and plot them out
-tmpl_matches
-μM = DimArray(map(collect(matching)) do x
-    if x === missing
-        missing
-    else
-        mean(x.mean)
-    end
-end, matching.dims)
-μM = map(collect(matching)) do x
-    if x === missing
-        missing
-    else
-        mean(x.startWell)
-    end
-end
-μN = map(collect(nonmatching)) do x
-    if x === missing
-        missing
-    else
-        mean(x.mean)
-    end
-end
-
-heatmap.(eachslice(μN, dims=3))
-#: ISSUE: THESE LOOK WRONG
-
 # TRYING A SEPARATE APPROACH
 # ------------------------------------------------
-GC.gc()
+sort!(DF, [:time, :areas, :component])
 match_cols = get_pmatch_cols([:startWell,:stopWell])
 DF[!,:pmatch] = all(Matrix(DF[!, match_cols[1]]) .== 
-    Matrix(DF[!, match_cols[2]]), dims=2) |> vec
+                    Matrix(DF[!, match_cols[2]]), dims=2) |> vec
 DFc = @subset(DF, :areas .== "ca1-ca1", :ha .== 'A', 
-              :component .<= 5)
+                  :component .<= 5)
 GC.gc()
+DIutils.pushover("Ready to go")
 
-using GoalFetchAnalysis.Munge.tensor
-T = tensor.tensorize(DFS, [:startWell, :stopWell, :startWell_tmpl, :pmatch, :areas], [:mean])
-heatmap.(eachslice(T[:, :, :, 1],dims=3))
+# Clean out any single time trajectories
+DFc = groupby(DF, [:traj])
+remove = []
+for (k, df) in zip(keys(DFc), DFc)
+    if length(unique(df.time)) ≤ 1
+        push!(remove, k)
+    end
+end
+println("Removing $(length(remove)) single time trajectories")
+DFc = subset(DFc, :traj => t->t ∉ Tuple(getindex.(remove,1)))
 
-#: TODO: RUN THIS
-TT = nothing
-GC.gc()
-TT = tensor.tensorize(DFc, [:traj, :startWell, :stopWell, :startWell_tmpl, :stopWell_tmpl], 
-[:time,:value])
-#: BUG: WHY ARE THERE ONLY 12 trajectories?
+# SETTINGS
+subs = [:areas => a-> a .== "ca1-ca1", :ha => a-> a .== 'A', 
+    :component => a-> a .<= 5, :moving_tmpl => a-> a .== true]
+chunks = [:traj]
+rows   = [:startWell, :stopWell]
+yax    = [:startWell_tmpl, :stopWell_tmpl]
+DFc = subset(DF, subs...)
+sort!(DFc, [:areas, :component, :time]) # BUG: α how does sorting affect this?
+
+Chunks = groupby(DFc, chunks)
+C = OrderedDict()
+group = :component
+# Plotting columnar chunks
+chunk = Chunks |> first
+for chunk in Chunks
+    Rows = groupby(chunk, rows)    
+    R = OrderedDict()
+    # Setup rows of a subplots
+    (k, row) = zip(keys(Rows), Rows) |> first
+    for (k,row) in zip(keys(Rows), Rows)
+        # Each yax is a different color line
+        p = plot()
+        Yax = groupby(row, yax)
+        y = Yax |> first
+        for y in Yax
+            firstmove = findfirst(y.moving)
+            lastmove = findlast(y.moving)
+            X = [y.time[firstmove]; y.time[lastmove]]
+            plot!(p, y.time, y.value; group=y[!,group])
+            vspan!(p, X;
+                   color=:black, alpha=0.1, legend=false, xlims=x
+            )
+        end
+    end
+printlnend
 
 
+DFcc = copy(DFc)
+sort!(DFc, [:areas, :component, :time]) # BUG: α how does sorting affect this?
+Chunks = groupby(DFc, chunks)
+C = OrderedDict()
+group = :component
+# Plotting columnar chunks
+chunk = Chunks |> first
+    Rows = groupby(chunk, rows)    
+    R = OrderedDict()
+    # Setup rows of a subplots
+    (k, row) = zip(keys(Rows), Rows) |> first
+        dur = extrema(row.time) |> x-> round(x[2] - x[1], digits=2)
+        p = plot(title="dur=$dur")
+        Yax = groupby(row, yax)
+        y = Yax |> first
+            plot!(p, y.time, y.value; group=y[!,group], markersize=1,
+                 fill=0, fillalpha=0.2, linealpha=0.2, legend=false)
+            yc = groupby(y, :component) |> first
+            difs  = diff([Int8(0); Int8.(y.moving)])
+            startmove = findall(difs .== 1)
+            stopmove  = findall(difs .== -1)
+            if firstmove !== lastmove !== nothing
+                X = [y.time[startmove] y.time[stopmove]]
+                vspan!(p, X;
+                       color=:black, alpha=0.1, legend=false, xlims=x
+                )
+            end
+            # tmp=groupby(y, [:component, :time])[1]
+            # U = Dict(x=>unique(tmp[!, x]) for x in propertynames(tmp))
+            # BUG: α why are there 21 unique :value when each other labeled
+            # column only has a single value?
+            # this probably doesn't have to be anything in particular
+# DFc
