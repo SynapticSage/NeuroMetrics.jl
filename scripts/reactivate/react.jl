@@ -166,7 +166,7 @@ function get_df(m, z1, z2; k_test, k_tmpl, kws...)
     r  = DimArray(r, (ti, :component))
     # Setup dataframe from dimarray data
     df=DataFrame(r)
-    df[!,:component] = convert(Vector{Int8}, df.component)
+    df[!,:component] = convert(Vector{UInt8}, df.component)
     # Append extra data from kws
     for (k,v) in kws
         df[!, Symbol(k)] .= v
@@ -201,7 +201,7 @@ function convert_df!(df)
     df.startWell          = convert(Vector{Int8},  df.startWell)
     df.startWell_tmpl     = convert(Vector{Int8},  df.startWell_tmpl)
     df.stopWell_tmpl      = convert(Vector{Int8},  df.stopWell_tmpl)
-    df.component          = convert(Vector{Int8},  df.component)
+    df.component          = convert(Vector{UInt8},  df.component)
     df
 end
 # ISSUE: Already missing my startWell=1
@@ -214,7 +214,7 @@ train_iters = enumerate(Iterators.product(enumerate(ckeys),
 prog = Progress(length(train_iters); desc="Reactivation Scores")
 Scores, DF = OrderedDict(), Matrix{Union{Missing,DataFrame}}(missing, length(train_iters), 3)
 println("Garbage colleting:", GC.gc())
-Threads.@threads for (i,(train, test)) in train_iters
+for (i,(train, test)) in train_iters
     i_tmpl, k_tmpl = train
     i_test, k_test   = test
     i, i_tmpl, i_test = Int16.((i, i_tmpl, i_test))
@@ -253,12 +253,27 @@ end
 GC.gc()
 
 
-# Shrink memory footprint of variables
 sort!(DF, [:time, :i])
 # Rename any vars with _train to _tmpl
 nms = names(DF)[occursin.("_train", names(DF))]
 rename!(DF, nms .=> replace.(nms, "_train" => "_tmpl"))
 println("Number of trajectories: $(length(unique(DF.traj)))")
+
+# Ensure that .component is a UInt8 and that each template has a normal range
+# of trajectories
+tmp = combine(groupby(DF, [:startWell_tmpl, :stopWell_tmpl]),
+    :component => (x->length(unique(x))) => :count,
+    :component => (x->maximum(unique(x))) => :max,
+    :component => (x->minimum(unique(x))) => :min
+)
+tmp.startstop = string.(tmp.startWell_tmpl, "-", tmp.stopWell_tmpl)
+@df tmp bar(:startstop, :count, title="Number of components per template")
+@df tmp scatter(:startstop, :max, title="Number of components per template")
+@df tmp scatter!(:startstop, :min, title="Number of components per template")
+# Draw a line between the points
+p = plot!()
+plot!([p.series_list[1][:x] p.series_list[1][:x]]', [tmp.min tmp.max]', 
+    title="Number of components per template", label="", color=:black)
 
 # ------------------------------------------------
 # Register traj with DF and explore trajectory-wise reactivation scores

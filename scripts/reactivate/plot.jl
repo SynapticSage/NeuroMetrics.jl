@@ -11,6 +11,7 @@ end
 # Just so language-server protocol can find the symbols
 # from the script that generated the data.
 load_react_vars()
+DIutils.pushover("Finished loading reactivate variables")
 
 
 # ------------------------------------------------
@@ -167,16 +168,6 @@ function match_nonmatch_splits(actual_dims = [:startWell],
     nonmatching = DimArray(nonmatching, (template_dims..., actual_dims...))
     return matching, nonmatching, tmpl_matches
 end
-
-
-# ------------------------------------------------------------
-#  _| || |_  | | | |_   _ _ __   | |_ ___  ___| |_(_)_ __   __ _ 
-# |_  ..  _| | |_| | | | | '_ \  | __/ _ \/ __| __| | '_ \ / _` |
-# |_      _| |  _  | |_| | |_) | | ||  __/\__ \ |_| | | | | (_| |
-#   |_||_|   |_| |_|\__, | .__/   \__\___||___/\__|_|_| |_|\__, |
-#                   |___/|_|                               |___/ 
-# ------------------------------------------------------------
-
 # DF = DIutils.arr.get_quantile_filtered(DF, :value, 0.001)
 # Want to select train=moving and test=stationary
 enforce_conditions = [:moving_tmpl =>  x -> x .== true,
@@ -187,6 +178,16 @@ match_cols = get_pmatch_cols()
 println("Matching columns: ", match_cols)
 DFS[!,:pmatch] .= all(Matrix(DFS[!, match_cols[1]]) .== Matrix(DFS[!, match_cols[2]]), dims=2) |> vec
 DFS.exclude = DFS.n .< 10
+
+
+# ------------------------------------------------------------
+#  _| || |_  | | | |_   _ _ __   | |_ ___  ___| |_(_)_ __   __ _ 
+# |_  ..  _| | |_| | | | | '_ \  | __/ _ \/ __| __| | '_ \ / _` |
+# |_      _| |  _  | |_| | |_) | | ||  __/\__ \ |_| | | | | (_| |
+#   |_||_|   |_| |_|\__, | .__/   \__\___||___/\__|_|_| |_|\__, |
+#                   |___/|_|                               |___/ 
+# ------------------------------------------------------------
+
 
 dfs, dfsn = subset_dfs()
 difference_in_react_match_nonmatch(dfs, dfsn)
@@ -316,14 +317,25 @@ println("Removing $(length(remove)) single time trajectories")
 DFc = subset(DFc, :traj => t->t ∉ Tuple(getindex.(remove,1)))
 
 # SETTINGS
-subs = [:areas => a-> a .== "ca1-ca1", :ha => a-> a .== 'A', 
-    :component => a-> a .<= 5, :moving_tmpl => a-> a .== true]
+subs =   [:areas => a-> a .== "ca1-ca1", 
+          :component => a-> a .<= 5, :moving_tmpl => a-> a .== true]
 chunks = [:traj]
 rows   = [:startWell, :stopWell]
 yax    = [:startWell_tmpl, :stopWell_tmpl]
 DFc = subset(DF, subs...)
 sort!(DFc, [:areas, :component, :time]) # BUG: α how does sorting affect this?
 
+
+# Question: How many template combos does each trajectory have (it should be
+# stable or nearly all)?
+@time tmp=combine(groupby(DF, [:areas, :traj, :ha, :moving_tmpl]),
+[:startWell_tmpl, :stopWell_tmpl] => 
+    ((x,y) -> length(unique(eachrow([x y])))) => :tmpl_combos)
+h1=histogram(tmp.tmpl_combos, group=tmp.areas, bins=1:1:20, normed=true, 
+    bar_position=:stack,
+    alpha=0.2,
+    title="Histogram of template combos per trajectory", 
+    xlabel="Number of template combos", ylabel="Frequency")
 
 DFcc = copy(DFc)
 sort!(DFc, [:areas, :component, :time]) # BUG: α how does sorting affect this?
@@ -400,13 +412,6 @@ for (c,chunk) in enumerate(Chunks)
 end
 
 
-# Question: How many template combos does each trajectory have (it should be
-# stable or nearly all)?
-tmp=combine(groupby(DF, [:traj]),
-[:startWell_tmpl, :stopWell_tmpl] => ((x,y)->length(unique(eachrow([x y])))) => :tmpl_combos)
-histogram(tmp.tmpl_combos, bins=1:1:10, normed=true, 
-    title="Histogram of template combos per trajectory", 
-    xlabel="Number of template combos", ylabel="Frequency")
 
 
 # Corrplot of the variables above
