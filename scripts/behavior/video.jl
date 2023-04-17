@@ -2,7 +2,6 @@ using DrWatson
 quickactivate(expanduser("~/Projects/goal-code"))
 using GoalFetchAnalysis
 import DI
-
 using Revise, ProgressMeter, CategoricalArrays, Statistics, NaNStatistics,
         VideoIO, GLMakie, ColorSchemes, Colors, DataFrames, DataFramesMeta, Printf,
         Infiltrator, ImageFiltering
@@ -12,25 +11,30 @@ import StatsBase, ColorSchemeTools
 # --------------------------
 # PARAMS
 # --------------------------
-opt = Dict(
-:usevideo                      => false,
-:doPrevPast                    => false,
-:splitBehVar                   => ["egoVec_1", "egoVec_2", "egoVec_3", "egoVec_4", "egoVec_5"], # Variables to monitor with splits
-:vectorToWells                 => true,
-:histVectorToWells             => true,
-:visualize => :slider,
-:nback => 10)
+opt = isdefined(Main, :opt) ? Dict{Any,Any}(opt) : Dict()
+opt["animal"] = "animal" in keys(opt) ? opt["animal"] : "RY16"
+opt["day"]    = "day" in keys(opt) ? opt["day"] : 36
+opt = merge(opt, Dict(
+    :usevideo                      => false,
+    :doPrevPast                    => false,
+    :splitBehVar                   => ["egoVec_1", "egoVec_2", "egoVec_3", "egoVec_4", "egoVec_5"], # Variables to monitor with splits
+    :vectorToWells                 => true,
+    :histVectorToWells             => true,
+    :visualize => :slider,
+    :nback => 10,
+    )
+)
 
 # --------------------------
 # LOAD UP THE DATA
 # --------------------------
-animal, day = "RY16", 36
+animal, day = opt["animal"], opt["day"]
 #animal, day = "RY22", 21
 spikes, beh, tsk  = DI.load(animal, day, data_source=["spikes","behavior","task"])
 wells             = Munge.behavior.get_wells_df(animal, day, 2; task=tsk, beh)
 boundary          = Munge.task.get_boundary(tsk)
-video             = Load.video.load_videocollection(animal, day)
-TS = [Load.video.load_videots(animal, day, i) for i in 1:8]
+video             = DI.load_videocollection(animal, day)
+TS = [DI.load_videots(animal, day, i) for i in 1:8]
 exampframe = video[0.0]
 xax, yax = collect.(exampframe.dims)
 
@@ -39,7 +43,6 @@ xax, yax = collect.(exampframe.dims)
 #[ --------------------------
 beh = @subset(beh, :epoch .== 2)
 T = size(beh, 1)
-
 
 # FUnctions
 begin
@@ -73,8 +76,8 @@ begin
 end
 
 # Setup observables
+GLMakie.closeall()
 begin
-
     N = 4
     Fig = Figure(resolution=(1400,700))
     if opt[:visualize] == :video
@@ -87,18 +90,18 @@ begin
     t = lift(sl_t.value) do tt;
         tt; end
     end
-
-    vidax = Axis(Fig[1:N, 1:2])
+    # Setup the video axis
+    epoch = @lift beh[$t,:epoch]
+    epochtit = @lift "epoch=$($epoch)"
+    vidax = Axis(Fig[1:N, 1:2], title=epochtit)
     B = @lift beh[max(1,$t-opt[:nback]):$t,:]
     b = @lift beh[$t, :]
-
     # Track and Video
     begin
         frame = @lift Matrix(video[$b.time])'
         realvideo = image!(vidax, yax,xax, frame, zindex=-10, alpha=0.5)
         GLMakie.lines!(vidax, eachcol(boundary)...; color=:red)
     end
-
     #Behavior
     begin
         movement = @lift $b.moving
@@ -127,13 +130,16 @@ begin
         smspeedtext = @lift ["sm( v⃗ ) $($smspeed)"]
         smvtext=GLMakie.annotations!(smspeedtext, animal_location, color=:pink, fontsize=20, align=(:left,:top), offset=(0,30))
     end
-
+    # Pokes
     begin
         poke = @lift $b.poke
         wellpoke = @lift $poke == 0 ? (NaN,NaN) : Tuple(wells[$poke, [:x,:y]])
         GLMakie.scatter!(vidax, wellpoke, color=:orange, glowwidth=5, glowcolor=:orange, transparency=true)
+        homewell = @lift $b.homewell == 0 ? (NaN, NaN) : Tuple(wells[$b.homewell, [:x,:y]])
+        homewell = Makie.map(x -> x.homewell == 0 ? (NaN, NaN) : Tuple(wells[x.homewell, [:x,:y]]), b)
+        global hwmark = GLMakie.text!(vidax, "h", position=homewell, color=:black, glowwidth=5, 
+            glowcolor=:black, transparency=true)
     end
-
     # Reporters
     begin
         barvar(Fig, b, :startWell; i=1)
@@ -143,18 +149,18 @@ begin
         #barvar(Fig, b, :hatrajnum; i=5)
     end
     # Well scatter
-
 end
 display(Fig)
 
-#@showprogress for stamp in t[]:(T-100)
-#    try
-#    	t[] = stamp
-#    catch
-#    	@warn "timestamp failed with t=$(t[])"
-#    end
-#    sleep(1/90)
-#end
+@showprogress for stamp in t[]:(T-100)
+   try
+   	t[] = stamp
+   catch
+   	@warn "timestamp failed with t=$(t[])"
+       sleep(1/90)
+   end
+   sleep(1/900)
+end
 
 prog = Progress(length(t[]:(T-100)), desc="Recording video")
 iter = ((next!(prog); t) for t in t[]:(T-100))

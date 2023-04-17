@@ -1,6 +1,19 @@
 includet(srcdir("utils.jl"))
 import .utils
-import Plots
+import Plots, DataFrames, DataFramesMeta
+using DIutils
+using DI
+import GoalFetchAnalysis.Plot
+opt["animal"] = "animal" in keys(opt) ? opt["animal"] : "RY16"
+opt["day"]    = "day"    in keys(opt) ? opt["day"]    : 36
+
+Plot.setparentfolder("behavior")
+Plot.setfolder("trajectory")
+Plot.setappend("animal=$(opt["animal"])_day=$(opt["day"])")
+
+spikes, beh = DI.load(opt["animal"], opt["day"],
+                     data_source=["spikes", "behavior"])
+animal, day = opt["animal"], opt["day"]
 
 G = combine(groupby(beh, :traj),
           :time=> (x->diff([extrema(x)...])) => :range).range;
@@ -72,4 +85,149 @@ savefig(plotsdir("behavior","trajectory-timing","times,gt2cms.png"))
 savefig(plotsdir("behavior","trajectory-timing","times,gt2cms.pdf"))
 # Have to throw out the outliers if want a realistic mean. Median works.
 
-# 
+# Speed changes
+diff(beh.speed) |> histogram
+using Loess, RollingFunctions
+# l = loess(beh.time, beh.speed, span=0.1)
+# beh[!,:speedsmooth] = predict(l, beh.time)
+k=12
+beh.speedsmooth = [zeros(Int(round(k/2))-1); 
+    rollmean(beh.speed, k); zeros(Int(k/2))]
+begin 
+    tmp=@subset(beh, :traj .== 2) 
+    @df tmp plot(:time, :speed)
+    @df tmp plot!(:time, :speedsmooth)
+    plot!(xlabel="Time (s)", ylabel="Speed (cm/s)")
+    ylims!(0,10)
+end
+beh.movingsmooth = beh.speedsmooth .> 2.5
+beh.moving  = beh.movingsmooth
+
+# ------------------------------------
+# PLOT: Typical trajectory speed curves
+# ------------------------------------
+b   = Base.filter(x->x.traj != NaN && 
+                  x.traj !== missing, beh)
+color = DIutils.plotutils.getplotcolor(b.blocktraj, :vik)
+hatch = map(b.correct) do x
+    if x == 1
+        return nothing
+    elseif x == 0
+        return :\
+    else
+        return :x
+    end
+end
+b.color = color
+b.hatch = hatch
+b = groupby(b, :traj)
+P = [plot(b[i].time, abs.(b[i].speedsmooth), 
+    c=b[i].color, fillstyle=b[i].hatch, fill=0,
+    xticks=(extrema(b[i].time)|>collect, 
+            round.(extrema(b[i].time), digits=2)|>collect),
+) for i in eachindex(b)]
+
+layout = @layout [a{0.005h}; grid(7,7)]
+blank = Plot.blank(title="Typical trajectory speed curves"*
+    "animal=$animal, day=$day",
+    titlefontsize=8, legend=:none);
+
+C = []
+for (i,c) in enumerate(2:(7*7):length(P))
+    m = min(c+(7^2-1), length(P))
+    kws = i==1 ? (;layout) : (;)
+    p=plot(blank, P[c:m]..., tickfontsize=3, label="", 
+        margin=0.001Plots.mm; kws...)
+    Plot.save("trajectory_collection=$i")
+    push!(C, p)
+end
+
+# ---------------------------------------------------------------
+# PLOT: Heatmap counting trajectories of each type (startWell, stopWell)
+# ---------------------------------------------------------------
+Plot.setfolder("start->stopwell")
+# How many trajectories of each type?
+epoch = groupby(beh, :epoch)
+P = [] 
+e = epoch |> first
+for e in epoch
+    b = @subset(e, 
+                :traj .!= NaN,
+                :startWell .!= -1, :stopWell .!= -1; view=true)
+    hw = b.homewell[1]
+    b = groupby(b, [:startWell, :stopWell])
+    b = combine(b, :traj => (t->length(unique(t))) => :ntraj,
+                  :time => (t->length(t)) => :ntime)
+    b = sort(b, [:startWell, :stopWell])
+    btraj = unstack(b, :startWell, :stopWell, :ntraj)
+    btraj = btraj[!, sort(names(btraj))]
+    btime = unstack(b, :startWell, :stopWell, :ntime)
+    btime = btime[!, sort(names(btime))]
+    p=Plots.heatmap(Matrix(btraj[:,Not(:startWell)]), 
+        title="epoch=$(e.epoch[1])", 
+        xlabel="Stop well", ylabel="Start well", aspectratio=1,
+        xticks=1:5, yticks=1:5, xtickfont=Plots.font(8), ytickfont=Plots.font(8),
+    xlim=(0.5,5.5), ylim=(0.5,5.5), c=:viridis)
+    Plots.annotate!(1:5, fill(hw, 5), Plots.text("*", :black, :center))
+    Plots.annotate!(fill(hw, 5), 1:5, Plots.text("*", :black, :center))
+    Plot.save("heatmap_ntraj,epoch=$(e.epoch[1]),homewell=$hw")
+    push!(P, p)
+end
+blank = Plot.blank(title="Heatmap counting trajectories of each type\n(startWell, stopWell)\n"*
+    "animal=$animal, day=$day",
+    titlefontsize=8, legend=:none);
+layout = Plots.@layout [a{0.005h}; Plots.grid(1,length(epoch))]
+Plots.plot(blank, P...; layout, textfontsize=3, tickfontsize=3, label="", 
+    margin=0.001Plots.mm) 
+
+# ---------------------------------------------------------------
+# Home-arena splits per epoch
+# THse suggest that the trials are innapropriately labeled!!! 
+# ---------------------------------------------------------------
+epoch = groupby(dropmissing(beh,:ha), [:epoch, :ha])
+P = [] 
+e = epoch |> first
+for e in epoch
+    b = @subset(e, :traj .!= NaN, :startWell .!= -1, :stopWell .!= -1;
+                    view=true)
+    hw = b.homewell[1]
+    b = groupby(b, [:startWell, :stopWell])
+    b = combine(b, :traj => (t->length(unique(t))) => :ntraj,
+                  :time => (t->length(t)) => :ntime)
+    btraj = unstack(b, :startWell, :stopWell, :ntraj)
+    btraj = btraj[!, sort(names(btraj))]
+    btime = unstack(b, :startWell, :stopWell, :ntime)
+    btime = btime[!, sort(names(btime))]
+    xticks = names(btraj[:,Not(:startWell)])
+    xticks = (1:length(xticks), xticks)
+    yticks = btraj.startWell
+    yticks = (1:length(yticks), yticks)
+    p=nothing
+    try
+        p=Plots.heatmap(Matrix(btraj[:,Not(:startWell)]), 
+            title="epoch=$(e.epoch[1])\nha=$(e.ha[1])", 
+            xlabel="Stop well", ylabel="Start well", aspectratio=1,
+            xticks=xticks, yticks=yticks, xtickfont=font(8), ytickfont=font(8),
+            xlim=(0.5,5.5), ylim=(0.5,5.5), c=:viridis)
+        xhwloc = findall(parse.(Int,xticks[2]) .== hw)
+        if !isempty(xhwloc)
+            annotate!(fill(xhwloc[1], length(xticks[1])), yticks[1], Plots.text("*", :black, :center))
+        end
+        yhwloc = findall(yticks[2] .== hw)
+        if !isempty(yhwloc)
+            annotate!(xticks[1], fill(yhwloc[1], length(xticks[1])), Plots.text("*", :black, :center))
+        end
+        Plot.save("ha=$(e.ha[1])_heatmap_ntraj,epoch=$(e.epoch[1]),homewell=$hw")
+    catch
+        @infiltrate
+    end
+    push!(P, p)
+println("length(P): ", length(P))
+end
+blank = Plot.blank(title="Heatmap counting trajectories of each type\n(startWell, stopWell)\n"*
+    "animal=$animal, day=$day",
+    titlefontsize=8, legend=:none);
+layout = @layout [a{0.005h}; grid(2,Int(length(epoch)/2))]
+plot(P...; textfontsize=3, tickfontsize=3, label="", 
+    margin=0.001Plots.mm)
+
