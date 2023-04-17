@@ -283,6 +283,7 @@ plot!([p.series_list[1][:x] p.series_list[1][:x]]', [tmp.min tmp.max]',
 # DIutils.filtreg.register(beh, DF, on="time", transfer=["traj"])
 
 # ------------------------------------------------
+# Create a time-averaged summary DF
 # Whole i_tmpl, i_test summaries
 # ------------------------------------------------
 other_cols = setdiff(propertynames(DF), 
@@ -295,5 +296,30 @@ DFS = combine(groupby(DF, [:i_tmpl, :i_test, :component, :areas]),
         renamecols=false
 )
 
+# ------------------------------------------------
+# Create a component averaged DF
+# ------------------------------------------------
+# function Statistics.mean(x::AbstractArray{Union{Missing, String}})
+#     x = x |> skipmissing |> collect
+#     @assert all(x .== x[1])
+#     first(x)
+# end
+# function Statistics.median(x::AbstractArray{Union{Missing, String}})
+#     x = x |> skipmissing |> collect
+#     @assert all(x .== x[1])
+#     first(x)
+# end
+nms = setdiff(names(DF), ["component","value"])
+tmp = groupby(subset(DF, view=true), nms)
+DF1 = combine(
+    tmp,
+    :value => mean   => :mean,
+    :value => std    => :std,
+    :value => length => :n,
+    :value => median => :median,
+    renamecols=false
+)
+println("Size fraction: $(round(size(DF1,1)./size(DF,1), digits=4))")
+
 # Checkpoint
-commit_react_vars()
+@time commit_react_vars()

@@ -3,14 +3,14 @@ include("prep2plot.jl")
 # ------------------------------------------------
 # TRYING A SEPARATE APPROACH
 # ------------------------------------------------
-sort!(DF, [:time, :areas, :component])
+sort!(DF1, [:time, :areas])
 match_cols = get_pmatch_cols([:startWell,:stopWell])
-DF[!,:pmatch] = all(Matrix(DF[!, match_cols[1]]) .== 
-                    Matrix(DF[!, match_cols[2]]), dims=2) |> vec
+DF1[!,:pmatch] = all(Matrix(DF1[!, match_cols[1]]) .== 
+                    Matrix(DF1[!, match_cols[2]]), dims=2) |> vec
 GC.gc()
 
 # Clean out any single time trajectories
-DFc = groupby(DF, [:traj])
+DFc = groupby(DF1, [:traj])
 remove = []
 for (k, df) in zip(keys(DFc), DFc)
     if length(unique(df.time)) ≤ 1
@@ -22,24 +22,24 @@ println("Removing $(length(remove)) single time trajectories")
 # SETTINGS
 subs =   [:areas => a-> a .== "ca1-ca1", 
           :moving_tmpl => a-> a .== true,
-         :traj => t->t ∉ Tuple(getindex.(remove,1))
+    :traj => t -> (T=(t .∉ (getindex.(remove,1),)) )
 ]
 chunks = [:traj]
 rows   = [:startWell, :stopWell]
 yax    = [:startWell_tmpl, :stopWell_tmpl]
-DFc = subset(DF, subs..., view=true)
+DFc = subset(DF1, subs..., view=true)
 
 # BUG: losing compentents here!
 # Step 2
 push!(subs, :component => a-> a .<= 5)
-DFc = subset(DF, subs..., view=true)
+DFc = subset(DF1, subs..., view=true)
 sort!(DFc, [:areas, :component, :time]) # BUG: α how does sorting affect this?
 DIutils.pushover("Ready to go")
 
 
 # Question: How many template combos does each trajectory have (it should be
 # stable or nearly all)?
-@time tmp=combine(groupby(DF, [:areas, :traj, :ha, :moving_tmpl]),
+@time tmp=combine(groupby(DF1, [:areas, :traj, :ha, :moving_tmpl]),
 [:startWell_tmpl, :stopWell_tmpl] => 
     ((x,y) -> length(unique(eachrow([x y])))) => :tmpl_combos)
 h1=histogram(tmp.tmpl_combos, group=tmp.areas, bins=1:1:20, normed=true, 

@@ -55,6 +55,14 @@ function commit_react_vars(vars::Union{Nothing,Vector,Tuple,String}=nothing)
                 "date" => string(Dates.today()))
         )
     end
+    if vars === nothing || "DF1" in vars && isdefined(Main, :DF1)
+        @info "Committing $(path_react(opt;append="_1"))"
+        arrow_file = replace(path_react(opt;append="_1"),"jld2"=>"arrow")
+        Arrow.write(arrow_file, DF1, compress=:lz4,
+            metadata=("animal" => opt["animal"], "day" => string(opt["day"]),
+                "date" => string(Dates.today()))
+        )
+    end
 end
 """
     load_react_vars()
@@ -65,6 +73,7 @@ function load_react_vars()
     file         = path_react(opt)
     file = replace(file,"jld2"=>"arrow")
     summary_file = replace(summary_file,"jld2"=>"arrow")
+    one_file = replace(file,".arrow"=>"_1.arrow")
     if isfile(summary_file)
         @info "Loading $(summary_file)"
         DFS = DataFrame(Arrow.Table(summary_file),
@@ -75,6 +84,11 @@ function load_react_vars()
         @info "Loading $(file)"
         DF = DataFrame(Arrow.Table(file))
         @eval Main DF = $DF
+    end
+    if isfile(one_file)
+        @info "Loading $(one_file)"
+        DF1 = DataFrame(Arrow.Table(one_file))
+        @eval Main DF1 = $DF1
     end
 end
 
