@@ -51,10 +51,22 @@ println("Available trajectories, ca1:", unique(combine(ca1,identity)[:, :traj]))
 
 # Speed changes
 diff(beh.speed) |> histogram
+using Loess, RollingFunctions
+# l = loess(beh.time, beh.speed, span=0.1)
+# beh[!,:speedsmooth] = predict(l, beh.time)
+beh.speedsmooth = [zeros(4); rollmean(beh.speed, 10); zeros(5)]
+begin 
+    tmp=@subset(beh, :traj .== 2) 
+    @df tmp plot(:time, :speed)
+    @df tmp plot!(:time, :speedsmooth)
+    plot!(xlabel="Time (s)", ylabel="Speed (cm/s)")
+    ylims!(0,10)
+end
+beh.movingsmooth = beh.speedsmooth .> 2.5
 
 # Doubounce movement
-DI.debounce_movement!(beh; threshold=0.2)
-beh.moving = beh.movingdeb
+# DI.debounce_movement!(beh; threshold=0.2)
+# beh.moving = beh.movingdeb
 
 # IF startWell=1 is actually, being rejected, I need to actually plot the conditions
 # that lead to its rejection

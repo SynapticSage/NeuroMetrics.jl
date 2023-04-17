@@ -46,3 +46,25 @@ plot!([p.series_list[1][:x] p.series_list[1][:x]]', [tmp.min tmp.max]',
 
 
 
+
+# Question: How many template combos does each trajectory have (it should be
+# stable or nearly all)?
+@time tmp=combine(groupby(DF1, [:areas, :traj, :ha, :moving_tmpl]),
+[:startWell_tmpl, :stopWell_tmpl] => 
+    ((x,y) -> length(unique(eachrow([x y])))) => :tmpl_combos)
+h1=histogram(tmp.tmpl_combos, group=tmp.areas, bins=1:1:20, normed=true, 
+    bar_position=:stack,
+    alpha=0.2,
+    title="Histogram of template combos per trajectory", 
+    xlabel="Number of template combos", ylabel="Frequency")
+
+# And for the DFc?
+@time tmp=combine(groupby(DFc, [:areas, :traj, :ha, :moving_tmpl]),
+[:startWell_tmpl, :stopWell_tmpl] => 
+    ((x,y) -> length(unique(eachrow([x y])))) => :tmpl_combos)
+h1=histogram(tmp.tmpl_combos, group=tmp.areas, bins=1:1:20, normed=true, 
+    bar_position=:stack,
+    alpha=0.2,
+    title="Histogram of template combos per trajectory", 
+    xlabel="Number of template combos", ylabel="Frequency")
+

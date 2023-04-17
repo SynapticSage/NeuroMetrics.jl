@@ -24,90 +24,19 @@ subs =   [:areas => a-> a .== "ca1-ca1",
           :moving_tmpl => a-> a .== true,
     :traj => t -> (T=(t .∉ (getindex.(remove,1),)) )
 ]
+DFc = subset(DF1, subs..., view=true)
+DFc.value = DFc.mean
+DFcc = copy(DFc)
+sort!(DFc, [:areas, :time]) 
+
+# CONSTANTS
 chunks = [:traj]
 rows   = [:startWell, :stopWell]
 yax    = [:startWell_tmpl, :stopWell_tmpl]
-DFc = subset(DF1, subs..., view=true)
-
-# BUG: losing compentents here!
-# Step 2
-push!(subs, :component => a-> a .<= 5)
-DFc = subset(DF1, subs..., view=true)
-sort!(DFc, [:areas, :component, :time]) # BUG: α how does sorting affect this?
-DIutils.pushover("Ready to go")
-
-
-# Question: How many template combos does each trajectory have (it should be
-# stable or nearly all)?
-@time tmp=combine(groupby(DF1, [:areas, :traj, :ha, :moving_tmpl]),
-[:startWell_tmpl, :stopWell_tmpl] => 
-    ((x,y) -> length(unique(eachrow([x y])))) => :tmpl_combos)
-h1=histogram(tmp.tmpl_combos, group=tmp.areas, bins=1:1:20, normed=true, 
-    bar_position=:stack,
-    alpha=0.2,
-    title="Histogram of template combos per trajectory", 
-    xlabel="Number of template combos", ylabel="Frequency")
-
-# And for the DFc?
-@time tmp=combine(groupby(DFc, [:areas, :traj, :ha, :moving_tmpl]),
-[:startWell_tmpl, :stopWell_tmpl] => 
-    ((x,y) -> length(unique(eachrow([x y])))) => :tmpl_combos)
-h1=histogram(tmp.tmpl_combos, group=tmp.areas, bins=1:1:20, normed=true, 
-    bar_position=:stack,
-    alpha=0.2,
-    title="Histogram of template combos per trajectory", 
-    xlabel="Number of template combos", ylabel="Frequency")
-
-
-DFcc = copy(DFc)
-sort!(DFc, [:areas, :component, :time]) # BUG: α how does sorting affect this?
+mscale = 8
 
 # INFO: TEST OF LOOP
 C = OrderedDict()
-group = :component
-# Plotting columnar chunks
-Chunks = groupby(DFc, chunks)
-chunk = Chunks |> first
-# for (c,chunk) in enumerate(Chunks)
-    Rows = groupby(chunk, rows)    
-    R = OrderedDict()
-    # Setup rows of a subplots
-    (k, row) = zip(keys(Rows), Rows) |> first
-    # for (k,row) in zip(keys(Rows), Rows)
-        dur = extrema(row.time) |> x-> round(x[2] - x[1], digits=2)
-        p = plot(title="dur=$dur")
-        m = maximum(row.value)
-        Yax = groupby(row, yax)
-        i,y = 1,(Yax |> first)
-        global startmove = stopmove = nothing
-        for (i, y) in enumerate(Yax)
-            plot!(p, y.time, (i-1).*m .+ y.value; 
-                   group=y[!,group], markersize=1,
-                fillalpha=0.2, linealpha=0.2, legend=false)
-            yc = groupby(y, :component) |> first
-            difs  = diff([Int8(0); Int8.(yc.moving)])
-            global startmove = yc[findall(difs .== 1), :time]
-            global stopmove  = yc[findall(difs .== -1), :time]
-        end
-        ylabels = map(Yax |> collect) do y
-            y=first(eachrow(y))
-            actual = "$(y.startWell)-$(y.stopWell)"
-            label  = "$(y.startWell_tmpl)-$(y.stopWell_tmpl)"
-            actual == label ? "ACTUAL: $label" : label
-        end
-        vspan!(p, startmove, stopmove; fillalpha=0.2, linealpha=0.2)
-        yticks = ((axes(Yax, 1) .- 1) .* m, ylabels)
-        actual = "$(row.startWell[1])-$(row.stopWell[1])"
-        plot!(;yticks, xlabel="time", ylabel="react per tmpl", 
-            title="dur=$dur, act=$actual", legend=false)
-        # R[k] = p
-    # end
-    # C[c] = R
-# end
-
-# INFO: ACTUAL LOOP!
-C = OrderedDict()
-group = :component
 # Plotting columnar chunks
 Chunks = groupby(DFc, chunks)
 chunk = Chunks |> first
@@ -121,18 +50,35 @@ for (c,chunk) in enumerate(Chunks)
         p = plot(title="dur=$dur")
         m = maximum(row.value)
         Yax = groupby(row, yax)
-        y = Yax |> first
+        i,y = 1,(Yax |> first)
+        global startmove = stopmove = nothing
         for (i, y) in enumerate(Yax)
-            plot!(p, y.time, (i-1)*m .+ y.value; 
-                group=y[!,group], markersize=1,
-                 # fill=0, 
-                fillalpha=0.2, linealpha=0.2, legend=false)
-            yc = groupby(y, :component) |> first
+            plot!(p, y.time, (i-1).*m .+ y.value.*mscale; 
+                   markersize=1,
+                fillalpha=0.5, linealpha=0.2, legend=false)
+            yc = y
             difs  = diff([Int8(0); Int8.(yc.moving)])
-            startmove = findall(difs .== 1)
-            stopmove  = findall(difs .== -1)
+            global startmove = yc[findall(difs .== 1), :time]
+            global stopmove  = yc[findall(difs .== -1), :time]
         end
-        R[k] = p
+        ylabels = map(Yax |> collect) do y
+            y=first(eachrow(y))
+            actual = "$(y.startWell)-$(y.stopWell)"
+            label  = "$(y.startWell_tmpl)-$(y.stopWell_tmpl)"
+            actual == label ? "ACTUAL: $label" : label
+        end
+        global startmove, stopmove
+        vspan!(p, startmove, stopmove; fillalpha=0.1, linealpha=0.2)
+        yticks = ((axes(Yax, 1) .- 1) .* m, ylabels)
+        actual = "$(row.startWell[1])-$(row.stopWell[1])"
+        plot!(;yticks, xlabel="time", ylabel="react per tmpl", 
+            title="dur=$dur, act=$actual", legend=false)
+        traj = row.traj[1]
+        trajplot=subset(beh, :traj => t->t.== traj, view=true) |> 
+            @df plot(:time, [:speed :moving.*15], ylim=(0,25),legend=false) 
+        plot!(y.time, y.moving.*15, ylim=(0,25),legend=false)
+        layout = @layout [a{0.9h}; b{0.1h}]
+        R[k] = plot(p,trajplot,layout=layout)
     end
     C[c] = R
 end

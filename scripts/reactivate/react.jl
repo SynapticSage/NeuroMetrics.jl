@@ -261,8 +261,8 @@ println("Number of trajectories: $(length(unique(DF.traj)))")
 
 # Ensure that .component is a UInt8 and that each template has a normal range
 # of trajectories
-tmp = combine(groupby(DF, [:startWell_tmpl, :stopWell_tmpl]),
-    :component => (x->length(unique(x))) => :count,
+tmp = combine(groupby(DF, [:startWell_tmpl,  :stopWell_tmpl]),
+    :component => (x->length(unique(x))) =>  :count,
     :component => (x->maximum(unique(x))) => :max,
     :component => (x->minimum(unique(x))) => :min
 )
