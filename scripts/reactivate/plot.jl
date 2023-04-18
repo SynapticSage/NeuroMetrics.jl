@@ -71,7 +71,9 @@ for g in groupby(DFcc, [:areas, :i_tmpl])
     DFcc[g, :value] = DFcc[g, :value] .- muDFcc[g, :mean]
 end
 
+# --------------------------------
 # PLOT: TEST examine traj
+# --------------------------------
 mean_centered = true
 C = OrderedDict()
 group = :component
