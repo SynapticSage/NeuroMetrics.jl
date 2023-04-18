@@ -3,7 +3,10 @@ import .utils
 import Plots, DataFrames, DataFramesMeta
 using DIutils
 using DI
+using ImageFiltering
+using GoalFetchAnalysis
 import GoalFetchAnalysis.Plot
+
 opt["animal"] = "animal" in keys(opt) ? opt["animal"] : "RY16"
 opt["day"]    = "day"    in keys(opt) ? opt["day"]    : 36
 
@@ -85,6 +88,9 @@ savefig(plotsdir("behavior","trajectory-timing","times,gt2cms.png"))
 savefig(plotsdir("behavior","trajectory-timing","times,gt2cms.pdf"))
 # Have to throw out the outliers if want a realistic mean. Median works.
 
+# ------------------------------------
+# PLOT: Typical trajectory speed curves
+# ------------------------------------
 # Speed changes
 diff(beh.speed) |> histogram
 using Loess, RollingFunctions
@@ -179,7 +185,10 @@ blank = Plot.blank(title="Heatmap counting trajectories of each type\n(startWell
 layout = Plots.@layout [a{0.005h}; Plots.grid(1,length(epoch))]
 Plots.plot(blank, P...; layout, textfontsize=3, tickfontsize=3, label="", 
     margin=0.001Plots.mm) 
+Plot.save("heatmap_ntraj,all_epochs")
 
+# ---------------------------------------------------------------
+# PLOT: Heatmap counting trajectories of each type (startWell, stopWell)
 # ---------------------------------------------------------------
 # Home-arena splits per epoch
 # THse suggest that the trials are innapropriately labeled!!! 
@@ -230,4 +239,58 @@ blank = Plot.blank(title="Heatmap counting trajectories of each type\n(startWell
 layout = @layout [a{0.005h}; grid(2,Int(length(epoch)/2))]
 plot(P...; textfontsize=3, tickfontsize=3, label="", 
     margin=0.001Plots.mm)
+
+# ---------------------------------------------------------------
+# PLOT: Heatmap of number of trajectories per epoch
+# ---------------------------------------------------------------
+# Let's extract immobility periods ...
+# For every trajectory, there will be a single mobility period and
+# a single immobility period.
+# ---------------------------------------------------------------
+DI.smooth_movement!(beh)
+beh[!,:movingsmooth] = imfilter(beh.moving_speedsmooth,
+    Kernel.gaussian((movebool_gaussian*10,)))
+B = groupby(
+    @subset(beh, :traj .!= NaN, :startWell .!= -1, :stopWell .!= -1; view=true),
+    :traj)
+P = []
+for b in B
+    p = 
+    plot(
+        (plot(b.speedsmooth, label="smoothed", fill=0, fillalpha=0.5);
+         hline!([4], label="threshold", color=:black, linestyle=:dash);
+            plot!(b.speed,label="speed")),
+        (plot(b.movingsmooth,label="smoothed", fill=0, fillalpha=0.5);
+         hline!([0.5], label="threshold", color=:black, linestyle=:dash);
+         plot!(b.moving,label="moving"));
+        layout=grid(2,1), legendposition=:outerbottomright,
+        title="example of how handling mobility"
+    )
+    push!(P, p)
+end
+
+beh[!,:immobility] = beh.movingsmooth .< 0.5
+b = @subset(beh, :traj .!== missing,
+    :traj .!= NaN, :startWell .!= -1, :stopWell .!= -1; view=true
+)
+b = groupby(b, :traj)
+
+# ---------------------------------------------------------------
+# PLOT: speed, immobility, delta_xy
+# ---------------------------------------------------------------
+P=[]
+t = b |> first
+delta_xy(x1,x2) = sqrt(sum((x2-x1).^2))
+for t in b
+    p=plot(t.time, t.speed, label="speed")
+    plot!(t.time, t.immobility .* ylims()[2], fill=0, label="immobility",
+        fillalpha=0.2, 
+    )
+    plot!(t.time, delta_xy.(eachrow([t[1,:x] t[1,:y]]), eachrow([t.x t.y])),
+        fill=0, c=:green, fillalpha=0.2,
+        label="delta_xy")
+    push!(P, p)
+end
+plot(P[1:24]..., layout=grid(3,8), size=(2000,1000), legendbackgroundalpha=0.5)
+
 
