@@ -131,11 +131,14 @@ module spiking
     - `beh::DataFrame`: dataframe of behavior
     - `dims=:unit`: dimensions to tensorize over
     - `binning_ratio=1`: ratio of binning to behavioral sampling
+    - `downsample=nothing`: downsample behavioral data by this factor
     - `kws...`: keyword arguments to pass to torate(spikes::DataFrame, dims)
     """
     function torate(spikes::DataFrame, beh::DataFrame, 
     dims::Union{T,Vector{T}} where T <: SymStr=:unit; 
+    downsample::Union{Int,Nothing}=nothing,
             binning_ratio=1, kws...)
+        beh = downsample === nothing ? beh : beh[1:downsample:end, :]
         grid = copy(beh.time)
         δ = median(diff(beh.time)) / binning_ratio
         grid .+= δ
