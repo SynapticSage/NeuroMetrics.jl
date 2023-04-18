@@ -1,4 +1,5 @@
 include("prep2plot.jl")
+DF1 = copy(DF1)
 
 # ------------------------------------------------
 # TRYING A SEPARATE APPROACH
@@ -35,7 +36,9 @@ rows   = [:startWell, :stopWell]
 yax    = [:startWell_tmpl, :stopWell_tmpl]
 mscale = 8
 
-# INFO: TEST OF LOOP
+# ------------------------------------------------
+# PLOT: Trajectories
+# ------------------------------------------------
 C = OrderedDict()
 # Plotting columnar chunks
 Chunks = groupby(DFc, chunks)
@@ -68,15 +71,17 @@ for (c,chunk) in enumerate(Chunks)
             actual == label ? "ACTUAL: $label" : label
         end
         global startmove, stopmove
-        vspan!(p, startmove, stopmove; fillalpha=0.1, linealpha=0.2)
+        # vspan!(p, startmove, stopmove; fillalpha=0.1, linealpha=0.2) # BUG: this does not match the record below
         yticks = ((axes(Yax, 1) .- 1) .* m, ylabels)
         actual = "$(row.startWell[1])-$(row.stopWell[1])"
         plot!(;yticks, xlabel="time", ylabel="react per tmpl", 
             title="dur=$dur, act=$actual", legend=false)
         traj = row.traj[1]
         trajplot=subset(beh, :traj => t->t.== traj, view=true) |> 
-            @df plot(:time, [:speed :moving.*15], ylim=(0,25),legend=false) 
-        plot!(y.time, y.moving.*15, ylim=(0,25),legend=false)
+            @df plot(:time, [:speed], ylim=(0,40),legend=false,
+                fill=0, fillstyle=:\, fillalpha=0.2) 
+        plot!(y.time, y.moving.*15, ylim=(0,40),legend=false,
+            fill=0, fillalpha=0.8, c=:red)
         layout = @layout [a{0.9h}; b{0.1h}]
         R[k] = plot(p,trajplot,layout=layout)
     end

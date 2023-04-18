@@ -4,13 +4,18 @@ else
     include("imports.jl") # include(scriptsdir("reactivate","imports.jl"))
 end
 
+opt["downsample"] = nothing;
+using DI, GoalFetchAnalysis.Munge.spiking
+
 # Get and prep the data!
 # ------------------------------------------------------------------
 spikes = DI.load_spikes(opt["animal"],   opt["day"])
 beh    = DI.load_behavior(opt["animal"], opt["day"])
 cells  = DI.load_cells(opt["animal"],    opt["day"])
+
 # Get firing rate DimArray
-R = spiking.torate(spikes, beh, gaussian=0.20)
+R = spiking.torate(spikes, beh, gaussian=0.20,
+        downsample=opt["downsample"])
 # Create dataframe of R
 Rdf = DataFrame(R, name=:rate)
 DIutils.pushover("Finished creating Rdf")
@@ -21,7 +26,7 @@ uS = unique(S, dims=1)
 sf = [findfirst(isequal(s), uS) for s in S]
 beh[:, :startstopWell] = sf
 # Create a field specifying whether the animal is still or moving
-beh[:, :moving] = beh[:, :speed] .> 2 # cm/s
+beh[:, :moving] = .!beh[:, :immobility]
 groupings = [:startstopWell, :startWell, :stopWell, :moving, :ha, :correct, 
     :epoch]
 println("Available trajectories:", unique(beh[:, :traj]))
@@ -33,6 +38,7 @@ Rdf = @subset(Rdf, :stopWell .!= -1, :startWell .!= 1)
 sort!(Rdf, [:unit, :time])
 register(cells, Rdf, on="unit", transfer=["area"])
 sort!(Rdf, [:time, :unit])
+
 ca1, pfc = groupby(Rdf, :area)[1:2];
 @assert(ca1.area[1] == "CA1" && pfc.area[1] == "PFC", 
 "Areas are not CA1 and PFC")
@@ -62,7 +68,8 @@ begin
     plot!(xlabel="Time (s)", ylabel="Speed (cm/s)")
     ylims!(0,10)
 end
-beh.movingsmooth = beh.speedsmooth .> 2.5
+# beh.movingsmooth = beh.speedsmooth .> 2.5
+# beh.moving  = beh.movingsmooth
 
 # Doubounce movement
 # DI.debounce_movement!(beh; threshold=0.2)
@@ -80,6 +87,7 @@ GC.gc()
 # that have more than num_cells samples
 # ------------------------------------------------------------------
 # BUG:
+# ------------------------------------------------------------------
 # why so many 'h' 'a' missing? especially when start and stopwell are both
 # defined? 
 # It turns out ALL of the missing values hail from the incorrect trials

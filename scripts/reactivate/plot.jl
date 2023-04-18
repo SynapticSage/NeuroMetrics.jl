@@ -59,14 +59,24 @@ h1=histogram(tmp.tmpl_combos, group=tmp.areas, bins=1:1:20, normed=true,
     xlabel="Number of template combos", ylabel="Frequency")
 
 
-DFcc = copy(DFc)
 sort!(DFc, [:areas, :component, :time]) # BUG: α how does sorting affect this?
 
-# INFO: TEST OF LOOP
+# Create a mean centered version of the data
+DFcc = copy(DFc)
+muDFcc = combine(groupby(DFcc, [:areas, :i_tmpl]), 
+    [:value] => mean => :mean, [:value] => std => :std)
+for g in groupby(DFcc, [:areas, :i_tmpl])
+    # Create mean cenetered values
+    @assert muDFcc[g, :time] == DFcc[g, :time]
+    DFcc[g, :value] = DFcc[g, :value] .- muDFcc[g, :mean]
+end
+
+# PLOT: TEST examine traj
+mean_centered = true
 C = OrderedDict()
 group = :component
 # Plotting columnar chunks
-Chunks = groupby(DFc, chunks)
+Chunks = groupby(mean_centered ? DFcc : DFc, chunks)
 chunk = Chunks |> first
 # for (c,chunk) in enumerate(Chunks)
     Rows = groupby(chunk, rows)    
@@ -105,7 +115,7 @@ chunk = Chunks |> first
     # C[c] = R
 # end
 
-# INFO: ACTUAL LOOP!
+# PLOT: Examine trajectories
 C = OrderedDict()
 group = :component
 # Plotting columnar chunks

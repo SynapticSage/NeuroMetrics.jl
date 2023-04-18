@@ -10,7 +10,7 @@ end
 
 # Just so language-server protocol can find the symbols
 # from the script that generated the data.
-load_react_vars()
+if !isdefined(Main, :DF); load_react_vars(); end
 DIutils.pushover("Finished loading reactivate variables")
 
 
@@ -179,3 +179,6 @@ println("Matching columns: ", match_cols)
 DFS[!,:pmatch] .= all(Matrix(DFS[!, match_cols[1]]) .== Matrix(DFS[!, match_cols[2]]), dims=2) |> vec
 DFS.exclude = DFS.n .< 10
 
+if !isdefined(Main, :beh)
+    beh = DI.load_behavior(opt["animal"], opt["day"])
+end
