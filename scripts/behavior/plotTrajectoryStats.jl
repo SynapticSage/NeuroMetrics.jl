@@ -247,37 +247,36 @@ plot(P...; textfontsize=3, tickfontsize=3, label="",
 # For every trajectory, there will be a single mobility period and
 # a single immobility period.
 # ---------------------------------------------------------------
-DI.smooth_movement!(beh)
-beh[!,:movingsmooth] = imfilter(beh.moving_speedsmooth,
-    Kernel.gaussian((movebool_gaussian*10,)))
-B = groupby(
-    @subset(beh, :traj .!= NaN, :startWell .!= -1, :stopWell .!= -1; view=true),
-    :traj)
+Plot.setfolder("immobility")
+DI.smooth_movement!(beh; )
 P = []
 for b in B
     p = 
     plot(
         (plot(b.speedsmooth, label="smoothed", fill=0, fillalpha=0.5);
-         hline!([4], label="threshold", color=:black, linestyle=:dash);
+            hline!([4], label="threshold", color=:black, linestyle=:dash);
             plot!(b.speed,label="speed")),
         (plot(b.movingsmooth,label="smoothed", fill=0, fillalpha=0.5);
-         hline!([0.5], label="threshold", color=:black, linestyle=:dash);
-         plot!(b.moving,label="moving"));
+            hline!([0.5], label="threshold", color=:black, linestyle=:dash);
+            plot!(b.moving,label="moving"));
         layout=grid(2,1), legendposition=:outerbottomright,
         title="example of how handling mobility"
     )
     push!(P, p)
 end
-
-beh[!,:immobility] = beh.movingsmooth .< 0.5
-b = @subset(beh, :traj .!== missing,
-    :traj .!= NaN, :startWell .!= -1, :stopWell .!= -1; view=true
-)
-b = groupby(b, :traj)
+for (i,p) in enumerate(1:20:length(P))
+    pmax = min(p+19, length(P))
+    plot(P[p:m]...; size=(1000,800))
+    Plot.save("moving-and-stillness,$i")
+end
 
 # ---------------------------------------------------------------
 # PLOT: speed, immobility, delta_xy
 # ---------------------------------------------------------------
+b = @subset(beh, :traj .!== missing,
+    :traj .!= NaN, :startWell .!= -1, :stopWell .!= -1; view=true
+)
+b = groupby(b, :traj)
 P=[]
 t = b |> first
 delta_xy(x1,x2) = sqrt(sum((x2-x1).^2))
@@ -291,6 +290,6 @@ for t in b
         label="delta_xy")
     push!(P, p)
 end
-plot(P[1:24]..., layout=grid(3,8), size=(2000,1000), legendbackgroundalpha=0.5)
-
-
+plot(P[1:24]..., layout=grid(3,8), size=(2000,1000), 
+                 legendbackgroundalpha=0.5)
+Plot.save("speed_immobility_delta_xy")
