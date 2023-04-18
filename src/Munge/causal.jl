@@ -106,6 +106,13 @@ module causal
         norm::Vector{Float64}
     end
 
+    mutable struct EnsemblePA
+        type::Symbol
+        PA::Matrix{Float64}
+        i::Vector{Int}
+        t::Vector
+    end
+
     """
         function ensembling(uniX, uniY, n, horizon)
     Ensembles the data by randomly selecting `n` start and end points. The
@@ -129,10 +136,9 @@ module causal
             ends_ranges = UnitRange.(starts .+ maximum(horizon), 
                                      starts .+ horizon_max)
         end
-        ends_ranges = UnitRange.(starts .+ maximum(horizon), ends)
         ends = rand.(ends_ranges)
-        ((uniX[start:stop], uniY[start:stop]) 
-         for (start,stop) in zip(starts,ends))
+        ((start:stop, uniX[start:stop], uniY[start:stop]) 
+            for (start,stop) in zip(starts,ends))
     end
 
 
@@ -157,6 +163,7 @@ module causal
     function ensembledpredictiveasymmetry(uniX, uniY, est, params;
         f=1, n=100, method=:anylegalsize, 
         horizon_max::Union{Nothing,Int}=nothing, kws...)
+        @infiltrate
         PA = Vector{Union{Missing,Vector}}(missing, n)
         if method == :anylegalsize
             generator = ensembling(uniX, uniY, n, params[:horizon])
@@ -168,23 +175,25 @@ module causal
         else
             @error "Unknown method $method"
         end
-        iters = enumerate()
+        iters = enumerate(generator)
         prog = Progress(length(iters), 1, 
                         "Predictive Asymmetry-ensembling")
-        Threads.@threads for (i,(ux,uy)) in collect(iters)
+        Threads.@threads for (i,(t,ux,uy)) in collect(iters)
+            key = (i,t)
             try
                     pa=CausalityTools.predictive_asymmetry(ux,
                                                 uy,
                                                 est,
                                                 params[:horizon];
                                                 normalize=true, f, kws...)
-                    PA[i] = pa
+                    PA[key] = pa
             catch
-                PA[i] = missing
+                PA[key] = missing
             end
         end
-        PA = filter(x->x!==missing, PA)
+        PA = filter(x->x[2]!==missing, PA)
         PA = hcat(PA...)'
+        EnsemblePA(method, PA, zip(keys(PA)...)...)
     end
     
     ## ---------- GLOBAL WITH AN ESTIMATOR ------------------
