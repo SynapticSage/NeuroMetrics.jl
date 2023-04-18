@@ -215,7 +215,7 @@ prog = Progress(length(train_iters); desc="Reactivation Scores")
 Scores, DF = OrderedDict(), Matrix{Union{Missing,DataFrame}}(missing, length(train_iters), 3)
 println("Garbage colleting:", GC.gc())
 for (i,(train, test)) in train_iters
-    i_tmpl, k_tmpl = train
+    i_tmpl, k_tmpl   = train
     i_test, k_test   = test
     i, i_tmpl, i_test = Int16.((i, i_tmpl, i_test))
     z_ca1, z_pfc = Z_ca1[k_test], Z_pfc[k_test]

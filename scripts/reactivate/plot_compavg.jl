@@ -8,14 +8,14 @@ DF1 = copy(DF1)
 # ---------------
 # 👉 CONSTANTS 👈
 # ---------------
-chunks = [:traj]
-rows   = [:startWell, :stopWell]
-yax    = [:startWell_tmpl, :stopWell_tmpl]
+g_chunk = [:traj]
+g_rows   = [:startWell, :stopWell]
+g_yax    = [:startWell_tmpl, :stopWell_tmpl]
 subs =   [:areas => a-> a .== "ca1-ca1", 
           :moving_tmpl => a-> a .== true]
 mscale = 8
 means_subtracted = true
-template_combine = :none # :none, :mean, :start_g_stop, stop_g_start
+template_combine = :mean # :none, :mean, :start_g_stop, stop_g_start
 # template_combine descriptions
 # ------------------------------------------------
 # - none : no combining
@@ -30,7 +30,7 @@ DF1[!,:pmatch] = all(Matrix(DF1[!, match_cols[1]]) .==
                      Matrix(DF1[!, match_cols[2]]), dims=2) |> vec
 GC.gc()
 # Clean out any single time trajectories
-DFc = groupby(DF1, [:traj], view=false)
+DFc = groupby(copy(DF1), [:traj])
 remove = []
 for (k, df) in zip(keys(DFc), DFc)
     if length(unique(df.time)) ≤ 1
@@ -71,24 +71,37 @@ if means_subtracted
     end
     DFcc = combine(g1, identity)
 end
+
 # ------------------------------------------------
 # Combining templates?
 # ------------------------------------------------
+uniq(DFcc) = Dict(x=>unique(DFcc[!, x]) for x in propertynames(DFcc))
 if template_combine != :none
+    println("Rows before combine process: $(nrow(DFcc))")
+    # BUG: i_test for every traj has 2 values, is not unique!
     @info "Combining templates using $template_combine"
-    U = Dict(x=>unique(DFcc[!, x]) for x in propertynames(DFcc))
+    U = DFcc |> uniq
     g1 = groupby(DFcc, [:areas, :traj])
+    g = g1[1]
     for g in g1
         # Combine all non-active templates into a single template
         # called other
         if template_combine == :mean
             # Which template is active this :traj?    
-            active = g[1, :i_test]
+            active = unique(g[:, :i_test])
             # Which templates are not active?
             not_active = setdiff(U[:i_tmpl], active)
-            # Combine all non-active templates into a single template
-            # called other
-            g[!, :i_tmpl] = g[!, :i_tmpl] .∈ (not_active,) ? 0 : g[!, :i_tmpl]
+        # Combine all non-active templates into a single template, except
+        # for the reverse template. All others lumped into "other"
+        elseif template_combo  ==  :mean_leavereverse
+            # Which template is active this :traj?    
+            active = unique(g[:, :i_test])
+            startWell, stopWell = unique(g[:, :startWell]), unique(g[:, :stopWell])
+            i_tmpl_reverse = subset(g, :startWell_tmpl => x -> x == stopWell, 
+                :stopWell_tmpl => x -> x == startWell, view=true).i_tmpl |> 
+                unique 
+            # Which templates are not active?
+            not_active = setdiff(U[:i_tmpl], active)
         elseif template_combine == :start_g_stop
             active_stop = g[1, :i_stop]
             # Set any points that are not the active stop to -1
@@ -98,17 +111,27 @@ if template_combine != :none
             # Set any points that are not the active start to -1
             g[!, :i_tmpl] = g[!, :i_tmpl] .∉ (active_start,) ? -1 : g[!, :i_tmpl]
         end
+        if template_combine in [:mean, :means_subtracted]
+            # Combine all non-active templates into a single template
+            # called other
+            f(x) = x ∈ not_active ? 0 : x
+            g[!, :i_tmpl] = f.(g[!, :i_tmpl])
+            g[!, :startWell_tmpl][g[!, :i_tmpl] .== 0] .= 0
+            g[!, :stopWell_tmpl][g[!, :i_tmpl] .== 0]  .= 0
+        end
     end
     DFcc = combine(g1, identity)
     # Remove any -1 :i_tmpl
-    DFcc = @subset(DFcc, :i_tmpl .> 0)
+    DFcc = @subset(DFcc, :i_tmpl .>= 0)
     # Combine any time points that have the same :i_tmpl, :area, :i_test
-    other_names = setdiff(names(DFcc), [:areas, :i_tmpl, :time, :value])
-    DFcc = combine(groubpy(DFcc, [:areas, :i_tmpl, :time]), 
+    other_names = setdiff(names(DFcc), ["areas", "i_tmpl", "time", "value"])
+    DFcc = combine(
+        groupby(DFcc, [:areas, :i_tmpl, :time]), 
                             other_names .=> first .=> other_names,
-                                  :value => length => :n,
-                                  :value => mean => :value
+                            :value => length => :nn,
+                            :value => mean => :value
     )
+    println("Rows after combine process: $(nrow(DFcc))")
 end
 # ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
 # ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
@@ -119,10 +142,10 @@ end
 # ------------------------------------------------
 C = OrderedDict()
 # Plotting columnar chunks
-Chunks = groupby(means_subtracted ? DFcc : DFc, chunks)
+Chunks = groupby(means_subtracted ? DFcc : DFc, g_chunk)
 (c, chunk) = (1, Chunks |> first)
 # for (c,chunk) in enumerate(Chunks)
-    Rows = groupby(chunk, rows)    
+    Rows = groupby(chunk, g_rows)    
     R = OrderedDict()
     # Setup rows of a subplots
     (k, row) = zip(keys(Rows), Rows) |> first
@@ -130,12 +153,13 @@ Chunks = groupby(means_subtracted ? DFcc : DFc, chunks)
         dur = extrema(row.time) |> x-> round(x[2] - x[1], digits=2)
         p = plot(title="dur=$dur")
         m = maximum(row.value) # BUG: 0 when means_subtracted
-        Yax = groupby(row, yax)
+        Yax = groupby(row, g_yax)
         i,y = 1,(Yax |> first)
         global startmove = stopmove = nothing
         for (i, y) in enumerate(Yax)
+            # @infiltrate
             plot!(p, y.time, (i-1).*m .+ y.value.*mscale; 
-                   markersize=1,
+                   markersize=1, fill=
                 fillalpha=0.5, linealpha=0.2, legend=false)
             yc = y
             difs  = diff([Int8(0); Int8.(yc.moving)])
