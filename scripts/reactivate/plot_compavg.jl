@@ -15,7 +15,7 @@ subs =   [:areas => a-> a .== "ca1-ca1",
           :moving_tmpl => a-> a .== true]
 mscale = 8
 means_subtracted = true
-template_combine = :mean # :none, :mean, :start_g_stop, stop_g_start
+template_combine = :none # :none, :mean, :start_g_stop, stop_g_start
 # template_combine descriptions
 # ------------------------------------------------
 # - none : no combining
@@ -24,13 +24,13 @@ template_combine = :mean # :none, :mean, :start_g_stop, stop_g_start
 # - start_g_stop: keep only the start tmpl given the actual stop template
 # - stop_g_start: keep only the stop tmpl given the actual start template
 # ------------------------------------------------
-sort!(DF1, [:time, :areas])
+sort(DF1, [:time, :areas])
 match_cols = get_pmatch_cols([:startWell,:stopWell])
 DF1[!,:pmatch] = all(Matrix(DF1[!, match_cols[1]]) .== 
-                    Matrix(DF1[!, match_cols[2]]), dims=2) |> vec
+                     Matrix(DF1[!, match_cols[2]]), dims=2) |> vec
 GC.gc()
 # Clean out any single time trajectories
-DFc = groupby(DF1, [:traj])
+DFc = groupby(DF1, [:traj], view=false)
 remove = []
 for (k, df) in zip(keys(DFc), DFc)
     if length(unique(df.time)) ≤ 1
@@ -48,25 +48,34 @@ sort!(DFc, [:areas, :time])
 # ≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡
 # Create a mean centered version of the data
 DFcc = copy(DFc)
-muDFcc = combine(groupby(DFcc, [:areas, :i_tmpl, :time]), 
-    [:value] => mean => :mean, [:value] => length => :n)
-g1 = groupby(DFcc, [:areas, :i_tmpl])
-g2 = groupby(muDFcc, [:areas, :i_tmpl])
-K = intersect(keys(g1), keys(g2))
-k = K |> first
-for k in K
-    k = NamedTuple(k)
-    # Create mean cenetered values
-    m, g = g1[k], g2[k]
-    @assert m[:, :time] == g[:, :time]
-    # Match on times
-    g[!, :value] = g[!, :value] .- m[!, :mean]
+if means_subtracted
+    @info "Mean centering data"
+    muDFcc = combine(groupby(DFcc, [:areas, :time]), 
+        [:value] => mean => :mean, [:value] => length => :n)
+    g1 = groupby(DFcc, [:areas, :i_tmpl])
+    g2 = groupby(muDFcc, [:areas])
+    K = keys(g1)
+    k = K |> first
+    for k in K
+        k = NamedTuple(k)
+        k2 = (;areas=k.areas,)
+        # Create mean cenetered values
+        g, m = g1[k], g2[k2]
+        @assert m[:, :time] == g[:, :time]
+        # Match on times
+        try
+            g[!, :value] = g[!, :value] .- m[!, :mean]
+        catch
+            @infiltrate
+        end
+    end
+    DFcc = combine(g1, identity)
 end
-DFcc = combine(g1, identity)
 # ------------------------------------------------
 # Combining templates?
 # ------------------------------------------------
 if template_combine != :none
+    @info "Combining templates using $template_combine"
     U = Dict(x=>unique(DFcc[!, x]) for x in propertynames(DFcc))
     g1 = groupby(DFcc, [:areas, :traj])
     for g in g1
@@ -111,7 +120,7 @@ end
 C = OrderedDict()
 # Plotting columnar chunks
 Chunks = groupby(means_subtracted ? DFcc : DFc, chunks)
-chunk = Chunks |> first
+(c, chunk) = (1, Chunks |> first)
 # for (c,chunk) in enumerate(Chunks)
     Rows = groupby(chunk, rows)    
     R = OrderedDict()
@@ -120,7 +129,7 @@ chunk = Chunks |> first
     # for (k,row) in zip(keys(Rows), Rows)
         dur = extrema(row.time) |> x-> round(x[2] - x[1], digits=2)
         p = plot(title="dur=$dur")
-        m = maximum(row.value)
+        m = maximum(row.value) # BUG: 0 when means_subtracted
         Yax = groupby(row, yax)
         i,y = 1,(Yax |> first)
         global startmove = stopmove = nothing
@@ -137,11 +146,15 @@ chunk = Chunks |> first
             y=first(eachrow(y))
             actual = "$(y.startWell)-$(y.stopWell)"
             label  = "$(y.startWell_tmpl)-$(y.stopWell_tmpl)"
-            actual == label ? "ACTUAL: $label" : label
+            if y.i_tmpl == 0 
+                "OTHER"
+            else
+                actual == label ? "ACTUAL: $label" : label
+            end
         end
         global startmove, stopmove
         # vspan!(p, startmove, stopmove; fillalpha=0.1, linealpha=0.2) # BUG: this does not match the record below
-        ytcks = ((axes(Yax, 1) .- 1) .* m, ylabels)
+        ytcks = (((axes(Yax, 1)|>collect) .- 1) .* m, ylabels)
         actual = "$(row.startWell[1])-$(row.stopWell[1])"
         plot!(;yticks=ytcks, xlabel="time", ylabel="react per tmpl", 
             title="dur=$dur, act=$actual", legend=false)
@@ -151,7 +164,7 @@ chunk = Chunks |> first
                 fill=0, fillstyle=:\, fillalpha=0.2) 
         plot!(y.time, y.moving.*15, ylim=(0,40),legend=false,
             fill=0, fillalpha=0.8, c=:red)
-        layout = @layout [a0.9h; b{0.1h}]
+        layout = @layout [a{0.9h}; b{0.1h}]
         R[k] = plot(p,trajplot,layout=layout)
     # end
     C[c] = R
