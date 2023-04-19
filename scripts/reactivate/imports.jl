@@ -68,24 +68,25 @@ end
     load_react_vars()
 Load the variables in the global scope from a jld2 file.
 """
-function load_react_vars()
+function load_react_vars(vars=nothing)
+    vars = vars === nothing ? ["DF","DFS","DF1"] : vars
     summary_file = path_react(opt, append="_summary")
     file         = path_react(opt)
     file = replace(file,"jld2"=>"arrow")
     summary_file = replace(summary_file,"jld2"=>"arrow")
     one_file = replace(file,".arrow"=>"_1.arrow")
-    if isfile(summary_file)
+    if isfile(summary_file) && "DFS" in vars
         @info "Loading $(summary_file)"
         DFS = DataFrame(Arrow.Table(summary_file),
         )
         @eval Main DFS = $DFS
     end
-    if isfile(file)
+    if isfile(file) && "DF" in vars
         @info "Loading $(file)"
         DF = DataFrame(Arrow.Table(file))
         @eval Main DF = $DF
     end
-    if isfile(one_file)
+    if isfile(one_file) && "DF1" in vars
         @info "Loading $(one_file)"
         DF1 = DataFrame(Arrow.Table(one_file))
         @eval Main DF1 = $DF1
