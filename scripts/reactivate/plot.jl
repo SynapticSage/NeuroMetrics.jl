@@ -1,5 +1,4 @@
 include("prep2plot.jl")
-
 # ------------------------------------------------
 # TRYING A SEPARATE APPROACH
 # ------------------------------------------------
@@ -22,7 +21,7 @@ println("Removing $(length(remove)) single time trajectories")
 # SETTINGS
 subs =   [:areas => a-> a .== "ca1-ca1", 
           :moving_tmpl => a-> a .== true,
-         :traj => t->t ∉ Tuple(getindex.(remove,1))
+          :traj => t->t ∉ Tuple(getindex.(remove,1))
 ]
 chunks = [:traj]
 rows   = [:startWell, :stopWell]
@@ -35,7 +34,6 @@ push!(subs, :component => a-> a .<= 5)
 DFc = subset(DF, subs..., view=true)
 sort!(DFc, [:areas, :component, :time]) # BUG: α how does sorting affect this?
 DIutils.pushover("Ready to go")
-
 
 # Question: How many template combos does each trajectory have (it should be
 # stable or nearly all)?

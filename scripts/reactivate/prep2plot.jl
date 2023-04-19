@@ -8,10 +8,6 @@ if !isdefined(Main, :opt)
     include("run.jl") 
 end
 
-# Just so language-server protocol can find the symbols
-# from the script that generated the data.
-if !isdefined(Main, :DF); load_react_vars(); end
-DIutils.pushover("Finished loading reactivate variables")
 
 
 # ------------------------------------------------
@@ -144,7 +140,8 @@ function match_nonmatch_splits(actual_dims = [:startWell],
     size(tmpl_iters)..., size(actual_iters)...)
     nonmatching = Array{Union{DataFrame, Missing}}(missing,
     size(tmpl_iters)..., size(actual_iters)...)
-    tmpl_matches = Array{Union{Missing,Bool}}(missing, size(tmpl_iters)..., size(actual_iters)...)
+    tmpl_matches = Array{Union{Missing,Bool}}(missing, size(tmpl_iters)..., 
+        size(actual_iters)...)
     tmp_iter_indices = collect(Iterators.product(axes(tmpl_iters)...))
     for (tmpl_ind, tmpl) in zip(tmp_iter_indices, tmpl_iters)
         selector_tmpl = [template_dims[i] => 
@@ -168,6 +165,42 @@ function match_nonmatch_splits(actual_dims = [:startWell],
     nonmatching = DimArray(nonmatching, (template_dims..., actual_dims...))
     return matching, nonmatching, tmpl_matches
 end
+"""
+    tmpl_ylabels(gdf::GroupedDataFrame)   
+get the ylabels for a grouped dataframe based on the template
+"""
+function tmpl_ylabels(gdf::GroupedDataFrame)
+    map(tmpl_ylabels, gdf |> collect)
+end
+"""
+    get_tmpl_ylabels(df::DataFrame)
+get the ylabels for a dataframe based on the template
+"""
+function tmpl_ylabels(df::Union{SubDataFrame, AbstractDataFrame})
+    df=first(eachrow(df))
+    actual = "$(df.startWell)-$(df.stopWell)"
+    label  = "$(df.startWell_tmpl)-$(df.stopWell_tmpl)"
+    if df.i_tmpl == 0 
+        "OTHER"
+    else
+        actual == label ? "ACTUAL: $label" : label
+    end
+end
+"""
+    plot_tmpl_match(df::DataFrame)
+Return a fillstyle for a given value of correct
+"""
+function corerr_fillstyle(iscorrect)
+    if iscorrect == 1
+        return nothing
+    elseif iscorrect == 0
+        return :\
+    else
+        return :x
+    end
+end
+
+
 # DF = DIutils.arr.get_quantile_filtered(DF, :value, 0.001)
 # Want to select train=moving and test=stationary
 enforce_conditions = [:moving_tmpl =>  x -> x .== true,
