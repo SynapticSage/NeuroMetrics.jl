@@ -11,7 +11,7 @@ using DIutils.filtreg
 import DIutils
 using DataFrames, ProgressMeter, DataFramesMeta, StatsPlots
 using GoalFetchAnalysis.Munge.spiking, DIutils.arr, Infiltrator, Statistics, 
-LinearAlgebra, NaNStatistics
+LinearAlgebra, NaNStatistics, StatsBase
 using Plots, DataVoyager, Logging, JLD2
 using DimensionalData
 import DataStructures: OrderedDict
@@ -21,6 +21,7 @@ ENV["MKL_NUM_THREADS"] = 16
 export commit_react_vars
 using Arrow
 using HypothesisTests
+import Peaks
 """
     commit_react_vars(vars::Union{Nothing,Vector,Tuple,String}=nothing)
 Save the variables in the global scope to a jld2 file.

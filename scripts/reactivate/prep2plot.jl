@@ -187,6 +187,30 @@ function tmpl_ylabels(df::Union{SubDataFrame, AbstractDataFrame})
     end
 end
 """
+    tmpl_labels_dict(df::DataFrame, type="tmpl")
+Return a dictionary of labels for the template
+"""
+function tmpl_labels_dict(df::DataFrame, type="tmpl"; move_state=false)
+    index = type == "tmpl" ? :i_tmpl : :i_test
+    startWell = type == "tmpl" ? :startWell_tmpl : :startWell
+    stopWell = type == "tmpl" ? :stopWell_tmpl : :stopWell
+    moving = type == "tmpl" ? :moving_tmpl : :moving
+    labels = Dict()
+    df = vcat(DataFrame.(
+        unique(eachrow(df[!,[index, startWell, stopWell, moving]]))
+    )...)
+    replace!(df.moving, Dict(true=>"moving", false=>"still"))
+    for (i, s, S) in zip((df[!, index]), (df[!, startWell]),
+                         (df[!, stopWell]))
+        if i != 0
+            labels[i] = move_state === false ? "$s-$S" : "$ms: $s-$S"
+        else
+            labels[i] = "OTHER"
+        end
+    end
+    return labels
+end
+"""
     plot_tmpl_match(df::DataFrame)
 Return a fillstyle for a given value of correct
 """
