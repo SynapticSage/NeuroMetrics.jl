@@ -13,6 +13,10 @@ active = true
 
 setappend(val::String)  = @eval Plot append = $val
 setappend(val::NamedTuple)  = setappend(DIutils.namedtup.ntopt_string(val))
+function setappend(val::AbstractDict)
+    setappend(DIutils.namedtup.ntopt_string(NamedTuple(Symbol(k)=>v 
+    for (k,v) in val)))
+end
 appendtoappend(val)  = @eval Plot append = append * $val
 setprepend(val::String) = @eval Plot prepend = $val
 setprepend(val::NamedTuple)  = setprepend(DIutils.namedtup.ntopt_string(val))
