@@ -11,23 +11,25 @@ exts = ["png", "pdf"]
 append, prepend = "", ""
 active = true
 
-setappend(val::String)  = @eval Plot append = $val
+setappend(val::String)  = (@eval Plot append = $val; ps())
 setappend(val::NamedTuple)  = setappend(DIutils.namedtup.ntopt_string(val))
 function setappend(val::AbstractDict)
     setappend(DIutils.namedtup.ntopt_string(NamedTuple(Symbol(k)=>v 
     for (k,v) in val)))
 end
 appendtoappend(val)  = @eval Plot append = append * $val
-setprepend(val::String) = @eval Plot prepend = $val
+setprepend(val::String) = (@eval Plot prepend = $val; ps())
 setprepend(val::NamedTuple)  = setprepend(DIutils.namedtup.ntopt_string(val))
 prependtoprepend(val)  = @eval Plot prepend = $val * prepend
 function off()
     @eval Plot active = false
+    ps()
 end
 function on()
     @eval Plot active = true
+    ps()
 end
-toggle() = @eval Plot !active
+toggle() = (@eval Plot !active; ps())
 
 function setparentfolder(args::String...)
     @eval Plot parent_folder = $args
@@ -35,6 +37,7 @@ function setparentfolder(args::String...)
 
     folder = DrWatson.plotsdir(parent_folder..., folder_args...)
     !(isdir(folder)) ? mkpath(folder) : nothing
+    ps()
     folder
 end
 function setfolder(args::String...)
@@ -189,11 +192,14 @@ Prints the current state of the plot module, the key variables
 """
 function printstate()
     println("Plot module state:")
+    println("------------------")
     println("Active: ", active)
-    println("Plotdir: ", Plot.plotsdir())
+    println("Plotdir: ", Plot.plotzdir())
     println("Append: ", append)
     println("Prepend: ", prepend)
+    println("------------------")
 end
+ps = printstate
 
 """
     savetopowerpointslide(file::String, 
