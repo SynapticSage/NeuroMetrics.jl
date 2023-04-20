@@ -2,6 +2,7 @@ include("imports.jl")
 if !isdefined(Main, :ca1) && !isdefined(Main, :pfc) && !isdefined(Main, :opt)
     include("run.jl")
 end
+DIutils.pushover("Ready to start reactin')"
 
 # ----------------------------------
 # Now convert these back to DimArrays
@@ -42,6 +43,8 @@ for k in keys(ca1)
     Z_ca1[k] = reactivation.zscoreFRmatrix(ca1[k])
     Z_pfc[k] = reactivation.zscoreFRmatrix(pfc[k])
 end
+heatmap(Z_ca1 |> values |> first, c=:viridis)
+heatmap(Z_pfc |> values |> first, c=:viridis)
 
 # ----------------------------
 # Testing: DONE: PCAICA
@@ -54,14 +57,16 @@ begin
     r1 = reactscore(m, zca1, zca1)
     m = M_PCAICA()
     train = reactivation.TrainReact(m, zca1, zpfc)
-    m = ingredients(m, train)
+    m = ingredients(m, train, cross_area=:tensor)
     r2 = reactscore(m, zca1, zpfc)
     heatmap(replace(cor(r1), NaN=>0), c=:vik, clim=(-1,1))
     heatmap(replace(cor(r2), NaN=>0), c=:vik, clim=(-1,1))
     heatmap(replace(cor([r1 r2]), NaN=>0), c=:vik, clim=(-1,1))
     cor(sum(r1, dims=2), sum(r2, dims=2))
-    plot(sum(r1, dims=2), sum(r2, dims=2), seriestype=:scatter,
-        xlabel="CA1-CA1", ylabel="CA1-PFC", legend=false
+    plot(mean(r1, dims=2), mean(r2, dims=2), seriestype=:scatter,
+        xlabel="CA1-CA1", ylabel="CA1-PFC", legend=false,
+            markersize=1, marker=:circle,
+            xlims=(0,100), ylims=(0,100))
     )
     # Normalize each component to be length 1
     # (this might better be served by projection to search for
@@ -80,18 +85,21 @@ begin
         curling = [rr1 rr2] * [-1; 1] # there may be a better way to get the
                                       # curling component
         h=histogram(curling, bins=100, xlabel="Curling", ylabel="Count",
-            edgealpha=0, linewidth=0, fillalpha=0.5, legend=false
+            edgealpha=0, linewidth=0, fillalpha=0.5, legend=false,
+            title="[ca1-ca1 ca1-pfc] * [-1; 1]"
         )
         vline!([0], c=:black, linewidth=2, linestyle=:dash, legend=false,
         )
         diving = [rr1 rr2] * [1; 1]
         h2=histogram(diving, bins=100, xlabel="Diving", ylabel="Count",
-            edgealpha=0, linewidth=0, fillalpha=0.5, legend=false
+            edgealpha=0, linewidth=0, fillalpha=0.5, legend=false,
+            title = "[ca1-ca1 ca1-pfc] * [1; 1]"
         )
         h3=plot(
             # histogram(abs.(diving)./abs.(curling), bins=100, xlabel="Diving/Curling", ylabel="Count", edgealpha=0, linewidth=0, fillalpha=0.5, legend=false), 
             plot(abs.(diving), abs.(curling), seriestype=:scatter,
-                    xlabel="Diving", ylabel="Curling", legend=false
+                    xlabel="Diving", ylabel="Curling", legend=false,
+                    title="D vs C"
                 ))
         push!(P, p)
         push!(Curling, h)
@@ -129,7 +137,8 @@ iters = enumerate( zip(Z_ca1, Z_pfc))
     try
         m_ca1ca1 = reactivation.ingredients(m_ca1ca1, v_ca1, v_ca1)
         m_pfcpfc = reactivation.ingredients(m_pfcpfc, v_pfc, v_pfc)
-        m_ca1pfc = reactivation.ingredients(m_ca1pfc, v_ca1, v_pfc)
+        m_ca1pfc = reactivation.ingredients(m_ca1pfc, v_ca1, v_pfc;
+                                             cross_area=:tensor)
     catch e
         println("Error on iteration: $s with error: $e") 
     end
@@ -221,21 +230,28 @@ for (i,(train, test)) in train_iters
     z_ca1, z_pfc = Z_ca1[k_test], Z_pfc[k_test]
     kws = (;i, i_tmpl, i_test)
     # Get reactivation scores
-    m = coefs[k_tmpl, "ca1-pfc"]
-    r, df = get_df(m, z_ca1, z_pfc; k_tmpl=k_tmpl, k_test=k_test,
-                   areas="ca1-pfc", kws...)
-    Scores[k_tmpl, k_test, "ca1-pfc"] = r
-    DF[i, 1] = convert_df!(df)
-    m = coefs[k_tmpl, "ca1-ca1"]
-    r, df = get_df(m, z_ca1, z_ca1; k_tmpl=k_tmpl, k_test=k_test,
-                   areas="ca1-ca1", kws...)
-    Scores[k_tmpl, k_test, "ca1-ca1"] = r
-    DF[i, 2] = convert_df!(df)
-    m = coefs[k_tmpl, "pfc-pfc"]
-    r, df = get_df(m, z_pfc, z_pfc; k_tmpl=k_tmpl, k_test=k_test,
-                   areas="pfc-pfc", kws...)
-    Scores[k_tmpl, k_test, "pfc-pfc"] = r
-    DF[i, 3] = convert_df!(df)
+    try
+        @sync begin
+            m = coefs[k_tmpl, "ca1-ca1"]
+            @async r2, df2 = get_df(m, z_ca1, z_ca1; k_tmpl=k_tmpl, k_test=k_test,
+                             areas="ca1-ca1", kws...)
+            m = coefs[k_tmpl, "pfc-pfc"]
+            @async r3, df3 = get_df(m, z_pfc, z_pfc; k_tmpl=k_tmpl, k_test=k_test,
+                           areas="pfc-pfc", kws...)
+            m = coefs[k_tmpl, "ca1-pfc"]
+            @async r1, df1 = get_df(m, z_ca1, z_pfc; k_tmpl=k_tmpl, k_test=k_test,
+                             areas="ca1-pfc", kws...)
+        end
+    catch e
+        println("Error $e at $i, $i_tmpl, $i_test")
+        continue
+    end
+    Scores[k_tmpl, k_test, "ca1-pfc"] = r1
+    DF[i, 1] = convert_df!(df1)
+    Scores[k_tmpl, k_test, "ca1-ca1"] = r2
+    DF[i, 2] = convert_df!(df2)
+    Scores[k_tmpl, k_test, "pfc-pfc"] = r3
+    DF[i, 3] = convert_df!(df3)
     next!(prog)
 end
 # Restore the original logger

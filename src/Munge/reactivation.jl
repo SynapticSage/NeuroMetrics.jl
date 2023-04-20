@@ -18,6 +18,7 @@ module reactivation
     using LinearAlgebra
     using PyCall
     using DrWatson
+    import DIutils
     pyd = pyimport("sklearn.decomposition")
 
     export path_react
@@ -50,6 +51,14 @@ module reactivation
     end
 
 
+    function zscorefiber(x::AbstractVector, q=0.001)
+        miss = ismissing.(x) .&& .!isnan.(x)
+        x[.!miss] = DIutils.arr.get_quantile_filtered(x[.!miss], q; 
+                                 set_lim=true)
+        x[.!miss] = zscore(disallowmissing(x[.!miss]))
+        x
+    end
+
     export zscoreFRmatrix
     """
         zscoreFRmatrix(X::Union{DimArray,Matrix})
@@ -57,18 +66,20 @@ module reactivation
     Returns a matrix of z-scores of the columns of X, which
     are neurons and rows are time bins. 
     """
-    function zscoreFRmatrix(X::Union{DimArray,Matrix})
+    function zscoreFRmatrix(X::Union{DimArray,Matrix}; q=0.001)
         cols = eachcol(X) 
-        cols = map(cols) do x
-                    miss = ismissing.(x) .&& .!isnan.(x)
-                    x[.!miss] = zscore(disallowmissing(x[.!miss]))
-                    x
-        end
+        cols = map(x->zscorefiber(x,q), cols) 
         hcat(cols...)
     end 
     function zscoreFRmatrix(X::DataFrame)
         cell_columns = names(X)[findall(tryparse.(Int, names(X)) .!== nothing)]
         zscoreFRmatrix(Matrix(X[:, cell_columns]))
+    end
+    function zscoreFRtens(X::AbstractArray; q=0.001)
+        for (i,j) in Iterators.product(1:size(X,1), 1:size(X,2))
+            X[i,j,:] = zscorefiber(X[i,j,:], q)
+        end
+        X
     end
 
     export correlationMatrix
@@ -139,7 +150,7 @@ module reactivation
                                    neurons.
     """
     function KfromPCA(Z::Union{DimArray,Matrix})
-        @info "Estimating K from PCA" size(Z)
+        @debug "Estimating K from PCA" size(Z)
         pca = nothing
         try
             pca = fit(PCA, Z, maxoutdim=size(Z, 2))
@@ -152,7 +163,7 @@ module reactivation
         p_lambda = marcenko_pasteur(eigvals(pca), size(Z)...)
         # Find the first eigenvalue that is less than the Marcenko-Pastur distribution
         K = sum(eigvals(pca) .> p_lambda.lambda_max)
-        @info "K from PCA" K
+        @debug "K from PCA" K
         K
     end
 
@@ -212,8 +223,10 @@ module reactivation
     mutable struct M_PCAICA <: m_React
         K::Union{Int, Vector{Int}} # Number of components
         P::Vector{Matrix} #
+        M_PCAICA(K::Union{Int,Vector{Int}},P::Vector{Matrix})=new(K,P)
     end
-    M_PCAICA(K=0, P=Matrix{Float64}(undef,0,0)) = M_PCAICA(K, P)
+    M_PCAICA(K::Union{Int,Vector{Int}}=0) = M_PCAICA(K, Vector{Matrix}([]))
+
     empty(M::M_PCAICA) = M.K == 0 && isempty(M.P)
     mutable struct M_PCA <: m_React
         K::Union{Int,Vector{Int}} # Number of components
@@ -268,6 +281,17 @@ module reactivation
         Zarea2[rows, :] .= 0 
         @assert size(Zarea1, 2) == size(Zarea2, 2) == size(Z, 2)
         return TrainReact(Z, Zarea1, Zarea2, samearea)
+    end
+
+    function clean(Zarea1::Matrix)
+        Zarea1 = disallowmissing(Zarea1)
+        # Zero any NaN cols
+        cols = findall(vec(all(isnan.(Zarea1), dims=1)))
+        Zarea1[:, cols] .= 0 
+        # Remove any all NaN rows
+        rows = findall(vec(all(isnan.(Zarea1), dims=2)))
+        Zarea1[rows, :] .= 0 
+        return Zarea1
     end
 
     """
@@ -339,6 +363,7 @@ module reactivation
     reactivation score.
     """
     function ingredients(::M_PCAICA, train::TrainReact;
+        cross_area = :corr, maxkcross::Union{Int,Nothing}=30,
         k::Union{Int,Nothing}=nothing, ica=true)::M_PCAICA
         _, Zarea1, Zarea2, samearea = train.Z, train.Zarea1, 
                                         train.Zarea2, train.samearea
@@ -350,16 +375,17 @@ module reactivation
             # justin grabs eigenvalues right here
             proj = u[:, 1:k] 
             Z1 = Zarea1 * proj # justin has proj' * Zarea1 (which in his case is NXT)
-            K, W, S, X_mean = pyd.fastica(Z1, nothing, return_X_mean=true)
+            K, W, S, _ = pyd.fastica(Z1, nothing, return_X_mean=true)
             V = proj * W # justin uses Psign' * W 
             P = Vector{Matrix}(undef, k+1)
             P[1] = V * V' 
-            for i_k in 1:k
-                P[i_k+1] = V[:, i_k] * V[:, i_k]'
+            sets = enumerate([[1:k]; collect(1:k)...]) |> collect
+            Threads.@threads for (i,k) in sets
+                P[i] = V[:, k] * V[:, k]'
             end
             # cor(vec(P), vec(correlationMatrix(Zarea1)))
             return M_PCAICA(k, P)
-        else
+        elseif cross_area == :corr
             k1, k2   = KfromPCA(Zarea1), KfromPCA(Zarea2)
             u1,s1,v1 = svd(correlationMatrix(Zarea1))
             u2,s2,v2 = svd(correlationMatrix(Zarea2))
@@ -392,23 +418,56 @@ module reactivation
                 end
             end
             projection_op(X) = X * pinv(X'X) * X';
-            P = Vector{Matrix}(undef, 1+min(k1,k2))
-            get_p(proj1, proj2, W1, W2)
-                V1, V2 = proj1 * W1, proj2 * W2
-                z1=Zarea1 * projection_op(V1)
-                z2=Zarea2 * projection_op(V2)
+            function get_p(V1, V2)
+                z1 = Zarea1 * projection_op(V1)
+                z2 = Zarea2 * projection_op(V2)
                 correlationMatrix(z1, z2)
             end
-            P[1] = get_p(proj1, proj2, W1, W2)
-            for i_k in 1:min(k1,k2)
-                P[i_k+1] = get_p(proj1[:, i_k], proj2[:, i_k], W1, W2)
-            end
+            V1, V2 = proj1 * W1, proj2 * W2
+            P = Vector{Matrix}(undef, 1)
+            P[1] = get_p(V1,V2)
             return M_PCAICA([k1,k2], P) 
+        elseif cross_area == :tensor
+            Zarea1 = permutedims(Zarea1[:,:,:], (2,3,1))
+            Zarea2 = permutedims(Zarea2[:,:,:], (3,2,1))
+            Zoverall = zscoreFRtens(Zarea1 .* Zarea2; q=0.0001)
+            dims = size(Zoverall)
+            Zoverall = clean(Matrix(reshape(Zoverall, dims[1]*dims[2], dims[3])'))
+            q=fit(PCA,Zoverall')
+            K = KfromPCA(Matrix(predict(q, Zoverall')'))
+            P = correlationMatrix(Zoverall)
+            u,s,v = svd(P)
+            proj = u[:, 1:K]
+            Zo = Zoverall * proj
+            _, W, S, _ = pyd.fastica(Zo, nothing, return_X_mean=true)
+            V = proj * W
+            P = Vector{Matrix}(undef, min(K,maxkcross)+1)
+            sets = enumerate([[1:min(K,maxkcross)]; collect(1:min(maxkcross,K))...]) |> collect
+            Threads.@threads for (i,k) in sets
+                P[i] = V[:, k] * V[:, k]'
+            end
+            return M_PCAICA(min(K,maxkcross), P)
+        else
+            throw(ArgumentError("cross_area must be [:corr, :tensor]"))
         end
     end
     function ingredients(m::m_React, Zarea1::Matrix, Zarea2::Matrix;kws...)
         train = TrainReact(m, Zarea1, Zarea2)
         return ingredients(m, train;kws...)
+    end
+
+    function check_if_used_tens(m::m_React, Zarea1, Zarea2)
+        if size(Zarea1,2) in size(m.P[1]) && size(Zarea2,2) in size(m.P[1])
+            return Zarea1, Zarea2
+        else
+            r = Vector{Float64}(undef, size(Zarea1,3))
+            Zarea1 = permutedims(Zarea1[:,:,:], (2,3,1))
+            Zarea2 = permutedims(Zarea2[:,:,:], (3,2,1))
+            Zoverall = zscoreFRtens(Zarea1 .* Zarea2)
+            dims = size(Zoverall)
+            Zoverall = clean(Matrix(reshape(Zoverall, dims[1]*dims[2], dims[3])'))
+            return Zoverall, Zoverall
+        end
     end
 
     export reactscore
@@ -427,11 +486,19 @@ module reactivation
     """
     function reactscore(Zarea1::Matrix, P::Matrix, Zarea2::Matrix)
         if size(Zarea1, 2) == size(P,1)
-            r = Zarea1 * P; 
-            R = r .* Matrix(Zarea2) 
-        else
-            r = Zarea1' * P; 
-            R = r .* Matrix(Zarea2') 
+            r = Vector{Float64}(undef, size(Zarea1,1))
+            Threads.@threads for t in axes(Zarea1,1)
+                r[t] = Zarea1[t,:]' * P * Zarea2[t,:]
+            end
+            return r
+        elseif size(Zarea1, 1) == size(P,1)
+            r = Vector{Float64}(undef, size(Zarea1,2))
+            Threads.@threads for t in axes(Zarea1,2)
+                r[t] = Zarea1[:,t]' * P * Zarea2[:,t]
+            end
+            return r
+        else 
+            throw(ArgumentError("Zarea1 and P must have the same number of columns"))
         end
     end
 
@@ -451,7 +518,8 @@ module reactivation
         if empty(m)
             m = ingredients(m, train)
         end
-        reactscore(Zarea1, m.P, Zarea2)
+        Zarea1, Zarea2 = check_if_used_tens(m, Zarea1, Zarea2)
+        hcat(reactscore.([Zarea1], m.P, [Zarea2])...)
     end
 
     """
@@ -472,7 +540,8 @@ module reactivation
         Z, Zarea1, Zarea2 = preZ.Z, preZ.Zarea1, preZ.Zarea2
         Zarea1 = predict(M_PCAICA.decomp, Zarea1')
         Zarea2 = predict(M_PCAICA.decomp, Zarea2')
-        reactscore.([Zarea1], M_PCAICA.P, [Zarea2])
+        Zarea1, Zarea2 = check_if_used_tens(m, Zarea1, Zarea2)
+        hcat(reactscore.([Zarea1], M_PCAICA.P, [Zarea2])...)
     end
 
     function helloworld()

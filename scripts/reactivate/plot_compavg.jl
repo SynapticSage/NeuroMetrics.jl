@@ -12,7 +12,6 @@ DIutils.pushover("Finished loading reactivate variables")
 # |------------------------------------------------|
 # |-----------  TRIAL-WISE PLOTTING ---------------|
 # |------------------------------------------------|
-
 # ||---------------||
 # ||👉 CONSTANTS 👈||
 # ||---------------||
@@ -396,18 +395,39 @@ end
 # PLOT: Corrplot of the template reponses
 # ------------------------------------------------
 # Show each test best active for its own i_tmpl
-M1    = unstack(DFcc, :i_test, :i_tmpl, :value, combine=nanmean)
-xtcks = tmpl_labels_dict(DFcc, "tmpl")
+M1    = unstack(DFcc, :i_test, :i_tmpl, :value, combine=nanmedian)
+
+xtcks = tmpl_labels_dict(DFcc, "tmpl"; move_state=true)
 this_xtcks = OrderedDict(i=>xtcks[i] for i in tryparse.(Int, names(M1))
         if i in keys(xtcks))
 _xtcks = (1:length(this_xtcks)|>collect, values(this_xtcks) |> collect)
-ytcks = tmpl_labels_dict(DFcc, "test")
+ytcks = tmpl_labels_dict(DFcc, "test"; move_state=true)
 this_ytcks = OrderedDict(i=>ytcks[i] for i in M1[!, :i_test])
 _ytcks = (1:length(this_ytcks)|>collect, values(this_ytcks) |> collect)
-heatmap(Matrix((M1)[:, Not(:i_test)]), xlabel="i_tmpl", ylabel="i_test", 
-    title="Mean of reactivation events", legend=:none, size=(600, 600),
-    xticks=_xtcks, yticks=_ytcks, xrotation=90, yrotation=0)
+xi, yi = sortperm(_xtcks[2][2:end]), sortperm(_ytcks[2])
+xi = [1; xi.+1]
+_xtcks = (_xtcks[1], _xtcks[2][xi])
+_ytcks = (_ytcks[1], _ytcks[2][yi])
+M1 = M1[!, Not(:i_test)]
+M1 = M1[yi, xi]
+heatmap(Matrix((M1)), xlabel="i_tmpl", ylabel="i_test", 
+    title="Mean of reactivation events", legend=:none, size=(800, 800),
+    xticks=_xtcks, yticks=_ytcks, xrotation=90, yrotation=0,
+    colorbar=true
+)
 
+# Express each column=x as percentage of column=1
+#: ISSUE: why is the ratio of other to components == 19?
+M1a = (Matrix(M1) ./ abs.(Matrix(M1[:, 1][:,DIutils.na])))[:, 2:end]
+heatmap(M1a, xlabel="i_tmpl", ylabel="i_test", 
+    clim=(-20, 20), 
+    title="Mean of reactivation events", legend=:none, size=(600, 600),
+    xticks=_xtcks, yticks=_ytcks, xrotation=90, yrotation=0,
+    colorbar=true
+)
+histogram(M1a[:] |> skipmissing |> collect .|>abs)
+
+# Show each test best active for its own i_tmpl
 M2=sort((unstack(DFc, :i_test, :i_tmpl, :value, combine=mean)), :i_test)
 xtcks = tmpl_labels_dict(DFcc, "tmpl")
 this_xtcks = OrderedDict(i=>xtcks[i] for i in tryparse.(Int, names(M2))
@@ -420,10 +440,14 @@ _ytcks = (1:length(this_ytcks)|>collect, values(this_ytcks) |> collect)
 xi, yi = sortperm(_xtcks[2]), sortperm(_ytcks[2])
 _xtcks = (_xtcks[1], _xtcks[2][xi])
 _ytcks = (_ytcks[1], _ytcks[2][yi])
+zip(_xtcks[2], _ytcks[2]) |> collect
 M2 = M2[:,Not("i_test")][yi, xi]
 heatmap(Matrix(M2), xlabel="i_tmpl", ylabel="i_test", 
     title="Mean of reactivation events", legend=:none, size=(600, 600),
     xticks=_xtcks, yticks=_ytcks, xrotation=90, yrotation=0)
+
+
+
 
 
 # ------------------------------------------------
