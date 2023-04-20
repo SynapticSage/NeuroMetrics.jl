@@ -211,13 +211,13 @@ module reactivation
     export M_PCAICA, M_PCA, M_CORR, M_CATPCAICA
     mutable struct M_PCAICA <: m_React
         K::Union{Int, Vector{Int}} # Number of components
-        P::Matrix #
+        P::Vector{Matrix} #
     end
     M_PCAICA(K=0, P=Matrix{Float64}(undef,0,0)) = M_PCAICA(K, P)
     empty(M::M_PCAICA) = M.K == 0 && isempty(M.P)
     mutable struct M_PCA <: m_React
         K::Union{Int,Vector{Int}} # Number of components
-        P::Matrix #
+        P::Vector{Matrix} # first is the overall matrix, second:end are each pattern
     end
     M_PCA(K=0, P=Matrix([])) = M_PCA(K, P)
     empty(M::M_PCA) = M.K == 0 && isempty(M.P)
@@ -319,7 +319,7 @@ module reactivation
         else
             P = correlationMatrix(Matrix(predict(decomposition, Z')'))
         end
-        return M_PCAICA(k, P, decomposition)
+        return M_CATPCAICA(k, P, decomposition)
     end
 
     """
@@ -344,14 +344,19 @@ module reactivation
                                         train.Zarea2, train.samearea
         if samearea
             k = KfromPCA(Zarea1)
-            decomposition = fit(PCA, Zarea1, maxoutdim=k)
+            # decomposition = fit(PCA, Zarea1, maxoutdim=k)
             P = correlationMatrix(Zarea1)
             u,s,v = svd(P)
+            # justin grabs eigenvalues right here
             proj = u[:, 1:k] 
-            Z1 = Zarea1 * proj
+            Z1 = Zarea1 * proj # justin has proj' * Zarea1 (which in his case is NXT)
             K, W, S, X_mean = pyd.fastica(Z1, nothing, return_X_mean=true)
-            V = proj * W
-            P = V * V'
+            V = proj * W # justin uses Psign' * W 
+            P = Vector{Matrix}(undef, k+1)
+            P[1] = V * V' 
+            for i_k in 1:k
+                P[i_k+1] = V[:, i_k] * V[:, i_k]'
+            end
             # cor(vec(P), vec(correlationMatrix(Zarea1)))
             return M_PCAICA(k, P)
         else
@@ -387,10 +392,17 @@ module reactivation
                 end
             end
             projection_op(X) = X * pinv(X'X) * X';
-            V1, V2 = proj1 * W1, proj2 * W2
-            z1=Zarea1 * projection_op(V1)
-            z2=Zarea2 * projection_op(V2)
-            P = correlationMatrix(z1, z2)
+            P = Vector{Matrix}(undef, 1+min(k1,k2))
+            get_p(proj1, proj2, W1, W2)
+                V1, V2 = proj1 * W1, proj2 * W2
+                z1=Zarea1 * projection_op(V1)
+                z2=Zarea2 * projection_op(V2)
+                correlationMatrix(z1, z2)
+            end
+            P[1] = get_p(proj1, proj2, W1, W2)
+            for i_k in 1:min(k1,k2)
+                P[i_k+1] = get_p(proj1[:, i_k], proj2[:, i_k], W1, W2)
+            end
             return M_PCAICA([k1,k2], P) 
         end
     end
@@ -460,7 +472,7 @@ module reactivation
         Z, Zarea1, Zarea2 = preZ.Z, preZ.Zarea1, preZ.Zarea2
         Zarea1 = predict(M_PCAICA.decomp, Zarea1')
         Zarea2 = predict(M_PCAICA.decomp, Zarea2')
-        reactscore(Zarea1, M_PCAICA.P, Zarea2)
+        reactscore.([Zarea1], M_PCAICA.P, [Zarea2])
     end
 
     function helloworld()
