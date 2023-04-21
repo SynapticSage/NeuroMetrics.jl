@@ -8,6 +8,8 @@ Plot.setappend(opt)
 if !isdefined(Main, :DF1); load_react_vars(["DF1"]); end
 if !isdefined(Main, :beh); beh=DI.load_behavior(opt["animal"], opt["day"]); end
 DIutils.pushover("Finished loading reactivate variables")
+sort!(DF1, :time)
+DIutils.filtreg.register(beh, DF1, on="time", transfer=["trajreltime","cuemem"])
 
 # |------------------------------------------------|
 # |-----------  TRIAL-WISE PLOTTING ---------------|
@@ -203,8 +205,10 @@ for (c,chunk) in enumerate(Chunks)
         ylabels = tmpl_ylabels(Yax)
         ytcks = (((axes(Yax, 1)|>collect) .- 1) .* m, ylabels)
         actual = "$(row.startWell[1])-$(row.stopWell[1])"
+        ha,cuemem = row.ha[1], row.cuemem[1]
         plot!(;yticks=ytcks, xlabel="time", ylabel="react per tmpl", 
-            title="dur=$dur, act=$actual", legend=false)
+            title="dur=$dur, act=$actual\nHA=$ha, cuemem=$cuemem", 
+            legend=false)
         traj = row.traj[1]
         trajplot=subset(beh, :traj => t->t.== traj, view=true) |> 
             @df plot(:time, [:speed], ylim=(0,40),legend=false,
@@ -217,7 +221,16 @@ for (c,chunk) in enumerate(Chunks)
     end
     # if multiple rows of plot, store the dict of rows, else just store 
     # the plot
-    C[c] = length(R) > 1 ? R : R |> values |> first
+    C[c] = r = length(R) > 1 ? R : R |> values |> first
+    r = if r isa Vector
+        r
+    elseif r isa Dict
+        r |> values |> collect
+    else
+        [r]
+    end
+    plot(r...; layout=(length(r),1))
+    Plot.save("$c,chunk=$(g_chunk)__row=$(g_rows)_yax=$(g_yax)")
 end
 
 # ------------------------------------------------
@@ -448,9 +461,70 @@ heatmap(Matrix(M2), xlabel="i_tmpl", ylabel="i_test",
 
 
 # PLOT: Trial-by-trial overlapping ... ploting of reltime
-sort!(DFcc, :time)
-DIutils.filtreg.register(beh, DFcc, on="time", transfer=["trajreltime"])
 # Looking at relative traj time
+DFcc.binned_trajreltime = DIutils.binning.digitize(DFcc.trajreltime, 10)
+sort!(DFcc, :binned_trajreltime)
+g=groupby(DFcc, :moving)
+M=unstack(g[(;moving=false)], [:binned_trajreltime], :i_tmpl, :value, 
+    combine=mean)
+h1=heatmap(Matrix(M[:,Not(:binned_trajreltime)])', c=:viridis, 
+    xlabel="binned_trajreltime", ylabel="i_tmpl", 
+    title="Mean of reactivation events, still", legend=:none, size=(600, 600),
+    xrotation=90, yrotation=0, colorbar=true)
+rmax = Matrix(M[:,Not(:binned_trajreltime)]) |> skipmissing |> maximum
+M=unstack(g[(;moving=true)], [:binned_trajreltime], :i_tmpl, :value, 
+    combine=mean)
+h2=heatmap(Matrix(M[:,Not(:binned_trajreltime)])', c=:viridis, 
+    xlabel="binned_trajreltime", ylabel="i_tmpl", 
+    title="Mean of reactivation events, moving", legend=:none, size=(600, 600),
+    clims=(0, rmax),
+    xrotation=90, yrotation=0, colorbar=true)
+plot(h1, h2, layout=(1,2), size=(1200, 600))
+
+# Make a column that encodes the time until the next movement
+beh[!,:timeuntil] = Vector{Union{Missing,Float64}}(missing, size(beh,1))
+beh  = groupby(beh, :traj)
+sets = enumerate(beh) |> collect
+(i,b) = sets[3]
+for (i, b) in sets
+    if b.correct == -1
+        b.timeuntil .= NaN
+        continue
+    end
+    nextmove  = [findnext(b.moving, i) for i in 1:size(b,1)]
+    inputs = zip(1:size(b,1), nextmove)
+    b[!,:timeuntil] = map(inputs) do (i, j)
+        if j !== nothing
+            b[j, :time] - b[i, :time]
+        else
+            NaN
+        end
+    end
+end
+beh = combine(beh, identity)
+
+# PLOT: Trial-by-trial overlapping ... ploting of reltime
+# Looking at relative time until next movement
+sort!(beh, :time)
+sort!(DFcc, :time)
+DFcc_sub = @subset(DFcc, :timeuntil .< 15; view=true)
+DIutils.filtreg.register(beh, DFcc_sub, on="time", transfer=["timeuntil"])
+valid = .!ismissing.(DFcc_sub.timeuntil) .&& .!isnan.(DFcc_sub.timeuntil)
+DFcc_sub.binned_timeuntil = DFcc_sub[:,:timeuntil]
+DFcc_sub.binned_timeuntil[valid] = DIutils.binning.digitize(
+    disallowmissing(DFcc_sub.timeuntil[valid]), 14)
+tmp=combine(groupby(DFcc_sub, :binned_timeuntil), :timeuntil => 
+(x->round(mean(x), digits=2)) => :timeuntil_mean)
+xtcks=(tmp.binned_timeuntil, tmp.timeuntil_mean)
+sort!(DFcc_sub, :binned_timeuntil)
+g=groupby(DFcc_sub, :moving)
+M=unstack(g[(;moving=false)], [:binned_timeuntil], :i_tmpl, :value, 
+    combine=mean)
+h1=heatmap(Matrix(M[:,Not(:binned_timeuntil)])', clim=(-2,2),
+    xlabel="time until movement (s)", ylabel="template", 
+    title="Mean of reactivation events, still", legend=:none, size=(600, 600),
+    xrotation=90, yrotation=0, colorbar=true, c=:vik, xticks=xtcks,
+    top_margin=60Plots.mm)
 
 # ------------------------------------------------
 # DFr = DFc[rand(1:nrow(DFc),10_000), :]
