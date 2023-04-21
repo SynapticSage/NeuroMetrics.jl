@@ -1,7 +1,9 @@
 include("prep2plot.jl")
 using GoalFetchAnalysis.Plot
-Plot.setparentfolder("reactivation", "compavg")
+using Measurements
+using FFTW, DSP
 Plot.setappend(opt)
+Plots.theme(:dracula)
 
 # Just so language-server protocol can find the symbols
 # from the script that generated the data.
@@ -37,7 +39,8 @@ subs =   [:areas => a-> a .== "ca1-ca1",
 sumfunc = mean # mean | median: used for mean centering
 mscale  = 8
 means_subtracted = true
-template_combine = :mean # :none, :mean, :start_g_stop, stop_g_start
+template_combine = :none # :none, :mean, :start_g_stop, stop_g_start, :mean_w_reverse
+Plot.setparentfolder("reactivation", "compavg", string(template_combine))
 # ------------------------------------------------
 # template_combine descriptions
 # ------------------------------------------------
@@ -221,17 +224,23 @@ for (c,chunk) in enumerate(Chunks)
     end
     # if multiple rows of plot, store the dict of rows, else just store 
     # the plot
-    C[c] = r = length(R) > 1 ? R : R |> values |> first
-    r = if r isa Vector
-        r
-    elseif r isa Dict
-        r |> values |> collect
-    else
-        [r]
+    r = nothing
+    try
+        C[c] = r = length(R) > 1 ? R : R |> values |> first
+        r = if r isa Vector
+            r
+        elseif r isa AbstractDict
+            r |> values |> collect
+        else
+            [r]
+        end
+        plot(r...; layout=(length(r),1))
+    catch e
+        @infiltrate
     end
-    plot(r...; layout=(length(r),1))
     Plot.save("$c,chunk=$(g_chunk)__row=$(g_rows)_yax=$(g_yax)")
 end
+current()
 
 # ------------------------------------------------
 # Do the above with CA1-CA1 and CA1-PFC
@@ -244,7 +253,7 @@ end
 # ----------------------------------------------------------------
 Plot.setfolder("summary")
 import Peaks
-if means_subtracted
+if template_combine in (:mean, )
     g = groupby(means_subtracted ? DFcc : DFc, 
         unique([:i_tmpl, g_chunk..., g_rows..., g_yax..., :moving]))
     """
@@ -284,9 +293,7 @@ if means_subtracted
         => mean => :w_mean, :w => std => :w_std, :m => mean => :m_mean, :m =>
             std => :m_std, :p => length => :nrow, :v => mean => :v_mean, :v =>
                 std => :v_std)
-
     # PLOT: i_tmpl vs p_mean +/- p_std, peak prominence
-    using Measurements
     gmc = combine(groupby(subset(gm,:moving=>x->x.==false) , [:i_tmpl, :moving]),
                     :p_mean => length => :count, :p_mean => mean => :p_mean,
     [:p_std,:nrow] => ((x,y)->sqrt(nansum(x.^2))/length(y)) => :p_std
@@ -307,7 +314,6 @@ if means_subtracted
     ylims!(0,0.1)
     plot(b1,b2, layout=(1,2), size=(450, 600))
     Plot.save("PROMINENCE, peak-trough, stillness")
-
     # PLOT: i_tmpl vs m_mean, maximum of peak
     gmc = combine(groupby(subset(gm,:moving=>x->x.==false) , [:i_tmpl, :moving]),
                     :m_mean => length => :count, :m_mean => mean => :m_mean,
@@ -329,7 +335,6 @@ if means_subtracted
     ylims!(0,0.1)
     plot(b1,b2, layout=(1,2), size=(450, 600))
     Plot.save("MAXIMUM, peak-trough, stillness")
-
     # PLOT: i_tmpl vs w_mean, widths of peaks
     gmc = combine(groupby(subset(gm,:moving=>x->x.==false) , [:i_tmpl, :moving]),
                     :w_mean => length => :count, :w_mean => mean => :w_mean,
@@ -349,7 +354,6 @@ if means_subtracted
         size=(300, 600), left_margin=10Plots.mm, label=false, msw=5,
         yflip=true, ylims=(-0, -0.1), c=:red)
     Plot.save("WIDTH, peak-trough, stillness")
-
     # PLOT: Volumemetric means
     gmc = combine(groupby(subset(gm,:moving=>x->x.==false) , [:i_tmpl, :moving]),
                     :v_mean => length => :count, :v_mean => mean => :v_mean,
@@ -370,46 +374,58 @@ if means_subtracted
         yflip=true, c=:red)
     plot(b1,b2, layout=(1,2), size=(450, 600))
     Plot.save("VOLUME, peak-trough, stillness")
-
+    current()
 end
 
 # ------------------------------------------------
 # PLOT: Characteristic frequency scale,
 # FFT of each i_tmpl at each time
 # ------------------------------------------------
-Plot.setfolder("fft")
-using FFTW, DSP
-HH = []
-P = []
-for move in [true, false]
-    tmp = subset(DFcc, :moving=>x->x.==move)
-    movestr = move ? "moving" : "still"
-    H = []
-    for i1 in groupby(tmp, :i_tmpl)
-        issorted(i1.time) || error("time not sorted")
-        fs=1/median(diff(i1.time))
-        S = DSP.mt_spectrogram(i1.value, 30; fs)
-        h=plot(S.time, S.freq, S.power, xlabel="Time(s)", ylabel="Freq(Hz)",
-        title="")
-        ylims!(0,7.5)
-        # ff = rfft(DFcc.value)
-        # N = length(ff)
-        # FFTW.
-        push!(H, h)
+
+if template_combine in [:mean]
+    Plot.setfolder("fft")
+    HH = []
+    P = []
+    for move in [true, false]
+        tmp = subset(DFcc, :moving=>x->x.==move, view=false)
+        if template_combine == :mean
+            tmp.i_tmpl = tmp.i_tmpl > 0
+        end
+        movestr = move ? "moving" : "still"
+        H = []
+        G = groupby(tmp, [:i_tmpl, :i_test])
+        i1 = first(G)
+        for i1 in G
+            issorted(i1.time) || error("time not sorted")
+            fs=1/median(diff(i1.time))
+            S = DSP.mt_spectrogram(i1.value|>skipmissing|>collect, 30; fs)
+            h=plot(S.time, S.freq, S.power, xlabel="Time(s)", ylabel="Freq(Hz)",
+                titlefontsize=4,
+                title="Spectrogram of $movestr\n"*
+                    "i_tmpl=$(i1[1,[:startWell_tmpl, :stopWell_tmpl]]|>collect), "*
+                    "i_test=$(i1[1,[:startWell, :stopWell]]|>collect)")
+            ylims!(0,7.5)
+            # ff = rfft(DFcc.value)
+            # N = length(ff)
+            # FFTW.
+            push!(H, h)
+        end
+        b=Plot.blank(title="\n\n\n\nSpectrogram of of $movestr")
+        p= plot(H[1:10]..., b, size=(1100, 500))
+        Plot.save("fft-$movestr.png")
+        push!(HH, H)
+        push!(P, p)
     end
-    b=Plot.blank(title="\n\n\n\nSpectrogram of of $movestr")
-    p= plot(H[1:10]..., b, size=(1100, 500))
-    Plot.save("fft-$movestr.png")
-    push!(HH, H)
-    push!(P, p)
+    current()
 end
 
 # ------------------------------------------------
 # PLOT: Corrplot of the template reponses
 # ------------------------------------------------
 # Show each test best active for its own i_tmpl
+Plot.ps()
+Plot.setfolder("corrplot")
 M1    = unstack(DFcc, :i_test, :i_tmpl, :value, combine=nanmedian)
-
 xtcks = tmpl_labels_dict(DFcc, "tmpl"; move_state=true)
 this_xtcks = OrderedDict(i=>xtcks[i] for i in tryparse.(Int, names(M1))
         if i in keys(xtcks))
@@ -426,9 +442,9 @@ M1 = M1[yi, xi]
 heatmap(Matrix((M1)), xlabel="i_tmpl", ylabel="i_test", 
     title="Mean of reactivation events", legend=:none, size=(800, 800),
     xticks=_xtcks, yticks=_ytcks, xrotation=90, yrotation=0,
-    colorbar=true
+    colorbar=true, clim=(-1,3)
 )
-
+Plot.save("corrplot of template responses")
 # Express each column=x as percentage of column=1
 #: ISSUE: why is the ratio of other to components == 19?
 M1a = (Matrix(M1) ./ abs.(Matrix(M1[:, 1][:,DIutils.na])))[:, 2:end]
@@ -439,7 +455,8 @@ heatmap(M1a, xlabel="i_tmpl", ylabel="i_test",
     colorbar=true
 )
 histogram(M1a[:] |> skipmissing |> collect .|>abs)
-
+Plot.save("corrplot of template responses, ratio")
+current()
 # Show each test best active for its own i_tmpl
 M2=sort((unstack(DFc, :i_test, :i_tmpl, :value, combine=mean)), :i_test)
 xtcks = tmpl_labels_dict(DFcc, "tmpl")
@@ -458,6 +475,8 @@ M2 = M2[:,Not("i_test")][yi, xi]
 heatmap(Matrix(M2), xlabel="i_tmpl", ylabel="i_test", 
     title="Mean of reactivation events", legend=:none, size=(600, 600),
     xticks=_xtcks, yticks=_ytcks, xrotation=90, yrotation=0)
+Plot.save("corrplot of template responses, sorted")
+current()
 
 
 # PLOT: Trial-by-trial overlapping ... ploting of reltime
@@ -505,7 +524,7 @@ beh = combine(beh, identity)
 
 # PLOT: Trial-by-trial overlapping ... ploting of reltime
 # Looking at relative time until next movement
-sort!(beh, :time)
+sort!(beh,  :time)
 sort!(DFcc, :time)
 DFcc_sub = @subset(DFcc, :timeuntil .< 15; view=true)
 DIutils.filtreg.register(beh, DFcc_sub, on="time", transfer=["timeuntil"])
@@ -525,9 +544,19 @@ h1=heatmap(Matrix(M[:,Not(:binned_timeuntil)])', clim=(-2,2),
     title="Mean of reactivation events, still", legend=:none, size=(600, 600),
     xrotation=90, yrotation=0, colorbar=true, c=:vik, xticks=xtcks,
     top_margin=60Plots.mm)
+# PLOT: time until versus reltime
+@df @subset(beh, :timeuntil .< 20)  begin
+scatter(:trajreltime, :timeuntil; alpha=0.05, xlabel="relative time (0-1)", 
+    ylabel="time until next movement (s)", 
+        title="time until next movement vs. relative time",
+        legend=false, size=(600, 600), ylims=(0, 20))
+end
+Plot.save("timeuntil_vs_reltime.png")
+current()
 
 # ------------------------------------------------
 # DFr = DFc[rand(1:nrow(DFc),10_000), :]
 # @df DFr corrplot([:startWell :stopWell :startWell_tmpl :stopWell_tmpl], 
 #     grid = false, method = :pearson, order = :hclust)
-#
+
+

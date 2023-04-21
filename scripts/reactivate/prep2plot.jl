@@ -234,8 +234,10 @@ default_match_cols =  [[:startWell, :stopWell, :ha, :epoch],
                        [:startWell_tmpl, :stopWell_tmpl, :ha_tmpl, :epoch_tmpl]]
 match_cols = get_pmatch_cols()
 println("Matching columns: ", match_cols)
-DFS[!,:pmatch] .= all(Matrix(DFS[!, match_cols[1]]) .== Matrix(DFS[!, match_cols[2]]), dims=2) |> vec
-DFS.exclude = DFS.n .< 10
+if !isdefined(Main, :DFS)
+    DFS[!,:pmatch] .= all(Matrix(DFS[!, match_cols[1]]) .== Matrix(DFS[!, match_cols[2]]), dims=2) |> vec
+    DFS.exclude = DFS.n .< 10
+end
 
 if !isdefined(Main, :beh)
     beh = DI.load_behavior(opt["animal"], opt["day"])
@@ -243,3 +245,4 @@ end
 
 # Add reltime
 GoalFetchAnalysis.Munge.behavior.annotate_relative_xtime!(beh)
+
