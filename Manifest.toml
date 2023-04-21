@@ -2,7 +2,7 @@
 
 julia_version = "1.8.5"
 manifest_format = "2.0"
-project_hash = "0ea9c4a8a5c69b690172d856d0274d34d64b75d2"
+project_hash = "4d0ffc6f071a7e3029cb7a3d706acce9de4e2b5e"
 
 [[deps.ARFFFiles]]
 deps = ["CategoricalArrays", "Dates", "Parsers", "Tables"]
@@ -921,6 +921,12 @@ deps = ["AbstractTrees", "FoldingTrees", "InteractiveUtils", "REPL", "Statistics
 git-tree-sha1 = "58c25764e279b5e823596b63e26949676cfc2d9a"
 uuid = "ce36242b-ad83-4f84-8519-47cd8aeefd60"
 version = "0.4.7"
+
+[[deps.EzXML]]
+deps = ["Printf", "XML2_jll"]
+git-tree-sha1 = "0fa3b52a04a4e210aeb1626def9c90df3ae65268"
+uuid = "8f5d6c58-4d21-5cfd-889c-e3ad7ee6a615"
+version = "1.1.0"
 
 [[deps.FFMPEG]]
 deps = ["FFMPEG_jll"]
@@ -2759,6 +2765,12 @@ git-tree-sha1 = "f809158b27eba0c18c269cf2a2be6ed751d3e81d"
 uuid = "f57f5aa1-a3ce-4bc8-8ab9-96f992907883"
 version = "0.3.17"
 
+[[deps.PPTX]]
+deps = ["DataStructures", "DefaultApplication", "EzXML", "FileIO", "Images", "Pkg", "Tables", "XMLDict"]
+git-tree-sha1 = "02a3109e68a461753505af2782319cd60c091156"
+uuid = "14a86994-10a4-4a7d-b9ad-ef6f3b1fac6a"
+version = "0.5.3"
+
 [[deps.PProf]]
 deps = ["AbstractTrees", "EnumX", "FlameGraphs", "Libdl", "OrderedCollections", "Profile", "ProgressMeter", "ProtoBuf", "pprof_jll"]
 git-tree-sha1 = "16e2ef982c4d637f45553611e96d135490841769"
@@ -3963,6 +3975,12 @@ deps = ["Artifacts", "JLLWrappers", "Libdl", "Libiconv_jll", "Pkg", "Zlib_jll"]
 git-tree-sha1 = "93c41695bc1c08c46c5899f4fe06d6ead504bb73"
 uuid = "02c8fc9c-b97f-50b9-bbe4-9be30ff0a78a"
 version = "2.10.3+0"
+
+[[deps.XMLDict]]
+deps = ["EzXML", "IterTools", "OrderedCollections"]
+git-tree-sha1 = "d9a3faf078210e477b291c79117676fca54da9dd"
+uuid = "228000da-037f-5747-90a9-8195ccbf91a5"
+version = "0.4.1"
 
 [[deps.XSLT_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Libgcrypt_jll", "Libgpg_error_jll", "Libiconv_jll", "Pkg", "XML2_jll", "Zlib_jll"]
