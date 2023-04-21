@@ -447,8 +447,10 @@ heatmap(Matrix(M2), xlabel="i_tmpl", ylabel="i_test",
     xticks=_xtcks, yticks=_ytcks, xrotation=90, yrotation=0)
 
 
-
-
+# PLOT: Trial-by-trial overlapping ... ploting of reltime
+sort!(DFcc, :time)
+DIutils.filtreg.register(beh, DFcc, on="time", transfer=["trajreltime"])
+# Looking at relative traj time
 
 # ------------------------------------------------
 # DFr = DFc[rand(1:nrow(DFc),10_000), :]

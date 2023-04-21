@@ -240,3 +240,6 @@ DFS.exclude = DFS.n .< 10
 if !isdefined(Main, :beh)
     beh = DI.load_behavior(opt["animal"], opt["day"])
 end
+
+# Add reltime
+GoalFetchAnalysis.Munge.behavior.annotate_relative_xtime!(beh)

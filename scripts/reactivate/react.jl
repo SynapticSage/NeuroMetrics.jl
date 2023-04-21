@@ -2,7 +2,7 @@ include("imports.jl")
 if !isdefined(Main, :ca1) && !isdefined(Main, :pfc) && !isdefined(Main, :opt)
     include("run.jl")
 end
-DIutils.pushover("Ready to start reactin')"
+DIutils.pushover("Ready to start reactin")
 
 # ----------------------------------
 # Now convert these back to DimArrays
@@ -58,12 +58,12 @@ begin
     m = M_PCAICA()
     train = reactivation.TrainReact(m, zca1, zpfc)
     m = ingredients(m, train, cross_area=:tensor)
-    r2 = reactscore(m, zca1, zpfc)
+    r3 = reactscore(m, zca1, zpfc)
     heatmap(replace(cor(r1), NaN=>0), c=:vik, clim=(-1,1))
-    heatmap(replace(cor(r2), NaN=>0), c=:vik, clim=(-1,1))
-    heatmap(replace(cor([r1 r2]), NaN=>0), c=:vik, clim=(-1,1))
-    cor(sum(r1, dims=2), sum(r2, dims=2))
-    plot(mean(r1, dims=2), mean(r2, dims=2), seriestype=:scatter,
+    heatmap(replace(cor(r3), NaN=>0), c=:vik, clim=(-1,1))
+    heatmap(replace(cor([r1 r3]), NaN=>0), c=:vik, clim=(-1,1))
+    cor(sum(r1, dims=2), sum(r3, dims=2))
+    plot(mean(r1, dims=2), mean(r3, dims=2), seriestype=:scatter,
         xlabel="CA1-CA1", ylabel="CA1-PFC", legend=false,
             markersize=1, marker=:circle,
             xlims=(0,100), ylims=(0,100))
@@ -72,9 +72,9 @@ begin
     # (this might better be served by projection to search for
     # entangled and disentangled components)
     P, Curling, Div, DC = [], [], [], []
-    for k in 1:min(size(r1,2),size(r2,2))
+    for k in 1:min(size(r1,2),size(r3,2))
         rr1 = r1[:,1:k]
-        rr2 = r2[:,1:k]
+        rr2 = r3[:,1:k]
         rr1 = rr1 ./ sqrt.(sum(rr1.^2, dims=1)) ./ size(rr1,2)
         rr2 = rr2 ./ sqrt.(sum(rr2.^2, dims=1)) ./ size(rr2,2)
         rr1 = nansum(rr1, dims=2)
@@ -137,8 +137,7 @@ iters = enumerate( zip(Z_ca1, Z_pfc))
     try
         m_ca1ca1 = reactivation.ingredients(m_ca1ca1, v_ca1, v_ca1)
         m_pfcpfc = reactivation.ingredients(m_pfcpfc, v_pfc, v_pfc)
-        m_ca1pfc = reactivation.ingredients(m_ca1pfc, v_ca1, v_pfc;
-                                             cross_area=:tensor)
+        m_ca1pfc = reactivation.ingredients(m_ca1pfc, v_ca1, v_pfc)
     catch e
         println("Error on iteration: $s with error: $e") 
     end
@@ -229,21 +228,31 @@ for (i,(train, test)) in train_iters
     i, i_tmpl, i_test = Int16.((i, i_tmpl, i_test))
     z_ca1, z_pfc = Z_ca1[k_test], Z_pfc[k_test]
     kws = (;i, i_tmpl, i_test)
+    df1 = df2 = df3 = r1 = r2 = r3 = nothing
     # Get reactivation scores
     try
-        @sync begin
+        O2 = @async begin
             m = coefs[k_tmpl, "ca1-ca1"]
-            @async r2, df2 = get_df(m, z_ca1, z_ca1; k_tmpl=k_tmpl, k_test=k_test,
-                             areas="ca1-ca1", kws...)
+            O2 = get_df(m, z_ca1, z_ca1; k_tmpl=k_tmpl, k_test=k_test,
+                         areas="ca1-ca1", kws...)
+        end
+        O3=  @async begin
             m = coefs[k_tmpl, "pfc-pfc"]
-            @async r3, df3 = get_df(m, z_pfc, z_pfc; k_tmpl=k_tmpl, k_test=k_test,
+            O3 = get_df(m, z_pfc, z_pfc; k_tmpl=k_tmpl, k_test=k_test,
                            areas="pfc-pfc", kws...)
+        end
+        O1 = @async begin
             m = coefs[k_tmpl, "ca1-pfc"]
-            @async r1, df1 = get_df(m, z_ca1, z_pfc; k_tmpl=k_tmpl, k_test=k_test,
+            O1 = get_df(m, z_ca1, z_pfc; k_tmpl=k_tmpl, k_test=k_test,
                              areas="ca1-pfc", kws...)
         end
+        r3, df3 = fetch(O3)
+        r1, df1 = fetch(O1)
+        r2, df2 = fetch(O2)
     catch e
         println("Error $e at $i, $i_tmpl, $i_test")
+        @infiltrate
+        sleep(0.01)
         continue
     end
     Scores[k_tmpl, k_test, "ca1-pfc"] = r1
