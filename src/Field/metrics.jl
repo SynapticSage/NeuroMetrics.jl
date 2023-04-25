@@ -248,6 +248,7 @@ module metrics
         end
     end
 
+    export push_dims!
     function push_dims!(R::DimArray{ReceptiveField})
         dims = ndgrid(collect.(R.dims)...)
         N = name(R.dims)
@@ -268,6 +269,7 @@ module metrics
         end
     end
 
+    export push_spiketable!
     function push_spiketable!(R::ReceptiveField, spikes::AbstractDataFrame, field;
             cell)
         push_metric!(R, field, @subset(cells, :unit .== cell)[1,field])

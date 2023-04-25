@@ -293,12 +293,27 @@ module spiking
     update
     """
     function isolated(spikes::DataFrame,  theta::Union{DataFrame,Nothing}; 
-                      cycle=:cycle, refreshcyc=false, kws...)
+                      cycle=:cycle, refreshcyc=false, cells=nothing,
+                      matchetrode::Bool=false, kws...)
 
         print("Got here")
         if refreshcyc || !hasproperty(spikes, Symbol(cycle)) 
-            DIutils.filtreg.register(theta, spikes; on="time", 
-            transfer=[String(cycle)])
+            if !matchetrode
+                DIutils.filtreg.register(theta, spikes; on="time", 
+                                         transfer=[String(cycle)])
+            else
+                @assert cells !== nothing
+                cell_to_tet = Dict(cell=>tet for (cell,tet) in 
+                                    zip(cells.unit, cells.tetrode))
+                for sp in groupby(spikes, :unit)
+                    lf = @subset(sp, :tet == cell_to_tet[sp.unit[1]],
+                                 view=true)
+                    # Move phase over per tetrode
+                    DIutils.filtreg.register(lf, sp; on="time", 
+                                             transfer=[String(cycle)])
+                end
+                
+            end
         end
         prog = Progress(length(unique(spikes.unit)); 
                         desc="Adding isolation stats")
