@@ -51,6 +51,7 @@ if init != 1; @warn("initial dataset is $init"); end
     beh2 = DI.load_behavior(animal,day)
     Munge.nonlocal.setunfilteredbeh(beh2)
     lfp = DI.load_lfp(animal, day, tet=tet);
+    
 
     # =============
     ## MUNGE LFP ##
@@ -132,7 +133,7 @@ if init != 1; @warn("initial dataset is $init"); end
         @info "Saving $animal $day"
         filename = path_iso(animal, day, tet)
         !isdir(dirname(filename)) ? mkpath(dirname(filename)) : nothing
-        @save "$filename"  animal day lfp spikes allspikes tsk cells beh cycles
+        @save "$filename"  animal day spikes allspikes tsk cells beh cycles
     end
 
     Plot.setparentfolder("isolated")

@@ -306,7 +306,8 @@ module spiking
                 cell_to_tet = Dict(cell=>tet for (cell,tet) in 
                                     zip(cells.unit, cells.tetrode))
                 for sp in groupby(spikes, :unit)
-                    lf = @subset(sp, :tet == cell_to_tet[sp.unit[1]],
+                    lf = subset(sp, :tet => t-> 
+                                t.==cell_to_tet[sp.unit[1]],
                                  view=true)
                     # Move phase over per tetrode
                     DIutils.filtreg.register(lf, sp; on="time", 
