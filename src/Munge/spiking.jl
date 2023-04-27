@@ -292,17 +292,18 @@ module spiking
 
     update
     """
-    function isolated(spikes::DataFrame,  theta::Union{DataFrame,Nothing}; 
+    function isolated(spikes::DataFrame,  theta::Union{AbstractDataFrame,Nothing}; 
                       cycle=:cycle, refreshcyc=false, cells=nothing,
-                      matchetrode::Bool=false, kws...)
+                      matchtetrode::Bool=false, kws...)
 
         print("Got here")
         if refreshcyc || !hasproperty(spikes, Symbol(cycle)) 
-            if !matchetrode
+            if !matchtetrode
                 DIutils.filtreg.register(theta, spikes; on="time", 
                                          transfer=[String(cycle)])
             else
                 @assert cells !== nothing
+                @infiltrate
                 cell_to_tet = Dict(cell=>tet for (cell,tet) in 
                                     zip(cells.unit, cells.tetrode))
                 for sp in groupby(spikes, :unit)

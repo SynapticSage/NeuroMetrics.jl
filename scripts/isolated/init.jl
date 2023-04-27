@@ -9,6 +9,12 @@ datasets = (
 # (animal, day, tet) = datasets[2]
 @info datasets
 
+isonames =  OrderedDict(false => :adjacent, true=>:isolated)
+filt_desc = OrderedDict(:all => "> 2cm/s")
+save_kws = (;pfc_rate_analy=true)
+filt = Filt.get_filters()
+datacut = :all
+
 opt = isdefined(Main,:opt) ? Main.opt : Dict()
 opt = merge(opt, Dict(
            :process_outoffield => false, # process out of field place fields?
@@ -32,21 +38,18 @@ if init != 1; @warn("initial dataset is $init"); end
     @info "loop" animal day tet
     opt["animal"], opt["day"], opt["tet"] = animal, day, tet
     # animal, day, tet = opt["animal"], opt["day"], opt["tet"]
-    isonames =  OrderedDict(false => :adjacent, true=>:isolated)
-    filt_desc = OrderedDict(:all => "> 2cm/s")
-    save_kws = (;pfc_rate_analy=true)
-    filt = Filt.get_filters()
-    datacut = :all
     Plot.setappend((;animal,day,tet))
     # ===================
     # ACQUIRE DATA
     # ===================
     # Acquire data
     @info "Loading $animal $day"
-    @time spikes, beh, cells = DI.load(animal, day, data_source=["spikes","behavior", "cells"])
+    @time spikes, beh, cells = DI.load(animal, day, 
+          data_source=["spikes","behavior", "cells"])
     GC.gc()
-    beh, spikes = DIutils.filtreg.filterAndRegister(beh, spikes, on="time", transfer=["x","y","cuemem"], 
-    filters=filt[datacut], filter_skipmissingcols=true)
+    beh, spikes = DIutils.filtreg.filterAndRegister(beh, spikes, 
+        on="time", transfer=["x","y","cuemem"], 
+        filters=filt[datacut], filter_skipmissingcols=true)
     allspikes = copy(spikes)
     beh2 = DI.load_behavior(animal,day)
     Munge.nonlocal.setunfilteredbeh(beh2)

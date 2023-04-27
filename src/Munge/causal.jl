@@ -108,7 +108,8 @@ module causal
 
     mutable struct EnsemblePA
         type::Symbol
-        PA::Matrix{Float64}
+        PAxy::Matrix{Float64}
+        PAyx::Matrix{Float64}
         i::Vector{Int}
         t::Vector
     end
@@ -137,17 +138,20 @@ module causal
                                      starts .+ horizon_max)
         end
         ends = rand.(ends_ranges)
+        starts = max.(starts, 1)
+        ends = min.(ends, l)
         ((start:stop, uniX[start:stop], uniY[start:stop]) 
-            for (start,stop) in zip(starts,ends))
+            for (start,stop) in zip(starts,ends)
+        )
     end
 
 
     """
-        ensembledpredictiveasymmetry(uniX, uniY, est, params;
+        ensembledtransferentropy(uniX, uniY, est, params;
             f=1, n=100)
 
     Calculate the predictive asymmetry for the ensembled data using the
-    `predictive_asymmetry` function from `CausalityTools`.
+    `transfer_entropy` function from `CausalityTools`.
     # Arguments
     - `uniX`: The univariate time series for the X variable
     - `uniY`: The univariate time series for the Y variable
@@ -160,17 +164,21 @@ module causal
     - `::Vector{Float64}`: The predictive asymmetry for each ensemble 
                            component
     """
-    function ensembledpredictiveasymmetry(uniX, uniY, est, params;
-        f=1, n=100, method=:anylegalsize, 
+    function ensembledtransferentropy(uniX, uniY, est, horizon;
+        f=1, n=10_000, method=:timeresolved, 
         horizon_max::Union{Nothing,Int}=nothing, kws...)
         @infiltrate
-        PA = Vector{Union{Missing,Vector}}(missing, n)
+        # PA = Vector{Union{Missing,Vector}}(missing, n)
+        # PA = Vector{Union{Missing,Vector}}(missing, n)
+        PA1 = [Dict() for _ in 1:Threads.nthreads()]
+        PA2 = [Dict() for _ in 1:Threads.nthreads()]
+        CM  = [Dict() for _ in 1:Threads.nthreads()]
         if method == :anylegalsize
-            generator = ensembling(uniX, uniY, n, params[:horizon])
+            generator = ensembling(uniX, uniY, n, horizon)
         elseif method == :timeresolved
-            horizon_max = horizon_max === nothing ? 2*params[:horizon][end] : 
+            horizon_max = horizon_max === nothing ? 10*horizon[end] : 
                 horizon_max
-            generator = ensembling(uniX, uniY, n, params[:horizon];
+            generator = ensembling(uniX, uniY, n, horizon;
                                    horizon_max)
         else
             @error "Unknown method $method"
@@ -178,36 +186,50 @@ module causal
         iters = enumerate(generator)
         prog = Progress(length(iters), 1, 
                         "Predictive Asymmetry-ensembling")
+        (i, (t,ux,uy)) = first(iters)
+        prog = Progress(length(iters), 1, 
+                        "Predictive Asymmetry-ensembling")
         Threads.@threads for (i,(t,ux,uy)) in collect(iters)
             key = (i,t)
             try
-                    pa=CausalityTools.predictive_asymmetry(ux,
-                                                uy,
-                                                est,
-                                                params[:horizon];
-                                                normalize=true, f, kws...)
-                    PA[key] = pa
+                pa1=CausalityTools.transfer_entropy(ux,
+                                            uy,
+                                            est,
+                                            horizon;
+                                            normalize=true, f, kws...)
+                pa2=CausalityTools.transfer_entropy(uy,
+                                            ux,
+                                            est,
+                                            horizon;
+                                            normalize=true, f, kws...)
+                PA1[Threads.threadid()][key] = pa1
+                PA2[Threads.threadid()][key] = pa2
+                CM[Threads.threadid()][key]  = (countmap(ux), countmap(uy))
             catch
-                PA[key] = missing
             end
+            next!(prog)
         end
-        PA = filter(x->x[2]!==missing, PA)
-        PA = hcat(PA...)'
-        EnsemblePA(method, PA, zip(keys(PA)...)...)
+        PA1 = merge(PA1...)
+        PA1 = hcat(PA1...)'
+        PA2 = merge(PA2...)
+        PA2 = hcat(PA2...)'
+        CM = merge(CM...)
+        @infiltrate
+        EnsemblePA(method, PA1, PA2, zip(keys(PA)...)...)
     end
     
     ## ---------- GLOBAL WITH AN ESTIMATOR ------------------
-    export predictiveasymmetry
-    function predictiveasymmetry(embeddingX::Dataset,
+    export transferentropy
+    function transferentropy(embeddingX::Dataset,
             embeddingY::Dataset, est; thread=true, f=1, params...)
 
         if :ensemble ∈ keys(params)
             ensemble = params[:ensemble]
             additionalkws = (;n=ensemble)
-            func = ensembledpredictiveasymmetry
+            func = ensembledtransferentropy
         else
             additionalkws = (;)
-            func = CausalityTools.predictive_asymmetry
+            func = CausalityTools.transfer_entropy
         end
 
         if thread
@@ -227,32 +249,32 @@ module causal
             end
         end
     end
-    function predictiveasymmetry(embeddingX::AbstractArray,
+    function transferentropy(embeddingX::AbstractArray,
                 embeddingY::AbstractArray, est; params...)
         if size(embeddingX,2) > size(embeddingX,1)
             @assert size(embeddingY,2) > size(embeddingY,1)
             embeddingX, embeddingY = embeddingX', embeddingY'
         end
-        causal.predictiveasymmetry(
+        causal.transferentropy(
              Dataset(embeddingX), Dataset(embeddingY), est; params...)
     end
-    function predictiveasymmetry(pairedembeddings::Dict, 
+    function transferentropy(pairedembeddings::Dict, 
             est::ProbabilitiesEstimator; 
             params...)
-        Dict(k=> predictiveasymmetry(v[1],v[2],est;params...)
+        Dict(k=> transferentropy(v[1],v[2],est;params...)
                  for (k,v) in pairedembeddings)
     end
-    function predictiveasymmetry!(checkpoint::AbstractDict, 
+    function transferentropy!(checkpoint::AbstractDict, 
             pairedembeddings::Dict, est; params...)
         for (k,v) in pairedembeddings
             if k ∉ keys(checkpoint)
-                push!(checkpoint, k=>predictiveasymmetry(v[1],v[2],est;params...))
+                push!(checkpoint, k=>transferentropy(v[1],v[2],est;params...))
             end
         end
     end
 
     ## ---------- GLOBAL WITHOUT AN ESTIMATOR ------------------
-    function predictiveasymmetry(embeddingX::Dataset,
+    function transferentropy(embeddingX::Dataset,
             embeddingY::Dataset; thread=true, f=1, params...)
 
         # Subset by a condition?
@@ -269,10 +291,10 @@ module causal
         # Which function to use?
         if :ensemble ∈ keys(params)
             additional_kws = (;n=params[:ensemble])
-            func = ensembledpredictiveasymmetry
+            func = ensembledtransferentropy
         else
             additional_kws = (;)
-            func = CausalityTools.predictive_asymmetry
+            func = CausalityTools.transfer_entropy
         end
         
         # Embed into univariate space
@@ -304,26 +326,26 @@ module causal
                        f, additional_kws...)
         end
     end
-    function predictiveasymmetry(embeddingX::AbstractArray,
+    function transferentropy(embeddingX::AbstractArray,
                 embeddingY::AbstractArray; params...)
         if size(embeddingX,2) > size(embeddingX,1)
             @assert size(embeddingY,2) > size(embeddingY,1)
             embeddingX, embeddingY = embeddingX', embeddingY'
         end
-        predictiveasymmetry(
+        transferentropy(
              Dataset(embeddingX), Dataset(embeddingY); params...)
     end
-    function predictiveasymmetry(pairedembeddings::Dict; 
+    function transferentropy(pairedembeddings::Dict; 
             params...)
-        Dict(k=> predictiveasymmetry(v[1],v[2];k...,params...)
+        Dict(k=> transferentropy(v[1],v[2];k...,params...)
                  for (k,v) in pairedembeddings)
     end
-    export predictiveasymmetry!
-    function predictiveasymmetry!(checkpoint::AbstractDict,
+    export transferentropy!
+    function transferentropy!(checkpoint::AbstractDict,
             pairedembeddings::Dict; params...)
         for (k,v) in pairedembeddings
             if k ∉ keys(checkpoint)
-                push!(checkpoint, k=>predictiveasymmetry(v[1],v[2];k...,params...))
+                push!(checkpoint, k=>transferentropy(v[1],v[2];k...,params...))
             elseif k ∈ keys(checkpoint) # if we re-encounter a key! (possible checkpoint computation)
                 previous = checkpoint[k]
                 # We are reencountering a key, is it a task, if so fetch it
@@ -334,29 +356,29 @@ module causal
                 # skip it, else compute the missing horizon
                 if previous isa Vector
                     if length(previous) == length(params[:horizon])
-                        @info "predictiveasymmetry reencoutered key, but already computed, skipping" 
+                        @info "transferentropy reencoutered key, but already computed, skipping" 
                         continue
                     else
-                        @info "predictiveasymmetry reencountered key, and extending horizon" length(previous) length(params[:horizon])
+                        @info "transferentropy reencountered key, and extending horizon" length(previous) length(params[:horizon])
                         newhorizon = setdiff(collect(params[:horizon]), 1:length(params[:horizon]))
                         newparams = (;params..., horizon=newhorizon)
-                        push!(checkpoint, k=>predictiveasymmetry(v[1],v[2];
+                        push!(checkpoint, k=>transferentropy(v[1],v[2];
                                                                  k...,newparams...))
                     end
                 else
-                    @warn "predictiveasymmetry may have reencountered a key which prevous failed" key=k
+                    @warn "transferentropy may have reencountered a key which prevous failed" key=k
                 end
             end
         end
     end
 
     ## ---------- CONDITIONAL WITHOUT AN ESTIMATOR ------------------
-    export conditional_pred_asym
-    function conditional_pred_asym(checkpoint::AbstractDict, 
+    export conditional_trans_entr
+    function conditional_trans_entr(checkpoint::AbstractDict, 
             pairedembeddings::Dict, data::DataFrame, data_vars; 
             groups=nothing, params...)
 
-        @info "conditional_pred_asym" data_vars groups 
+        @info "conditional_trans_entr" data_vars groups 
 
         # Figure out the possible permutations of the data-variables user wants to
         # condition on
@@ -390,7 +412,7 @@ module causal
                 kt, vt = keytype(checkpoint), Union{Task,Vector,valtype(checkpoint[group])}
                 checkpoint[group] = Dict{kt}{vt}(checkpoint[group])
             end
-            predictiveasymmetry!(checkpoint[group], pairedembeddings; condition_inds, params...)
+            transferentropy!(checkpoint[group], pairedembeddings; condition_inds, params...)
         end
 
     end
@@ -482,8 +504,8 @@ module causal
 
 
 
-    export predictive_asymmetry_pyif
-    function predictive_asymmetry_pyif(x, y, horizon, pyif::Module; 
+    export transfer_entropy_pyif
+    function transfer_entropy_pyif(x, y, horizon, pyif::Module; 
             embedding=1, knearest=1, gpu=false)
 
         PA,AP=[],[]
@@ -581,8 +603,8 @@ module causal
                     if isempty(D); continue; end
                     ca1, pfc = map(d->transpose(hcat(d.data...)), D)
                     try
-                        cpt = causal.predictiveasymmetry(ca1, pfc; params...)
-                        pct = causal.predictiveasymmetry(pfc, ca1; params...)
+                        cpt = causal.transferentropy(ca1, pfc; params...)
+                        pct = causal.transferentropy(pfc, ca1; params...)
                         if any(isnan.(cpt)) || any(isnan.(pct))
                             ncount .+= 1
                             continue
@@ -720,7 +742,7 @@ module causal
 
 end
 
-    #function global_predictive_asymmetry(embeddingX::AbstractDict,
+    #function global_transfer_entropy(embeddingX::AbstractDict,
     #                                    embeddingY::AbstractDict, est;
     #                                    results=Dict(),
     #                                    params...)
@@ -733,11 +755,11 @@ end
     #        # For right now, these pairing dimensions are hard-coded
     #        k1=bestpartialmatch(keys(embeddingX), (;k..., area=:ca1))
     #        k2=bestpartialmatch(keys(embeddingX), (;k..., area=:pfc))
-    #        results[k] = global_predictive_asymmetry(embeddingX[k1],
+    #        results[k] = global_transfer_entropy(embeddingX[k1],
     #                                                 embeddingY[k2],
     #                                                 est;params...)
     #    end
     #end
 
-    #function local_predictive_asymmetry()
+    #function local_transfer_entropy()
     #end
