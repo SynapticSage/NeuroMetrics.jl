@@ -135,7 +135,14 @@ module types
         SF.values[findfirst(SF.keys .== shift)]
     end
 
-    
+    function Base.show(io::IO, sf::ShiftedField)
+    print(io, "ShiftedField with ",
+          length(sf.values), " values, ",
+          length(sf.keys), " keys, ",
+          length(sf.shifts), " shifts, and ",
+          nrow(sf.metrics), " metrics")
+    end
+
 
     mutable struct ShiftedFields
         values::Vector{Union{Missing,ShiftedField}}
@@ -180,6 +187,14 @@ module types
     Base.Dict(SF::ShiftedFields)     = OrderedDict(zip(SF.keys, SF.values))
     Table.to_dataframe(SFs::ShiftedFields; kws...) = Table.to_dataframe(Dict(SFs);
                                                            kws...)
+
+    function Base.show(io::IO, sfs::ShiftedFields)
+        println(io, "ShiftedFields with ",
+              length(sfs.values), " ShiftedField instances, ",
+              length(sfs.keys), " keys, and ",
+              nrow(sfs.metrics), " metrics")
+    end
+
 
     """
     Creates a matrix of shifted field objects
