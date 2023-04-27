@@ -431,8 +431,14 @@ module checkpoint
         opt
     end
 
+    """
+        _save_data
+    """
     function _save_data(name::String, 
             obj::AbstractDict{Union{String,Symbol,NamedTuple}, T} where T<:Any)
+        if !(endswith(name, ".jld2"))
+            name *= ".jld2"
+        end
         jldopen(name, "w"; compress=true) do storage
             for (k,v) in obj
                 try
@@ -445,6 +451,9 @@ module checkpoint
         end
     end
     function _save_data(name::String, obj)
+        if !(endswith(name, ".jld2"))
+            name *= ".jld2"
+        end
         jldopen(name, "w"; compress=true) do storage
             try
                 storage["OBJ"] = obj
