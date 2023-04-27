@@ -127,7 +127,7 @@ module causal
     - `::Vector{Tuple{Vector{Float64}, Vector{Float64}}}`: A vector of tuples
     containing the X and Y data for each ensemble.
     """
-    function ensembling(uniX::Vector, uniY::Vector, n::T where T <: Int, 
+    function randomensembling(uniX::Vector, uniY::Vector, n::T where T <: Int, 
             horizon::T where T <: Union{UnitRange,Int}; horizon_max=nothing)
         l = length(uniX)
         starts = rand(1:l, n)
@@ -140,6 +140,28 @@ module causal
         ends = rand.(ends_ranges)
         starts = max.(starts, 1)
         ends = min.(ends, l)
+        ((start:stop, uniX[start:stop], uniY[start:stop]) 
+            for (start,stop) in zip(starts,ends)
+        )
+    end
+
+    """
+        function windowed(uniX, uniY, n, horizon; minwidth=nothing,maxwidth=nothing)
+    
+    Windows the data by sequentially selecting `n` start points, and then
+    selecting at random an end point between `minwidth` and `maxwidth` away.
+    """
+    function windowed(uniX::Vector, uniY::Vector, n::T where T <: Int, 
+            horizon::T where T <: Union{UnitRange,Int}; 
+                minwidth=nothing,maxwidth=nothing)
+        l = length(uniX)
+        # I'm going to take a temporal sequence of windows across indices
+        # with random lengths between min width and max width
+        # The number of windows is n
+        starts = LinRange(1,l,n)
+        stops = starts .+ rand(minwidth:maxwidth,n)
+        starts = max.(starts, 1)
+        stops = min.(stops, l)
         ((start:stop, uniX[start:stop], uniY[start:stop]) 
             for (start,stop) in zip(starts,ends)
         )
@@ -174,11 +196,11 @@ module causal
         PA2 = [Dict() for _ in 1:Threads.nthreads()]
         CM  = [Dict() for _ in 1:Threads.nthreads()]
         if method == :anylegalsize
-            generator = ensembling(uniX, uniY, n, horizon)
+            generator = randomensembling(uniX, uniY, n, horizon)
         elseif method == :timeresolved
             horizon_max = horizon_max === nothing ? 10*horizon[end] : 
                 horizon_max
-            generator = ensembling(uniX, uniY, n, horizon;
+            generator = randomensembling(uniX, uniY, n, horizon;
                                    horizon_max)
         else
             @error "Unknown method $method"
@@ -408,7 +430,7 @@ module causal
             end
             # If dict type incorrect, fix it
             if !(Task <: valtype(checkpoint[group])) || 
-                !(Task <: valtype(checkpoint[group]))
+               !(Task <: valtype(checkpoint[group]))
                 kt, vt = keytype(checkpoint), Union{Task,Vector,valtype(checkpoint[group])}
                 checkpoint[group] = Dict{kt}{vt}(checkpoint[group])
             end
