@@ -3,6 +3,8 @@ module timeshift
     using DimensionalData
     using ...Timeshift.types
     using ...Timeshift.shiftmetrics
+    using ...Field.metrics
+    using DataFrames
 
     filt_requirements = Dict(
         :spikecount => 50,
@@ -22,33 +24,47 @@ module timeshift
     getshift(arrayOfFields::DimArray, s::T) where T <: Int = 
          arrayOfFields[:, arrayOfFields.dims[2].==s];
 
-
     function  usefulmetrics(SF::ShiftedFields)
         usefulmetrics(matrixform(SF))
     end
-    function usefulmetrics(M::DimArray; 
-        filt_bad::Bool=false, brain_area::Union{String,Nothing}=nothing)
+    """
+        usefulmetrics(M::DimArray, cells::AbstractDataFrame;
+            filt_bad::Bool=false, brain_area::Union{String,Nothing}=nothing)
 
-        push_dims!(f)
-        push_celltable!(f, cells)
-        pop_metric!(f, :unit)
-        push_metric!(f, metrics.bitsperspike)
-        push_metric!(f, metrics.totalcount)
-        push_metric!(f, metrics.maxrate)
-        push_shiftmetric!(f, best_tau!; metric=:bitsperspike)
-        push_metric!(f, metrics.bitsperspikeold)
-        push_shiftmetric!(f, best_tau!; metric=:bitsperspikeold)
+    Annotates shfited fields with useful metrics, and filters out bad cells
+    or a specific brain area.
+    # Arguments
+    - `M::DimArray`: A matrix of shifted field objects
+    - `cells::AbstractDataFrame`: A cell table
+    - `filt_bad::Bool=false`: Whether to filter out bad cells
+    - `brain_area::Union{String,Nothing}=nothing`: Whether to filter out cells
+        from a specific brain area
+    # Returns
+    - `M::DimArray`: A matrix of shifted field objects with useful metrics
+                     added to each shifted field object's dictionary
+    """
+    function usefulmetrics(M::DimArray, cells::AbstractDataFrame; 
+        filt_bad::Bool=false, brain_area::Union{String,Nothing}=nothing)
+        push_dims!(M)
+        push_celltable!(M, cells)
+        pop_metric!(M, :unit)
+        push_metric!(M, metrics.bitsperspike)
+        push_metric!(M, metrics.totalcount)
+        push_metric!(M, metrics.maxrate)
+        push_shiftmetric!(M, best_tau!; metric=:bitsperspike)
+        push_metric!(M, metrics.bitsperspikeold)
+        push_shiftmetric!(M, best_tau!; metric=:bitsperspikeold)
         if filt_bad
-            skcount=all(f[:totalcount] .> filt_requirements[:spikecount], 
+            skcount=all(M[:totalcount] .> filt_requirements[:spikecount], 
                         dims=2)
-            bps = any(f[:bitsperspike] .> filt_requirements[:bitsperspike], 
+            bps =   any(M[:bitsperspike] .> filt_requirements[:bitsperspike], 
                         dims=2)
-            f = f[vec(skcount .&& bps) ,:]
+            M = M[vec(skcount .&& bps) ,:]
         end
         if brain_area !== nothing
-            f = f[vec(all(f[:area] .== brain_area, dims=2)), :]
+            M = M[vec(all(M[:area] .== brain_area, dims=2)), :]
         end
-        f
+        M
     end
         
 

@@ -163,16 +163,32 @@ DIutils.pushover("Ready for cachemain.jl")
     checkpoint.save_fields(F; overwrite, archive=archivestr);
 end
 
-# # Remove adjacent
-# for (key,value) in F
-#     keynew = (key..., frac=:adj)
-#     F[keynew] = pop!(F, key)
-# end
+# Make a dataframe of the namedtuple keys of F
+keymat = hcat([(key|>collect) for key in keys(F)]...)
+keymat = permutedims(keymat, (2,1))
+keyframe = DataFrame(keymat,
+    keys(F)|>first|>propertynames.|>string|>collect)
 
-#savefile = datadir("timeshift","fixed_shifts_$shifts.serial")
-#serialize(savefile, (;F,I,shifts))
-#(F,I,shifts) = deserialize(savefile);
+# Let's make a list of properties that change
+changing = [name for name in names(keyframe) 
+    if length(unique(keyframe[!,name])) > 1]
+# And add some things I might change over multiple iterations
+changing = [changing..., "animal", "step"]
 
+# Now we want to extract a column of timeshifts for every single set
+# of processed data, provid a column name based on information in `changing`,
+# then we will want to 
+using GoalFetchAnalysis.Munge.timeshift
+(key, value) = F |> first;
+for (key, value) in F
+    savekey = OrderedDict(k=>v for (k,v) in Dict(pairs(key)) 
+                      if k in Symbol.(changing))
+    str   = DIutils.dict.tostring(savekey)
+    value = ShiftedFields(value)
+    value = matrixform(value)
+    # BUG: `unit` values associated with each `ShiftedField` object is wrong...probably
+    V = timeshift.usefulmetrics(value, cells)
+end
 
 # In this section, we optionall add information to the cells table
 # about the time 

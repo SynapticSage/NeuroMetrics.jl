@@ -221,10 +221,19 @@ module metrics
         end
         for field in columns
             try
-                push_metric!(r, field, @subset(cells, :unit .== cell)[1,field])
-            catch
-                @warn "metric error in push_celltable" size(cells) field
-                #@infiltrate
+                cls = @subset(cells, :unit .== cell)
+                if isempty(cls)
+                @infiltrate
+                throw(ErrorException("empty celltable in push_celltable, $(size(cells)) $(field)"))
+                end
+                push_metric!(r, field, cls[1,field])
+            catch exception
+                if exception isa BoundsError
+                    println("metric error in push_celltable, $(size(cells)) $(field)")
+                    @infiltrate
+                else
+                    throw(exception)
+                end
             end
         end
     end
