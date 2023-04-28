@@ -145,13 +145,28 @@ module lfp
         #phase = convert.(Float16, phase)
     end
 
+
     """
-        annotate_cycles
+        annotate_cycles!(lfp::GroupedDataFrame, phase_col="phase",
+            method="peak-to-peak")
+    """
+    function annotate_cycles!(lfp::GroupedDataFrame; phase_col="phase",
+                              method="peak-to-peak")
+        prog = Progress(length(lfp))
+        iters = enumerate(lfp) |> collect
+        Threads.@threads for (i, lf) in iters
+            annotate_cycles!(lf, phase_col=phase_col, method=method)
+            next!(prog)
+        end
+    end
+    """
+        annotate_cycles!(lfp::DataFrame; phase_col="phase", method="peak-to-peak")
 
     annotates lfp dataframe with cycle numbers
     """
-    function annotate_cycles(lfp::DataFrame; phase_col="phase", method="peak-to-peak")
-
+    function annotate_cycles!(lfp::AbstractDataFrame; phase_col="phase", 
+                              method="peak-to-peak")
+        @assert issorted(lfp.time)
         phase = lfp[!, phase_col]
         lfp.phase = phase_to_radians(lfp[:,"phase"])
         println("Method=$method")
@@ -182,12 +197,13 @@ module lfp
 
         return lfp
     end
-    annotate_cycles!(lfp::DataFrame;kws...) = annotate_cycles(lfp;kws...)
+    annotate_cycles(lfp::DataFrame;kws...) = annotate_cycles!(lfp;kws...)
 
     export annotate_cycles!
-    annotate_cycles!(data::DataFrame, cycles::DataFrame)::DataFrame = 
+    annotate_cycles!(data::AbstractDataFrame, 
+                    cycles::AbstractDataFrame)::DataFrame = 
             Table.group.annotate_periods!(data, cycles)
-    
+
 
     """
         mean_lfp
@@ -235,11 +251,43 @@ module lfp
         get_cycle_table
 
     obtain a table with the start and stop times of each lfp cycle
+    # Arguments
+    - `lfp::DataFrame`: lfp dataframe
+    - `pos...`: position columns
+    - `kws...`: keyword arguments to pass to `Table.get_periods`
+    # Returns
+    - `tab::DataFrame`: table with cycle start and stop times
     """
-    function get_cycle_table(lfp::DataFrame, pos...; kws...)
+    function get_cycle_table(lfp::AbstractDataFrame, pos...; kws...)
         @assert "cycle" in names(lfp)
         tab = Table.get_periods(lfp, "cycle", :amp=>mean, pos...; kws...)
         return tab
+    end
+    """
+        get_cycle_table(lfp::GroupedDataFrame, pos...; kws...)
+
+    obtain a table with the start and stop times of each lfp cycle
+    PER GROUP
+    # Arguments
+    - `lfp::GroupedDataFrame`: lfp dataframe
+    - `pos...`: position columns
+    - `kws...`: keyword arguments to pass to `Table.get_periods`
+    # Returns
+    - `tab::DataFrame`: table with cycle start and stop times
+    """
+    function get_cycle_table(lfp::GroupedDataFrame, pos...; kws...)
+        TAB = []
+        for lf in lfp
+            push!(TAB,get_cycle_table(lf, pos...; kws...))
+        end
+        if length(lfp.cols) == 1
+            source_col=lfp.cols[1]
+            K = keys(lfp.keymap) |> collect .|> first
+        else
+            source_col = :source
+            K = lfp.cols
+        end
+        return vcat(TAB...; source=source_col=>K)
     end
 
     """
