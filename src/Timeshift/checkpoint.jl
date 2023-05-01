@@ -278,7 +278,6 @@ module checkpoint
         store, archive = _load_data(storepath), 
                          overwrite ? OrderedDict() : _load_data(archivepath)
         matches = match(keys(store), keysearch)
-        @infiltrate
         if !(isempty(matches))
             @info "Matches" matches
             for key in matches

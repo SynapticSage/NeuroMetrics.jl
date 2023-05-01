@@ -12,6 +12,7 @@ begin
     using GoalFetchAnalysis , 
            GoalFetchAnalysis.Timeshift, GoalFetchAnalysis.Timeshift.types, 
            GoalFetchAnalysis.Timeshift.checkpoint
+    using GoalFetchAnalysis.Timeshift.types: ShiftedField, ShiftedFields
     import DI: Filt
     using .Timeshift.dataframe: info_to_dataframe
     using .Field.recon_process: get_shortcutnames, inv_shortcutnames
@@ -71,6 +72,9 @@ DIutils.pushover("Ready for cachemain.jl")
 @showprogress "animal" for (animal, day, frac) in datasets[1:end] #DI.animal_set
     @info "loop" animal day frac
     @time spikes, beh, ripples, cells = DI.load(animal, day);
+    animal = "super_clean"
+    spikes = DI.load_spikes(animal, day)
+    beh = DI.load_behavior(animal, day)
     if :animal ∉ propertynames(spikes)
         DIutils.filtreg.register(beh, spikes; transfer=["velVec"], on="time")
     else
@@ -109,8 +113,10 @@ DIutils.pushover("Ready for cachemain.jl")
     shuffle_type = :dotson
     if shuffle_type == :dotson
         #nbins = 50
-        Munge.behavior.annotate_relative_xtime!(beh)
+        groups = :animal ∉ propertynames(beh) ? [:traj] : [:animal, :traj]
+        Munge.behavior.annotate_relative_xtime!(beh; groups)
         #beh.trajreltime_bin = floor.(beh.trajreltime * (nbins-1))
+        @assert :trajreltime ∈ propertynames(beh)
         if :animal ∉ propertynames(spikes)
             _, spikes = DIutils.filtreg.register(beh, spikes;
                                      transfer=["trajreltime","epoch"],
@@ -190,12 +196,12 @@ changing = [changing..., "animal", "step"]
 # of processed data, provid a column name based on information in `changing`,
 # then we will want to 
 using GoalFetchAnalysis.Munge.timeshift
-(key, value) = F |> first;
+(key, value) = (F |> collect)[2]
 for (key, value) in F
     savekey = OrderedDict(k=>v for (k,v) in Dict(pairs(key)) 
                       if k in Symbol.(changing))
     str   = DIutils.dict.tostring(savekey)
-    value = ShiftedFields(value)
+    value = !(value isa ShiftedFields) ? ShiftedFields(value) : value
     value = matrixform(value)
     # BUG: `unit` values associated with each `ShiftedField` object is wrong...probably
     V = timeshift.usefulmetrics(value, cells)

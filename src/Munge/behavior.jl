@@ -49,12 +49,15 @@ module behavior
         beh
     end
 
-    function annotate_relative_xtime!(beh::DataFrame, x=:traj, on=:time)::DataFrame
+    function annotate_relative_xtime!(beh::DataFrame; name=nothing,
+    groups=:traj, on=:time)::DataFrame
         find_relative(t,m,M) = (t.-m)./(M-m)
-        beh = groupby(beh, x)
-        @showprogress 0.1 "adding rel $x on $on" for group in beh
+        beh = groupby(beh, groups)
+        name = setdiff(String.(groups), ["animal", "day", "epoch"])
+        name = join(name,"")
+        @showprogress 0.1 "adding rel $groups on $on" for group in beh
             m, M = extrema(group[!,on])
-            group[!, String(x)*"rel"*String(on)] = find_relative(group[!,on], m, M)
+            group[!, name*"rel".*String(on)] = find_relative(group[!,on], m, M)
         end
         combine(beh, identity)
     end

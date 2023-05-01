@@ -144,7 +144,10 @@ module Timeshift
             overwrite_precache::Bool=false,
             grid_kws...)::OrderedDict
 
-        @info "Timeshift" prog_fields
+        println("Timeshift, progress bar for fields = ", prog_fields)
+        if isempty(data) || isempty(beh)
+            @warn "No data to process"
+        end
 
         # Process preset options
         if fieldpreset !== nothing
@@ -169,7 +172,7 @@ module Timeshift
         if multi isa Bool
             multi = multi ? :thread : :single
         end
-        @info metricfuncs
+        println("Metric funcs = ", metricfuncs)
 
         if filters !== nothing
             if Filt.filters_use_precache(filters) &&
