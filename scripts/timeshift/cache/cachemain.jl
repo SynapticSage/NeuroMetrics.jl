@@ -65,12 +65,13 @@ F = OrderedDict{NamedTuple, Any}()
 (animal, day, frac) = first(datasets)
 global spikes = lfp = beh = cycles = nothing
 (animal, day, frac) = first(datasets[1:end])
+# ISSUE: MAKE SURE SUPER ANIMAL ON SOLID STATE
 DIutils.pushover("Ready for cachemain.jl")
 
 @showprogress "animal" for (animal, day, frac) in datasets[1:end] #DI.animal_set
     @info "loop" animal day frac
     @time spikes, beh, ripples, cells = DI.load(animal, day);
-    if :animal in propertynames(spikes)
+    if :animal ∉ propertynames(spikes)
         DIutils.filtreg.register(beh, spikes; transfer=["velVec"], on="time")
     else
         sort!(beh, [:animal,:time])
@@ -110,10 +111,18 @@ DIutils.pushover("Ready for cachemain.jl")
         #nbins = 50
         Munge.behavior.annotate_relative_xtime!(beh)
         #beh.trajreltime_bin = floor.(beh.trajreltime * (nbins-1))
-        _, spikes = DIutils.filtreg.register(beh, spikes;
-                                 transfer=["trajreltime","epoch"],
-                                 on="time")
+        if :animal ∉ propertynames(spikes)
+            _, spikes = DIutils.filtreg.register(beh, spikes;
+                                     transfer=["trajreltime","epoch"],
+                                     on="time")
+        elseif :animal ∈ propertynames(spikes)
+            DIutils.filtreg.register(groupby(beh, :animal),
+                                     groupby(spikes, :animal);
+                                     transfer=["trajreltime","epoch"],
+                                     on="time")
+        end
         trajperiod = Table.get_periods(beh, :period)
+        sort!(spikes,:time)
         spike_trajs = DIutils.searchsortedprevious.([trajperiod.start], spikes.time)
         spikes.trajstart, spikes.trajdel = eachcol(trajperiod[spike_trajs,[:start, :δ]])
         mean.(map(x-> x.>0 .* x .< spikes.trajdel, [spikes.time .- spikes.trajstart]))
@@ -132,6 +141,8 @@ DIutils.pushover("Ready for cachemain.jl")
     result_dict = OrderedDict{Real, Any}()
     spikes = dropmissing(spikes, :trajreltime)
     iter = Iterators.product(WIDTHS, thresh, datacuts, prop_set)
+    sort!(beh, [:time]) # required for multi-animal datasets
+    sort!(spikes, [:time])
     @showprogress "cuts and params" for (widths, thresh, datacut, props) ∈ iter
         try
             marginal = get_shortcutnames(props)
@@ -148,12 +159,12 @@ DIutils.pushover("Ready for cachemain.jl")
             F[key] = ShiftedFields(tmp)
             I[key] = F[key].metrics
         catch exception
-            @infiltrate
+            # @infiltrate
             @info "exception" exception
         end
     end
     DIutils.pushover("Finished cachemain.jl $animal $day $frac",title="Timeshift")
-    @infiltrate
+    # @infiltrate
     # SAVE the shifting information
     # archivestr = isempty(setdiff(unique([d[3] for d in datasets]), 
     # [:adj,:iso])) ? "iso" : ""
@@ -200,6 +211,9 @@ map(keys(F)|>collect) do k
     k.frac
 end |> unique
 keys(F)|>collect
+
+DI.superanimal.superanimal_clean_times_and_neurons(0; append="_clean")
+printstyled("FInished superanimal_clean_times_and_neurons", blink=true)
 
 # Convert F to dataframe
 @time Fd = Table.to_dataframe(F,       key_name=["shift"], explode=false);
