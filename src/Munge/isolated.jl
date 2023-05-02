@@ -24,13 +24,12 @@ module isolated
     using GLMNet, MultivariateStats, MLJ, ScikitLearn, Metrics, GLM
     using MATLAB, PyCall, RCall
     using Random
-    using MLJScikitLearnInterface: ElasticNetCVRegressor
 
-    function __init__()
-        @eval isolated pyglmnet = pyimport("pyglmnet")
-        @eval isolated using MLJScikitLearnInterface: 
-             ElasticNetCVRegressor, LogisticCVClassifier
-    end
+    # function __init__()
+    #     @eval isolated pyglmnet = pyimport("pyglmnet")
+    #     @eval isolated using MLJScikitLearnInterface: 
+    #          ElasticNetCVRegressor, LogisticCVClassifier
+    # end
 
     export path_iso
     """
@@ -1146,28 +1145,28 @@ function glm_(XX::AbstractMatrix, y::AbstractVecOrMat, Dist=Binomial();
     """
     function glm_(::Custom_ElasticNetMLJ, XX::AbstractMatrix, y, Dist=Binomial();
         testXX=nothing, kws...)
-        testXX = testXX === nothing ? XX : testXX
-        @debug "Custom $(typeof(Dist))"
-        yin, XXin = if Dist isa Binomial || Dist isa Poisson
-            replace(y, 0=>1e-16), replace(XX, 0=>1e-16)
-        else
-            y
-        end
-        m = ypred = nothing
-        R = ElasticNetCVRegressor(n_jobs=Threads.nthreads(),
-            cv=min(10,size(XX,1)), normalize=true)
-        lif(x) = GLM.linkfun.(canonicallink(Dist), x)
-        ilif(x) = GLM.linkinv.(canonicallink(Dist), x)
-        try
-            XXin, yin = XX, lif(yin)
-            XXin, y = MLJ.table(XXin), y
-            m = MLJ.machine(R, XXin, yin)
-            MLJ.fit!(m)
-            ypred = ilif(MLJ.predict(m, XXin))
-        catch exception
-            println("Exception = $exception")
-        end
-        Dict("m"=>m, "ypred"=>ypred, "coef"=> m.fitresult[1].coef_)
+        # testXX = testXX === nothing ? XX : testXX
+        # @debug "Custom $(typeof(Dist))"
+        # yin, XXin = if Dist isa Binomial || Dist isa Poisson
+        #     replace(y, 0=>1e-16), replace(XX, 0=>1e-16)
+        # else
+        #     y
+        # end
+        # m = ypred = nothing
+        # R = ElasticNetCVRegressor(n_jobs=Threads.nthreads(),
+        #     cv=min(10,size(XX,1)), normalize=true)
+        # lif(x) = GLM.linkfun.(canonicallink(Dist), x)
+        # ilif(x) = GLM.linkinv.(canonicallink(Dist), x)
+        # try
+        #     XXin, yin = XX, lif(yin)
+        #     XXin, y = MLJ.table(XXin), y
+        #     m = MLJ.machine(R, XXin, yin)
+        #     MLJ.fit!(m)
+        #     ypred = ilif(MLJ.predict(m, XXin))
+        # catch exception
+        #     println("Exception = $exception")
+        # end
+        # Dict("m"=>m, "ypred"=>ypred, "coef"=> m.fitresult[1].coef_)
     end
     glm_custom(XX::AbstractMatrix, y::AbstractVector, Dist) = 
             glm_(Custom_ElasticNetMLJ(), XX::AbstractMatrix, y, Dist=Binomial())
@@ -1184,28 +1183,28 @@ function glm_(XX::AbstractMatrix, y::AbstractVecOrMat, Dist=Binomial();
     """
     function glm_(::SpecificGLM_MLJ, XX::AbstractMatrix, y, Dist; 
                  testXX=nothing, kws...)
-        testXX = testXX === nothing ? XX : testXX
-        if Dist isa Binomial
-            @debug "Spec binoomial"
-            XX, y = MLJ.table(XX), y
-            R = LogisticCVClassifier(n_jobs=Threads.nthreads(),
-                penalty="elastic_net",
-                cv=min(5,size(XX[1],1)))
-            m = MLJ.machine(R, XX, η)
-            MLJ.fit!(m)
-            ypred = MLJ.predict(m, XX)
-            coef = m.fitresult[1]
-        elseif Dist isa Poisson
-            @debug "Spec poisson"
-            sklearn = pyimport("sklearn")
-            lm = sklearn.linear_model
-            R = lm.PoissonRegressor()
-            R.fit(XX, y)
-            ypred = R.predict(XX)
-            m = nothing
-            coef = R.coef_
-        end
-        Dict("m"=>m, "ypred"=>ypred, "coef"=>coef)
+        # testXX = testXX === nothing ? XX : testXX
+        # if Dist isa Binomial
+        #     @debug "Spec binoomial"
+        #     XX, y = MLJ.table(XX), y
+        #     R = LogisticCVClassifier(n_jobs=Threads.nthreads(),
+        #         penalty="elastic_net",
+        #         cv=min(5,size(XX[1],1)))
+        #     m = MLJ.machine(R, XX, η)
+        #     MLJ.fit!(m)
+        #     ypred = MLJ.predict(m, XX)
+        #     coef = m.fitresult[1]
+        # elseif Dist isa Poisson
+        #     @debug "Spec poisson"
+        #     sklearn = pyimport("sklearn")
+        #     lm = sklearn.linear_model
+        #     R = lm.PoissonRegressor()
+        #     R.fit(XX, y)
+        #     ypred = R.predict(XX)
+        #     m = nothing
+        #     coef = R.coef_
+        # end
+        # Dict("m"=>m, "ypred"=>ypred, "coef"=>coef)
     end
     glm_specific(XX::AbstractMatrix, y, Dist) = 
             glm_(SpecificGLM_MLJ(), XX::AbstractMatrix, y, Dist=Binomial())

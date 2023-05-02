@@ -3,11 +3,17 @@ module Precompile
 
     export precompile_goalmaze
     export precompile_GFA_dependencies
+    import DIutils
     # Uses https://github.com/JuliaLang/PackageCompiler.jl to speed up use of my library
     # Spends less time in precompile when a function/module is first called
 
-    _GFA_dependencies=["DataFrames","Plots", "Makie", "OhMyREPL",
-                       "CSV", "HDF5", "NetCDF", "Arrow", "Revise", 
+    _GFA_dependencies=["DataFrames", 
+                        "FileIO","UnicodePlots", # added unicodeplots for plots
+                        "Plots", 
+                       "Makie", "OhMyREPL", 
+                       "CSV", 
+                        # "HDF5", # removed 2023-05-01, check back later
+                        "NetCDF", "Arrow", "Revise", 
                        #"Reexport","CairoMakie", 
                        "DataFramesMeta", "Statistics", "NaNStatistics",
                        "ProgressMeter", "Glob", "Printf", "StatsPlots",
@@ -28,9 +34,12 @@ module Precompile
 
     using PackageCompiler
     function precompile_GFA_dependencies(;incremental::Bool=true, append="")
+        println("Precompiling GFA dependencies")
+        println(_GFA_dependencies)
         PackageCompiler.create_sysimage(_GFA_dependencies;
                                         sysimage_path="GFA-dependencies-sysimage$append.so",
                                         incremental)
+        DIutils.pushover("finished precompiling GFA dependencies at GFA-dependencies-sysimage$append.so")
     end
     function precompile_GFA_data_dependencies()
         PackageCompiler.create_sysimage(_GFA_data_dependencies;

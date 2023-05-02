@@ -3,8 +3,9 @@ module causal
     using Infiltrator
 
     using ProgressMeter
-    using CausalityTools
-    using Entropies
+    using CausalityTools, Entropies
+    import Entropies: ProbabilitiesEstimator, RectangularBinning, 
+                      SymbolicPermutation, VisitationFrequency
     using CausalityTools: Dataset
     using Infiltrator
     using DataFrames

@@ -294,9 +294,28 @@ module spiking
     """
     function isolated(spikes::DataFrame,  theta::Union{AbstractDataFrame,Nothing}; 
                       cycle=:cycle, refreshcyc=false, cells=nothing,
+                      beh=nothing, ripples=nothing, immobility_thresh=2,
                       matchtetrode::Bool=false, kws...)
 
-        print("Got here")
+        if immobility_thresh > 0
+            if beh !== nothing
+                beh = DIutils.filtreg.register(beh, spikes; on="time", 
+                                                transfer=["smoothvel"])
+            end
+            if :smoothvel ∈ propertynames(spikes)
+                println("Excluding immobility")
+                spikes = subset(spikes, :smoothvel => v->v.<immobility_thresh, 
+                                view=true)
+            end  
+        end
+
+        if ripples !== nothing
+            println("Excluding ripples")
+            ripples = DIutils.filtreg.register(ripples, spikes; on="time", 
+                                                transfer=["ripple"])
+        end
+
+
         if refreshcyc || !hasproperty(spikes, Symbol(cycle)) 
             if !matchtetrode
                 DIutils.filtreg.register(theta, spikes; on="time", 
@@ -306,8 +325,9 @@ module spiking
                 @infiltrate
                 cell_to_tet = Dict(cell=>tet for (cell,tet) in 
                                     zip(cells.unit, cells.tetrode))
-                for sp in groupby(spikes, :unit)
-                    lf = subset(sp, :tet => t-> 
+                G = groupby(spikes, :unit)
+                for sp in G
+                    lf = subset(theta, :tetrode => t-> 
                                 t.==cell_to_tet[sp.unit[1]],
                                  view=true)
                     # Move phase over per tetrode
@@ -332,8 +352,27 @@ module spiking
         end
         combine(spikes, identity)
     end
+    """
+        isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle, 
+                 include_samples::Bool=false, overwrite=false)
+    
+    find isolated spikes in the manneer of Jai/Frank 2021
+    
+    # Arguments
+    - `spikes::SubDataFrame`: dataframe of spikes
+    - `N=3`: number of bins to look around
+    - `thresh=8`: threshold for isolation
+    - `cycle_prop=:cycle`: property to use for cycle
+    - 1`include_samples::Bool=false`: whether to include the samples
+    - `overwrite=false`: whether to overwrite existing columns
+    
+    # Returns
+    - `SubDataFrame`: dataframe with isolation stats
+    
+    """
     function isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle, include_samples::Bool=false, overwrite=false)
         explore = setdiff(-N:N,0)
+        println("Setting up unit $(spikes.unit[1])")
         if overwrite || !hasproperty(spikes, :isolated)
             spikes[!,:isolated] = Vector{Union{Missing,Bool}}(missing, size(spikes,1))
         end
@@ -365,7 +404,7 @@ module spiking
                 center_times = [abs(mean(c.time)-mean(cycle.time)) 
                                 for c in spcycles[explore_cycles]]
                 order   = sortperm(center_times)
-                nearest = explore_cycles[order] # TODO
+                nearest = explore_cycles[order] # TODO: see below
                 cycle_prox = [abs(cycle[1,cycle_prop] - 
                               other_cyc[1,cycle_prop])
                               for other_cyc in spcycles[nearest]]
@@ -378,7 +417,7 @@ module spiking
                 center_times = [abs(mean(c.time)-mean(cycle.time)) 
                 for c in spcycles[explore_cycles]]
                 order = sortperm(center_times)
-                # TODO make this match TODO above
+                # TODO: make this match TODO above
                 nearest = explore_cycles[order[1:N]] 
                 cycle_prox = [abs(cycle[1,cycle_prop] - 
                                 other_cyc[1,cycle_prop])
