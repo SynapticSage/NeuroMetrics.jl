@@ -256,4 +256,17 @@ module types
         #reshape(results, size(fields)..., sizefield...)
     end
 
+
+    # SECTION: matrix form relevant functions
+
+    export mfkeys
+    function mfkeys(F::DimArray, func=intersect)
+        func([keys(f) for f in F]...)
+    end
+
+    # NOTE: The rest of the matrix form relevant stuff in Timeshift.metrics
+    # The push! funcionts for receptivefield objects overloaded to allow
+    # DimArray{ReceptiveField} 
+
+
 end

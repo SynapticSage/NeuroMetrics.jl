@@ -154,7 +154,7 @@ module lfp
                               method="peak-to-peak")
         prog = Progress(length(lfp))
         iters = enumerate(lfp) |> collect
-        Threads.@threads for (i, lf) in iters
+        for (_, lf) in iters
             annotate_cycles!(lf, phase_col=phase_col, method=method)
             next!(prog)
         end

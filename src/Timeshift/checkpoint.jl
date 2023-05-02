@@ -197,7 +197,6 @@ module checkpoint
         else
             D = Dict()
         end
-        @infiltrate
         D = merge(D, M)
         @info "Saving $name"
         if keytype(D) == Any

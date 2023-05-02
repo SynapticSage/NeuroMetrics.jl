@@ -180,10 +180,7 @@ DIutils.pushover("Ready for cachemain.jl")
 end
 
 # Make a dataframe of the namedtuple keys of F
-keymat = hcat([(key|>collect) for key in keys(F)]...)
-keymat = permutedims(keymat, (2,1))
-keyframe = DataFrame(keymat,
-    keys(F)|>first|>propertynames.|>string|>collect)
+DIutils.dict.ntkeyframe(F)
 
 # Let's make a list of properties that change
 changing = [name for name in names(keyframe) 
@@ -207,19 +204,13 @@ newF = OrderedDict{NamedTuple, DimArray}()
     @time V = timeshift.usefulmetrics(value, cells);
     newF[NamedTuple(savekey)] = V
 end
-@time checkpoint.save_fields(newF; archive="_matrixform")
+@time checkpoint.save_fields(newF; archive="$(archivestr)_matrixform");
 
 # In this section, we optionall add information to the cells table
 # about the time 
-@time F =  :F ∉ propertynames(Main) ? checkpoint.load_fields() : F;
-map(keys(F)|>collect) do k
-    k.animal
-end |> unique
-map(keys(F)|>collect) do k
-    k.frac
-end |> unique
-keys(F)|>collect
+using GoalFetchAnalysis.Timeshift.types
+for (k,v) in F|>collect
+    F
+end
 
-# Convert F to dataframe
-@time Fd = Table.to_dataframe(F,       key_name=["shift"], explode=false);
-Fd
+

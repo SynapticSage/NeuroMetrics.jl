@@ -44,10 +44,11 @@ module timeshift
                      added to each shifted field object's dictionary
     """
     function usefulmetrics(M::DimArray, cells::AbstractDataFrame; 
-        filt_bad::Bool=false, brain_area::Union{String,Nothing}=nothing)
+        filt_bad::Bool=false, brain_area::Union{String,Nothing}=nothing,
+        popunit::Bool=false)
         push_dims!(M)
         push_celltable!(M, cells)
-        pop_metric!(M, :unit)
+        popunit ? pop_metric!(M, :unit) : nothing
         push_metric!(M, metrics.bitsperspike)
         push_metric!(M, metrics.totalcount)
         push_metric!(M, metrics.maxrate)
