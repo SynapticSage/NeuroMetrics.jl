@@ -66,7 +66,6 @@ F = OrderedDict{NamedTuple, Any}()
 (animal, day, frac) = first(datasets)
 global spikes = lfp = beh = cycles = nothing
 (animal, day, frac) = first(datasets[1:end])
-# ISSUE: MAKE SURE SUPER ANIMAL ON SOLID STATE
 DIutils.pushover("Ready for cachemain.jl")
 
 @showprogress "animal" for (animal, day, frac) in datasets[1:end] #DI.animal_set
@@ -196,20 +195,23 @@ changing = [changing..., "animal", "step"]
 # of processed data, provid a column name based on information in `changing`,
 # then we will want to 
 using GoalFetchAnalysis.Munge.timeshift
+using DimensionalData, ProgressMeter
 (key, value) = (F |> collect)[2]
-for (key, value) in F
+newF = OrderedDict{NamedTuple, DimArray}()
+@progress "shiftfields->tagged matrixform" for (key, value) in F|>collect
     savekey = OrderedDict(k=>v for (k,v) in Dict(pairs(key)) 
                       if k in Symbol.(changing))
     str   = DIutils.dict.tostring(savekey)
     value = !(value isa ShiftedFields) ? ShiftedFields(value) : value
     value = matrixform(value)
-    # BUG: `unit` values associated with each `ShiftedField` object is wrong...probably
-    V = timeshift.usefulmetrics(value, cells)
+    @time V = timeshift.usefulmetrics(value, cells);
+    newF[NamedTuple(savekey)] = V
 end
+@time checkpoint.save_fields(newF; archive="_matrixform")
 
 # In this section, we optionall add information to the cells table
 # about the time 
-@time F = checkpoint.load_fields()
+@time F =  :F ∉ propertynames(Main) ? checkpoint.load_fields() : F;
 map(keys(F)|>collect) do k
     k.animal
 end |> unique
@@ -217,9 +219,6 @@ map(keys(F)|>collect) do k
     k.frac
 end |> unique
 keys(F)|>collect
-
-DI.superanimal.superanimal_clean_times_and_neurons(0; append="_clean")
-printstyled("FInished superanimal_clean_times_and_neurons", blink=true)
 
 # Convert F to dataframe
 @time Fd = Table.to_dataframe(F,       key_name=["shift"], explode=false);

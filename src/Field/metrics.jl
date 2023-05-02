@@ -43,7 +43,8 @@ module metrics
         MetricSet(x) = new(x)
     end
     Metrics = MetricSet # for now I require this alias, but eventually, I need to transition my field objects to MetricSet name -- Metrics prevents me from importing Metrics package (third-party)
-    Base.getindex(M::MetricSet, index...)            = Base.getindex(M.data, index...)
+    Base.getindex(M::MetricSet, index...)            = Base.getindex(M.data, 
+                                                                     index...)
     Base.setindex!(M::MetricSet, val, index::Symbol) = M.data[index] = val
     Base.push!(M::MetricSet, p::Pair{Symbol, <:Any}) = push!(M.data, p)
     Base.pop!(M::MetricSet, key)::Any                = pop!(M.data, key)
@@ -207,7 +208,8 @@ module metrics
     """
     function run_metrics!(R::Union{ReceptiveField,
                                   AbstractArray{ReceptiveField}}, instructions)
-        for (func, (pos, kws)) in instructions
+        instructions = instructions |> collect
+        Threads.@threads for (func, (pos, kws)) in instructions
             push_metric!(R, func, pos...; kws...)
         end
     end
@@ -223,13 +225,15 @@ module metrics
             try
                 cls = @subset(cells, :unit .== cell)
                 if isempty(cls)
-                @infiltrate
-                throw(ErrorException("empty celltable in push_celltable, $(size(cells)) $(field)"))
+                    @infiltrate
+                    throw(ErrorException("empty celltable in push_celltable,"*
+                                         " $(size(cells)) $(field)"))
                 end
                 push_metric!(r, field, cls[1,field])
             catch exception
                 if exception isa BoundsError
-                    println("metric error in push_celltable, $(size(cells)) $(field)")
+                    println("metric error in push_celltable,"*
+                              "$(size(cells)) $(field)")
                     @infiltrate
                 else
                     throw(exception)
@@ -239,7 +243,7 @@ module metrics
     end
     function push_celltable!(R::Array{ReceptiveField}, cells::AbstractDataFrame,
             columns...)
-        for r in R
+        Threads.@threads for r in R
             if :unit ∈ R.metrics
                 cell = R.metrics[:unit]
             end
@@ -251,8 +255,8 @@ module metrics
                              cells::AbstractDataFrame, columns...)
         units = R.dims[findfirst(name.(R.dims) .== :unit)]
         units = units .* ones(Broadcast.broadcast_shape(size(units), size(R)))
-
-        for (r,cell) in zip(R, units)
+        iters = zip(R, units) |> collect 
+        Threads.@threads for (r,cell) in iters
             push_celltable!(r, cells, columns...; cell)
         end
     end
@@ -261,7 +265,8 @@ module metrics
     function push_dims!(R::DimArray{ReceptiveField})
         dims = ndgrid(collect.(R.dims)...)
         N = name(R.dims)
-        for (r, D...) in zip(R, dims...)
+        iters = zip(R, dims...) |> collect
+        Threads.@threads for (r, D...) in iters
             for (n, d) in zip(N,D)
                 push_metric!(r, n, d)
             end
@@ -273,7 +278,8 @@ module metrics
         n = findfirst(N.==dim)
         values = DIutils.permutevec(values, n)
         values = values .* ones(size(R))
-        for (r, v) in zip(R, values)
+        iters = zip(R, values) |> collect
+        Threads.@threads for (r, v) in iters
             push_metric!(r, metric, v)
         end
     end

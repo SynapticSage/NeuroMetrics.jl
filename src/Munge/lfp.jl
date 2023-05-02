@@ -154,7 +154,7 @@ module lfp
                               method="peak-to-peak")
         prog = Progress(length(lfp))
         iters = enumerate(lfp) |> collect
-        for (i, lf) in iters
+        Threads.@threads for (i, lf) in iters
             annotate_cycles!(lf, phase_col=phase_col, method=method)
             next!(prog)
         end
@@ -181,14 +181,14 @@ module lfp
             #@infiltrate
             p = phase .- median(extrema(phase))
             rising_zero_point = [(p[2:end] .>=0) .& (p[1:end-1] .<0) ; false]
-            cycle_labels = accumulate(+, rising_zero_point)
+            cycle_labels = UInt32.(accumulate(+, rising_zero_point))
             lfp[!,"phase"] = mod2pi.(lfp[!,"phase"])
         elseif method == "trough-to-trough"
             step_size = median(diff(phase))
             Δₚ = [0; diff(phase)]
             falling_zero_point = [(phase[1:end-1] .>=0) .& (phase[2:end] .<0) ; false]
             #rising_zero_point = [(phase[2:end] .>=0) .& (phase[1:end-1] .<0) ; false]
-            cycle_labels = accumulate(+, falling_zero_point)
+            cycle_labels = UInt32.(accumulate(+, falling_zero_point))
             lfp[!,"phase′"] = mod.(lfp[!,"phase"] .- pi, 2*pi)
         else
             throw(ArgumentError("Unrecognized method=$method"))
