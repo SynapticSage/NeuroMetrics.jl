@@ -16,11 +16,15 @@ begin
     import DI: Filt
     using .Timeshift.dataframe: info_to_dataframe
     using .Field.recon_process: get_shortcutnames, inv_shortcutnames
+    using GoalFetchAnalysis.Munge.timeshift
+    using DimensionalData, ProgressMeter
 end
+# Get commandline options or use defaults
 opts = argparse()
 keyfilterstr= k->!occursin("half",k) && !occursin("odds",k) # skip crossval
 filts    = Filt.get_filters_precache(;keyfilterstr)
-# datacuts = [:all, :cue, :memory, :task, :nontask, :cue_correct, :cue_error, :mem_correct,:mem_error, :correct,:error]
+# datacuts = [:all, :cue, :memory, :task, :nontask, :cue_correct, :cue_error,
+#             :mem_correct,:mem_error, :correct,:error]
 datacuts = collect(keys(filts))
 sets = include(scriptsdir("timeshift","sets_of_interest.jl"))
 prop_set = sets.marginals_superhighprior_shuffle
@@ -30,8 +34,10 @@ IDEALSIZE = Dict(key => (key=="stopWell" ? 5 : 40) for key in PROPS)
 WIDTHS = opts["width"]
 thresh = opts["thresh"]
 shifts= opts["init_shift"]:opts["period_shift"]:opts["final_shift"]
-# datasets = (("RY16",36,nothing), ("RY22", 21, nothing)) #, ("RY16",36, :adj),("RY16",36, :iso),)
-datasets = (("super_clean", 0, nothing),("super_clean",0,:iso), ("super_clean",0,:adj))
+# datasets = (("RY16",36,nothing), ("RY22", 21, nothing)) #, ("RY16",36,
+# :adj),("RY16",36, :iso),)
+datasets = (("super_clean", 0, nothing),("super_clean",0,:iso),
+            ("super_clean",0,:adj))
 overwrite = false
 isotet = :default
 @assert datasets isa Tuple
@@ -68,7 +74,7 @@ global spikes = lfp = beh = cycles = nothing
 (animal, day, frac) = first(datasets[1:end])
 DIutils.pushover("Ready for cachemain.jl")
 
-@showprogress "animal" for (animal, day, frac) in datasets[1:end] #DI.animal_set
+@showprogress "animal" for (animal, day, frac) in datasets[1:end]#DI.animal_set
     @info "loop" animal day frac
     @time spikes, beh, ripples, cells = DI.load(animal, day);
     animal = "super_clean"
@@ -176,41 +182,52 @@ DIutils.pushover("Ready for cachemain.jl")
     archivestr = frac !== nothing ? [string(animal), string(day), string(frac), string(isotet)] :
                     [string(animal), string(day)]
     archivestr  = join(archivestr, "-")
-    checkpoint.save_fields(F; overwrite, archive=archivestr);
+    println("saving shifted fields")
+    @time checkpoint.save_fields(F; overwrite, archive=archivestr);
+    # Make a dataframe of the namedtuple keys of F
+    keyframe = DIutils.dict.ntkeyframe(F)
+    # Let's make a list of properties that change
+    changing = [name for name in names(keyframe) 
+        if length(unique(keyframe[!,name])) > 1]
+    # And add some information about the properties that differ across keys
+    # indexing our timeshifting data
+    changing = [changing..., "animal", "step"]
+    # Now we want to extract a column of timeshifts for every single set
+    # of processed data, provid a column name based on information in `changing`,
+    # then we will want to 
+    (key, value) = (F |> collect)[2]
+    newF = OrderedDict{NamedTuple, DimArray}()
+    @progress "shiftfields->tagged matrixform" for (key, value) in F|>collect
+        savekey = OrderedDict(k=>v for (k,v) in Dict(pairs(key)) 
+                          if k in Symbol.(changing))
+        str   = DIutils.dict.tostring(savekey)
+        value = !(value isa ShiftedFields) ? ShiftedFields(value) : value
+        value = matrixform(value)
+        @time V = timeshift.usefulmetrics(value, cells);
+        newF[NamedTuple(savekey)] = V
+    end
+    println("saving matrixforms of shifted fields")
+    @time checkpoint.save_fields(newF; archive="$(archivestr)_matrixform");
+    # In this section, we're extracting the timeshifts for each cell, and saving
+    # them alongside the original cells dataframe, which stores statistics
+    # the different cells.
+    iters = newF|>collect
+    (key, value) = iters[1];
+    function colname(key::NamedTuple)
+        step = key.step
+        step = string(Rational(step * 10) * 1//10)
+        step = replace(step, "//" => "of")
+        "$(key.datacut)-$step"
+    end
+    cells_tau = cells[:, [:animal, :day, :unit]]
+    for (key, value) in iters
+        col = colname(key)
+        df = DataFrame([value[:,1][:unit], value[:,1][:bestshift_bitsperspike]],
+                           [Symbol("unit"), Symbol(col)])
+        sort!(df, :unit)
+        DIutils.filtreg.register(df, cells_tau; on="unit", transfer=[col])
+    end
+    # Now we save the shifting data
+    DI.save_cell_taginfo(cells_tau, animal, day, "timeshift")
 end
-
-# Make a dataframe of the namedtuple keys of F
-DIutils.dict.ntkeyframe(F)
-
-# Let's make a list of properties that change
-changing = [name for name in names(keyframe) 
-    if length(unique(keyframe[!,name])) > 1]
-# And add some things I might change over multiple iterations
-changing = [changing..., "animal", "step"]
-
-# Now we want to extract a column of timeshifts for every single set
-# of processed data, provid a column name based on information in `changing`,
-# then we will want to 
-using GoalFetchAnalysis.Munge.timeshift
-using DimensionalData, ProgressMeter
-(key, value) = (F |> collect)[2]
-newF = OrderedDict{NamedTuple, DimArray}()
-@progress "shiftfields->tagged matrixform" for (key, value) in F|>collect
-    savekey = OrderedDict(k=>v for (k,v) in Dict(pairs(key)) 
-                      if k in Symbol.(changing))
-    str   = DIutils.dict.tostring(savekey)
-    value = !(value isa ShiftedFields) ? ShiftedFields(value) : value
-    value = matrixform(value)
-    @time V = timeshift.usefulmetrics(value, cells);
-    newF[NamedTuple(savekey)] = V
-end
-@time checkpoint.save_fields(newF; archive="$(archivestr)_matrixform");
-
-# In this section, we optionall add information to the cells table
-# about the time 
-using GoalFetchAnalysis.Timeshift.types
-for (k,v) in F|>collect
-    F
-end
-
 
