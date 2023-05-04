@@ -294,7 +294,7 @@ module spiking
     """
     function prepiso!(spikes::AbstractDataFrame,  
                       theta::Union{AbstractDataFrame,Nothing}; 
-                      cycle=:cycle, refreshcyc=false, cells=nothing,
+                      cycle=:cycle, refreshcyc=true, cells=nothing,
                       beh=nothing, ripples=nothing, immobility_thresh=2,
                       matchtetrode::Bool=false, kws...)
 
@@ -303,8 +303,12 @@ module spiking
         end
 
         if refreshcyc
-            spikes.cycle = 
-                Vector{Union{Float32,Missing}}(missing, size(spikes,1))
+            if :cycle ∉ propertynames(spikes)
+                spikes.cycle = 
+                    Vector{Union{Float32,Missing}}(missing, size(spikes,1))
+            else
+                spikes.cycle .= missing
+            end
         end
 
         if immobility_thresh > 0
@@ -325,38 +329,44 @@ module spiking
             spikes = spikes[.!spikes_excluded,:]
         end
 
-        if refreshcyc || !hasproperty(spikes, Symbol(cycle)) 
-            if !matchtetrode
-                DIutils.filtreg.register(theta, spikes; on="time", 
-                                         transfer=[String(cycle)])
-            else
-                @assert cells !== nothing
-                cell_to_tet = Dict(cell=>tet for (cell,tet) in 
-                                    zip(cells.unit, cells.tetrode))
-                G  = groupby(spikes, :unit);
-                lf = groupby(theta,  [:tetrode]);
-                sp = (G|>collect)[2]
-                Threads.@threads for sp in G
-                    println("sp.unit[1] = ", sp.unit[1])
-                    lfkey = (;tetrode=cell_to_tet[sp.unit[1]])
-                    if lfkey ∉ keys(lf)|>collect.|>NamedTuple
-                        continue
-                    end
-                    l = lf[lfkey]
-                    if isempty(lf)
-                        continue
-                    end
-                    println("extrema of lfp time:" ,    extrema(l.time).|>round, 
-                            "\nextrema of spike time:", extrema(sp.time).|>round)
-                    # Move phase over per tetrode
-                    DIutils.filtreg.register(l, sp; on="time", 
-                                             transfer=[String(cycle)])
-                    cycles = convert(Vector{Union{Float32,Missing}}, sp.cycle)
-                    G[(;unit=sp.unit[1])][!,:cycle] = cycles
+        if !matchtetrode
+            DIutils.filtreg.register(theta, spikes; on="time", 
+                                     transfer=[String(cycle)])
+        else
+            @assert cells !== nothing
+            cell_to_tet = Dict(cell=>tet for (cell,tet) in 
+                                zip(cells.unit, cells.tetrode))
+            G  = groupby(spikes, :unit);
+            lf = groupby(theta,  [:tetrode]);
+            sp = (G|>collect)[2]
+            Threads.@threads for sp in G
+                println("sp.unit[1] = ", sp.unit[1])
+                lfkey = (;tetrode=cell_to_tet[sp.unit[1]])
+                if lfkey ∉ keys(lf)|>collect.|>NamedTuple
+                    continue
                 end
+                l = lf[lfkey]
+                if isempty(lf)
+                    continue
+                end
+                # println("extrema of lfp time:" ,    extrema(l.time).|>round, 
+                #         "\nextrema of spike time:", extrema(sp.time).|>round)
+                # Move phase over per tetrode
+                DIutils.filtreg.register(l, sp; on="time", 
+                                         transfer=[String(cycle)])
+                cycles = convert(Vector{Union{Float32,Missing}}, sp.cycle)
+                if length(unique(cycles)) < 2
+                    println("Only one-two cycle found for $(sp.unit[1])")
+                    # @infiltrate
+                end
+                G[(;unit=sp.unit[1])][!,:cycle] .= cycles
             end
         end
-        spikes
+        if all(ismissing.(spikes.cycle))
+            throw(ErrorException("No cycles found"))
+        else
+            spikes
+        end
     end
 
     function isolated(spikes::AbstractDataFrame; kws...)
@@ -375,6 +385,7 @@ module spiking
         end
         combine(spikes, identity)
     end
+    isolated! = isolated
 
     """
         isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle, 
