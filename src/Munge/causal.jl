@@ -18,6 +18,7 @@ module causal
     using SoftGlobalScope
     using DrWatson
     using ArgParse
+    using StatsBase
 
     import ..Munge
     import ..Munge.manifold: make_embedding_df, EmbeddingFrameFetch
@@ -196,6 +197,8 @@ module causal
         PA1 = [Dict() for _ in 1:Threads.nthreads()]
         PA2 = [Dict() for _ in 1:Threads.nthreads()]
         CM  = [Dict() for _ in 1:Threads.nthreads()]
+        uniX = convert(Array{Float64}, uniX)
+        uniY = convert(Array{Float64}, uniY)
         if method == :anylegalsize
             generator = randomensembling(uniX, uniY, n, horizon)
         elseif method == :timeresolved
@@ -208,26 +211,28 @@ module causal
         end
         iters = enumerate(generator)
         prog = Progress(length(iters), 1, 
-                        "Predictive Asymmetry-ensembling")
+                        "Transfer Entropy-ensembling")
         (i, (t,ux,uy)) = first(iters)
         prog = Progress(length(iters), 1, 
-                        "Predictive Asymmetry-ensembling")
+                        "Transfer Entropy-ensembling")
+        M = [TEShannon(embedding=EmbeddingTE(dT=1,dS=1,ηTf=h))
+                for h in horizon]
+        k = min(max(2,lux,luy),8)
+        e = CausalityTools.Lindner(k=k, w=1)
         Threads.@threads for (i,(t,ux,uy)) in collect(iters)
             key = (i,t)
+            lux, luy = unique(ux)|>length, unique(uy)|>length
+            # vary ηTf to obtain horizon
             try
-                pa1=CausalityTools.transfer_entropy(ux,
-                                            uy,
-                                            est,
-                                            horizon;
-                                            normalize=true, f, kws...)
-                pa2=CausalityTools.transfer_entropy(uy,
-                                            ux,
-                                            est,
-                                            horizon;
-                                            normalize=true, f, kws...)
-                PA1[Threads.threadid()][key] = pa1
-                PA2[Threads.threadid()][key] = pa2
-                CM[Threads.threadid()][key]  = (countmap(ux), countmap(uy))
+                pa1= @async [CausalityTools.transferentropy(m, e, ux, uy; kws...) 
+                     for m in M]
+                pa2= @async [CausalityTools.transferentropy(m, e, uy, ux,
+                                            kws...)
+                     for m in M]
+                cm = @async (countmap(ux), countmap(uy))
+                PA1[Threads.threadid()][key] = fetch(pa1)
+                PA2[Threads.threadid()][key] = fetch(pa2)
+                CM[Threads.threadid()][key]  = fetch(cm)
             catch
             end
             next!(prog)
@@ -252,7 +257,7 @@ module causal
             func = ensembledtransferentropy
         else
             additionalkws = (;)
-            func = CausalityTools.transfer_entropy
+            func = CausalityTools.transferentropy
         end
 
         if thread
@@ -317,12 +322,12 @@ module causal
             func = ensembledtransferentropy
         else
             additional_kws = (;)
-            func = CausalityTools.transfer_entropy
+            func = CausalityTools.transferentropy
         end
         
         # Embed into univariate space
         if !isempty(embeddingX)
-            est  = RectangularBinning(params[:binning])
+            est  = RectangularBinning(params[:binning]*3)
             uniX = encode_dataset_univar(embeddingX, est)
             uniY = encode_dataset_univar(embeddingY, est)
             M = Int64(max(maximum(uniX),maximum(uniY)))
