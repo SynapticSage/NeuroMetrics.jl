@@ -292,29 +292,38 @@ module spiking
 
     update
     """
-    function isolated(spikes::DataFrame,  theta::Union{AbstractDataFrame,Nothing}; 
+    function prepiso!(spikes::AbstractDataFrame,  
+                      theta::Union{AbstractDataFrame,Nothing}; 
                       cycle=:cycle, refreshcyc=false, cells=nothing,
                       beh=nothing, ripples=nothing, immobility_thresh=2,
                       matchtetrode::Bool=false, kws...)
 
+        if spikes.animal|>unique|>length > 1
+            @error "Can only run isolated on one animal at a time"
+        end
+
+        if refreshcyc
+            spikes.cycle = 
+                Vector{Union{Float32,Missing}}(missing, size(spikes,1))
+        end
+
         if immobility_thresh > 0
             if beh !== nothing
-                beh = DIutils.filtreg.register(beh, spikes; on="time", 
-                                                transfer=["smoothvel"])
+                DIutils.filtreg.register(beh, spikes; on="time", 
+                                                transfer=["speedsmooth"])
             end
             if :smoothvel ∈ propertynames(spikes)
                 println("Excluding immobility")
-                spikes = subset(spikes, :smoothvel => v->v.<immobility_thresh, 
-                                view=true)
+                spikes = subset(spikes, :speedsmooth => v->v.<immobility_thresh, 
+                view=true, skipmissing=true)
             end  
         end
 
         if ripples !== nothing
             println("Excluding ripples")
-            ripples = DIutils.filtreg.register(ripples, spikes; on="time", 
-                                                transfer=["ripple"])
+            spikes_excluded = DIutils.in_range(spikes.time, ripples)
+            spikes = spikes[.!spikes_excluded,:]
         end
-
 
         if refreshcyc || !hasproperty(spikes, Symbol(cycle)) 
             if !matchtetrode
@@ -322,21 +331,35 @@ module spiking
                                          transfer=[String(cycle)])
             else
                 @assert cells !== nothing
-                @infiltrate
                 cell_to_tet = Dict(cell=>tet for (cell,tet) in 
                                     zip(cells.unit, cells.tetrode))
-                G = groupby(spikes, :unit)
-                for sp in G
-                    lf = subset(theta, :tetrode => t-> 
-                                t.==cell_to_tet[sp.unit[1]],
-                                 view=true)
+                G  = groupby(spikes, :unit);
+                lf = groupby(theta,  [:tetrode]);
+                sp = (G|>collect)[2]
+                Threads.@threads for sp in G
+                    println("sp.unit[1] = ", sp.unit[1])
+                    lfkey = (;tetrode=cell_to_tet[sp.unit[1]])
+                    if lfkey ∉ keys(lf)|>collect.|>NamedTuple
+                        continue
+                    end
+                    l = lf[lfkey]
+                    if isempty(lf)
+                        continue
+                    end
+                    println("extrema of lfp time:" ,    extrema(l.time).|>round, 
+                            "\nextrema of spike time:", extrema(sp.time).|>round)
                     # Move phase over per tetrode
-                    DIutils.filtreg.register(lf, sp; on="time", 
+                    DIutils.filtreg.register(l, sp; on="time", 
                                              transfer=[String(cycle)])
+                    cycles = convert(Vector{Union{Float32,Missing}}, sp.cycle)
+                    G[(;unit=sp.unit[1])][!,:cycle] = cycles
                 end
-                
             end
         end
+        spikes
+    end
+
+    function isolated(spikes::AbstractDataFrame; kws...)
         prog = Progress(length(unique(spikes.unit)); 
                         desc="Adding isolation stats")
         func = x->(i=isolated(x; kws...);next!(prog);i)
@@ -352,6 +375,7 @@ module spiking
         end
         combine(spikes, identity)
     end
+
     """
         isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle, 
                  include_samples::Bool=false, overwrite=false)

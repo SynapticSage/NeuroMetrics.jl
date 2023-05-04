@@ -276,9 +276,9 @@ module lfp
     - `tab::DataFrame`: table with cycle start and stop times
     """
     function get_cycle_table(lfp::GroupedDataFrame, pos...; kws...)
-        TAB = []
-        for lf in lfp
-            push!(TAB,get_cycle_table(lf, pos...; kws...))
+    TAB = Vector{DataFrame}(undef, length(lfp))
+        Threads.@threads for (i,lf) in enumerate(lfp)|>collect
+            TAB[i] = get_cycle_table(lf, pos...; kws...)
         end
         if length(lfp.cols) == 1
             source_col=lfp.cols[1]
