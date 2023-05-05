@@ -114,6 +114,7 @@ module causal
         PAyx::Matrix{Float64}
         i::Vector{Int}
         t::Vector
+        window::Vector{Int}
     end
 
     """
@@ -139,11 +140,14 @@ module causal
             ends_ranges = UnitRange.(starts .+ maximum(horizon), 
                                      starts .+ horizon_max)
         end
-        ends = rand.(ends_ranges)
-        starts = max.(starts, 1)
-        ends = min.(ends, l)
-        ((start:stop, uniX[start:stop], uniY[start:stop]) 
-            for (start,stop) in zip(starts,ends)
+        ends      = rand.(ends_ranges)
+        starts    = max.(starts, 1)
+        ends      = min.(ends, l)
+        midpoints = mean([starts ends], dims=2)|>vec
+        s = sortperm(midpoints)
+        starts, ends, midpoints = starts[s], ends[s], midpoints[s]
+        ((midpoint, start:stop, uniX[start:stop], uniY[start:stop]) 
+            for (midpoint,start,stop) in zip(midpoints,starts,ends)
         )
     end
 
@@ -194,9 +198,9 @@ module causal
         @infiltrate
         # PA = Vector{Union{Missing,Vector}}(missing, n)
         # PA = Vector{Union{Missing,Vector}}(missing, n)
-        PA1 = [Dict() for _ in 1:Threads.nthreads()]
-        PA2 = [Dict() for _ in 1:Threads.nthreads()]
-        CM  = [Dict() for _ in 1:Threads.nthreads()]
+        PA1 = [OrderedDict() for _ in 1:Threads.nthreads()]
+        PA2 = [OrderedDict() for _ in 1:Threads.nthreads()]
+        CM  = [OrderedDict() for _ in 1:Threads.nthreads()]
         uniX = convert(Array{Float64}, uniX)
         uniY = convert(Array{Float64}, uniY)
         if method == :anylegalsize
@@ -213,15 +217,16 @@ module causal
         prog = Progress(length(iters), 1, 
                         "Transfer Entropy-ensembling")
         (i, (t,ux,uy)) = first(iters)
-        prog = Progress(length(iters), 1, 
-                        "Transfer Entropy-ensembling")
         M = [TEShannon(embedding=EmbeddingTE(dT=1,dS=1,ηTf=h))
                 for h in horizon]
+        lux, luy = unique(ux)|>length, unique(uy)|>length
         k = min(max(2,lux,luy),8)
         e = CausalityTools.Lindner(k=k, w=1)
-        Threads.@threads for (i,(t,ux,uy)) in collect(iters)
-            key = (i,t)
-            lux, luy = unique(ux)|>length, unique(uy)|>length
+        prog = Progress(length(iters), 1, 
+                        "Transfer Entropy-ensembling")
+
+        Threads.@threads for (i,(t,T,ux,uy)) in collect(iters)
+            key = (t,i)
             # vary ηTf to obtain horizon
             try
                 pa1= @async [CausalityTools.transferentropy(m, e, ux, uy; kws...) 
@@ -237,13 +242,19 @@ module causal
             end
             next!(prog)
         end
-        PA1 = merge(PA1...)
-        PA1 = hcat(PA1...)'
-        PA2 = merge(PA2...)
-        PA2 = hcat(PA2...)'
-        CM = merge(CM...)
+        PA1 = sort(merge(PA1...))
+        K   = keys(PA1)|>collect
+        PA1 = hcat((PA1|>values|>collect)...)'
+        PA2 = sort(merge((PA2...)))
+        PA2 = hcat((PA2|>values|>collect)...)'
+        CM  = sort(merge(CM...))
+        @exfiltrate
         @infiltrate
-        EnsemblePA(method, PA1, PA2, zip(keys(PA)...)...)
+        T = [k[1] for k in K]
+        I = [k[2] for k in K]
+        W = T.|>last .- T.|>first
+        T = Int16.(round.(vec(T)))
+        EnsemblePA(method, PA1, PA2, I, T, W)
     end
     
     ## ---------- GLOBAL WITH AN ESTIMATOR ------------------

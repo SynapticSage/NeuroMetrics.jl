@@ -292,7 +292,7 @@ module spiking
 
     update
     """
-    function prepiso!(spikes::AbstractDataFrame,  
+    function prepiso(spikes::AbstractDataFrame,  
                       theta::Union{AbstractDataFrame,Nothing}; 
                       cycle=:cycle, refreshcyc=true, cells=nothing,
                       beh=nothing, ripples=nothing, immobility_thresh=2,
@@ -303,11 +303,11 @@ module spiking
         end
 
         if refreshcyc
-            if :cycle ∉ propertynames(spikes)
-                spikes.cycle = 
+            if Symbol(cycle) ∉ propertynames(spikes)
+                spikes[!,String(cycle)] = 
                     Vector{Union{Float32,Missing}}(missing, size(spikes,1))
             else
-                spikes.cycle .= missing
+                spikes[!,String(cycle)] .= missing
             end
         end
 
@@ -354,15 +354,19 @@ module spiking
                 # Move phase over per tetrode
                 DIutils.filtreg.register(l, sp; on="time", 
                                          transfer=[String(cycle)])
-                cycles = convert(Vector{Union{Float32,Missing}}, sp.cycle)
-                if length(unique(cycles)) < 2
+                cycles = convert(Vector{Union{Float32,Missing}}, 
+                        sp[!,String(cycle)])
+                ncycles = length(unique(cycles))
+                if ncycles < 2
                     println("Only one-two cycle found for $(sp.unit[1])")
-                    # @infiltrate
+                else
+                    println("Found $ncycles cycles for $(sp.unit[1])")
                 end
-                G[(;unit=sp.unit[1])][!,:cycle] .= cycles
+                G[(;unit=sp.unit[1])][!,String(cycle)] .= cycles
             end
         end
-        if all(ismissing.(spikes.cycle))
+        GC.gc()
+        if all(ismissing.(spikes[!, String(cycle)]))
             throw(ErrorException("No cycles found"))
         else
             spikes
