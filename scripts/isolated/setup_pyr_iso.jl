@@ -168,7 +168,8 @@ for animal in animals
         cells=CELLS, include_samples=false, matchtetrode=true, 
         BEH, RIPPLES)
     DI.save_spikes_taginfo(begin
-        transform(spikes[!,[:animal, :day, :time, :unit, :cycle]], :time=>t->t.+time_factors[animal]
+        transform(spikes[!,[:animal, :day, :time, :unit, :cycle]], 
+            :time=>t->t.+time_factors[animal],
         renamecols=false)
     end , animal, day, "pyr_cycles")
     # Cycles unfiltered

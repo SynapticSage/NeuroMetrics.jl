@@ -195,9 +195,9 @@ module causal
     function ensembledtransferentropy(uniX, uniY, est, horizon;
         f=1, n=10_000, method=:timeresolved, 
         horizon_max::Union{Nothing,Int}=nothing, kws...)
-        @infiltrate
         # PA = Vector{Union{Missing,Vector}}(missing, n)
         # PA = Vector{Union{Missing,Vector}}(missing, n)
+   
         PA1 = [OrderedDict() for _ in 1:Threads.nthreads()]
         PA2 = [OrderedDict() for _ in 1:Threads.nthreads()]
         CM  = [OrderedDict() for _ in 1:Threads.nthreads()]
@@ -217,11 +217,16 @@ module causal
         prog = Progress(length(iters), 1, 
                         "Transfer Entropy-ensembling")
         (i, (t,ux,uy)) = first(iters)
+        UX = [ux|>unique|>length for (_,_,ux,uy) in generator] 
+        UY = [uy|>unique|>length for (_,_,ux,uy) in generator] 
+        horizon = -abs(maximum(horizon)):abs(maximum(horizon))
         M = [TEShannon(embedding=EmbeddingTE(dT=1,dS=1,ηTf=h))
                 for h in horizon]
+        # TODO: lux = median(UX), luy = median(UY)
         lux, luy = unique(ux)|>length, unique(uy)|>length
         k = min(max(2,lux,luy),8)
         e = CausalityTools.Lindner(k=k, w=1)
+        e = ValueHistogram(1/max(lux,luy))
         prog = Progress(length(iters), 1, 
                         "Transfer Entropy-ensembling")
 
@@ -233,8 +238,8 @@ module causal
                      for m in M]
                 pa2= @async [CausalityTools.transferentropy(m, e, uy, ux,
                                             kws...)
-                     for m in M]
-                cm = @async (countmap(ux), countmap(uy))
+                for m in M]
+                cm = @async (;cmx=countmap(ux), cmy=countmap(uy), T)
                 PA1[Threads.threadid()][key] = fetch(pa1)
                 PA2[Threads.threadid()][key] = fetch(pa2)
                 CM[Threads.threadid()][key]  = fetch(cm)
@@ -242,19 +247,18 @@ module causal
             end
             next!(prog)
         end
+
         PA1 = sort(merge(PA1...))
         K   = keys(PA1)|>collect
-        PA1 = hcat((PA1|>values|>collect)...)'
         PA2 = sort(merge((PA2...)))
-        PA2 = hcat((PA2|>values|>collect)...)'
         CM  = sort(merge(CM...))
-        @exfiltrate
-        @infiltrate
+        PA1 = hcat((PA1|>values|>collect)...)'
+        PA2 = hcat((PA2|>values|>collect)...)'
         T = [k[1] for k in K]
         I = [k[2] for k in K]
-        W = T.|>last .- T.|>first
+        # W = T.|>last .- T.|>first
         T = Int16.(round.(vec(T)))
-        EnsemblePA(method, PA1, PA2, I, T, W)
+        EnsemblePA(method, PA1, PA2, I, T, fill(0, size(T,1)))
     end
     
     ## ---------- GLOBAL WITH AN ESTIMATOR ------------------

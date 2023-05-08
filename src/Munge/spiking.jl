@@ -53,6 +53,45 @@ module spiking
 
 
     """
+        tocount (w/behavior)
+
+    if passed with behavior, it attempts to lay out bins centered at each
+    behavioral sample
+
+    see torate(spikes::DataFrame, dims) for doc of the rest of the 
+    functionalities
+
+    # Arguments
+    - `spikes::DataFrame`: dataframe of spikes
+    - `beh::DataFrame`: dataframe of behavior
+    - `dims=:unit`: dimensions to tensorize over
+    - `binning_ratio=1`: ratio of binning to behavioral sampling
+    - `downsample=nothing`: downsample behavioral data by this factor
+    - `kws...`: keyword arguments to pass to torate(spikes::DataFrame, dims)
+    """
+    function tocount(spikes::DataFrame, beh::DataFrame, 
+    dims::Union{T,Vector{T}} where T <: SymStr=:unit; 
+    downsample::Union{Int,Nothing}=nothing,
+            binning_ratio=1, kws...)
+        beh = downsample === nothing ? beh : beh[1:downsample:end, :]
+        grid = copy(beh.time)
+        δ = median(diff(beh.time)) / binning_ratio
+        grid .+= δ
+        grid = [[grid[1]-δ]; grid]
+        grid = grid .- (1/2)δ
+        # Constrain to epoch periods
+        epoch_periods = Table.get_periods(beh, "epoch")
+        in_period = [Table.isin.(spikes.time,
+                                 epoch_period.start, epoch_period.stop) 
+         for epoch_period in eachrow(epoch_periods)]
+        in_period = sum(in_period)
+        spikes = spikes[in_period .> 0, :]
+        # Make acquire spiking structure
+        tocount(spikes, dims; kws..., grid)
+    end
+
+
+    """
         tocount
 
     getting spike count matrix/tensor from DF of spikes
@@ -61,8 +100,9 @@ module spiking
         if grid === nothing
             grid = minimum(spikes.time):binsize:maximum(spikes.time)
         end
+        @assert !(dims isa DataFrame)
         dims = dims isa Vector ? dims : [dims]
-        T =  Munge.tensorize(spikes, dims, :time)
+        T =  Munge.tensor.tensorize(spikes, dims, :time)
         prog = Progress(length(T); desc="Executing count of $dims")
         M = Array{DimArray}(undef, size(T)...)
         Threads.@threads for ind in eachindex(T)
@@ -302,13 +342,16 @@ module spiking
             @error "Can only run isolated on one animal at a time"
         end
 
-        if refreshcyc
-            if Symbol(cycle) ∉ propertynames(spikes)
-                spikes[!,String(cycle)] = 
-                    Vector{Union{Float32,Missing}}(missing, size(spikes,1))
-            else
-                spikes[!,String(cycle)] .= missing
-            end
+        if refreshcyc || Symbol(cycle) ∉ propertynames(spikes)
+            spikes[!,String(cycle)] = 
+                Vector{Union{Float32,Missing}}(missing, size(spikes,1))
+        elseif refreshcyc
+            spikes[!,String(cycle)] .= missing
+        end
+
+        added_lfp_field = true
+        if String(cycle) ∉ propertynames(theta)
+            theta[!,String(cycle)] = theta[!,:cycle]
         end
 
         if immobility_thresh > 0
@@ -365,6 +408,9 @@ module spiking
                 G[(;unit=sp.unit[1])][!,String(cycle)] .= cycles
             end
         end
+        if added_lfp_field
+            theta = theta[!, Not(String(cycle))]
+        end
         GC.gc()
         if all(ismissing.(spikes[!, String(cycle)]))
             throw(ErrorException("No cycles found"))
@@ -379,7 +425,7 @@ module spiking
         func = x->(i=isolated(x; kws...);next!(prog);i)
         # combine(groupby(spikes, :unit), func)
         spikes = groupby(spikes, :unit)
-        Threads.@threads for cell in spikes
+        for cell in spikes
             try
                 func(cell)
             catch exception
@@ -409,7 +455,8 @@ module spiking
     - `SubDataFrame`: dataframe with isolation stats
     
     """
-    function isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle, include_samples::Bool=false, overwrite=false)
+    function isolated(spikes::SubDataFrame; N::Int=3, thresh::Int=8,
+    cycle::Symbol=:cycle, include_samples::Bool=false, overwrite=false)
         explore = setdiff(-N:N,0)
         println("Setting up unit $(spikes.unit[1])")
         if overwrite || !hasproperty(spikes, :isolated)
@@ -424,8 +471,8 @@ module spiking
         if overwrite || (include_samples && !hasproperty(spikes, :isosamples))
             spikes[!,:meancyc] = Vector{Union{Missing,Vector}}(missing, size(spikes,1))
         end
-        spcycles = groupby(spikes, cycle_prop)
-        if all(ismissing.(spikes[!,cycle_prop]))
+        spcycles = groupby(spikes, cycle)
+        if all(ismissing.(spikes[!,cycle]))
             @warn "All cycles are missing" unit=spikes.unit[1]
         end
         #if length(cycles) > 1
@@ -433,48 +480,47 @@ module spiking
         #end
         #(c,cycle) =  first(enumerate(cycles))
         print("Running unit ", spikes.unit[1])
-        for (c,cycle) in enumerate(spcycles)
+        for (c,spcycle) in enumerate(spcycles)
             # find the N closest cycles
             explore_cycles = unique(max.(min.(c .+ explore, 
                                         [size(spcycles,1)]),[1]))
             if length(explore_cycles) < length(explore)
-                cycle.isolated .= false
+                spcycle.isolated .= false
 
-                center_times = [abs(mean(c.time)-mean(cycle.time)) 
+                center_times = [abs(mean(c.time)-mean(spcycle.time)) 
                                 for c in spcycles[explore_cycles]]
                 order   = sortperm(center_times)
                 nearest = explore_cycles[order] # TODO: see below
-                cycle_prox = [abs(cycle[1,cycle_prop] - 
-                              other_cyc[1,cycle_prop])
+                cycle_prox = [abs(spcycle[1,cycle] - 
+                              other_cyc[1,cycle])
                               for other_cyc in spcycles[nearest]]
-                nearestcyc = minimum(cycle_prox)
-                meancyc    = mean(cycle_prox)
-                cycle.meancyc    .= meancyc
-                cycle.nearestcyc .= nearestcyc
+                nearestcyc = @async minimum(cycle_prox)
+                meancyc    = @async mean(cycle_prox)
+                spcycle.meancyc    .= fetch(meancyc)
+                cycle.nearestcyc .= fetch(nearestcyc)
 
             else
-                center_times = [abs(mean(c.time)-mean(cycle.time)) 
+                center_times = [abs(mean(c.time)-mean(spcycle.time)) 
                 for c in spcycles[explore_cycles]]
                 order = sortperm(center_times)
                 # TODO: make this match TODO above
                 nearest = explore_cycles[order[1:N]] 
-                cycle_prox = [abs(cycle[1,cycle_prop] - 
-                                other_cyc[1,cycle_prop])
+                cycle_prox = [abs(spcycle[1,cycle] - 
+                                other_cyc[1,cycle])
                               for other_cyc in spcycles[nearest]]
-                nearestcyc = minimum(cycle_prox)
-                meancyc    = mean(cycle_prox)
+                nearestcyc = @async minimum(cycle_prox)
+                meancyc    = @async mean(cycle_prox)
+                spcycle.meancyc    .= fetch(meancyc)
+                spcycle.nearestcyc .= fetch(nearestcyc)
                 isolated   = meancyc > thresh
-                cycle.isolated   .= isolated
-                cycle.meancyc    .= meancyc
-                cycle.nearestcyc .= nearestcyc
+                spcycle.isolated   .= isolated
                 if include_samples
-                    cycle.isosamples .= [cycle_prox]
+                    spcycle.isosamples .= [cycle_prox]
                 end
             end
         end
         spikes
     end
-
 
     """
         rate_todataframe

@@ -8,7 +8,8 @@ module Precompile
     # Spends less time in precompile when a function/module is first called
 
     _GFA_dependencies=["DataFrames", 
-                        "FileIO","UnicodePlots", # added unicodeplots for plots
+                        "FileIO",
+                        #"UnicodePlots", # added unicodeplots for plots
                         "Plots", 
                        "Makie", "OhMyREPL", 
                        "CSV", 

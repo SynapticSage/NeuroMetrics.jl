@@ -43,10 +43,13 @@ module manifold
         else
             opt = Dict()
         end
-        postprocess(parse(opt, args...; kws..., return_parser=true))
+        postprocess(parse(opt, args...; kws..., return_parser=false))
     end
-    function parse(opt::Dict, pos...; kws...)
-        postprocess( merge(parse(pos...; kws...), opt))
+    function parse(opt::Dict, pos::Union{Vector,Nothing}=nothing; return_parser::Bool=false)
+        # BUG: if return_parser is true, then the parser is merged as if a dict
+        opt = merge(manifold.parse(pos; return_parser), opt);
+        opt = Dict(keys(opt) .=> values(opt))
+        postprocess( opt )
     end
     """
         parse(args=nothing; return_parser::Bool=false)
@@ -54,7 +57,7 @@ module manifold
     return command line parser for flags that control my manifold
     related analyses
     """
-    function parse(args=nothing; return_parser::Bool=false)
+    function parse(args::Union{Nothing,Vector}=nothing; return_parser::Bool=false)
         parser = ArgParseSettings()
         default_splits = 10
         default_sps = 10
@@ -115,10 +118,9 @@ module manifold
     end
 
     function postprocess(opt::Dict)
-        if opt["N"] == -1
+        if "N" in keys(opt) && opt["N"] == -1
             opt["N"] = opt["sps"] * opt["splits"]
         end
-        @assert opt["N"] != -1
         opt
     end
 
