@@ -536,6 +536,54 @@ module spiking
         Table.from_dimarrary(X, registrant...)
     end
 
+    """
+        ripple_spikestats
+    
+    Add details about ripple events to spike data
+    """
+    function event_spikestats!(spikes::AbstractDataFrame,
+                               events::AbstractDataFrame;
+                eventname = "ripple")
+
+        eventname = string(eventname)
+        spikes[!, eventname] = Vector{Int32}(undef, size(spikes,1))
+        spikes[!, eventname*"_phase"] = Vector{Float32}(undef, size(spikes,1))
+        spikes[!, eventname*"_time"]  = Vector{Float32}(undef, size(spikes,1))
+
+        event_of = DIutils.in_range_index(spikes.time, events; 
+                                   start=:start, stop=:stop)
+        event_of = convert(Vector{Int32}, event_of)
+        spikes[!,eventname] = event_of
+
+        spikes = subset(spikes, :ripple=>r->r .!= 0, view=true)
+
+        # Add ripple phase
+        spikes[:, eventname*"_start"] = 
+            events[spikes[!,eventname], :start]
+        spikes[:, eventname*"_stop"] = 
+        events[spikes[!,eventname], :stop]
+        spikes[!, eventname*"_phase"] = 
+            (spikes.time .- spikes[!,eventname*"_start") ./ 
+            (spikes[!,eventname*"_stop" .- spikes[!,eventname*"_start"])
+        spikes[!, eventname*"_time"] = (spikes.time .- spikes[!,eventname*"_start"])
+
+        return spikes
+    end
+
+    function event_spikestats!(spikes::GroupedDataFrame,
+                               events::GroupedDataFrame;
+             eventname = "ripple")
+        spikes[!, eventname]          = Vector{Int32}(undef, size(spikes,1))
+        spikes[!, eventname*"_phase"] = Vector{Float32}(undef, size(spikes,1))
+        spikes[!, eventname*"_time"]  = Vector{Float32}(undef, size(spikes,1))
+        K1 = keys(spikes) .|>  NamedTuple
+        K2 = keys(events)  .|> NamedTuple
+        K = intersect(K1,K2)
+        for k in K
+            spikes[k] = event_spikestats!(spikes[k], events[k], eventname=eventname)
+        end
+    end
+
 end
 
 

@@ -257,7 +257,7 @@ module causal
         T = [k[1] for k in K]
         I = [k[2] for k in K]
         # W = T.|>last .- T.|>first
-        T = Int16.(round.(vec(T)))
+        # save all variables up to here in JLD2.@save
         EnsemblePA(method, PA1, PA2, I, T, fill(0, size(T,1)))
     end
     

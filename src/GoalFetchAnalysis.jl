@@ -51,8 +51,10 @@ module GoalFetchAnalysis
     end
     export pushover
     pushover = DIutils.pushover
+    pushover("GoalFetchAnalysis.jl ready")
 
     include("Precompile.jl")
+
 
 end
 
@@ -86,7 +88,7 @@ end
     #import .Plot
 
     
-    #if isdir(projectdir("test")) && isfile(projectdir("test","runtests.jl")) && 
+    #if isdir(projectdir("test")) &&isfile(projectdir("test","runtests.jl")) && 
     #   "USE_PLUTO" ∉ keys(ENV)
     #   include(projectdir("test","runtests.jl"))
     #end
