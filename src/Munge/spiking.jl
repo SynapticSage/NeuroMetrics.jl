@@ -558,10 +558,8 @@ module spiking
         spikes = subset(spikes, eventname => r->r .!= 0, view=true)
 
         # Add event phase
-        spikes[:, eventname*"_start"] = 
-            events[spikes[!,eventname], :start]
-        spikes[:, eventname*"_stop"] = 
-        events[spikes[!,eventname], :stop]
+        spikes[:, eventname*"_start"] = events[spikes[!,eventname], :start]
+        spikes[:, eventname*"_stop"] = events[spikes[!,eventname], :stop]
         spikes[!, eventname*"_phase"] = 
             (spikes.time .- spikes[!,eventname*"_start"]) ./ 
             (spikes[!,eventname*"_stop"] .- spikes[!,eventname*"_start"])

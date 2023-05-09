@@ -12,7 +12,7 @@ optimal 𝛕 of each cell.
 =#
 
 using GoalFetchAnalysis
-using DataFrames, DataFramesMeta, ProgressMeter
+using DataFrames, DataFramesMeta, ProgressMeter, StatsBase, Statistics, StatsPlots, Plots
 
 #    _  _     _                    _       _       _        
 #  _| || |_  | |    ___   __ _  __| |   __| | __ _| |_ __ _ 
@@ -65,7 +65,7 @@ for (animal, day) in datasets
     end
     println("Loading $animal")
     cycles, spikes = get_data(animal, day)
-    println("Adding $tau to $animal")
+    println("Adding $taus to $animal")
     spikes = sort!(spikes, [:unit, :time])
     DIutils.filtreg.register(CELLS, spikes, on="unit", transfer=taus)
     println("Done with $animal")
@@ -93,10 +93,22 @@ spthrip = subset(SPIKES, :theta=>t->t .!== missing .&& t.>0,
                          :ripple => r-> r.!= NaN, 
                          :ripple=>t->t .!== missing .&& t.>0, view=true)
 
-unicodeplots()
-
+gr()
 histogram(filter(t->t!=0, sptheta.theta_phase))
 histogram(filter(r->r!=0,sprip.ripple_phase))
 
+histogram2d(spthrip.ripple_phase, spthrip.theta_phase, markersize=0.1, alpha=0.1, colorbar=true)
+
+th = sort(dropmissing(combine(groupby(sptheta, :unit), :theta_phase=>mean,
+    taus.=>first, renamecols=false), "all-1of20"),:theta_phase)
+rip = sort(dropmissing(combine(groupby(sprip, :unit), :ripple_phase=>mean,
+    taus.=>first, renamecols=false), "all-1of20"),:ripple_phase)
+thrip = sort(dropmissing(combine(groupby(spthrip, :unit), :ripple_phase=>mean,
+    :theta_phase=>mean, taus.=>first, renamecols=false), "all-1of20"),:ripple_phase)
+
+scatter(th.theta_phase, th[!,"all-1of20"], markersize=0.1, alpha=0.1)
+scatter(rip.ripple_phase, rip[!,"all-1of20"], markersize=0.1, alpha=0.1)
+scatter(thrip.ripple_phase, thrip.theta_phase, thrip[!,"all-1of20"], markersize=0.1, alpha=0.1)
+scatter(thrip.ripple_phase, thrip.theta_phase, markersize=0.1, alpha=0.1)
 
 
