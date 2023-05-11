@@ -231,3 +231,11 @@ DIutils.pushover("Ready for cachemain.jl")
     DI.save_cell_taginfo(cells_tau, animal, day, "timeshift")
 end
 
+# Remove any redundant keys from the dictionary
+redundant_keys = Filt.redundant_filters
+removals = reduce(.|,
+    [occursin.(string(key), names(CELLS))
+        for key in redundant_keys]
+)
+CELLS=CELLS[!, Not(names(CELLS)[removals])]
+DI.save_cell_taginfo(CELLS, "super_clean", 0, "timeshift")
