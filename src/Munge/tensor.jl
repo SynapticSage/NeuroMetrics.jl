@@ -19,7 +19,7 @@ module tensor
     using DimensionalData
     using DimensionalData.Dimensions
     using Interpolations
-    using DynamicAxisWarping
+    # using DynamicAxisWarping
     using TensorToolbox
     using CategoricalArrays
 

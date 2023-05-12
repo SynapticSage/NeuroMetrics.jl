@@ -42,7 +42,7 @@ module lfp_decode
         lfp.chunks = Int16.(round.(((1:size(lfp,1))./1000000)))
         lfp = groupby(lfp,:chunks)
         @time Threads.@threads for group in lfp
-            LoopVectorization.@avxt goodcycles = in.(group.cycle, [cycles.cycle])
+            goodcycles = in.(group.cycle, [cycles.cycle])
             group[(!).(goodcycles), :cycle] .= -1
         end
         lfp = combine(lfp, identity)

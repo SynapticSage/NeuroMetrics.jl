@@ -16,13 +16,16 @@ module Precompile
                         # "HDF5", # removed 2023-05-01, check back later
                         "NetCDF", "Arrow", "Revise", 
                        #"Reexport","CairoMakie", 
-                       "DataFramesMeta", "Statistics", "NaNStatistics",
+                       "DataFramesMeta", 
+                        # "Statistics", # sliding distance
+                        "NaNStatistics",
                        "ProgressMeter", "Glob", "Printf", "StatsPlots",
                        "StatsBase", "Distributions", "Shuffle", "VideoIO",
                        "DataStructures", "Gadfly", "TableView", "LazyGrids",
                        "GeometricalPredicates", "RecipesBase",
                        "DimensionalData", "HypothesisTests",
-                       "LoopVectorization", "Infiltrator", "Markdown",
+                       #"LoopVectorization", # removed 2023-05-12, check back later
+                        "Infiltrator", "Markdown",
                        "InteractiveUtils", "Polyester", "Random", "Colors",
                        "ColorSchemes", "ProtoStructs", "KernelDensity", # "UMAP",
                        "Entropies", "CausalityTools", "Term", "Images",

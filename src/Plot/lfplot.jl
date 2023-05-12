@@ -4,6 +4,7 @@ using RecipesBase
 using StatsPlots
 using DataFrames
 using DIutils
+using Infiltrator
 
 export cycleplot
 """
@@ -11,13 +12,19 @@ export cycleplot
 
 Checks that your lfp dataframe cycle labels are correct (what you expect)
 """
-function cycleplot(lf::DataFrame; otherfield=nothing, kws=(;))
+function cycleplot(lf::AbstractDataFrame; otherfield=nothing, kws=(;))
     #otherfield = otherfields isa Vector ? otherfields : [otherfields]
     otherfields = otherfield isa AbstractVector ? otherfield : [otherfield]
     kws = kws isa Vector ? kws : fill(kws, length(otherfields))
     P = @df lf[1:2500,:] begin
         Plots.plot(:time, :raw, label="raw")
-        Plots.plot!(:time, mod2pi.(:phase) .+100,label="phase")
+    end
+    if :phase in propertynames(lf)
+        P = @df lf[1:2500,:] begin
+            Plots.plot!(:time, mod2pi.(:phase) .+100,label="phase")
+        end
+    end
+    P = @df lf[1:2500,:] begin
         Plots.plot!(:time, 10*:cycle, label="cycle labels")
     end
     if otherfields !== nothing 
@@ -25,7 +32,8 @@ function cycleplot(lf::DataFrame; otherfield=nothing, kws=(;))
             if otherfield === nothing; continue; end
             @assert otherfield isa Symbol "otherfield=$otherfield should be a symbol"
             @df lf[1:2500, :] begin
-                Plots.plot!(:time, 100 * nannorm_extrema(lf[1:2500,otherfield], (-1,1)); label=string(otherfield), kw...) 
+                Plots.plot!(:time, 100 * nannorm_extrema(lf[1:2500,otherfield],
+                (-1,1)); label=string(otherfield), kw...) 
             end
         end
     end
