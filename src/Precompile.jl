@@ -8,9 +8,9 @@ module Precompile
     # Spends less time in precompile when a function/module is first called
 
     _GFA_dependencies=["DataFrames", 
-                        "FileIO",
+                       "FileIO",
                         #"UnicodePlots", # added unicodeplots for plots
-                        "Plots", 
+                       "Plots", 
                        "Makie", "OhMyREPL", 
                        "CSV", 
                         # "HDF5", # removed 2023-05-01, check back later
@@ -18,8 +18,9 @@ module Precompile
                        #"Reexport","CairoMakie", 
                        "DataFramesMeta", 
                         # "Statistics", # sliding distance
-                        "NaNStatistics",
-                       "ProgressMeter", "Glob", "Printf", "StatsPlots",
+                       "NaNStatistics",
+                       "ProgressMeter", "Glob", "Printf", 
+                        #"StatsPlots",
                        "StatsBase", "Distributions", "Shuffle", "VideoIO",
                        "DataStructures", "Gadfly", "TableView", "LazyGrids",
                        "GeometricalPredicates", "RecipesBase",

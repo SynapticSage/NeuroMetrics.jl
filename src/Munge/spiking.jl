@@ -422,13 +422,14 @@ module spiking
     function isolated(spikes::AbstractDataFrame; kws...)
         prog = Progress(length(unique(spikes.unit)); 
                         desc="Adding isolation stats")
-        func = x->(i=isolated(x; kws...);next!(prog);i)
+        func = x->(i=spiking.isolated(x; kws...);next!(prog);i)
         # combine(groupby(spikes, :unit), func)
         spikes = groupby(spikes, :unit)
-        for cell in spikes
+        Threads.@threads for cell in spikes
             try
                 func(cell)
             catch exception
+                print("Caught exception for cell $(cell.unit[1])")
                 print(exception)
                 sleep(0.1)
             end
@@ -494,10 +495,10 @@ module spiking
                 cycle_prox = [abs(spcycle[1,cycle] - 
                               other_cyc[1,cycle])
                               for other_cyc in spcycles[nearest]]
-                nearestcyc = @async minimum(cycle_prox)
-                meancyc    = @async mean(cycle_prox)
-                spcycle.meancyc    .= fetch(meancyc)
-                cycle.nearestcyc .= fetch(nearestcyc)
+                nearestcyc = minimum(cycle_prox)
+                meancyc    = mean(cycle_prox)
+                spcycle.meancyc    .= (meancyc)
+                spcycle.nearestcyc .= (nearestcyc)
 
             else
                 center_times = [abs(mean(c.time)-mean(spcycle.time)) 
@@ -508,10 +509,11 @@ module spiking
                 cycle_prox = [abs(spcycle[1,cycle] - 
                                 other_cyc[1,cycle])
                               for other_cyc in spcycles[nearest]]
-                nearestcyc = @async minimum(cycle_prox)
-                meancyc    = @async mean(cycle_prox)
-                spcycle.meancyc    .= fetch(meancyc)
-                spcycle.nearestcyc .= fetch(nearestcyc)
+                nearestcyc = minimum(cycle_prox)
+                meancyc    = mean(cycle_prox)
+                spcycle.nearestcyc .= (nearestcyc)
+                meancyc             = (meancyc)
+                spcycle.meancyc    .= meancyc
                 isolated   = meancyc > thresh
                 spcycle.isolated   .= isolated
                 if include_samples

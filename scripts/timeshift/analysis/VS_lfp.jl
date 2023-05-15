@@ -1,7 +1,7 @@
 #=
-===================================================
+=bjkb================================================
 Script Name     : VS_lfp.jl
-Author          : Ryan Young
+Autho=r          : Ryan Young
 Created         : 05-03-2023
 Last Modified   : 05-03-2023
 ===================================================
@@ -213,6 +213,8 @@ plot(
     vline!([0], label="",c=:black);hline!([0], label="", c=:black)),
     title="Phase Relationship", label=""
 )
+
+
 
 # Description : each cells Z mean arrow length modulation visualized
 #               for theta
