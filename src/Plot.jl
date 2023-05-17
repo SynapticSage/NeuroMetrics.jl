@@ -46,6 +46,24 @@ function setfolder(args::String...)
 
     folder = DrWatson.plotsdir(parent_folder..., folder_args...)
     !(isdir(folder)) ? mkpath(folder) : nothing
+    ps()
+    folder
+end
+function pushfolder(args::String...)
+    @eval Plot folder_args = [folder_args..., $args...]
+    @eval Plot complete_folder_args = [parent_folder...,folder_args...]
+
+    folder = DrWatson.plotsdir(parent_folder..., folder_args...)
+    !(isdir(folder)) ? mkpath(folder) : nothing
+    ps()
+    folder
+end
+function popfolder(n::Int=1)
+    @eval Plot folder_args = folder_args[1:end-$n]
+    @eval Plot complete_folder_args = [parent_folder...,folder_args...]
+    folder = DrWatson.plotsdir(parent_folder..., folder_args...)
+    !(isdir(folder)) ? mkpath(folder) : nothing
+    ps()
     folder
 end
 function path_to_folderargs(arg::String)
@@ -60,6 +78,12 @@ function path_to_folderargs(arg::String)
 end
 setparentfolder_from_path(arg::String) = setparentfolder(path_to_folderargs(arg))
 setfolder_from_path(arg::String) = setfolder(path_to_folderargs(arg))
+
+function inspect(args::String...)
+    folder=DrWatson.plotsdir(Plot.parent_folder..., Plot.folder_args..., 
+        args...)
+    run(`ranger $folder`)
+end
 
 function save(desc::String; rmexist=nothing)
     desc = replace(desc,
