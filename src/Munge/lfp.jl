@@ -70,25 +70,44 @@ module lfp
     end
 
     """
-        bandpass
-
+        bandpass(df::DataFrame, low, high; order=5, smoothkws...)
     execute bandpass on an lfp dataframe
+    # Arguments
+    - `df::DataFrame`: dataframe with raw field
+    - `low::Number`: low frequency cutoff
+    - `high::Number`: high frequency cutoff
+    - `order::Int`: order of butterworth filter
+    - `smoothkws...`: keyword arguments to pass to `Table.smooth.gauss`; if
+      empty, no smoothing is performed
     """
-    function bandpass(df::DataFrame, low, high; order=5, smoothkws...)
-        # Butterworth and hilbert the averaged raw (averaging introduces higher
-        # freequency changes)
-        df = copy(df)
-        filt = DSP.analogfilter(DSP.Bandpass(low, high, fs=1/median(diff(df.time))),
+    function bandpass(df::AbstractDataFrame, low, high;
+                      fs=1/median(diff(df.time)),
+                      order=5, newname=:raw, smoothkws...)
+        filt = DSP.analogfilter(DSP.Bandpass(low, high, fs=fs),
                                 DSP.Butterworth(order))
-        df.raw =  Float64.(df.raw)
-        df.raw = DSP.filtfilt(filt.p, df.raw)
-        hilb   = DSP.hilbert(df.raw)
-        df.amp, df.phase = abs.(hilb), angle.(hilb)
+        prevtype = typeof(df.raw)
+        println("raw => float64")
+        df.raw =  Float32.(df.raw)
+        print("filtering...")
+        df[!,newname] = DSP.filtfilt(filt.p, df.raw)
+        print("hilbert...")
+        hilb   = DSP.hilbert.(df.raw)
+        print("amp and phase...")
+        amp, phase = abs.(hilb), angle.(hilb)
         # Find higher variance tetrodes
+        df[!,newname]           = prevtype(df.raw)
+        df[!,newname * "amp"]   = Float16(df.amp)
+        df[!,newname * "phase"] = Float16(df.phase)
         if !(isempty(smoothkws))
+            println("smoothing...")
             df = Table.smooth.gauss(df, smoothkws...)
         end
         df
+    end
+    function bandpass(gdf::GroupedDataFrame, pos...; kws...)
+        for (g,df) in enumerate(gdf)
+            gdf[g] = bandpass(df, pos...; kws...)
+        end
     end
 
     """

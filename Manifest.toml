@@ -2,7 +2,7 @@
 
 julia_version = "1.9.0"
 manifest_format = "2.0"
-project_hash = "11ad71f217fa9af4c9efcad02286830ab0b36747"
+project_hash = "a6c9beba24c84a6df957c4d0fcd2c1f89d11bd2b"
 
 [[deps.ARFFFiles]]
 deps = ["CategoricalArrays", "Dates", "Parsers", "Tables"]
@@ -715,14 +715,18 @@ uuid = "dc8bdbbb-1ca9-579f-8c36-e416f6a65cce"
 version = "1.0.2"
 
 [[deps.DI]]
-deps = ["AlgebraOfGraphics", "ArgParse", "Arrow", "AutoSysimages", "AxisArrays", "BayesHistogram", "BenchmarkTools", "Bootstrap", "CSV", "CUDA", "Cairo", "CategoricalArrays", "CausalityTools", "ChaosTools", "ColorSchemeTools", "ColorSchemes", "Colors", "Combinatorics", "Compose", "Conda", "CondaPkg", "Crayons", "CurveFit", "DIutils", "DSP", "Dagger", "DataAPI", "DataFrames", "DataFramesMeta", "DataStructures", "Dates", "Debugger", "DelayEmbeddings", "Diary", "DimensionalData", "DirectionalStatistics", "Distances", "Distributed", "Distributions", "DrWatson", "DynamicAxisWarping", "ElectronDisplay", "Entropies", "Eyeball", "FixedPointNumbers", "Flux", "Fontconfig", "GLM", "GPUArrays", "GR", "GRUtils", "GR_jll", "Gadfly", "Gaston", "GeometricalPredicates", "Glob", "GroupSlices", "HDF5", "HypothesisTests", "ImageFiltering", "ImageSegmentation", "ImageTransformations", "Images", "Infiltrator", "InspectDR", "Interact", "InteractiveCodeSearch", "InteractiveErrors", "InteractiveUtils", "Interpolations", "JLD2", "JSServe", "Jackknife", "JuliaFormatter", "KernelDensity", "KernelDensitySJ", "LIBSVM", "LaTeXStrings", "LanguageServer", "LazyGrids", "Literate", "Loess", "LoopVectorization", "LsqFit", "Luxor", "MATLAB", "MLJ", "MLJBase", "MLJLIBSVMInterface", "Markdown", "MarkdownLiteral", "Measures", "Memoization", "Metadata", "Metrics", "Missings", "ModernGL", "Mux", "NaNStatistics", "NamedTupleTools", "NetCDF", "Observables", "OhMyREPL", "OneHotArrays", "PGFPlots", "PGFPlotsX", "PProf", "PalmerPenguins", "PersistentCollections", "PlotThemes", "PlotlyJS", "Plots", "Pluto", "PlutoUI", "Polyester", "Polynomials", "Poppler_jll", "PrettyTables", "Printf", "ProfileView", "ProgressLogging", "ProgressMeter", "Proj", "ProtoStructs", "PyCall", "PyPlot", "Random", "RecipesBase", "RecipesPipeline", "RecursiveArrayTools", "Reexport", "Revise", "RollingFunctions", "ScientificTypes", "ScikitLearn", "SearchSortedNearest", "Serialization", "ShiftedArrays", "Shuffle", "SignalAnalysis", "SoftGlobalScope", "StaticArrays", "StaticLint", "Statistics", "StatsBase", "StatsPlots", "SymbolServer", "TableView", "Tables", "TensorToolbox", "Term", "Test", "TextWrap", "ThreadSafeDicts", "ThreadsX", "TimerOutputs", "UMAP", "UnicodePlots", "Unitful", "VideoIO", "WGLMakie"]
-path = "/home/ryoung/Projects/DI/"
+deps = ["AlgebraOfGraphics", "ArgParse", "Arrow", "AutoSysimages", "AxisArrays", "BayesHistogram", "BenchmarkTools", "Bootstrap", "CSV", "CUDA", "Cairo", "CategoricalArrays", "CausalityTools", "ChaosTools", "ColorSchemeTools", "ColorSchemes", "Colors", "Combinatorics", "Compose", "Conda", "CondaPkg", "Crayons", "CurveFit", "DIutils", "DSP", "Dagger", "DataAPI", "DataFrames", "DataFramesMeta", "DataStructures", "Dates", "Debugger", "DelayEmbeddings", "Diary", "DimensionalData", "DirectionalStatistics", "Distances", "Distributed", "Distributions", "DrWatson", "ElectronDisplay", "Entropies", "Eyeball", "FixedPointNumbers", "Flux", "Fontconfig", "GLM", "GPUArrays", "GR", "GRUtils", "GR_jll", "Gadfly", "Gaston", "GeometricalPredicates", "Glob", "GroupSlices", "HDF5", "HypothesisTests", "ImageFiltering", "ImageSegmentation", "ImageTransformations", "Images", "Infiltrator", "InspectDR", "Interact", "InteractiveCodeSearch", "InteractiveErrors", "InteractiveUtils", "Interpolations", "JLD2", "JSServe", "Jackknife", "JuliaFormatter", "KernelDensity", "KernelDensitySJ", "LIBSVM", "LaTeXStrings", "LanguageServer", "LazyGrids", "Literate", "Loess", "LoopVectorization", "LsqFit", "Luxor", "MATLAB", "MLJ", "MLJBase", "MLJLIBSVMInterface", "Markdown", "MarkdownLiteral", "Measures", "Memoization", "Metadata", "Metrics", "Missings", "ModernGL", "Mux", "NaNStatistics", "NamedTupleTools", "NetCDF", "Observables", "OhMyREPL", "OneHotArrays", "PGFPlots", "PGFPlotsX", "PProf", "PalmerPenguins", "PersistentCollections", "PlotThemes", "PlotlyJS", "Plots", "Pluto", "PlutoUI", "Polyester", "Polynomials", "Poppler_jll", "PrettyTables", "Printf", "ProfileView", "ProgressLogging", "ProgressMeter", "Proj", "ProtoStructs", "PyCall", "PyPlot", "Random", "RecipesBase", "RecipesPipeline", "RecursiveArrayTools", "Reexport", "Revise", "RollingFunctions", "ScientificTypes", "ScikitLearn", "SearchSortedNearest", "Serialization", "ShiftedArrays", "Shuffle", "SignalAnalysis", "SoftGlobalScope", "StaticArrays", "StaticLint", "Statistics", "StatsBase", "StatsPlots", "SymbolServer", "TableView", "Tables", "TensorToolbox", "Term", "Test", "TextWrap", "ThreadSafeDicts", "ThreadsX", "TimerOutputs", "UMAP", "UnicodePlots", "Unitful", "VideoIO", "WGLMakie"]
+git-tree-sha1 = "67f61ac4ef0ad9483d3ec69749e05828d4705e27"
+repo-rev = "main"
+repo-url = "/home/ryoung/Code/projects/DI"
 uuid = "7a052949-c101-4ca3-9a7e-43a2532b2fa8"
 version = "0.0.0"
 
 [[deps.DIutils]]
 deps = ["Blink", "Bootstrap", "CSV", "ColorSchemes", "Colors", "DataFrames", "DataStructures", "Dates", "DimensionalData", "DrWatson", "Entropies", "ImageFiltering", "Infiltrator", "JLD2", "LazyGrids", "LazySets", "LoopVectorization", "MLJBase", "MathOptInterface", "Missings", "NaNStatistics", "NamedTupleTools", "Plots", "ProgressLogging", "ProgressMeter", "Random", "Reexport", "SearchSortedNearest", "Statistics", "StatsBase", "TableView", "Test", "TextWrap", "ThreadsX"]
-path = "/home/ryoung/Projects/DIutils/"
+git-tree-sha1 = "0cb04197bec28c3833b554c07e9547eb05b9fb55"
+repo-rev = "main"
+repo-url = "/home/ryoung/Code/projects/DIutils"
 uuid = "c2ca1ded-f992-4ce3-97e2-f83a2541d925"
 version = "0.1.0"
 
@@ -739,9 +743,9 @@ uuid = "d58978e5-989f-55fb-8d15-ea34adc7bf54"
 version = "0.16.3"
 
 [[deps.DataAPI]]
-git-tree-sha1 = "e8119c1a33d267e16108be441a287a6981ba1630"
+git-tree-sha1 = "8da84edb865b0b5b0100c0666a9bc9a0b71c553c"
 uuid = "9a962f9c-6df0-11e9-0e5d-c546b8b5ee8a"
-version = "1.14.0"
+version = "1.15.0"
 
 [[deps.DataDeps]]
 deps = ["BinaryProvider", "HTTP", "Libdl", "Reexport", "SHA", "p7zip_jll"]
@@ -879,9 +883,9 @@ version = "3.2.2"
 
 [[deps.DiskArrays]]
 deps = ["OffsetArrays"]
-git-tree-sha1 = "43226f85ea2e3946e48087db99f1ba67f9b5cdef"
+git-tree-sha1 = "00228aa7f225e670ded0c15ca8aa4557460a7948"
 uuid = "3c3547ce-8d99-4f5e-a174-61eb10b00ae3"
-version = "0.3.11"
+version = "0.3.12"
 
 [[deps.Distances]]
 deps = ["LinearAlgebra", "SparseArrays", "Statistics", "StatsAPI"]
@@ -932,12 +936,6 @@ deps = ["Calculus", "NaNMath", "SpecialFunctions"]
 git-tree-sha1 = "5837a837389fccf076445fce071c8ddaea35a566"
 uuid = "fa6b7ba4-c1ee-5f82-b5fc-ecf0adba8f74"
 version = "0.6.8"
-
-[[deps.DynamicAxisWarping]]
-deps = ["BinDeps", "DataStructures", "DelimitedFiles", "Distances", "FillArrays", "LinearAlgebra", "LoopVectorization", "Plots", "ProgressMeter", "Requires", "SlidingDistancesBase", "Statistics", "StatsBase", "Test", "UnPack"]
-git-tree-sha1 = "ae964c0360ff9ea362ef61ab704804aa2e033b46"
-uuid = "aaaaaaaa-4a10-5553-b683-e707b00e83ce"
-version = "0.4.14"
 
 [[deps.DynamicPPL]]
 deps = ["AbstractMCMC", "AbstractPPL", "BangBang", "Bijectors", "ChainRulesCore", "ConstructionBase", "Distributions", "DocStringExtensions", "LinearAlgebra", "LogDensityProblems", "MacroTools", "OrderedCollections", "Random", "Setfield", "Test", "ZygoteRules"]
@@ -3621,12 +3619,6 @@ deps = ["Dates", "FileIO", "ImageCore", "IndirectArrays", "OffsetArrays", "REPL"
 git-tree-sha1 = "8fb59825be681d451c246a795117f317ecbcaa28"
 uuid = "45858cf5-a6b0-47a3-bbea-62219f50df47"
 version = "0.1.2"
-
-[[deps.SlidingDistancesBase]]
-deps = ["DSP", "Distances", "DocStringExtensions", "LinearAlgebra", "LoopVectorization", "Statistics"]
-git-tree-sha1 = "154184f2a92f79a7a92f50d54ae39cdbbf65be05"
-uuid = "25b0cc0c-38e4-462f-a11d-8564868c562d"
-version = "0.3.3"
 
 [[deps.SnoopPrecompile]]
 deps = ["Preferences"]
