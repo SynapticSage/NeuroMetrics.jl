@@ -7,6 +7,26 @@ module lfp
         mat"addpath(genpath('/usr/local/chronux_2_12/'))"
     end
 
+    # Python butterworth : TODO: replce with DSP---dsp.jl gives different results
+    using PyCall
+    @pyimport numpy as np
+    signal = PyCall.pyimport("scipy.signal")
+    butter, ff = signal.butter, signal.filtfilt
+    # Define the Butterworth filter
+    function butterscipy(lowcut, highcut, fs; order=8, btype="band")
+        nyq = 0.5 * fs
+        low = lowcut / nyq
+        high = highcut / nyq
+        b, a = butter(order, [low, high], btype=btype)
+        return b, a
+    end
+    # Apply the Butterworth filter
+    function butter_filter(data, lowcut, highcut, fs; order=8, btype="band")
+        b, a = butterscipy(lowcut, highcut, fs; order=order, btype=btype)
+        y = ff(b, a, data)
+        return y
+    end
+
     export coherence
     function coherence(lf1::DataFrame, lf2::DataFrame; average=false, 
             returndf=false)
@@ -82,21 +102,18 @@ module lfp
     """
     function bandpass(df::AbstractDataFrame, low, high;
                       fs=1/median(diff(df.time)),
+                      lowerbandstop::Bool=true,
                       order=5, newname=:filt, smoothkws...)
         println("creating filter... low=$low, high=$high, order=$order")
         low, high = Float64(low), Float64(high)
-        filt = DSP.digitalfilter(DSP.Bandpass(low, high, fs=fs),
-                                 DSP.Butterworth(order))
-        prevtype = eltype(df.broadraw)
-        println("raw => float32")
-        df.broadraw =  Float64.(df.broadraw)
+        broadraw = df[!,:broadraw]
+        @infiltrate
+        prevtype = eltype(broadraw) |> nonmissingtype
+        print("raw => float64...")
+        broadraw =  Float64.(broadraw)
         print("filtering...")
-        if newname in names(df)
-            df[!,newname] = convert(Vector{Union{Missing,Float64}}, df[!,newname])
-            df[!,newname] = real.(DSP.filtfilt(filt.p, df.broadraw)).|>Float64
-        else
-            df[!,newname] = real.(DSP.filtfilt(filt.p, df.broadraw)).|>Float64
-        end
+        filt = butter_filter(broadraw, low, high, fs; order=order, btype="band")
+        df[!, newname] = filt
         print("hilbert...")
         goodinds = .!ismissing.(df[!,newname])
         hilb   = DSP.hilbert(disallowmissing(convert(Vector, 
@@ -105,13 +122,13 @@ module lfp
         amp, phase = abs.(hilb), angle.(hilb)
         # Find higher variance tetrodes
         to_prev(x) = prevtype <: Int ? prevtype(round(x)) : prevtype.(x)
-        df[!,:broadraw]    = to_prev(df.broadraw)
+        broadraw    = to_prev(broadraw)
         df[!,newname]      = to_prev(df[!,newname])
         df[!,newname * "amp"]   = Float32.(amp)
         df[!,newname * "phase"] = Float32.(phase)
         if !(isempty(smoothkws))
             println("smoothing...")
-            df = Table.smooth.gauss(df, smoothkws...)
+            df = Table.gauss(df, smoothkws...)
         end
         df
     end
@@ -127,31 +144,39 @@ module lfp
 
     execute bandstop on an lfp dataframe
     """
-    function bandstop(df::DataFrame, low, high; field::Symbol=:broadraw, order=5, rounds=1, scale::Union{Nothing,Symbol}, smoothkws...)
+    function bandstop(df::AbstractDataFrame, low, high; 
+    fs=1/median(diff(df.time)),
+    field::Symbol=:broadraw,
+    newfield::Symbol="filt"*string(field),
+    order=5, rounds=1, scale::Union{Nothing,Symbol}=nothing, smoothkws...)
         # Butterworth and hilbert the averaged raw (averaging introduces higher
         # frequency changes)
         low  = low isa AbstractVector ? low : [low]
         high = high isa AbstractVector ? high : [high]
         initial = Float64.(df[!,field])
-        fs = 1/median(diff(df.time))
-        while (rounds -= 1) != 0
-            for (l, h) in zip(low, high)
-                @info "Band stopping" low=l high=h
-                F = DSP.digitalfilter(DSP.Bandstop(l, h, fs=fs), DSP.Elliptic(5, 2.0, 100.0))
-                 initial = DSP.filtfilt(F, initial)
-            end
-        end
-        df[!,"filt"*string(field)] = initial
+        filt = butter_filter(initial, low[1], high[1], fs; order=order, 
+                 btype="bandstop")
+        # while (rounds -= 1) != 0
+        #     for (l, h) in zip(low, high)
+        #         @info "Band stopping" low=l high=h
+        #         F = DSP.digitalfilter(DSP.Bandstop(l, h, fs=fs), DSP.Elliptic(5, 2.0, 100.0))
+        #         initial = DSP.filtfilt(F, initial)
+        #     end
+        # end
+        df[!,newfield] = filt
         if field == :raw
             hilb   = DSP.hilbert(df[!,field])
             df.filtamp, df.filtphase = abs.(hilb), angle.(hilb)
         end
+        # Scale to the same range as the original
         if scale !== nothing
-            df[!,"filt"*string(field)] = diff(collect(extrema(df[!,scale]))) .* DIutils.nannorm_extrema(df[!,field], (-1,1))
+            df[!,scale] = 
+            diff(collect(extrema(df[!,scale]))) .* DIutils.nannorm_extrema(df[!,field], (-1,1))
         end
         # Find higher variance tetrodes
         if !(isempty(smoothkws))
-            df = Table.smooth.gauss(df, smoothkws...)
+            println("smoothing... with $smoothkws")
+            df = Table.gauss(df, smoothkws...)
         end
         df
     end
@@ -307,7 +332,7 @@ module lfp
     - `tab::DataFrame`: table with cycle start and stop times
     """
     function get_cycle_table(lfp::GroupedDataFrame, pos...; kws...)
-    TAB = Vector{DataFrame}(undef, length(lfp))
+        TAB = Vector{DataFrame}(undef, length(lfp))
         Threads.@threads for (i,lf) in enumerate(lfp)|>collect
             TAB[i] = get_cycle_table(lf, pos...; kws...)
         end

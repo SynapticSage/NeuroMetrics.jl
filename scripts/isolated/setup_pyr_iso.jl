@@ -33,10 +33,10 @@ for animal in animals
         l_pyr = DI.load_lfp(animal, day; append="pyr")
         l_pyr = transform(l_pyr, :time=> t-> t .- time_factors[animal], renamecols=false)
         # transform!(l_pyr, :time=> t-> t .+ time_factors[animal], renamecols=false)
-        cycles = DI.load_cycles(animal, day, "pyr")
+        cycles       = DI.load_cycles(animal, day, "pyr")
         cycles.start = cycles.start_function
         cycles.stop  = cycles.stop_function
-        cycles = transform(cycles,
+        cycles       = transform(cycles,
             :start=> t-> t .- time_factors[animal],
             :stop=> t-> t .- time_factors[animal],
             renamecols=false
@@ -148,13 +148,14 @@ for animal in animals
         GoalFetchAnalysis.Munge.lfp.bandpass(groupby(l_pyr, :tetrode), 
                                                      150, 250; order=9, fs, 
                                                      newname="ripple")
-
-        l_pyr.raw = convert(Vector{Union{Missing, Int16}}, round.(l_pyr.raw))
-        l_pyr.ripple = convert(Vector{Union{Missing, Float32}}, (l_pyr.ripple))
-        l_pyr.rippleamp = convert(Vector{Union{Missing, Float32}}, 
-                                  (l_pyr.rippleamp))
-        l_pyr.ripplephase = convert(Vector{Union{Missing, Float32}}, 
-                                    (l_pyr.ripplephase))
+        l_pyr.raw         = convert(Vector{Union{Missing, Int16}}, 
+                                    round.(l_pyr.raw))
+        l_pyr.ripple      = convert(Vector{Union{Missing, Float32}}, 
+                                    (l_pyr.ripple));
+        l_pyr.rippleamp   = convert(Vector{Union{Missing, Float32}},
+                                    (l_pyr.rippleamp));
+        l_pyr.ripplephase = convert(Vector{Union{Missing, Float32}},
+                                    (l_pyr.ripplephase));
         
 
         # ,--.     ,---.     |                                 |              
@@ -162,6 +163,7 @@ for animal in animals
         # |            ||---'|    |   ||   |    |    |   ||    |    |---'`---.
         # `--'o    `---'`---'`---'`---'|---'    `---'`---|`---'`---'`---'`---'
         #                            |             `---'                    
+        l_pyr[!,:cycle] = Vector{Union{Missing, Int32}}(missing, nrow(l_pyr))
         @time Munge.lfp.annotate_cycles!(groupby(l_pyr, :tetrode), 
                                          method="peak-to-peak")
         # ISSUE: MEMORY explodes on the above line
@@ -174,9 +176,32 @@ for animal in animals
             animal, day; handlemissing=:drop, append="pyr")
         DIutils.pushover("Finished annotating cycles for $animal")
 
+        # Examine
+        ripples = subset(RIPPLES, :animal=>a->a.==animal, :day=>d->d.==day,
+                        view=true)
+
+        using Peaks
+        # get second tet
+        l = groupby(l_pyr, :tetrode)[2]
+        # plot(l.ripple[1:1000], label="ripple",
+        #     title="peak count = $(length(Peaks.maxima(l.ripple[1:1000])))")
+
+        i=10000
+        ripple_time = ripples.start[i];
+        ripple_stop = ripples.stop[i];
+        ind=DIutils.searchsortednearest(l.time, ripple_time);
+        ind1=DIutils.searchsortednearest(l.time, ripple_stop);
+        plot(l.ripple[ind:ind1], label="ripple",
+            title="peak count = $(length(Peaks.maxima(l.ripple[ind:ind+1000])))")
+        plot!(l.ripplephase[ind:ind1]*maximum(l.ripple[ind:ind1]), label="ripple phase")
+        plot!(l.rippleamp[ind:ind1], label="ripple amp")
+        plot!(DIutils.norm_extrema(l.broadraw[ind:ind1]).*maximum(l.rippleamp[ind:ind1]), label="raw")
+        plot!(l.pyrip[ind:ind1], label="pyrip")
+
+        # BUG: ERROR IN THIS SECTION
         # Get cycle table
-        cycles = Munge.lfp.get_cycle_table(groupby(l_pyr, :tetrode))
-        cycles.cycle = convert(Vector{Union{Missing, Int32}}, cycles.cycle)
+        cycles = Munge.lfp.get_cycle_table(groupby(l_pyr, :tetrode));
+        cycles.cycle = convert(Vector{Union{Missing, Int32}}, cycles.cycle);
         for col in [:start, :stop, :amp_mean, :δ]
             cycles[!,col] = convert(Vector{Union{Missing, Float32}}, 
                 cycles[!,col])
