@@ -82,22 +82,33 @@ module lfp
     """
     function bandpass(df::AbstractDataFrame, low, high;
                       fs=1/median(diff(df.time)),
-                      order=5, newname=:raw, smoothkws...)
-        filt = DSP.analogfilter(DSP.Bandpass(low, high, fs=fs),
-                                DSP.Butterworth(order))
-        prevtype = typeof(df.raw)
-        println("raw => float64")
-        df.raw =  Float32.(df.raw)
+                      order=5, newname=:filt, smoothkws...)
+        println("creating filter... low=$low, high=$high, order=$order")
+        low, high = Float64(low), Float64(high)
+        filt = DSP.digitalfilter(DSP.Bandpass(low, high, fs=fs),
+                                 DSP.Butterworth(order))
+        prevtype = eltype(df.broadraw)
+        println("raw => float32")
+        df.broadraw =  Float64.(df.broadraw)
         print("filtering...")
-        df[!,newname] = DSP.filtfilt(filt.p, df.raw)
+        if newname in names(df)
+            df[!,newname] = convert(Vector{Union{Missing,Float64}}, df[!,newname])
+            df[!,newname] = real.(DSP.filtfilt(filt.p, df.broadraw)).|>Float64
+        else
+            df[!,newname] = real.(DSP.filtfilt(filt.p, df.broadraw)).|>Float64
+        end
         print("hilbert...")
-        hilb   = DSP.hilbert.(df.raw)
+        goodinds = .!ismissing.(df[!,newname])
+        hilb   = DSP.hilbert(disallowmissing(convert(Vector, 
+                 df[goodinds,newname])))
         print("amp and phase...")
         amp, phase = abs.(hilb), angle.(hilb)
         # Find higher variance tetrodes
-        df[!,newname]           = prevtype(df.raw)
-        df[!,newname * "amp"]   = Float16(df.amp)
-        df[!,newname * "phase"] = Float16(df.phase)
+        to_prev(x) = prevtype <: Int ? prevtype(round(x)) : prevtype.(x)
+        df[!,:broadraw]    = to_prev(df.broadraw)
+        df[!,newname]      = to_prev(df[!,newname])
+        df[!,newname * "amp"]   = Float32.(amp)
+        df[!,newname * "phase"] = Float32.(phase)
         if !(isempty(smoothkws))
             println("smoothing...")
             df = Table.smooth.gauss(df, smoothkws...)
@@ -105,8 +116,9 @@ module lfp
         df
     end
     function bandpass(gdf::GroupedDataFrame, pos...; kws...)
-        for (g,df) in enumerate(gdf)
-            gdf[g] = bandpass(df, pos...; kws...)
+        @showprogress for (g,df) in enumerate(gdf)
+            println("filtering group $g")
+            bandpass(df, pos...; kws...)
         end
     end
 

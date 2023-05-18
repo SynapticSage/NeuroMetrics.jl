@@ -142,8 +142,21 @@ for animal in animals
         lfp = nothing; GC.gc()
         # l_def = subset(lfp, :tetrode=>t->t.∈(DI.default_tetrodes[animal],),
         # view=true)
+        DIutils.pushover("Ready to ripple - temp!")
+        # Get the ripple band
+        fs = 1/median(diff(l_pyr.time[1:15_000])) 
+        GoalFetchAnalysis.Munge.lfp.bandpass(groupby(l_pyr, :tetrode), 
+                                                     150, 250; order=9, fs, 
+                                                     newname="ripple")
+
+        l_pyr.raw = convert(Vector{Union{Missing, Int16}}, round.(l_pyr.raw))
+        l_pyr.ripple = convert(Vector{Union{Missing, Float32}}, (l_pyr.ripple))
+        l_pyr.rippleamp = convert(Vector{Union{Missing, Float32}}, 
+                                  (l_pyr.rippleamp))
+        l_pyr.ripplephase = convert(Vector{Union{Missing, Float32}}, 
+                                    (l_pyr.ripplephase))
         
-                                                                    
+
         # ,--.     ,---.     |                                 |              
         # ,--'     `---.,---.|--- .   .,---.    ,---.,   .,---.|    ,---.,---.
         # |            ||---'|    |   ||   |    |    |   ||    |    |---'`---.
@@ -155,7 +168,8 @@ for animal in animals
         l_pyr[!,:cycle] = convert(Vector{Union{Missing, Int32}}, 
                                   l_pyr[!,cycle]);
         GC.gc()
-        DI.save_lfp(transform(l_pyr[!,[:time, :tetrode, :cycle, :raw, :phase]],
+        DI.save_lfp(transform(l_pyr[!,[:time, :tetrode, :cycle, :raw, :phase,
+                                    :broadraw, :ripple, :rippleamp, :ripplephase]],
             :time=> t-> t .+ time_factors[animal], renamecols=false), 
             animal, day; handlemissing=:drop, append="pyr")
         DIutils.pushover("Finished annotating cycles for $animal")
@@ -204,6 +218,8 @@ for animal in animals
     #    |         ||---'|    |   ||   |    `---.|   |||  \ |---'`---.
     # `--'o    `---'`---'`---'`---'|---'    `---'|---'``   ``---'`---'
     #                              |             |                    
+    
+    
     # Ripple phase
     spikes = subset(SPIKES, :animal=>a->a.==animal, :day=>d->d.==day,
                     view=true)
