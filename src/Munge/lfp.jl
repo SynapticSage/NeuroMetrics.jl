@@ -107,7 +107,6 @@ module lfp
         println("creating filter... low=$low, high=$high, order=$order")
         low, high = Float64(low), Float64(high)
         broadraw = df[!,:broadraw]
-        @infiltrate
         prevtype = eltype(broadraw) |> nonmissingtype
         print("raw => float64...")
         broadraw =  Float64.(broadraw)

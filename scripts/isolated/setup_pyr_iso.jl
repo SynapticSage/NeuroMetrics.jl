@@ -100,43 +100,43 @@ for animal in animals
         GC.gc()
 
         # Visualize
-        begin
-            ulfp = unstack(lfp, :time, :tetrode, :raw);
-            # ulfp = unstack(lfp, :time, :tetrode, :cycle);
-            sort(Int.(unique(lfp.tetrode)))
-            Plot.setfolder("lfp")
-            @time begin
-                s = 6_000
-                samp = Matrix(ulfp[s:s+1_000, Not(:time)])
-                C=cor(Matrix(ulfp[1:100_000, Not(:time)]), dims=1)
-                xtcks = (1:size(C,1), string.(all_tetrodes))
-                ytcks = (1:size(C,2), string.(all_tetrodes))
-                h=heatmap(Matrix(samp), xticks=xtcks, yticks=ytcks, xrotation=90, 
-                    yrotation=0, title="Theta on PYR tetrodes")
-                p=plot()
-                least_corr = all_tetrodes[sortperm(mean(C,dims=2)|>vec)][1:3]
-                most_correlated_tetrode = all_tetrodes[argmax(mean(C,dims=2)|>vec)]
-                for (col, tet) in zip(eachcol(samp), all_tetrodes)
-                    if tet in pyr_tetrodes && tet != most_correlated_tetrode
-                        plot!(col, label=tet,  linewidth = (tet in least_corr)  ? 
-                            3 : 1, linestyle= (tet in least_corr) ? :solid : :dash)
-                    elseif tet == most_correlated_tetrode
-                        plot!(col, label="M",  linewidth=5, color=:black,
-                            linestyle=:dash)
-                    else
-                        plot!(col, label="--", linewidth=1, color=:black,
-                            linestyle=:dash)
-                    end
-                end
-                current()
-                hc=heatmap(C, xticks=xtcks, yticks=ytcks, xrotation=90, yrotation=0)
-                layout = @layout [[a b]; c{0.5w}]
-                plot(h, p, hc, layout=(1,3), size=(1200,400))
-            end
-            Plot.save("theta_sync")
-            ulfp = nothing; 
-            current()
-        end
+        # begin
+        #     ulfp = unstack(lfp, :time, :tetrode, :raw);
+        #     # ulfp = unstack(lfp, :time, :tetrode, :cycle);
+        #     sort(Int.(unique(lfp.tetrode)))
+        #     Plot.setfolder("lfp")
+        #     @time begin
+        #         s = 6_000
+        #         samp = Matrix(ulfp[s:s+1_000, Not(:time)])
+        #         C=cor(Matrix(ulfp[1:100_000, Not(:time)]), dims=1)
+        #         xtcks = (1:size(C,1), string.(all_tetrodes))
+        #         ytcks = (1:size(C,2), string.(all_tetrodes))
+        #         h=heatmap(Matrix(samp), xticks=xtcks, yticks=ytcks, xrotation=90, 
+        #             yrotation=0, title="Theta on PYR tetrodes")
+        #         p=plot()
+        #         least_corr = all_tetrodes[sortperm(mean(C,dims=2)|>vec)][1:3]
+        #         most_correlated_tetrode = all_tetrodes[argmax(mean(C,dims=2)|>vec)]
+        #         for (col, tet) in zip(eachcol(samp), all_tetrodes)
+        #             if tet in pyr_tetrodes && tet != most_correlated_tetrode
+        #                 plot!(col, label=tet,  linewidth = (tet in least_corr)  ? 
+        #                     3 : 1, linestyle= (tet in least_corr) ? :solid : :dash)
+        #             elseif tet == most_correlated_tetrode
+        #                 plot!(col, label="M",  linewidth=5, color=:black,
+        #                     linestyle=:dash)
+        #             else
+        #                 plot!(col, label="--", linewidth=1, color=:black,
+        #                     linestyle=:dash)
+        #             end
+        #         end
+        #         current()
+        #         hc=heatmap(C, xticks=xtcks, yticks=ytcks, xrotation=90, yrotation=0)
+        #         layout = @layout [[a b]; c{0.5w}]
+        #         plot(h, p, hc, layout=(1,3), size=(1200,400))
+        #     end
+        #     Plot.save("theta_sync")
+        #     ulfp = nothing; 
+        #     current()
+        # end
 
         l_pyr = subset(lfp, :tetrode=>t->t.∈(pyr_tetrodes,), view=true);
         lfp = nothing; GC.gc()
@@ -219,11 +219,11 @@ for animal in animals
         # ---------------- *
         # Visualize cycles |
         # ---------------- *
+        using GoalFetchAnalysis.Plot.lfplot
         begin
-            folder, parent = Plot.folder_args, Plot.parent_folder
+            folder, par = Plot.folder_args, Plot.parent_folder
             Plot.setparentfolder("theta");
-            Plot.setfolder("cycle_cutting")
-            using GoalFetchAnalysis.Plot.lfplot
+            Plot.setfolder("cycle_cutting");
             P = []
             for g in groupby(l_pyr, :tetrode)
                 push!(P,lfplot.cycleplot(g))
@@ -231,7 +231,8 @@ for animal in animals
             plot(P[1:10]..., layout=(10,1), size=(1200, 400*10))
             Plot.save("cycleplot_of_pyr_tetrodes")
             # Restore settings
-            Plot.setfolder(folder...) Plot.setparentfolder(parent...)
+            Plot.setfolder(folder...) 
+            Plot.setparentfolder(par...)
         end
 
 
@@ -247,27 +248,32 @@ for animal in animals
     
     # Ripple phase
     spikes = subset(SPIKES, :animal=>a->a.==animal, :day=>d->d.==day,
-                    view=true)
+                    view=true);
     ripples = subset(RIPPLES, :animal=>a->a.==animal, :day=>d->d.==day,
-                    view=true)
+                    view=true);
     DIutils.pushover("Ready to check RIPs")
-    Munge.spiking.event_spikestats!(spikes, ripples; eventname="ripple")
-    ripple_props = [:ripple, :ripple_time, :ripple_phase]
+    Munge.spiking.event_spikestats!(spikes, ripples; eventname="ripple");
+    ripple_props = [:ripple, :ripple_time, :ripple_phase];
     @assert all(ripple_props .∈ (propertynames(spikes),))
     @assert(length(unique(spikes.ripple_phase)) .> 4, "Ripple phase not"* 
         "calculated correctly")
 
     # Add ripple BAND phase (rather than phase within the ripple)
     spikes.ripple_phase_band = Vector{Union{Missing, Float32}}(missing, 
-        size(spikes,1))
-    gl_pyr = groupby(l_pyr, :tetrode)
-    prog = Progress(length(spikes), 1, "Adding ripple band phase")
-    Threads.@threads for spike in eachrow(spikes)
-        time =spike.time
-        tetrode = spike.tetrode
-        l = gl_pyr[(;tetrode)]
-        ind = DIutils.searchsortednearest(l.time, time)
-        spike.ripple_phase_band = l.ripplephase[ind]
+        size(spikes,1));
+    spikes.ripple_amp_band = Vector{Union{Missing, Float32}}(missing, 
+        size(spikes,1));
+    gl_pyr = groupby(l_pyr, :tetrode);
+    g_spikes = groupby(spikes, :tetrode);
+    K = intersect(keys(gl_pyr)|>collect.|>NamedTuple, keys(g_spikes)|>collect.|>NamedTuple);
+    prog = Progress(length(K), 1, "Adding ripple band phase");
+    gs, gl = g_spikes[K[1]], gl_pyr[K[1]]
+    Threads.@threads for key in K
+        gs, gl = g_spikes[key], gl_pyr[key]
+        time = gs.time
+        ind = DIutils.searchsortednearest.([gl.time], time)
+        gs.ripple_phase_band = gl.ripplephase[ind];
+        gs.ripple_amp_band   = gl.rippleamp[ind];
         next!(prog)
     end
 
