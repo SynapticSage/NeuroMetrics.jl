@@ -232,6 +232,20 @@ for animal in animals
     @assert(length(unique(spikes.ripple_phase)) .> 4, "Ripple phase not"* 
         "calculated correctly")
 
+    # Add ripple BAND phase (rather than phase within the ripple)
+    spikes.ripple_phase_band = Vector{Union{Missing, Float32}}(missing, 
+        size(spikes,1))
+    gl_pyr = groupby(l_pyr, :tetrode)
+    prog = Progress(length(spikes), 1, "Adding ripple band phase")
+    Threads.@threads for spike in eachrow(spikes)
+        time =spike.time
+        tetrode = spike.tetrode
+        l = gl_pyr[(;tetrode)]
+        ind = DIutils.searchsortednearest(l.time, time)
+        spike.ripple_phase_band = l.ripplephase[ind]
+        next!(prog)
+    end
+
     # Theta phase
     # sort!(spikes, [:unit, :time])
     # cells = subset(CELLS, :animal=>a->a.==animal, :day=>d->d.==day,
