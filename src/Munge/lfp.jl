@@ -315,6 +315,11 @@ module lfp
     """
     function get_cycle_table(lfp::AbstractDataFrame, pos...; kws...)
         @assert "cycle" in names(lfp)
+        if :amp ∉ names(lfp)
+            println("Missing amp of theta ... taking hilbert(lfp.raw)")
+            hilb = hilbert(convert(Vector{Float32},lfp.raw))
+            lfp.amp = abs.(hilb)
+        end
         tab = Table.get_periods(lfp, "cycle", :amp=>mean, pos...; kws...)
         return tab
     end
