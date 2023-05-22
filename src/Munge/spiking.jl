@@ -419,6 +419,11 @@ module spiking
         end
     end
 
+    """
+        isolated(spikes::AbstractDataFrame; kws...)
+
+    find isolated spikes in the maner of Jai/Frank 2021 
+    """
     function isolated(spikes::AbstractDataFrame; kws...)
         prog = Progress(length(unique(spikes.unit)); 
                         desc="Adding isolation stats")
@@ -442,7 +447,7 @@ module spiking
         isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle, 
                  include_samples::Bool=false, overwrite=false)
     
-    find isolated spikes in the manneer of Jai/Frank 2021
+    find isolated spikes in the manner of Jai/Frank 2021
     
     # Arguments
     - `spikes::SubDataFrame`: dataframe of spikes
@@ -485,6 +490,7 @@ module spiking
             # find the N closest cycles
             explore_cycles = unique(max.(min.(c .+ explore, 
                                         [size(spcycles,1)]),[1]))
+            # SHORTER CYCLE 
             if length(explore_cycles) < length(explore)
                 spcycle.isolated .= false
 
@@ -495,11 +501,10 @@ module spiking
                 cycle_prox = [abs(spcycle[1,cycle] - 
                               other_cyc[1,cycle])
                               for other_cyc in spcycles[nearest]]
-                nearestcyc = minimum(cycle_prox)
-                meancyc    = mean(cycle_prox)
+                nearestcyc          = minimum(cycle_prox)
+                meancyc             = mean(cycle_prox)
                 spcycle.meancyc    .= (meancyc)
                 spcycle.nearestcyc .= (nearestcyc)
-
             else
                 center_times = [abs(mean(c.time)-mean(spcycle.time)) 
                 for c in spcycles[explore_cycles]]

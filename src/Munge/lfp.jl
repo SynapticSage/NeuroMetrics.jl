@@ -102,7 +102,7 @@ module lfp
     """
     function bandpass(df::AbstractDataFrame, low, high;
                       fs=1/median(diff(df.time)),
-                      lowerbandstop::Bool=true,
+                      p2p::Bool=true, 
                       order=5, newname=:filt, smoothkws...)
         println("creating filter... low=$low, high=$high, order=$order")
         low, high = Float64(low), Float64(high)
@@ -119,10 +119,13 @@ module lfp
                  df[goodinds,newname])))
         print("amp and phase...")
         amp, phase = abs.(hilb), angle.(hilb)
+        if p2p
+            phase = t2t_to_p2p(phase)
+        end
         # Find higher variance tetrodes
         to_prev(x) = prevtype <: Int ? prevtype(round(x)) : prevtype.(x)
         broadraw    = to_prev(broadraw)
-        df[!,newname]      = to_prev(df[!,newname])
+        df[!,newname]           = to_prev(df[!,newname])
         df[!,newname * "amp"]   = Float32.(amp)
         df[!,newname * "phase"] = Float32.(phase)
         if !(isempty(smoothkws))
@@ -258,6 +261,24 @@ module lfp
     annotate_cycles!(data::AbstractDataFrame, 
                     cycles::AbstractDataFrame)::DataFrame = 
             Table.group.annotate_periods!(data, cycles)
+
+
+    """
+        t2t_to_p2p(phases::Vector)::Vector
+
+    converts trought to trough phase to peak to peak phase
+    """
+    function t2t_to_p2p(phases::AbstractVector; zeromin::Bool=true)::Vector
+        phases = phases .- minimum(phases) .+ π;
+        phases = mod.(phases, 2π);
+        if zeromin
+            # set range [0, 2π]
+            phases
+        else
+            # set range [-π, π]
+            phases .- π;
+        end
+    end
 
 
     """
