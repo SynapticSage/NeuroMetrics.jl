@@ -550,7 +550,10 @@ module spiking
     """
     function event_spikestats!(spikes::AbstractDataFrame,
                                events::AbstractDataFrame;
-                eventname = "ripple", kws...)
+                eventname = "ripple", indfield=:cycle,
+                indfield_is_index::Bool=true, 
+                ampfield=nothing,
+    kws...)
 
         eventname = string(eventname)
         spikes[!, eventname]          = Vector{Int32}(undef, size(spikes,1))
@@ -572,7 +575,28 @@ module spiking
             (spikes[!,eventname*"_stop"] .- spikes[!,eventname*"_start"])
         spikes[!, eventname*"_time"] = (spikes.time .-
                                         spikes[!,eventname*"_start"])
-
+        # Add event amplitude, if requested
+        if ampfield !== nothing
+            if string(indfield) ∉ names(events)
+                error("indfield=$indfield must be a column of events")
+            end
+            inds = if indfield_is_index
+                events = dropmissing(events, indfield)
+                @assert issorted(events[!,indfield])
+                inds = events[!,indfield]
+            else
+                map(events[!,indfield]) do x
+                    if x === missing
+                        Inf
+                    else
+                        x
+                    end
+                end
+            end
+            inds=DIutils.searchsortednearest.([inds],
+                                        spikes[!,eventname])
+            spikes[!, eventname*"_amp"] = events[inds, ampfield]
+        end
         return spikes
     end
 
@@ -588,7 +612,7 @@ module spiking
         k = K[1]
         @showprogress for k in K
             println("Adding $eventname to $k")
-            event_spikestats!(spikes[k], events[k], eventname=eventname, kws...)
+            event_spikestats!(spikes[k], events[k]; eventname=eventname, kws...)
         end
     end
 
