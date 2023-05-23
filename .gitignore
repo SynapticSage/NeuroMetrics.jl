@@ -434,3 +434,4 @@ $RECYCLE.BIN/
 src-*
 .Rhistory
 .CondaPkg/
+.jukit
