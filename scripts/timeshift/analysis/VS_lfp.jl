@@ -1,3 +1,8 @@
+
+import Pkg; Pkg.activate(expanduser("~/Projects/goal-code"))
+
+# |%%--%%| <iwlKsodo9h|9gFuM5jvSJ>
+
 #=
 =====================================================
 Script Name     : VS_lfp.jl
@@ -17,14 +22,20 @@ StatsPlots, Plots, LaTeXStrings, DirectionalStatistics
 using DSP: angle
 Base.angle(x::Missing) = missing
 using LaTeXStrings
-import Random
+import Random, Pluto
+using Infiltrator
+import TranscodingStreams
 
-#    _  _     _                    _       _       _        
-#  _| || |_  | |    ___   __ _  __| |   __| | __ _| |_ __ _ 
-# |_  ..  _| | |   / _ \ / _` |/ _` |  / _` |/ _` | __/ _` |
-# |_      _| | |__| (_) | (_| | (_| | | (_| | (_| | || (_| |
-#   |_||_|   |_____\___/ \__,_|\__,_|  \__,_|\__,_|\__\__,_|
-#                                                           
+# |%%--%%| <9gFuM5jvSJ|160a7CvzZA>
+
+theme(:dark)
+
+# |%%--%%| <160a7CvzZA|64AnNrHwZJ>
+#=°°°
+# Load data
+°°°=#
+# |%%--%%| <64AnNrHwZJ|24IFgVFhbh>
+
 animal, day = "super_clean", 0
 CELLS  = DI.load_cells(animal, day, "*")
 time_factors = DI.behavior_0time_before_process("super")
@@ -33,18 +44,19 @@ taus = names(CELLS)[occursin.("1of20", names(CELLS))]
 # -------------------------------
 # Copy pasta from setup_pyr_iso.jl
 # -------------------------------
-using Infiltrator
 function get_data(animal, day)
     # l_pyr = DI.load_lfp(animal, day; append="pyr")
     # l_pyr = transform(l_pyr, :time=> t-> t .- time_factors[animal], renamecols=false)
     # transform!(l_pyr, :time=> t-> t .+ time_factors[animal], renamecols=false)
+    println("Cycles")
     cycles = DI.load_cycles(animal, day, "pyr")
     cycles = transform(cycles,
         :start=> t-> t .- time_factors[animal],
-        :stop=> t-> t .-  time_factors[animal],
+        :stop => t-> t .- time_factors[animal],
         renamecols=false
     )
     # cycles = cycles[!,Not([:start_function,:stop_function])]
+    println("Spikes")
     spikes = transform(DI.load_spikes(animal, day, "pyr_cycles_isolated"),
         :time=> t-> t .- time_factors[animal],
         renamecols=false
@@ -56,10 +68,15 @@ function get_data(animal, day)
         # println("lfp.time: ", extrema(l_pyr.time))
         println("cycles.time: ", extrema(cycles.start))
     end
+    println("Behavior")
+    beh = transform(DI.load_behavior(animal, day),
+        :time=> t-> t .- time_factors[animal],
+        renamecols=false
+    )
     DIutils.pushover("Loaded checkpoint for $animal")
-    (;cycles, spikes)
+    (;cycles, spikes, beh)
 end
-CYCLES, SPIKES = [], [], []
+CYCLES, SPIKES, BEH = [], [], []
 datasets = [("RY16",36), ("RY22",21)]
 (animal, day) = first(datasets)
 for (animal, day) in datasets
@@ -67,52 +84,42 @@ for (animal, day) in datasets
         continue
     end
     println("Loading $animal")
-    cycles, spikes = get_data(animal, day)
+    cycles, spikes, beh = get_data(animal, day)
     println("Adding $taus to $animal")
     spikes = sort!(spikes, [:unit, :time])
     DIutils.filtreg.register(CELLS, spikes, on="unit", transfer=taus)
+    sort!(beh,:time)
+    sort!(spikes,:time)
+    DIutils.filtreg.register(beh, spikes, on="time", transfer=["speedsmooth"])
     println("Done with $animal")
     push!(CYCLES, cycles)
     push!(SPIKES, spikes)
+    push!(BEH, beh)
     # Transfer the tau values to the spikes
 end
 CYCLES = vcat(CYCLES...)
 SPIKES = vcat(SPIKES...)
+BEH = vcat(BEH...; cols=:union)
 
-#    _  _        _                _               
-#  _| || |_     / \   _ __   __ _| |_   _ _______ 
-# |_  ..  _|   / _ \ | '_ \ / _` | | | | |_  / _ \
-# |_      _|  / ___ \| | | | (_| | | |_| |/ /  __/
-#   |_||_|   /_/   \_\_| |_|\__,_|_|\__, /___\___|
-#
-# Plot.setparentfolder("timeshift", "lfp")
-# # INFO: Some ideas to try
-# # - rank instead of actual
-# # - individual spikes instead of mean of their phases
-# # - allowing different types of tau to co-occur
-# # - 
-#
-# # First, let's actually create views into the spikes that actually occur
-# # in ripple and valid theta cycle
-# # ISSUE: better filter theta cycles before this step?
-# # -e.g. why theta in ripples -- violates assumption 
-# # - restrict to cells with significant coupling to the theta rhythm
-# # - why some theta phases WAY over 1 or way less than 0
-#
-# # In the ripple and theta event code, I have labeled times without such
-# # an event as 0. So, we can just set those to missing to avoid
-# # accidentally including them in the analysis
-# SPIKES[replace(SPIKES.theta .== 0, missing=>false), :theta_phase] .= missing
-# SPIKES[!,:ripple] = convert(Vector{Union{Missing,Int32}}, SPIKES[!,:ripple])
-# SPIKES[!,:ripple_phase] = convert(Vector{Union{Missing,Float32}}, SPIKES[!,:ripple_phase])
-# SPIKES[replace(SPIKES.ripple .== 0,missing=>false), :ripple_phase] .= missing
-#
-# # And here, we filter out times with phase values that extend outside of
-# # 0 and 1 (start and stop of the event phase)
-# rmis(x) = replace(x, missing=>false)
-# badinds = rmis(SPIKES.theta_phase .> 1) .|| rmis(SPIKES.theta_phase .< 0) .||
-# rmis(SPIKES.ripple_phase .> 1) .|| rmis(SPIKES.ripple_phase .< 0)
-# SPIKES = SPIKES[.!badinds,:]
+# |%%--%%| <24IFgVFhbh|f9ijiUHHdT>
+#=°°°
+# Analyze
+
+Plot.setparentfolder("timeshift", "lfp")
+INFO: Some ideas to try
+- rank instead of actual
+- individual spices instead of mean of their phases
+- allowing different types of tau to co-occur
+-
+
+First, let's actually create views into the spikes that actually occur
+in ripple and valid theta cycle
+ISSUE: better filter theta cycles before this step?
+-e.g. why theta in ripples -- violates assumption
+- restrict to cells with significant coupling to the theta rhythm
+- why some theta phases WAY over 1 or way less than 0
+°°°=#
+# |%%--%%| <f9ijiUHHdT|KA1gM0pxwv>
 
 # Convert the two event phases [0, 1] to [0, 2π]
 begin
@@ -123,53 +130,86 @@ begin
     println(" ================  ")
 end
 begin
-    SPIKES.theta_phase = replace(SPIKES.theta_phase, NaN=>missing)
-    SPIKES.tp   = 2π*SPIKES.theta_phase
-    SPIKES.spwp = 2π*SPIKES.ripple_phase
-    SPIKES.rp   = SPIKES.ripple_phase_band
-    SPIKES.theta_phase  = allowmissing(SPIKES.tp)
-    SPIKES.ripple_phase = allowmissing(SPIKES.spwp)
-    missing_inds = findall((SPIKES.theta_phase .> 2pi)|>skipmissing)
-    SPIKES.theta_phase[missing_inds] .= missing
-    missing_inds = findall((SPIKES.ripple_phase .> 2pi)|>skipmissing)
-    SPIKES.ripple_phase[missing_inds] .= missing
-    SPIKES.tp   = exp.(im*SPIKES.tp)
-    SPIKES.spwp = exp.(im*SPIKES.spwp)
-    SPIKES.rp   = exp.(im*SPIKES.rp)
+    SPIKES.theta_phase = replace(SPIKES.theta_phase, NaN=>missing);
+    SPIKES.tp   = 2π*SPIKES.theta_phase;
+    SPIKES.spwp = 2π*SPIKES.ripple_phase;
+    SPIKES.rp   = SPIKES.ripple_phase_band;
+    SPIKES.theta_phase  = allowmissing(SPIKES.tp);
+    SPIKES.ripple_phase = allowmissing(SPIKES.spwp);
+    missing_inds = findall((SPIKES.theta_phase .> 2pi)|>skipmissing);
+    SPIKES.theta_phase[missing_inds] .= missing;
+    missing_inds = findall((SPIKES.ripple_phase .> 2pi)|>skipmissing);
+    SPIKES.ripple_phase[missing_inds] .= missing;
+    SPIKES.tp   = exp.(im*SPIKES.tp);
+    SPIKES.spwp = exp.(im*SPIKES.spwp);
+    SPIKES.rp   = exp.(im*SPIKES.rp);
 end
 begin
     println(" ====  FINAL ====  ")
     println("Range of ripple_phase", extrema(SPIKES.ripple_phase|>skipmissing));
     println("Range of theta_phase", extrema(SPIKES.theta_phase|>skipmissing));
     println("Range of ripple_phase_band", extrema(SPIKES.ripple_phase_band|>skipmissing));
-    println(" ================  ")
 end
 
-directional_mean = Circular.mean
+# |%%--%%| <KA1gM0pxwv|oOBgWz4BWU>
+#=°°°
+And let's also set any times with no ripples phases to `missing` and any poor $\theta$ times to `missing`
+°°°=#
+# |%%--%%| <oOBgWz4BWU|GMQbYacQXx>
 
-# ========================================================
+# When there's no ripple, make sure these fields are `missing`
+transform!(subset(SPIKES, :ripple => r->r .== 0, view=true),
+    :ripple_time => x->x .* missing,
+    :ripple_phase => x->x .* missing,
+    :ripple_phase_band => x->x .* missing,
+    :ripple_amp_band => x->x .* missing);
+
+#|%%--%%| <GMQbYacQXx|mTE8Drbpk7>
+
+transform!(subset(dropmissing(SPIKES, :theta ,view=true), 
+    :theta => r->r .≈ 0, view=true),
+    :theta_time => x->x .* missing,
+    :theta_phase => x->x .* missing,
+)
+
+# |%%--%%| <mTE8Drbpk7|EXWZh3k4uU>
+#=°°°
+Let's check hypothetical theta `amplitude` and `speedsmooth`
+°°°=#
+# |%%--%%| <EXWZh3k4uU|JZ0EqLW4f1>
+
+h1=histogram(filter(x->x<80,BEH.speedsmooth)) 
+vline!([4],c=:red, title=:speed, label="")
+h2=histogram(SPIKES.theta_phase)
+plot(h1,h2)
+
+# |%%--%%| <JZ0EqLW4f1|ATPHjhGOkR>
+#=°°°
+# Plotting
+°°°=#
+# |%%--%%| <ATPHjhGOkR|o5pL42JheP>
+#=°°°
 ## SECTION: I. STRENGTH OF LOCKING OVER CELLS AND PER CELL
-# ========================================================
+°°°=#
+# |%%--%%| <o5pL42JheP|Ql29o4PfxL>
 
 Plot.setfolder("cell-strength-of-locking")
 function plot_spike_phases(sp::DataFrame; field=:spwp, name="ripple")
-    r = Random.randperm(nrow(sp)) 
+    r = Random.randperm(nrow(sp))
     n=min(1000, nrow(sp))
     samples = sp[r[1:n],:][!,field] |> skipmissing |> collect
-    s=  scatter(real.(samples).+randn(size(samples,1)).*0.1, 
+    s=  scatter(real.(samples).+randn(size(samples,1)).*0.1,
         imag.(samples)+randn(size(samples,1)).*0.1, ms=1,
         label=""
     )
     X=[0+0im; mean(sp[!,field]|>skipmissing|>collect)]
     # Y = imag(X);
-    # X = real(X); 
+    # X = real(X);
     plot!(real(X), imag(X), color=:black, label="$(nrow(sp)) spikes))")
     scatter!([real(X)[end]], [imag(X)[end]], color=:black, label="", ms=7)
     Plot.save("$name-phase-of-spikes_cell=$(first(sp.unit))")
     s
 end
-
-
 plot(
     histogram(SPIKES.tp.|>angle, bins=100, normed=true,
         label="Theta phase"),
@@ -179,8 +219,13 @@ plot(
         label="Ripple phase"),
 )
 Plot.save("phase-distribution, all cells")
-
+current()
+#|%%--%%| <Ql29o4PfxL|JbSF7ldOtg>
+#=°°°
 # SUBSECTION: I.A UNIT CIRCLE PLOTS
+°°°=#
+#|%%--%%| <JbSF7ldOtg|IwtdVezEom>
+
 # SPW
     P = []
     unit = first(unique(SPIKES.unit))
@@ -216,8 +261,12 @@ Plot.save("phase-distribution, all cells")
     Plot.save("MANY-CELL_ripple-phase-of-spikes")
     current()
     
-
+#|%%--%%| <IwtdVezEom|E8beEhr5Ni>
+#=°°°
 # SUBSECTION: I.B HISTOGRAMS
+°°°=#
+#|%%--%%| <E8beEhr5Ni|4ywObPtUYZ>
+
 # SPW
     P = []
     println(Plot.ps())
@@ -236,6 +285,7 @@ Plot.save("phase-distribution, all cells")
     plot(P[1:50]..., size=(2000,2000), ms=1)
     Plot.save("hist_MANY-CELL_ripple-phase-of-spikes")
     current()
+#|%%--%%| <4ywObPtUYZ|vpU8X3IZW1>
 
 # THETA
     P = [] 
@@ -255,6 +305,7 @@ Plot.save("phase-distribution, all cells")
     plot(P[1:50]..., size=(2000,2000), ms=1)
     Plot.save("hist_MANY-CELL_ripple-phase-of-spikes")
     current()
+#|%%--%%| <vpU8X3IZW1|niiAzfKiyc>
     
 # RIPPLE
     # ISSUE: WHY ARE THERE ONLY 23?!?!
@@ -276,6 +327,7 @@ Plot.save("phase-distribution, all cells")
     plot(P[1:m]..., size=(2000,2000), ms=1)
     Plot.save("hist_MANY-CELL_ripple-phase-of-spikes")
     current()
+#|%%--%%| <niiAzfKiyc|AEwuQYeTtS>
     
 # Ic. Centroids of phase distributions
 function getcircmean(x)
@@ -295,12 +347,12 @@ UnicodePlots.histogram(s.tp|>DIutils.skipnan|>collect,   xlim=(-pi,pi))
 UnicodePlots.histogram(s.rp|>DIutils.skipnan|>collect,   ylim=(-pi,pi))
 UnicodePlots.histogram(s.spwp|>DIutils.skipnan|>collect, ylim=(-pi,pi))
 # ISSUE: sometimes there is a ripple phase for a spike but not a sharp-wave phase --- this is wrong.
-    
-
-# ==============================
+#|%%--%%| <AEwuQYeTtS|AhW6AhKR1o>
+#=°°°
 # SECTION: II. MODULATION SCORES
-# ==============================
-
+°°°=#
+#|%%--%%| <AhW6AhKR1o|cML9g95ljx>
+    
 # INFO: Does not require circmean --- complex nums
 trp = combine(groupby(SPIKES, :unit, sort=true),
     :tp=>(x->skipmissing(x)|> collect |> length)=>:Nt,
@@ -315,21 +367,23 @@ trp = transform(trp,
 )
 sort!(SPIKES, [:unit, :time])
 DIutils.filtreg.register(trp, SPIKES, on="unit", transfer=["tpc", "rpc"])
-
 Plot.setfolder()
-histogram(angle.((filter(x->angle(x)!=0, SPIKES.tp|>skipmissing))), 
+
+#|%%--%%| <cML9g95ljx|7j9RuFHQ4L>
+
+h1=histogram(angle.((filter(x->angle(x)!=0, SPIKES.tp|>skipmissing))), 
     bins=100, normed=true, label="", 
     margins=1*Plots.mm,
     ylabel="Cells",
     title="Theta Phase",xlabel=L"Phase")
 Plot.save("theta-phase-distribution")
-histogram(angle.(filter(x->angle(x)!=0, skipmissing(SPIKES.spwp))),
+h2=histogram(angle.(filter(x->angle(x)!=0, skipmissing(SPIKES.spwp))),
     bins=100, normed=true, label="", 
     margins=1*Plots.mm,
     ylabel="Cells",
     title="Spw Phase",xlabel=L"Phase")
 Plot.save("spw-phase-distribution")
-histogram(angle.(filter(x->angle(x)!=0, skipmissing(SPIKES.rp))),
+h3=histogram(angle.(filter(x->angle(x)!=0, skipmissing(SPIKES.rp))),
     bins=100, normed=true, label="", 
     margins=1*Plots.mm,
     ylabel="Cells",
@@ -337,9 +391,14 @@ histogram(angle.(filter(x->angle(x)!=0, skipmissing(SPIKES.rp))),
 
 @assert !all(ismissing.(trp.spwp))
 
-# ================================================================
-# Examining the theta and ripple phase modulation
-# ================================================================
+plot(h1,h2,h3)
+
+#|%%--%%| <7j9RuFHQ4L|sVRZpanD06>
+#=°°°
+# Scores
+°°°=#
+#|%%--%%| <sVRZpanD06|ZGbQfUBV3F>
+
 Plot.setfolder("modulation")
 # Description: distribution of modulations
 plot(
@@ -424,10 +483,11 @@ s4=scatter(real.(trp.spwp), imag.(trp.spwp), trp.rpc, camera=(135, 30), xlabel="
 plot(s1, s2, s3, s4, layout=(2, 2), size=(800, 600), markersize=2)
 Plot.save("3d view")
 
-
-# ------------------------------------------------------------------------
-# SECTION: III. THETA AND RIPPLE PHASE DISTRIBUTIONS
-# ------------------------------------------------------------------------
+#|%%--%%| <ZGbQfUBV3F|MZe1owCmbW>
+#=°°°
+# SECTION: III. MEAN THETA AND RIPPLE PHASE DISTRIBUTIONS PER CELL
+°°°=#
+#|%%--%%| <MZe1owCmbW|HaSe2siNWv>
 
 #  . . . . . .FILTRATION . . . . . . . . . . . . . . . . . . . . . . . . . .
 ca1units  = subset(CELLS, :area=>a->a.=="CA1", view=true).unit
@@ -451,6 +511,10 @@ spthrip = subset(sp, :theta=>t->t .!== missing .&& t.>0,
 gr()
 
 Plot.setfolder()
+
+#|%%--%%| <HaSe2siNWv|MU313lWyPf>
+    
+
 h1 = histogram(
     filter(t->t!=0, sptheta.theta_phase), title="Theta phase distribution"
 )
@@ -468,10 +532,12 @@ plot(h1, h2, h3, h4,
     layout=@layout([[a b c];d]), size=(800,600))
 Plot.save("theta and ripple phase distributions, pt2")
 
+#|%%--%%| <MU313lWyPf|a3TpR9IRas>
+#=°°°
+## MEAN PHASE VERSUS TAU
+°°°=#
+#|%%--%%| <a3TpR9IRas|wvWkXGoYyO>
 
-# ------------------------------------------------------------------------
-# MEAN PHASE VERSUS TAU
-# ------------------------------------------------------------------------
 Plot.setfolder("phase vs tau")
 Base.cis(x::Missing) = missing
 
@@ -506,6 +572,13 @@ ripple_color = :skyblue
 
 circ = (-pi,pi)
 
+#|%%--%%| <wvWkXGoYyO|wkHJX0otGs>
+#=°°°
+
+°°°=#
+#|%%--%%| <wkHJX0otGs|YWwQ62sJBj>
+
+
 plot(
 scatter(th.theta_phase,   th[!,"all-1of20"],  markersize=3, c=theta_color,
         xlabel="Theta Phase", ylabel="Tau", xlim=circ),
@@ -524,9 +597,12 @@ Plot.save("mean phase versus tau")
 current()
 
 pyplot()
-scatter(thrip.ripple_phase_band, thrip.theta_phase, thrip[!,"all-1of20"],
-        markersize=3, xlabel="Ripple phase", ylabel="Theta phase",
-        zlabel="Tau", xlim=circ)
+using PyCall
+plt = pyimport("matplotlib.pyplot")
+fig = plt.figure()
+ax = fig.add_subplot(111, projection="3d")
+ax.scatter(thrip.ripple_phase_band, thrip.theta_phase, thrip[!,"all-1of20"])
+fig.show()
 
 plot(
 scatter(th.theta_phase,   th[!,"arena-1of20"],  markersize=3, c=theta_color,
@@ -641,7 +717,7 @@ function phasetaudists(th; n="theta", phase=Symbol(n*"_phase"))
                          :phases=>mean,
                          :responses=>mean, renamecols=false)
             dfgp = combine(groupby(df, :phasebin), 
-                         :phases=>mean,
+                         :phases=>/mean,
                          :responses=>mean, renamecols=false)
         end
         histogram2d(phases, responses, ylim=(-2,2))
