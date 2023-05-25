@@ -556,9 +556,9 @@ module spiking
     kws...)
 
         eventname = string(eventname)
-        spikes[!, eventname]          = Vector{Int32}(undef, size(spikes,1))
-        spikes[!, eventname*"_phase"] = Vector{Float32}(undef, size(spikes,1))
-        spikes[!, eventname*"_time"]  = Vector{Float32}(undef, size(spikes,1))
+        spikes[!, eventname]          = Vector{Union{Missing,Int32}}(undef,   size(spikes,1))
+        spikes[!, eventname*"_phase"] = Vector{Union{Missing,Float32}}(undef, size(spikes,1))
+        spikes[!, eventname*"_time"]  = Vector{Union{Missing,Float32}}(undef, size(spikes,1))
 
         event_of = DIutils.in_range_index(spikes.time, events; 
                                    start=:start, stop=:stop)
@@ -580,7 +580,8 @@ module spiking
             if string(indfield) ∉ names(events)
                 error("indfield=$indfield must be a column of events")
             end
-            inds = if indfield_is_index
+            println("Adding amplitude")
+            @time inds = if indfield_is_index
                 events = dropmissing(events, indfield)
                 @assert issorted(events[!,indfield])
                 inds = events[!,indfield]

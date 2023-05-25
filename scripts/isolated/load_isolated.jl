@@ -1,23 +1,25 @@
 include("imports_isolated.jl")
-# begin
+include("setup_checkpoint.jl")
 
-    # Parse the command line
-    opt = parser()
-    # Data
-    data = load_iso(opt)
-    lfp       = data["lfp"];       @assert(lfp isa DataFrame)
-    spikes    = data["spikes"] ;   @assert(spikes isa DataFrame)
-    allspikes = data["allspikes"]; @assert(allspikes isa DataFrame)
-    tsk       = data["tsk"];       @assert(tsk isa DataFrame)
-    cells     = data["cells"];     @assert(cells isa DataFrame)
-    beh       = data["beh"];       @assert(beh isa DataFrame)
-    cycles    = data["cycles"];    @assert(cycles isa DataFrame)
-    Rdf       = data["Rdf"];       @assert(Rdf isa DataFrame)
-    beh.speed = abs.(beh.smoothvel)
-
-# end
-save_kws = (;pfc_rate_analy=true)
-filt = Filt.get_filters()
+# # begin
+#
+#     # Parse the command line
+#     opt = parser()
+#     # Data
+#     data = load_iso(opt)
+#     lfp       = data["lfp"];       @assert(lfp isa DataFrame)
+#     spikes    = data["spikes"] ;   @assert(spikes isa DataFrame)
+#     allspikes = data["allspikes"]; @assert(allspikes isa DataFrame)
+#     tsk       = data["tsk"];       @assert(tsk isa DataFrame)
+#     cells     = data["cells"];     @assert(cells isa DataFrame)
+#     beh       = data["beh"];       @assert(beh isa DataFrame)
+#     cycles    = data["cycles"];    @assert(cycles isa DataFrame)
+#     Rdf       = data["Rdf"];       @assert(Rdf isa DataFrame)
+#     beh.speed = abs.(beh.smoothvel)
+#
+# # end
+# save_kws = (;pfc_rate_analy=true)
+# filt = Filt.get_filters()
 
 datacut = opt["filt"]
 animal  = opt["animal"]
