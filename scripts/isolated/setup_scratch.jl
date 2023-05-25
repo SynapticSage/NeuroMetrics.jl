@@ -1,3 +1,10 @@
+#Parameters
+opt = Dict(
+    "animal"=>"RY22",
+    "day"=>21,
+    "load_pyr"=>false
+)
+
 include(expanduser("~/Code/projects/goal-code-run/scripts/isolated/setup_checkpoint.jl"))
 Plot.setparentfolder("isolated")
 # subset(combine(groupby(cells, [:animal,:tetrode,:pyrlayer]),
@@ -9,7 +16,6 @@ Plot.setparentfolder("isolated")
 # lfp_convert = DI.superanimal_timeconversion("super",0)
 
 animals, days = unique(CELLS.animal), unique(CELLS.day)
-animal, day   = (zip(animals, days)|>collect)[2]
 load_from_checkpoint = true
 pyr_tetrodes = sort(unique(subset(CELLS, :animal=>a->a.==animal, :day=>d->d.==day,
  :pyrlayer=>p->p.!=false).tetrode))
@@ -31,10 +37,6 @@ begin
    # println("lfp.time: ", extrema(l_pyr.time))
 end
 DIutils.pushover("Finished loading LFP data")
-    spikes  = subset(SPIKES,  :animal=>a->a.==animal, :day=>d->d.== day,
-                    view=true);
-    ripples = subset(RIPPLES, :animal=>a->a.==animal, :day=>d->d.== day,
-                    view=true);
    
 
      #  |     ,---.,---.--.--.   .,---.    |    ,---.,---.
@@ -205,7 +207,7 @@ DIutils.pushover("Finished loading LFP data")
     # `--'o    `---'`---'`---'`---'|---'    `---'|---'``   ``---'`---'
     #                              |             |                    
     # Ripple phase
-    Munge.spiking.event_spikestats!(spikes, ripples; eventname="ripple");
+    Munge.spiking.event_spikestats!(spikes, ripples; eventname="ripple")
     @assert(length(unique(spikes.ripple_phase)) .> 4, 
     "Ripple phase not calculated correctly")
 

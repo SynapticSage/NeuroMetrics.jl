@@ -3,6 +3,7 @@ import DI, DIutils
 using DataFrames, Statistics
 using Plots
 using Infiltrator
+
 function checkranges()
     if isdefined(Main,:spikes)
         println("Spikes.time extrema: ", extrema(spikes.time))
@@ -20,24 +21,27 @@ function checkranges()
         println("lfp.time extrema: ", extrema(lfp.time))
         @assert minimum(lfp.time) <= 0
     end
-    if isdefined(Main,:ripple) && ripple !== nothing
-        println("ripple.time extrema: ", extrema(ripple.time))
-        @assert minimum(ripple.time) <= 0
+    if isdefined(Main,:ripples) && ripples !== nothing
+        println("ripple.time extrema: ", extrema(ripples.time))
+        @assert maximum(ripples.time) > 0
     end
 end
-checkranges()
 
 function checkanimalranges()
-    println("BEH:\n",
+    println(
+        "BEH:\n",
         combine(groupby(BEH, [:animal, :day]),    :time=>minimum),
         "\nSPIKES:\n",
-            combine(groupby(SPIKES, [:animal, :day]), :time=>minimum))
+            combine(groupby(SPIKES, [:animal, :day]), :time=>minimum),
+        "\nRIPPLES:\n",
+            combine(groupby(RIPPLES, [:animal, :day]), :time=>minimum)
+    )
 end
 
 # load super animal data
 animal, day = "super_clean", 0
-@time SPIKES, BEH, CELLS, RIPPLES = DI.load(animal, day, 
-    data_source=["spikes","behavior", "cells", "ripples"])
+@time SPIKES, BEH, CELLS = DI.load(animal, day, 
+    data_source=["spikes","behavior", "cells"])
 beh2 = DI.load_behavior("super",0)
 SPIKES.cycle = Vector{Union{Float32, Missing}}(missing, size(SPIKES,1)) 
 DI.annotate_pyrlayer!(CELLS)
@@ -51,13 +55,21 @@ if !isdefined(Main, :opt)
     load_pyr = true
 else
     animal, day = opt["animal"], opt["day"]
-    load_pyr = opt["load_pyr"]
+    load_pyr    = opt["load_pyr"]
 end
-opt["animal"], opt["day"], opt["load_pyr"] = animal, day, load_pyr
+if !isdefined(Main, :opt)
+    opt = Dict(
+        "animal"=>animal,
+        "day"=>day,
+        "load_pyr"=>load_pyr
+    )
+end
+
 if load_pyr
     println("Loading PYR")
     l_pyr = DI.load_lfp(animal, day; append="pyr")
-    l_pyr = transform(l_pyr, :time=> t-> t .- lfp_convert[animal], renamecols=false)
+    l_pyr = transform(l_pyr, :time=> t-> t .- lfp_convert[animal],
+        renamecols=false)
     # transform!(l_pyr, :time=> t-> t .+ time_factors[animal], renamecols=false)
     cycles       = DI.load_cycles(animal, day, "pyr")
     cycles       = transform(cycles,
@@ -71,9 +83,6 @@ if load_pyr
     )
     spikes = subset(SPIKES, :animal=>a->a.==animal, :day=>d->d.==day)
     # Print out extrema(time) for each of these just to be sure
-    begin
-        checkranges()
-    end
     convert_to_f32 = [:broadraw  :phase :ripple  :rippleamp  :ripplephase]
     for col in convert_to_f32
         if hasproperty(l_pyr, col)
@@ -87,11 +96,18 @@ else
     beh = subset(BEH, :animal=>a->a.==animal, :day=>d->d.==day)
     for animal in animals
         println("Correcting $animal by ", super_convert[animal])
-        BEH[BEH.animal.==animal, :time] .-= super_convert[animal]
-        SPIKES[SPIKES.animal.==animal, :time] .-= super_convert[animal]
+        BEH[BEH.animal         .== animal, :time] .-= super_convert[animal]
+        SPIKES[SPIKES.animal   .== animal, :time] .-= super_convert[animal]
     end
     checkanimalranges()
-    spikes = subset(SPIKES, :animal=>a->a.==animal, :day=>d->d.==day)
+    spikes = subset(SPIKES, :animal=>a->a.==animal, :day=>d->d.==day, 
+                     view=true)
+    ripples = DI.load_ripples(animal, day)
+    ripples = transform(ripples, 
+        :time=> t-> t .- lfp_convert[animal],
+        :start=> t-> t .- lfp_convert[animal],
+        :stop=> t-> t .- lfp_convert[animal],
+        renamecols=false)
 end
 
 checkranges()

@@ -46,3 +46,4 @@ clab      = OrderedDict(-1 => "nontask",
 Munge.nonlocal.setclab(clab)
 
 println("Imports isolated: ", opt)
+DIutils.pushover("Imports isolated: $opt")
