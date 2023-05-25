@@ -6,7 +6,7 @@ Plot.setparentfolder("isolated")
 #     :propbursts=>mean,
 # ), :pyrlayer=>s->s.!=false)
 # Time conversion factors
-# time_factors = DI.superanimal_timeconversion("super",0)
+# lfp_convert = DI.superanimal_timeconversion("super",0)
 
 animals, days = unique(CELLS.animal), unique(CELLS.day)
 animal, day   = (zip(animals, days)|>collect)[2]
@@ -21,7 +21,7 @@ all_tetrodes = unique([pyr_tetrodes..., DI.default_tetrodes[animal],
 DI.ca1ref_tetrodes[animal]])|>collect
 lfp = begin 
    lfp = DI.load_lfp(animal, day, tet=all_tetrodes)
-   lfp.time .-= time_factors[animal];
+   lfp.time .-= lfp_convert[animal];
    lfp
 end
 # Print extrema of spikes.time and lfp.time
@@ -31,8 +31,12 @@ begin
    # println("lfp.time: ", extrema(l_pyr.time))
 end
 DIutils.pushover("Finished loading LFP data")
-checkranges()
+    spikes  = subset(SPIKES,  :animal=>a->a.==animal, :day=>d->d.== day,
+                    view=true);
+    ripples = subset(RIPPLES, :animal=>a->a.==animal, :day=>d->d.== day,
+                    view=true);
    
+
      #  |     ,---.,---.--.--.   .,---.    |    ,---.,---.
      #  |     `---.|---   |  |   ||---'    |    |__. |---'
      #  |         ||      |  |   ||        |    |    |    
@@ -41,6 +45,7 @@ checkranges()
      # Let's check the consistency of theta across pyr layer tetrodes
      @time lfp  = subset(lfp, :tetrode=>t->t.∈(all_tetrodes,), view=true);
      GC.gc()
+    checkranges()
 
      # Visualize
      # begin
@@ -106,18 +111,20 @@ checkranges()
      # ISSUE: MEMORY explodes on the above line
      l_pyr[!,:cycle] = convert(Vector{Union{Missing, Int32}}, 
                                l_pyr[!,:cycle]);
-     GC.gc()
-     # INFO: SAVE
-     l_pyr = DataFrame(l_pyr)
-     l_pyr[!,:broadraw] = disallowmissing(l_pyr.broadraw);
-     l_pyr[!,:broadraw] = convert(Vector{Float32}, l_pyr.broadraw);
-     DI.save_lfp(transform(l_pyr[!,[:time, :tetrode, :cycle, :raw, :phase, :broadraw, :ripple, :rippleamp, :ripplephase]],
-         :time=> t-> t .+ time_factors[animal], renamecols=false), 
-         animal, day; handlemissing=:drop, append="pyr");
-     broadraw = convert(Vector{Float16}, l_pyr.broadraw);
-     l_pyr = l_pyr[!, Not(:broadraw)];
-     l_pyr[!,:broadraw] = broadraw;
-     DIutils.pushover("...finished section I, $animal")
+    checkranges()
+    GC.gc()
+    # INFO: SAVE
+    l_pyr = DataFrame(l_pyr)
+    l_pyr[!,:broadraw] = disallowmissing(l_pyr.broadraw);
+    l_pyr[!,:broadraw] = convert(Vector{Float32}, l_pyr.broadraw);
+    DI.save_lfp(transform(l_pyr[!,[:time, :tetrode, :cycle, :raw, :phase, :broadraw, :ripple, :rippleamp, :ripplephase]],
+        :time=> t-> t .+ lfp_convert[animal], renamecols=false), 
+        animal, day; handlemissing=:drop, append="pyr");
+    broadraw = convert(Vector{Float16}, l_pyr.broadraw);
+    l_pyr = l_pyr[!, Not(:broadraw)];
+    l_pyr[!,:broadraw] = broadraw;
+    DIutils.pushover("...finished section I, $animal")
+    checkranges()
 
     # ,--.     ,---.     |                                 |              
     # ,--'     `---.,---.|--- .   .,---.    ,---.,   .,---.|    ,---.,---.
@@ -158,12 +165,11 @@ checkranges()
     # Save cycles
     DI.save_cycles(begin
         transform(cycles, 
-            :start=>s->s .+ time_factors[animal],
-            :stop=>s->s  .+ time_factors[animal],
+            :start=>s->s .+ lfp_convert[animal],
+            :stop=>s->s  .+ lfp_convert[animal],
             renamecols=false
         )
     end, animal, day, "pyr")
-    DIutils.pushover("Finished section II, $animal")
 
     # ---------------- *
     # Visualize cycles |
@@ -185,6 +191,8 @@ checkranges()
         Plot.setparentfolder(par...)
     end
     current()
+    checkranges()
+    DIutils.pushover("Finished section II, $animal")
 
     # ISSUE: ONE USUALLY HAS TO RELOAD FROM CHECKPOINTED FILES HERE UNLESS
     # YOU HAVE ENORMOUS RAM partially because of the lfp
@@ -197,10 +205,6 @@ checkranges()
     # `--'o    `---'`---'`---'`---'|---'    `---'|---'``   ``---'`---'
     #                              |             |                    
     # Ripple phase
-    spikes  = subset(SPIKES,  :animal=>a->a.==animal, :day=>d->d.== day,
-                    view=true);
-    ripples = subset(RIPPLES, :animal=>a->a.==animal, :day=>d->d.== day,
-                    view=true);
     Munge.spiking.event_spikestats!(spikes, ripples; eventname="ripple");
     @assert(length(unique(spikes.ripple_phase)) .> 4, 
     "Ripple phase not calculated correctly")
@@ -294,7 +298,7 @@ checkranges()
     #   
     props = intersect(union(cycle_props, ripple_props), propertynames(spikes))
     DI.save_spikes_taginfo(begin
-        transform(spikes[!,props], :time=>t->t.+time_factors[animal], renamecols=false)
+        transform(spikes[!,props], :time=>t->t.+lfp_convert[animal], renamecols=false)
     end, animal, day, "pyr_cycles_unfilt")
     println("Missing cycles in filtered: ",   sum(ismissing.(spikes.cycle)))
     println("Missing cycles in unfiltered: ", sum(ismissing.(spikes.unfilt_cycle)))
@@ -320,7 +324,7 @@ checkranges()
                       propertynames(spikes))
     DI.save_spikes_taginfo(begin
         transform(spikes[!,props], 
-            :time=>t->t.+time_factors[animal],
+            :time=>t->t.+lfp_convert[animal],
         renamecols=false)
     end, animal, day, "pyr_cycles_isolated")
     DIutils.pushover("Finished section 3, animal $animal, day $day")
