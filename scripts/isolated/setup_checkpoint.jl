@@ -2,28 +2,28 @@
 import DI, DIutils
 using DataFrames, Statistics
 using Plots
+using DataFrames
 using Infiltrator
 
 function checkranges()
     if isdefined(Main,:spikes)
         println("Spikes.time extrema: ", extrema(spikes.time))
-        @assert minimum(spikes.time) <= 0
+        # @assert minimum(spikes.time) <= 0
     end
     if isdefined(Main,:l_pyr)
         println("l_pyr.time extrema: ", extrema(l_pyr.time))
-        @assert minimum(l_pyr.time) <= 0
     end
     if isdefined(Main,:cycles)
         println("cycles.time extrema: ", extrema(cycles.start))
-        @assert minimum(cycles.start) <= 0
+        # @assert minimum(cycles.start) <= 0
     end
     if isdefined(Main,:lfp) && lfp !== nothing
         println("lfp.time extrema: ", extrema(lfp.time))
-        @assert minimum(lfp.time) <= 0
+        # @assert minimum(lfp.time) <= 0
     end
     if isdefined(Main,:ripples) && ripples !== nothing
         println("ripple.time extrema: ", extrema(ripples.time))
-        @assert maximum(ripples.time) > 0
+        # @assert maximum(ripples.time) > 0
     end
 end
 
@@ -34,11 +34,15 @@ function checkanimalranges()
         "\nSPIKES:\n",
             combine(groupby(SPIKES, [:animal, :day]), :time=>minimum),
         "\nRIPPLES:\n",
-            combine(groupby(RIPPLES, [:animal, :day]), :time=>minimum)
+        isdefined(Main, :RIPPLES) ?
+        combine(groupby(RIPPLES, [:animal, :day]), :time=>minimum) :
+                            nothing
     )
 end
 
+# -----------------------
 # load super animal data
+# -----------------------
 animal, day = "super_clean", 0
 @time SPIKES, BEH, CELLS = DI.load(animal, day, 
     data_source=["spikes","behavior", "cells"])
@@ -49,24 +53,34 @@ Plot.setparentfolder("isolated")
 lfp_convert    = DI.get_0time_pre_superanimal()
 super_convert  = DI.convert_super_to_time0()
 load_pyr=nothing
+animals, days = unique(CELLS.animal), unique(CELLS.day)
 if !isdefined(Main, :opt)
-    animals, days = unique(CELLS.animal), unique(CELLS.day)
     animal, day   = collect(zip(animals, days))[2]
     load_pyr = true
 else
     animal, day = opt["animal"], opt["day"]
     load_pyr    = opt["load_pyr"]
 end
+
+
+# -----------------------
+# Load specific animal data
+# -----------------------
 if !isdefined(Main, :opt)
+    # opt = Dict(
+    #     "animal"=>animal,
+    #     "day"=>day,
+    #     "load_pyr"=>load_pyr
+    # )
     opt = Dict(
-        "animal"=>animal,
+        "animal"=>"RY16",
         "day"=>day,
-        "load_pyr"=>load_pyr
+        "load_pyr"=>false,
     )
 end
 
-if load_pyr
-    println("Loading PYR")
+function get_animal_pyr(animal, day)
+    println("Loading PYR data for $animal")
     l_pyr = DI.load_lfp(animal, day; append="pyr")
     l_pyr = transform(l_pyr, :time=> t-> t .- lfp_convert[animal],
         renamecols=false)
@@ -89,6 +103,32 @@ if load_pyr
             l_pyr[!,col] = convert(Array{Float32,1}, l_pyr[!,col])
         end
     end
+    ripples = DI.load_ripples(animal, day)
+    ripples = transform(ripples, 
+        :time=> t-> t .- lfp_convert[animal],
+        :start=> t-> t .- lfp_convert[animal],
+        :stop=> t-> t .- lfp_convert[animal],
+        renamecols=false)
+    return l_pyr, cycles, spikes, ripples
+end
+
+# MULTIPLE ANIMALS
+if load_pyr && !occursin("super",animal)
+    l_pyr, cycles, spikes, ripples = get_animal_pyr(animal, day)
+    checkranges()
+# ONE ANIMAL
+elseif load_pyr
+    OUT = []
+    animals, days = DI.animaldays()
+    for (animal,day) in zip(animals, days)
+        l_pyr, cycles, spikes, ripples = get_animal_pyr(animal, day)
+        push!(OUT, (l_pyr, cycles, spikes, ripples))
+    end
+    l_pyr = vcat([x[1] for x in OUT]...)
+    cycles = vcat([x[2] for x in OUT]...)
+    spikes = vcat([x[3] for x in OUT]...)
+    ripples = vcat([x[4] for x in OUT]...)
+# ONE ANIMAL from scratch
 else
     println("lfp_convert: ", lfp_convert)
     println("super_convert: ", super_convert)

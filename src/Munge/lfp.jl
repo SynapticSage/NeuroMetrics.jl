@@ -3,8 +3,14 @@ module lfp
     using DataFrames, Statistics, DirectionalStatistics, ImageFiltering
     using DIutils.Table, DIutils, Infiltrator, MATLAB, LazyGrids, ProgressMeter, DSP
     import DIutils: Table
+    import UnicodePlots
+    using StatsPlots
     function __init__()
         mat"addpath(genpath('/usr/local/chronux_2_12/'))"
+    end
+    
+    function samprate(lfp::AbstractDataFrame)
+        1/median(diff(lfp.time))
     end
 
     # Python butterworth : TODO: replce with DSP---dsp.jl gives different results
@@ -26,6 +32,7 @@ module lfp
         y = ff(b, a, data)
         return y
     end
+
 
     export coherence
     function coherence(lf1::DataFrame, lf2::DataFrame; average=false, 
@@ -108,7 +115,7 @@ module lfp
         low, high = Float64(low), Float64(high)
         broadraw = df[!,:broadraw]
         prevtype = eltype(broadraw) |> nonmissingtype
-        print("raw => float64...")
+        print("broadraw => float64...")
         broadraw =  Float64.(broadraw)
         print("filtering...")
         filt = butter_filter(broadraw, low, high, fs; order=order, btype="band")
@@ -139,6 +146,21 @@ module lfp
             println("filtering group $g")
             bandpass(df, pos...; kws...)
         end
+    end
+    function bandpass(X::AbstractVector, low::Real, high::Real; fs=1500, 
+                        order=4, btype="band", p2p::Bool=true)
+        low, high = Float64(low), Float64(high)
+        X = convert(Vector{Float64}, X)
+        filt = butter_filter(X, low, high, fs; order=order, btype=btype)
+        if all(isnan, filt)
+            @error "all NaNs in filter, check order=$order"
+        end
+        hilb = DSP.hilbert(disallowmissing(convert(Vector, filt)))
+        amp, phase = abs.(hilb), angle.(hilb)
+        if p2p
+            phase = t2t_to_p2p(phase)
+        end
+        return (;filt, phase, amp)
     end
 
     """
@@ -226,7 +248,7 @@ module lfp
                               method="peak-to-peak")
         @assert issorted(lfp.time)
         phase = lfp[!, phase_col]
-        lfp.phase = phase_to_radians(lfp[:,"phase"])
+        lfp.phase = phase_to_radians(lfp[:,phase_col])
         println("Method=$method")
         if method == "resets"
             Δₚ = [0; diff(phase)]
@@ -240,14 +262,14 @@ module lfp
             p = phase .- median(extrema(phase))
             rising_zero_point = [(p[2:end] .>=0) .& (p[1:end-1] .<0) ; false]
             cycle_labels = UInt32.(accumulate(+, rising_zero_point))
-            lfp[!,"phase"] = mod2pi.(lfp[!,"phase"])
+        lfp[!,"phase"] = mod2pi.(lfp[!,phase_col])
         elseif method == "trough-to-trough"
             step_size = median(diff(phase))
             Δₚ = [0; diff(phase)]
             falling_zero_point = [(phase[1:end-1] .>=0) .& (phase[2:end] .<0) ; false]
             #rising_zero_point = [(phase[2:end] .>=0) .& (phase[1:end-1] .<0) ; false]
             cycle_labels = UInt32.(accumulate(+, falling_zero_point))
-            lfp[!,"phase′"] = mod.(lfp[!,"phase"] .- pi, 2*pi)
+            lfp[!,"phase′"] = mod.(lfp[!,phase_col] .- pi, 2*pi)
         else
             throw(ArgumentError("Unrecognized method=$method"))
         end
@@ -261,6 +283,41 @@ module lfp
     annotate_cycles!(data::AbstractDataFrame, 
                     cycles::AbstractDataFrame)::DataFrame = 
             Table.group.annotate_periods!(data, cycles)
+
+    """
+        handle_phase_asymmetry!(lfp::AbstractDataFrame, phase_col="phase")
+
+    remove phase asymmetry by ranking phases, and rescaling to 0,2pi,
+    creating a pure sawtooth sinusoid
+    """
+    function handle_phase_asymmetry!(lfp::AbstractDataFrame; 
+    phase_col="phase", phase_col_out="phase")
+        rank = replace(lfp[!,phase_col], missing=>-Inf);
+        rank = invperm(sortperm(rank));
+        rank = rank ./ length(rank);
+        lfp[!, phase_col_out] = rank * 2π;
+        return lfp
+    end
+
+    # Visualize phase asymmetry correction
+    function visualize_phase_asymmetry_correction(lfp::AbstractDataFrame)
+        s = sortperm(lfp.phase); 
+        resid = lfp.phase .- lfp.phase_balance;
+        UnicodePlots.lineplot( disallowmissing(lfp.phase[s][1:1000:end]),
+            resid[s][1:1000:end], title="Phase asymmetry correction",
+            xlabel="Phase", ylabel="Residual",)
+    end
+
+    function visualize_cycles(lfp::AbstractDataFrame)
+        p=@df lfp[1:2500,:] begin
+            UnicodePlots.lineplot(:time, :raw, height=50, width=100)
+        end
+        @df lfp[1:2500,:] begin
+            UnicodePlots.lineplot!(p, :time, mod2pi.(:phase) .* 30 .- 15)
+            UnicodePlots.lineplot!(p, :time, 10*:cycle)
+        end
+        p
+    end
 
 
     """

@@ -1,7 +1,7 @@
 #Parameters
 opt = Dict(
-    "animal"=>"RY22",
-    "day"=>21,
+    "animal"=>"RY16",
+    "day"=>36,
     "load_pyr"=>false
 )
 
@@ -19,6 +19,12 @@ animals, days = unique(CELLS.animal), unique(CELLS.day)
 load_from_checkpoint = true
 pyr_tetrodes = sort(unique(subset(CELLS, :animal=>a->a.==animal, :day=>d->d.==day,
  :pyrlayer=>p->p.!=false).tetrode))
+
+ripple_props = [:ripple, :ripple_time, :ripple_phase, :ripple_phase_band,
+                :ripple_amp_band]
+theta_props  = [:theta, :theta_time, :theta_phase, :theta_amp]
+cycle_props  = [:animal, :day, :time, :tetrode, :unit, :cycle, :unfilt_cycle]
+iso_props    = [:isolated, :nearestcyc, :meancyc]
 
 
 println("Loading data for $animal, day $day")
@@ -135,9 +141,6 @@ DIutils.pushover("Finished loading LFP data")
     #                            |             `---'                    
 
     # Examine
-    ripples = subset(RIPPLES, :animal=>a->a.==animal, :day=>d->d.==day,
-                    view=true)
-
     using Peaks
     # get second tet
     l = groupby(l_pyr, :tetrode)[2]
@@ -211,15 +214,15 @@ DIutils.pushover("Finished loading LFP data")
     @assert(length(unique(spikes.ripple_phase)) .> 4, 
     "Ripple phase not calculated correctly")
 
-    # ISSUE:
-    # Let's figure out the number of tetrodes that match between
-    # spikes and lfp
-    sp = subset(spikes, 
-    :tetrode=>t->t .∈ (unique(l_pyr.tetrode),), view=true)
-    println("Theoretical number of pyramidal layer cells:",
-    combine(groupby(sp, :tetrode),
-    :unit => (x->length(unique(x))), renamecols=false)
-    )
+    # # TROUBLESHOOT:
+    # # Let's figure out the number of tetrodes that match between
+    # # spikes and lfp
+    # sp = subset(spikes, 
+    # :tetrode=>t->t .∈ (unique(l_pyr.tetrode),), view=true)
+    # println("Theoretical number of pyramidal layer cells:",
+    # combine(groupby(sp, :tetrode),
+    # :unit => (x->length(unique(x))), renamecols=false)
+    # )
 
     # Add ripple BAND phase (rather than phase within the ripple)
     spikes.ripple_phase_band = Vector{Union{Missing, Float32}}(missing, 
@@ -232,14 +235,16 @@ DIutils.pushover("Finished loading LFP data")
         keys(g_spikes)|>collect           .|> NamedTuple);
     println("Number of matching keys:", length(K))
 
+    # ISSUE: fixed badinds 5/26/23 :: rerun this
     @assert all(ripple_props .∈ (propertynames(spikes),))
     using ProgressMeter
     prog = Progress(length(K), 1, "Adding ripple band phase");
     k = (;tetrode = 55)
     for k in K
-        gs, gl = g_spikes[k], gl_pyr[k]
+        println("Tetrode: ", k.tetrode);
+        gs, gl = g_spikes[k], gl_pyr[k];
         time = gs.time
-        ind = DIutils.searchsortednearest.([gl.time], time)
+        ind = DIutils.searchsortednearest.([gl.time], time);
         try
         @assert(length(unique(ind)) > 4, "Not enough matching spikes")
         catch e
@@ -248,20 +253,21 @@ DIutils.pushover("Finished loading LFP data")
         end
         badinds = (gl.time[ind] - time) .> 0.03
         ind = ind[.!badinds]
-        gs.ripple_phase_band = gl.ripplephase[ind];
-        gs.ripple_amp_band   = gl.rippleamp[ind];
+        gs.ripple_phase_band[.!badinds] = gl.ripplephase[ind];
+        gs.ripple_amp_band[.!badinds]   = gl.rippleamp[ind];
         next!(prog)
     end
+# NOTE: COMMENTED TO HERE
 
-    # ISSUE: Let's figure out what fraction of our pyramidal layer
-    #        cells
-    q=combine(groupby(sp, :tetrode),
-    :unit => (x->length(unique(x))), 
-    [:unit, :ripple_phase_band] => ((x,y)->( goodinds = .!ismissing.(y);
-        unique(x[goodinds]) |> length)) => :n_with_ripple_phase,
-        renamecols=false,
-    )
-    println("Theoretical number of pyramidal layer cells:", q)
+    # # Troubleshoot: Let's figure out what fraction of our pyramidal layer
+    # #        cells
+    # q=combine(groupby(sp, :tetrode),
+    # :unit => (x->length(unique(x))), 
+    # [:unit, :ripple_phase_band] => ((x,y)->( goodinds = .!ismissing.(y);
+    #     unique(x[goodinds]) |> length)) => :n_with_ripple_phase,
+    #     renamecols=false,
+    # )
+    # println("Theoretical number of pyramidal layer cells:", q)
     
     
     # Theta phase
@@ -279,6 +285,14 @@ DIutils.pushover("Finished loading LFP data")
                                     indfield_is_index=true,
                                     eventname="theta")
     @assert all(theta_props .∈ (propertynames(spikes),))
+
+    q=combine(groupby(sp, :tetrode),
+    :unit => (x->length(unique(x))), 
+    [:unit, :theta_phase] => ((x,y)->( goodinds = .!ismissing.(y);
+        unique(x[goodinds]) |> length)) => :n_with_theta_phase,
+        renamecols=false,
+    )
+    println("Theoretical number of pyramidal layer cells:", q)
     
     # PREPARE FOR ISOLATED SPIKE ANALYSIS
     GC.gc()
@@ -287,7 +301,7 @@ DIutils.pushover("Finished loading LFP data")
         spikes, l_pyr; 
         cycle=:cycle,
         cells=CELLS, include_samples=false, matchtetrode=true, 
-        BEH, RIPPLES)
+        BEH, ripples)
     # Cycles unfiltered
     spikes.unfilt_cycle = Vector{Union{Missing,Bool}}(missing, nrow(spikes))
     l_pyr[!,:unfilt_cycle] = l_pyr[!, :cycle]
@@ -299,9 +313,9 @@ DIutils.pushover("Finished loading LFP data")
     #   unfiltered
     #   
     props = intersect(union(cycle_props, ripple_props), propertynames(spikes))
-    DI.save_spikes_taginfo(begin
-        transform(spikes[!,props], :time=>t->t.+lfp_convert[animal], renamecols=false)
-    end, animal, day, "pyr_cycles_unfilt")
+    # DI.save_spikes_taginfo(begin
+    #     transform(spikes[!,props], :time=>t->t.+lfp_convert[animal], renamecols=false)
+    # end, animal, day, "pyr_cycles_unfilt")
     println("Missing cycles in filtered: ",   sum(ismissing.(spikes.cycle)))
     println("Missing cycles in unfiltered: ", sum(ismissing.(spikes.unfilt_cycle)))
     
@@ -331,5 +345,4 @@ DIutils.pushover("Finished loading LFP data")
     end, animal, day, "pyr_cycles_isolated")
     DIutils.pushover("Finished section 3, animal $animal, day $day")
 
-
-DIutils.pushover("Finished OR error")
+DIutils.pushover("Finished OR error"

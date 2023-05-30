@@ -1,5 +1,10 @@
-include("imports_isolated.jl")
-include("setup_checkpoint.jl")
+if isdefined(Main,:DrWatson)
+    include(scriptsdir("isolated","imports_isolated.jl"))
+    include(scriptsdir("isolated","setup_checkpoint.jl"))
+else
+    include("imports_isolated.jl")
+    include("setup_checkpoint.jl")
+end
 
 # # begin
 #
@@ -47,3 +52,8 @@ Munge.nonlocal.setclab(clab)
 
 println("Imports isolated: ", opt)
 DIutils.pushover("Imports isolated: $opt")
+
+# spikes = subset(SPIKES, :animal=>a->a.==animal, :day=>d->d.==day)
+# cells  = subset(CELLS, :animal=>a->a.==animal, :day=>d->d.==day)
+spikes = SPIKES
+cells = CELLS

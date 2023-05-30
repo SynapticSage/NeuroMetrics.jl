@@ -326,19 +326,34 @@ module spiking
     end
 
     """
-        isolated
+        prepiso
 
-    find isolated spikes in the manneer of Jai/Frank 2021
+    literally prepares spikes for isolated spikes procedure:
+    ∘ adds theta cycle column to spikes
+    ∘ excludes speed and ripple times
+    ∘ labels each cell with the theta cycle id for its respective tetrode(s)
 
-    update
+    # Inputs
+    - `spikes::DataFrame`: dataframe of spikes
+    - `theta::DataFrame`: dataframe of theta cycles
+    - `cycle=:cycle`: column in spikes and theta to use for theta cycle
+    - `refreshcyc=true`: whether to refresh the cycle column in spikes
+    - `cells=nothing`: cells to run on, if nothing run on all
+    - `beh=nothing`: behavioral dataframe to use for immobility detection
+    - `ripples=nothing`: ripples dataframe to use for exclusion
+
+    # Returns
+    - `spikes::DataFrame`: dataframe of spikes with theta cycle column
     """
     function prepiso(spikes::AbstractDataFrame,  
-                      theta::Union{AbstractDataFrame,Nothing}; 
-                      cycle=:cycle, refreshcyc=true, cells=nothing,
-                      beh=nothing, ripples=nothing, immobility_thresh=2,
-                      matchtetrode::Bool=false, kws...)
+                     theta::Union{AbstractDataFrame,Nothing}; 
+                     cycle=:cycle, refreshcyc=true, cells=nothing,
+                     beh=nothing, ripples=nothing, immobility_thresh=2,
+                matchtetrode::Bool=:tetrode in propertynames(theta),
+                kws...)
 
-        if spikes.animal|>unique|>length > 1
+        if :animal in propertynames(spikes) &&
+                spikes.animal|>unique|>length > 1
             @error "Can only run isolated on one animal at a time"
         end
 
@@ -348,12 +363,20 @@ module spiking
         elseif refreshcyc
             spikes[!,String(cycle)] .= missing
         end
+        if refreshcyc
+            sort!(theta, :time)
+            sort!(spikes, :time)
+            DIutils.filtreg.register(theta, spikes; on="time", 
+                                                transfer=["cycle"])
+        end
 
+        # If there's not a cycle column, add it
         added_lfp_field = true
         if String(cycle) ∉ propertynames(theta)
             theta[!,String(cycle)] = theta[!,:cycle]
         end
 
+        # Label spikes with speed if immobility_thresh > 0 and then exclude
         if immobility_thresh > 0
             if beh !== nothing
                 DIutils.filtreg.register(beh, spikes; on="time", 
@@ -366,12 +389,16 @@ module spiking
             end  
         end
 
+        # Exclude spikes during ripples
         if ripples !== nothing
             println("Excluding ripples")
             spikes_excluded = DIutils.in_range(spikes.time, ripples)
             spikes = spikes[.!spikes_excluded,:]
         end
 
+        # Label spikes with theta cycle
+        println("Labeling spikes with theta cycle," * 
+         "\nmatchtetrode = ", matchtetrode)
         if !matchtetrode
             DIutils.filtreg.register(theta, spikes; on="time", 
                                      transfer=[String(cycle)])
@@ -408,9 +435,12 @@ module spiking
                 G[(;unit=sp.unit[1])][!,String(cycle)] .= cycles
             end
         end
-        if added_lfp_field
-            theta = theta[!, Not(String(cycle))]
-        end
+
+        # # If the cycle column did not already exist, remove it
+        # if added_lfp_field
+        #     theta = theta[!, Not(String(cycle))]
+        # end
+
         GC.gc()
         if all(ismissing.(spikes[!, String(cycle)]))
             throw(ErrorException("No cycles found"))
@@ -481,10 +511,6 @@ module spiking
         if all(ismissing.(spikes[!,cycle]))
             @warn "All cycles are missing" unit=spikes.unit[1]
         end
-        #if length(cycles) > 1
-            #@warn  "You only have 1 cycle"
-        #end
-        #(c,cycle) =  first(enumerate(cycles))
         print("Running unit ", spikes.unit[1])
         for (c,spcycle) in enumerate(spcycles)
             # find the N closest cycles
