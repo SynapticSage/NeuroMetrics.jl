@@ -23,28 +23,32 @@ using LinearAlgebra
 import DataStructures: OrderedDict
 import DimensionalData: Between
 
-using GLMNet, MultivariateStats, MLJ, ScikitLearn
+using GLMNet, MultivariateStats
+# using MLJ, ScikitLearn
 using MATLAB
 using Metrics, .Table, GLMNet
 import Dates, Logging
 mat"dbclear all"
-using MLJ
-using MLJScikitLearnInterface: ElasticNetCVRegressor
+# using MLJ
+# using MLJScikitLearnInterface: ElasticNetCVRegressor # BUG: temporarily causes segfault
 
 export commit_vars
 """
     commit_vars()
-
 Save the variables in the global scope to a jld2 file. The variables must be in
 the global scope, and must be one of the following:
 lfp, spikes, tsk, cells, beh, cycles, Rdf, opt
 """
-function commit_vars()
-    if !opt["commits"]; return Nothing; end
+function commit_vars(vars::Union{Nothing,Vector,Tuple,String}=nothing)
+    if "commits" ∉ keys(opt); opt["commits"] = false; end
+    if !opt["commits"]; 
+        println("Not committing variables to file.")
+        return Nothing; end
     varnames = (x for x in
-        ("lfp", "spikes", "tsk", "cells", "beh", "cycles", "Rdf", "opt")
-        if isdefined(Main, x)
+        ("lfp", "spikes", "tsk", "cells", "beh", "cycles", "Rdf", "opt","R")
+        if isdefined(Main, Symbol(x))
     )
+    varnames = vars === nothing ? varnames : intersect(varnames, vars)
     jldopen(GoalFetchAnalysis.Munge.isolated.path_iso(opt), "a") do storage
         for n in varnames
             v = @eval Main eval(Symbol($n))
@@ -84,7 +88,9 @@ glm_list*, glm_dict*
 function commit_cycwise_vars(vars::Union{Nothing,Vector,Tuple,String}=nothing)
     has_df = false
     if !in("commits", keys(opt)); opt["commits"] = true; end
-    if opt["commits"] == false; return Nothing; end
+    if opt["commits"] == false; 
+        println("Not committing variables to file.")
+        return Nothing; end
     jldopen(path_iso(opt; append="_cyclewise"), "a"; compress=true) do storage
         models = [string(x) for x in propertynames(Main) 
                   if occursin("model_", string(x))]
@@ -119,67 +125,61 @@ end
 
 """
     print_cyclewise_vars()
-
 Print the variables in path_iso(opt; append="_cyclewise")
+# Arguments
+- li: a string, if provided, only print variables that contain `li`
+- showsize: a boolean, if true, print the size of each variable
 """ 
-function print_cyclewise_vars()
+function print_cyclewise_vars(li=nothing;showsize::Bool=false)
+    li = li isa String ? [li] : li
     jldopen(path_iso(opt; append="_cyclewise"), "r") do storage
-        println(keys(storage))
+        if li === nothing
+            K = keys(storage)
+        else
+            K = filter(x -> string(x) ∈ li, keys(storage))
+        end
+        if showsize
+            # compute size of each variable
+            for k in K
+                # get cumulative size of deep object
+                println(k, " : ", Base.summarysize(storage[k]))
+            end
+        else
+            println(K)
+        end
     end
 end
 
 export initorget
 """
     initorget(key; append="_cyclewise", obj=ThreadSafeDict())
-
 Get the object `key` from the jld2 file at path_iso(opt; append="_cyclewise").
 If the key is not in the file, return `obj`.
-
+Will only load if opt["overwrite"] is false.
 # Arguments
  - key: a string, the key to get
  - append: a string, the string to append to the path_iso(opt) to get the path
    to the jld2 file.
  - obj: an object, the object to return if the key is not in the file.
+# Returns
+ - the object stored at key in the jld2 file, or `obj` if the key is not in the
+   file.
 """
 function initorget(key;append="_cyclewise", obj=ThreadSafeDict())
-    jldopen(path_iso(opt;append), "r") do storage
+    println("Mode : overwrite=", opt["overwrite"])
+    out = jldopen(path_iso(opt;append), "r") do storage
         print("Possible keys", keys(storage))
-        if key in keys(storage)
+        out = if !opt["overwrite"] && key in keys(storage)
+            @info "Loading $key from file"
             storage[key]
         else
             obj
         end
     end
-end
-
-
-using Random
-export shuffle_cyclelabels
-"""
-    shuffle_cyclelabels(df, perm=[:cycs,:relcycs])
-
-Shuffle the cycle labels in the dataframe `df` and return the shuffled dataframe.
-
-# Arguments
- - df: a dataframe with columns `perm`
- - perm: a vector of symbols, the columns to shuffle
-
-# Returns
- - dfshuf: a dataframe with the same columns as `df`, but with the columns
-   `perm` shuffled.
-"""
-function shuffle_cyclelabels(df, perm=[:cycs,:relcycs])
-    # if "orig"*string(perm[1]) ∉ names(df)
-    #         df[!,"orig".*string(perm)] .= df[!, perm]
-    # end
-    inds = collect(1:size(df,1))
-    randperm!(inds)
-    dfshuf = sort(
-    DataFrames.transform(df, perm .=> 
-            x->x[inds], 
-            Not(perm), renamecols=false), perm)
-    @assert dfshuf != df
-    dfshuf
+    if out isa AbstractDict
+        summary(out)
+    end
+    out
 end
 
 """

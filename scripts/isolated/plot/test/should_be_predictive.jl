@@ -3,6 +3,7 @@
 # ruined
 
 include("../imports_isolated.jl")
+include("./pfc_cyclewise.jl")
 
 # Make some helper functions!
     """
@@ -25,12 +26,12 @@ include("../imports_isolated.jl")
     """
     subset of cells dataframe by relevant columns
     """
-    cu(cells::DataFrame, df::DataFrame)  = @subset(cells, :unit .∈ (uc(df),))
-    icu(cells::DataFrame, df::DataFrame) = @subset(cells, :unit .∈ (ic(df),))
+    cu(cells::DataFrame, df::DataFrame)       = @subset(cells, :unit .∈ (uc(df),))
+    icu(cells::DataFrame, df::DataFrame)      = @subset(cells, :unit .∈ (ic(df),))
     cu(cells::Vector{String}, df::DataFrame)  = cu(parse.(Int,cells), df)
     icu(cells::Vector{String}, df::DataFrame) = icu(parse.(Int,cells), df)
-    cu(cells::Vector{Int}, df::DataFrame)  = cells .∈ (ic(df),)
-    icu(cells::Vector{Int}, df::DataFrame)  = cells .∈ (uc(df),)
+    cu(cells::Vector{Int}, df::DataFrame)     = cells .∈ (ic(df),)
+    icu(cells::Vector{Int}, df::DataFrame)    = cells .∈ (uc(df),)
     function Base.:*(x::Int64, s::String) 
         string(x) * s
     end
@@ -70,18 +71,38 @@ function get_correlation_matrices(df)
 end
 
 function plot_correlation_matrices(;Cca1, Cpfc, Cca1pfc, kws...)
+
     g= grid(2,2)
     ca1pct = sum(ca1)/length(ca1) * Plots.pct
     pfcpct = sum(pfc)/length(pfc) * Plots.pct
     g.widths  = [ca1pct, pfcpct]
     g.heights = [ca1pct, pfcpct]
     m = 0.2
-    plot(
-        heatmap(Cca1,             colorbar_tickfontsize=3, colorbar_title="CA1",     c=:PiYG_5,    clim=(-m, m),  colorbar=:left),
-        heatmap(Cca1pfc,          colorbar_tickfontsize=3, colorbar_title="CA1-PFC", c=:vik,       clim=(-m, m)),
+    # Get yticks for Cca1 (cell labels)
+    ca1ticks = string.(sort(CU[ca1,:], :area).unit)
+    # Set yticks to be equal (locations, labels, size)
+    ca1ticks = (collect(1:size(Cca1,1)), ca1ticks)
+    ffont = Plots.font(3, "Courier")
+    pfcticks = string.(sort(CU[pfc,:], :area).unit)
+    pfcticks = (collect(1:size(Cpfc,2)), pfcticks)
+    hCA1=heatmap(collect(1:size(Cca1,1)), collect(1:size(Cca1,2)), Cca1; 
+                xticks=ca1ticks, yticks=ca1ticks, 
+                    xtickfont=ffont, ytickfont=ffont,
+                    colorbar_title="CA1",     
+                    c=:PiYG_5,    clim=(-m, m),  colorbar=:left)
+    hCA1PFC=heatmap(1:size(Cca1pfc,2), 1:size(Cca1pfc,1), Cca1pfc,
+    colorbar_tickfontsize=3, colorbar_title="CA1-PFC", c=:vik,       clim=(-m,
+        m), xticks=pfcticks, yticks=ca1ticks, xtickfont=ffont, ytickfont=ffont,
+    colorbar=:right)
+
+    hPFC = heatmap(collect(1:size(Cpfc,1)), collect(1:size(Cpfc,2)), Cpfc,
+    colorbar_tickfontsize=3, colorbar_title="PFC",     c=:RdYlGn_11, clim=(-m,
+        m))
+    plot(hCA1,
+        hCA1PFC,
         Plot.create_blank_plot(),
-        heatmap(Cpfc,             colorbar_tickfontsize=3, colorbar_title="PFC",     c=:RdYlGn_11, clim=(-m, m)),
-        layout=g,
+        hPFC, layout=g,
+            xticks=pfcticks, yticks=pfcticks, xtickfont=ffont, ytickfont=ffont,
     )
 end
 
@@ -125,7 +146,8 @@ plot(
 )
 
 # CORRELATION STRUCTURE OF 10 MINUTE BINS
-function test_correlation_structure(prop=:bins; desc="")
+using LinearAlgebra
+function test_correlation_structure(prop=:bins; desc="", ploton=true)
     SIM=[]
     DF = groupby(df, prop)
     prog =Progress(length(DF);desc="CC")
@@ -150,15 +172,17 @@ function test_correlation_structure(prop=:bins; desc="")
     end
     push!(SIM,similarity)
     println("PLotting CC")
-    # hCC=heatmap(similarity, title="Correlation structure over time bins")
-    # savefig(plotsdir("isolated","glm","correlation structure of $desc $prop for cyclemean df.pdf"))
+    hCC = ploton ? heatmap(similarity, 
+        title="Correlation structure over time bins") : nothing
+    ploton ? savefig(plotsdir("isolated","glm",
+        "correlation structure of $desc $prop for cyclemean df.pdf")) : nothing
 
     println("Processing Rdf")
     RDF = groupby(Rdf, prop)
     prog =Progress(length(RDF);desc="RCC")
     println("Computing simlarity")
     RCC = Vector{Array}(undef, length(RDF))
-    Threads.@threads for (i,d) in enumerate(RDF)
+    Threads.@threads for (i,d) in collect(enumerate(RDF))
         RCC[i] = begin
             Q = get_correlation_matrices(begin
                 unstack(d, :time, :unit, :value, combine=mean) 
@@ -174,13 +198,15 @@ function test_correlation_structure(prop=:bins; desc="")
     prog = Progress(length(CC)^2)
     Threads.@threads for (i,(q1,q2)) in 
         collect(enumerate(Iterators.product(RCC,RCC)))
-        similarity[i]= (a2d(q1)' * a2d(q2))[1]/(norm(q1)*norm(q2))
+        similarity[i]= (a2d(q1)' * a2d(q2))[1] / (norm(q1) * norm(q2))
         next!(prog)
     end
     push!(SIM,similarity)
     println("PLotting RCC")
-    # hRCC=heatmap(similarity, title="Correlation structure over time bins")
-    # savefig(plotsdir("isolated","glm","correlation structure of $desc $prop for cyclemean Rdf.pdf"))
+    hRCC = ploton ? heatmap(similarity, 
+        title="Correlation structure over time bins") : nothing
+    ploton ? savefig(plotsdir("isolated","glm",
+        "correlation structure of $desc $prop for cyclemean Rdf.pdf")) : nothing
 
     println("PLotting CC vs RCC")
     similarity = Matrix{Float64}(undef, length(CC), length(RCC))
@@ -191,14 +217,15 @@ function test_correlation_structure(prop=:bins; desc="")
         next!(prog)
     end
     push!(SIM,similarity)
-    # hCCRCC = heatmap(similarity, xlabel="cycle df", ylabel="firing rate df",
-    #     title="Correlation structure over time bins")
-    # (;hCC,hRCC, hCCRCC, SIM)
-    (;SIM)
+    hCCRCC = ploton ? heatmap(similarity, xlabel="cycle df", 
+        ylabel="firing rate df",
+        title="Correlation structure over time bins") : nothing
+    return (;hCC,hRCC, hCCRCC, SIM)
+    # (;SIM)
 end
-test_correlation_structure(:cycle; desc="")
+test_correlation_structure(:cycle; desc="", ploton=false)
 
-test_correlation_structure(:bins; desc="10 minute")
+outs = test_correlation_structure(:bins; desc="10 minute", ploton=true)
  # heatmap(cor(Matrix(df[!,uicellcols(df)])), c=:delta, clim=(0,0.1))
 
 
@@ -217,6 +244,9 @@ test_correlation_structure(:bins; desc="10 minute")
     q2=vspan!(x, alpha=0.40, labels="cycles has occ", c=:red)
     plot(q1,q2)
 
-Z=ismissing.([
-    Matrix(@subset(cycles, :cycle .∈ (iso_cycles,))[:,[:x,:stopWell,:speed]]) occ.datainds[iso_cycles,:]])
-heatmap(Z,xticks=([1,2,3,4],["x","stopwell","speed","datainds"]))
+    Z=ismissing.([
+        Matrix(@subset(cycles, :cycle .∈ (iso_cycles,))[:,[:x,:stopWell,:speed]]) occ.datainds[iso_cycles,:]])
+    heatmap(Z,xticks=([1,2,3,4],["x","stopwell","speed","datainds"]))
+
+using .Threads
+Base.throwto.(collect(1:16), [InterruptException()])

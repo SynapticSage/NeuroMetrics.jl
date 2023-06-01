@@ -16,22 +16,31 @@
 # - [ ] Split by interneuron
 # - [ ] Split by ha
 
-include("./imports_isolated.jl")
-include("./load_isolated.jl")
-include(scriptsdir("isolated", "imports_isolated.jl"))
-include(scriptsdir("isolated", "load_isolated.jl"))
+opt = Dict("animal"=>"RY16",
+           "day"=>36,
+    "load_pyr"=>true)
+if isdefined(Main, :DrWatson)
+    include(scriptsdir("isolated", "load_isolated.jl"))
+else
+    include("./load_isolated.jl")
+end
+import GoalFetchAnalysis.Plot
+Plot.setparentfolder("isolated")
 using DI.Labels
 using DIutils.plotutils
 
 # Add a column to our spikes dataframe about its cell's meanrate
+sort!(spikes, :unit)
 DIutils.filtreg.register(cells, spikes, on="unit", transfer=["meanrate"])
 # Add a behavioral info to spikes
-DIutils.filtreg.register(beh, spikes, on="time", transfer=["velVec", "period","correct", 
+sort!(spikes, :time)
+DIutils.filtreg.register(beh,   spikes, on="time", transfer=["velVec", 
+    "period","correct", 
     "hatraj", "ha"])
 @assert :period ∈ propertynames(spikes)
 
 # Acquire the isolation table
-iso_sum = get_isolation_summary(spikes)
+iso_sum  = get_isolation_summary(spikes)
 filename = Munge.isolated.path_iso(opt)
 jldopen(filename, "a") do storage
     storage["iso_sum"] = iso_sum
@@ -697,6 +706,7 @@ ca1_pfc_background_color = Dict("CA1"=>colorant"white", "PFC"=>colorant"lightgra
 ylabel_for_props = Dict(
     :events_per_time=>"Events per time",
     :isolated_mean=>"Fraction isolated spikes",
+    :isolated_events_per_time=>"Isolated events per time"
 )
 
 """
@@ -831,6 +841,17 @@ function plot_HA(per_ctha, prop)
             # prop=>(x-> quantile(skipmissing(x), 0.975))=>:higher;
             renamecols=false)
         transform!(ich, :lower=>x->abs.(x), :higher=>x->abs.(x), renamecols=false)
+            pval = nothing
+            try
+                T = HypothesisTests.UnequalVarianceTTest
+                ttest = T(@subset(ich_per, :cuemem .== 0, :correct .== 1)[:, prop],
+                          @subset(ich_per, :cuemem .== 1, :correct .== 1)[:, prop]
+                )
+                pval = round(pvalue(ttest), digits=3)
+            catch
+                pval = NaN
+            end
+            printstyled("pval: $pval\n", color=:red)
         p=plot()
         for (cuemem, correct) in Iterators.product([0, 1], [0, 1])
             XX = @subset(ich, :correct.== correct, :cuemem .== cuemem)
@@ -863,25 +884,16 @@ function plot_HA(per_ctha, prop)
                 linestroke=(2,:dash),
                 label="",
             )
+            # println("ylabel_for_props[prop] = $(ylabel_for_props[prop])")
             Xper = @subset(ich_per, :correct.== correct, :cuemem .== cuemem)
-            pval = nothing
-            try
-                T = HypothesisTests.UnequalVarianceTTest
-                ttest = T(@subset(Xper, :cuemem .== 0, :correct .== 1)[:, prop],
-                          @subset(Xper, :cuemem .== 1, :correct .== 1)[:, prop]
-                )
-                pval = pvalue(ttest)
-            catch
-                pval = NaN
-            end
             scatter!(Xper.cortsk, Xper[!,prop],
                 group=Xper.correct,
                 xlabel="CueMem", 
-                ylabel="MUA events/second\n$(filt_desc[:all])", 
+                ylabel="$(ylabel_for_props[prop])\n$(filt_desc[:all])", 
                 alpha=0.1,
                 title="$(interneuron_string[interneuron])," *
                     "\n $area, $(ha_string[ha])" *
-                    "\nttest2 mem - cue =$(round(pval, digits=3))",
+                    "\nttest2(mem,cue)=\n$(round(pval, digits=3))",
                 linestyle=interneuron_style[interneuron], 
                 color=cuemem_color[cuemem],
                 fillstyle=(println(correct_fillstyle[correct]); 
@@ -911,56 +923,47 @@ end
 # ISSUE:
 # 1. yaxis should be either quantile or K*mean, whichever comes first
 
+Plot.setfolder("HA-split")
+Plot.printstate()
+#
 # -------EVENTS PER TIME------------------------------------
     P = plot_HA(per_ctha, :events_per_time)
-
     pca1 = filter(P) do (k, v)
        k.area == "CA1"  
     end |> values |> collect
-    plot(pca1..., layout=(1,4), size=(1000, 200))
-
+    plot(pca1..., layout=(1,4), size=(1000, 400), left_margin=10Plots.mm)
     Plot.save("HA_ca1.svg")
-        
     ppfc = filter(P) do (k, v)
        k.area == "PFC"
     end |> values |> collect
-    plot(ppfc..., layout=(1,4), size=(1000, 200))
-
+    plot(ppfc..., layout=(1,4), size=(1000, 400), left_margin=10Plots.mm)
     Plot.save("HA_pfc.svg")
 # ----------------------------------------------------------
 
 # -----------ISOLATED MEAN----------------------------------
     P = plot_HA(per_ctha, :isolated_mean)
-
     pca1 = filter(P) do (k, v)
        k.area == "CA1"  
     end |> values |> collect
-    plot(pca1..., layout=(1,4), size=(1000, 200))
-
+    plot(pca1..., layout=(1,4), size=(1000, 400), left_margin=10Plots.mm)
     Plot.save("HA_ca1_isolated.svg")
-
     ppfc = filter(P) do (k, v)
        k.area == "PFC"
     end |> values |> collect
-    plot(ppfc..., layout=(1,4), size=(1000, 200))
-
+    plot(ppfc..., layout=(1,4), size=(1000, 200), left_margin=10Plots.mm)
     Plot.save("HA_pfc_isolated.svg")
 # ----------------------------------------------------------
 
 # -----------ISOLATED MEAN----------------------------------
     P = plot_HA(per_ctha, :isolated_events_per_time)
-
     pca1 = filter(P) do (k, v)
        k.area == "CA1"  
     end |> values |> collect
-    plot(pca1..., layout=(1,4), size=(1000, 200))
-
+    plot(pca1..., layout=(1,4), size=(1000, 400), left_margin=10Plots.mm)
     Plot.save("HA_ca1_isolated_events_per_time.svg")
-
     ppfc = filter(P) do (k, v)
        k.area == "PFC"
     end |> values |> collect
-    plot(ppfc..., layout=(1,4), size=(1000, 200))
-
+    plot(ppfc..., layout=(1,4), size=(1000, 400), left_margin=10Plots.mm)
     Plot.save("HA_pfc_isolated_events_per_time.svg")
 # ----------------------------------------------------------

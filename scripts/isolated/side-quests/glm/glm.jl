@@ -7,16 +7,18 @@ using .Munge.isolated
 #  GET SMALLER BATCH DATAFRAME FOR TESTING
 # bin period 18
 df_sub = @subset(df, :bins .>= 17 .&& :bins .<= 19)
+@assert df_sub isa DataFrame
 
-#    _  _      ____           _          
+
+# =======================================
 # _| || |_   / ___|__ _  ___| |__   ___ 
 #|_  ..  _| | |   / _` |/ __| '_ \ / _ \
 #|_      _| | |__| (_| | (__| | | |  __/
 #  |_||_|    \____\__,_|\___|_| |_|\___|
-#                                       
+# =======================================
 function create_caches_xy(df_sub)
     dx_dy = ThreadSafeDict()
-    Threads.@threads for relcyc in collect(-opt["cycles"]:opt["cycles"])
+    for relcyc in collect(-opt["cycles"]:opt["cycles"])
         dx_dy[(;relcyc)] = get_dx_dy(df_sub, relcyc)
     end
     dx_dy = Dict(dx_dy)
@@ -24,10 +26,10 @@ end
 
 function create_caches_xyb(df_sub)
     DFB= groupby(df_sub, :bins)
-    prog = Progress((opt["cycles"]*2+1) * length(DFB))
+    prog = Progress((maximum(df.relcycs)*2+1) * length(DFB))
     @time dx_dy_bin = ThreadSafeDict()
     sets = [(relcyc, DFB[b], b) 
-        for relcyc in -opt["cycles"]:opt["cycles"],
+        for relcyc in minimum(df.relcycs):maximum(df.relcycs),
         b in eachindex(DFB)]
     Threads.@threads for (relcyc, dfb, b) in sets
         key = (;relcyc, bin=b[1])
@@ -45,6 +47,7 @@ function create_caches_xyb(df_sub)
 end
 
 dx_dy     = create_caches_xy(df_sub)
+
 dx_dy_bin = create_caches_xyb(df_sub)
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -54,14 +57,6 @@ B = [b for b in collect(keys(dx_dy_bin))]
 uAreas = unique(cells.area)
 bf(F) = [(b, f) for b in B, f in F]
 
-param_interactions_hc = [ (dist, dep, ind) for dist in ["probit"],
-     # (dep, ind) in Iterators.product(("PFC","CA1"),("PFC", "PFC"))]
-     (dep, ind) in zip(("CA1",),("PFC",))]
-hcF(ind,dep) = construct_predict_isospikecount(df_sub, cells, ind; dep_area=dep)
-param_interactions_hc = [ (b, f, dist, dep, ind) 
-    for (dist, dep, ind) in param_interactions_hc,
-    (b, f) in bf(hcF(ind,dep))]
-
 param_interactions_sc = [ (dist, dep, ind) for dist in ["softplus"],
     # (dep, ind) in Iterators.product(("PFC","CA1"),("PFC", "PFC"))]
      (dep, ind) in zip(("CA1",),("PFC",))]
@@ -70,12 +65,20 @@ param_interactions_sc = [ (b, f, dist, dep, ind)
     for (dist, dep, ind) in param_interactions_sc,
     (b, f) in bf(scF(ind,dep))]
 
+param_interactions_hc = vec([ (dist, dep, ind) for dist in ["probit"],
+     # (dep, ind) in Iterators.product(("PFC","CA1"),("PFC", "PFC"))]
+(dep, ind) in zip(("PFC","PFC","CA1"),("PFC","CA1","CA1"))])
+hcF(ind,dep) = construct_predict_isospikecount(df_sub, cells, ind; dep_area=dep)
+param_interactions_hc = [ (b, f, dist, dep, ind) 
+    for (dist, dep, ind) in param_interactions_hc,
+    (b, f) in bf(hcF(ind,dep))]
 
-begin # test first sets
-    (dist, dep, ind) = first(param_interactions_sc)
-    (b, f) = first(bf(construct_predict_spikecount(df_sub,    cells, ind; dep_area=dep)))
-    (b, f) = first(bf(construct_predict_isospikecount(df_sub, cells, ind; dep_area=dep)))
-end
+
+# begin # test first sets
+#     (dist, dep, ind) = first(param_interactions_sc)
+#     (b, f) = first(bf(construct_predict_spikecount(df_sub,    cells, ind; dep_area=dep)))
+#     (b, f) = first(bf(construct_predict_isospikecount(df_sub, cells, ind; dep_area=dep)))
+# end
 zscoreX = true
 
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -88,7 +91,8 @@ Add a confusion matrix to each model in `shuffle_cellhasiso` and remove `y` and
 """
 function addconfusion_remove_y_ypred!(shuffle_cellhasiso;N=100)
     # Add a confusion matrix to each model
-    for (k,v) in shuffle_cellhasiso
+    @info "Adding confusion matrix to each model"
+    @showprogress "confusion matrices" for (k,v) in shuffle_cellhasiso
         if !haskey(v, "y") || !haskey(v, "ypred")
             # @warn "skipping" k typeof(v)
             continue
@@ -99,7 +103,8 @@ function addconfusion_remove_y_ypred!(shuffle_cellhasiso;N=100)
     end
     # Except for the last N entries shuffle, remove y and ypred from the model
     # dicts
-    for (k,v) in Iterators.take(shuffle_cellhasiso, 
+    @info "Removing y and ypred from all but the last $N entries"
+    @showprogress "delete keys" for (k,v) in Iterators.take(shuffle_cellhasiso, 
                                 length(shuffle_cellhasiso)-N)
         if !haskey(v, "y") || !haskey(v, "ypred")
             continue
@@ -126,23 +131,6 @@ summary(model_spikecount); summary(shuffle_spikecount);
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 # %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-    """
-        postprocess_model!(dx_dy_bin, dx_dy_key, f::FormulaTerm, dist; 
-                shuffle=false,
-                model::Dict, other_keys...)
-
-    Postprocess the model `model` for the given `dx_dy_key` and `f` and `dist`.
-    # Arguments
-    - `dx_dy_bin`: the `dx_dy_bin` dictionary
-    - `dx_dy_key`: the key for the `dx_dy_bin` dictionary
-    - `f`: the `FormulaTerm` used to create the model
-    - `dist`: the distribution used to create the model
-    - `shuffle`: whether the model was created by shuffling the data
-    
-    # Return
-    - `key`: the key for the `model` dictionary
-    - `model[key]`: the model
-    """
     function poisson_model!(dx_dy_bin, dx_dy_key, f::FormulaTerm, dist; 
                 shuffle=false,
                 model::Dict, other_keys...)
@@ -188,6 +176,7 @@ summary(model_spikecount); summary(shuffle_spikecount);
     # PREDICT SPIKCOUTNS ALL TIMES BY 10 minute BIN
     #
     # Distribution: POISSON / SOFTPLUS
+    #
     # =============================================
     @showprogress "single run" for (b, f, dist, dep, ind) in param_interactions_sc
         XXb, yb = dx_dy_bin[b]
@@ -223,6 +212,7 @@ summary(model_spikecount); summary(shuffle_spikecount);
         end
     end
 
+    addconfusion_remove_y_ypred!(shuffle_spikecount)
     commit_cycwise_vars("shuffle_spikecount")
     # ------------ Shuffle ------------------------
 
@@ -300,8 +290,9 @@ summary(model_spikecount); summary(shuffle_spikecount);
     # PREDICT CELL HAS ISO SPIKE BY 10 minute BIN
     #
     # Distribution: BINOMIAL / PROBIT
+    #   
     # =============================================
-    model_cellhasiso = Dict() #initorget("model_cellhasiso", Dict())
+    # model_cellhasiso = Dict() #initorget("model_cellhasiso", Dict())
     @showprogress "single run" for (b, f, dist, dep, ind) in param_interactions_hc
         answer = logistic_model!(dx_dy_bin, b, f, dist; model=model_cellhasiso, 
                                         dir="$ind => $dep", dist)
@@ -320,14 +311,15 @@ summary(model_spikecount); summary(shuffle_spikecount);
 
 
     # ------------ Shuffle ------------------------
-    shuffle_cellhasiso = Dict() #initorget("shuffle_spikecount", Dict())
+    # shuffle_cellhasiso = Dict() #initorget("shuffle_spikecount", Dict())
+    opt["shuffle"] = 50
 
-    opt["shuffle"] = 100
     # dx_dy_bin = deepcopy(dx_dy_bin)
     @showprogress "SHUFFLE" for _ in 1:opt["shuffle"]
         shuf = hash(rand())
         println("SHUFFLE=$shuf shuffling...")
-        dx_dy_bin_shuffle = create_caches_xyb(isolated.shuffle_cyclelabels(df_sub))
+        dx_dy_bin_shuffle = 
+            create_caches_xyb(isolated.shuffle_cyclelabels(df_sub))
         println("SHUFFLE=$shuf shuffling...done")
         @showprogress "single run" for (b, f, dist, dep, ind) in 
                  param_interactions_hc
@@ -342,6 +334,9 @@ summary(model_spikecount); summary(shuffle_spikecount);
         end
     end
 
+    # suppress Logger showing warning level messages
+    import Logging
+    Logging.disable_logging(Logging.Warn) # or e.g. Logging.Info
 
     addconfusion_remove_y_ypred!(shuffle_cellhasiso)
     commit_cycwise_vars("shuffle_cellhasiso")
