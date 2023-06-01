@@ -349,6 +349,7 @@ module spiking
                      theta::Union{AbstractDataFrame,Nothing}; 
                      cycle=:cycle, refreshcyc=true, cells=nothing,
                      beh=nothing, ripples=nothing, immobility_thresh=2,
+                setrip2missing::Bool=true,
                 matchtetrode::Bool=:tetrode in propertynames(theta),
                 kws...)
 
@@ -391,8 +392,17 @@ module spiking
 
         # Exclude spikes during ripples
         if ripples !== nothing
-            println("Excluding ripples")
+            println("Excluding ripples...")
             spikes_excluded = DIutils.in_range(spikes.time, ripples)
+            if setrip2missing
+                print("Setting ripple spikes to missing\n")
+                spikes[spikes_excluded, :cycle] .= missing
+                if :phase in propertynames(spikes)
+                    spikes[spikes_excluded, :phase] .= missing
+                end
+            else
+                print("NOT setting ripple spikes to missing\n")
+            end
             spikes = spikes[.!spikes_excluded,:]
         end
 
