@@ -423,7 +423,7 @@ module spiking
             lf = groupby(theta,  [:tetrode]);
             sp = (G|>collect)[2]
             Threads.@threads for sp in G
-                println("sp.unit[1] = ", sp.unit[1])
+                print("... sp.unit[1] = ", sp.unit[1])
                 lfkey = (;tetrode=cell_to_tet[sp.unit[1]])
                 if lfkey ∉ keys(lf)|>collect.|>NamedTuple
                     continue
@@ -589,10 +589,11 @@ module spiking
     """
     function event_spikestats!(spikes::AbstractDataFrame,
                                events::AbstractDataFrame;
-                eventname = "ripple", indfield=:cycle,
-                indfield_is_index::Bool=true, 
-                ampfield=nothing,
-    kws...)
+                               eventname = "ripple", indfield=:cycle,
+                               indfield_is_index::Bool=true, 
+                               ampfield=:amp in propertynames(events) ? :amp : 
+                                                            nothing,
+            kws...)
 
         eventname = string(eventname)
         spikes[!, eventname]          = Vector{Union{Missing,Int32}}(undef,   size(spikes,1))
@@ -616,8 +617,11 @@ module spiking
                                         spikes[!,eventname*"_start"])
         # Add event amplitude, if requested
         if ampfield !== nothing
+            print("...adding amplitude=$ampfield")
             if string(indfield) ∉ names(events)
-                error("indfield=$indfield must be a column of events")
+                @warn "indfield=$indfield not found in events"
+                indfield = :index
+                events[!, indfield] = 1:size(events,1)
             end
             println("Adding amplitude")
             @time inds = if indfield_is_index

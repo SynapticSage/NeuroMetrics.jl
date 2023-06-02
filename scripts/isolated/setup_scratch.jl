@@ -2,20 +2,23 @@ using GoalFetchAnalysis.Plot.lfplot
 using ProgressMeter, ProfileView
 
 animals, days = ["RY16","RY22"], [36, 21]
-tetrode_sets  = [:best, :synced, :ca1ref]
+tetrode_sets  = [:synced, #= :best, :ca1ref =#]
 
 global spikes, lfp, cells, opt = nothing, nothing, nothing, nothing
 global cycles, ripples = nothing, nothing
 global opt = nothing
 
-for ((animal, day), tetrode_set) in 
-    Iterators.product(zip(animals, days), tetrode_sets)
+iters = Iterators.product(tetrode_sets, zip(animals, days))
+(tetrode_set, (animal, day)) = first(iters)
 
+for (tetrode_set, (animal, day)) in iters
+    
 #Parameters
 global opt = Dict(
     "animal"=>animal,
     "day"=>day,
-    "load_pyr"=>false
+    "load_pyr"=>false,
+    "run_iso"=>false,
 )
 printstyled("animal = $animal, day = $day, tetrode_set = $tetrode_set",
             blink=true, color=:light_green, bold=true, reverse=true)
@@ -62,7 +65,6 @@ elseif tetrode_set == :pyr # pyramidal layer tetrodes
 end
 
 animals, days = unique(CELLS.animal), unique(CELLS.day)
-
 ripple_props = [:ripple, :ripple_time, :ripple_phase, :ripple_phase_band,
                 :ripple_amp_band]
 theta_props  = [:theta, :theta_time, :theta_phase, :theta_amp]
@@ -162,6 +164,11 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
             cycles[!,col] = convert(Vector{Union{Missing, Float32}}, 
                 cycles[!,col])
         end
+        @assert !isempty(cycles) "No cycles!"
+        @assert !all(ismissing.(cycles.amp_mean)) "No amp_mean!"
+        @assert !all(ismissing.(cycles.δ)) "No δ!"
+        @assert !all(ismissing.(cycles.start)) "No start!"
+        @assert !all(ismissing.(cycles.stop)) "No stop!"
         # INFO: SAVE
         # Save cycles
         DI.save_cycles(begin
@@ -190,9 +197,9 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
             Plot.setfolder(folder...) 
             Plot.setparentfolder(par...)
         end
-        current()
         checkranges()
         DIutils.pushover("Finished section II, $animal")
+        current()
 
         # ISSUE: ONE USUALLY HAS TO RELOAD FROM CHECKPOINTED FILES HERE UNLESS
         # YOU HAVE ENORMOUS RAM partially because of the lfp
@@ -206,9 +213,13 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
         #                              |             |                    
         # Ripple phase
         global spikes
-        Munge.spiking.event_spikestats!(spikes, ripples; eventname="ripple")
+        Munge.spiking.event_spikestats!(spikes, ripples; eventname="ripple",
+            ampfield=:amp)
         @assert(length(unique(spikes.ripple_phase)) .> 4, 
         "Ripple phase not calculated correctly")
+        @assert !all(ismissing.(spikes.ripple_phase)) "No ripple phase!"
+        @assert !all(ismissing.(spikes.ripple_amp)) "No ripple amp!"
+        @assert !all(ismissing.(spikes.ripple)) "No ripple!"
 
         # # TROUBLESHOOT:
         # # Let's figure out the number of tetrodes that match between
@@ -234,14 +245,18 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
         # ISSUE: fixed badinds 5/26/23 :: rerun this
         @assert all(ripple_props .∈ (propertynames(spikes),))
         prog = Progress(length(K), 1, "Adding ripple band phase");
-        k = (;tetrode = 55)
+        k = first(K)
         for k in K
             println("Tetrode: ", k.tetrode);
-            gs, gl = g_spikes[k], gl_pyr[k];
+            if length(K) > 1
+                gs, gl = g_spikes[k], gl_pyr[k];
+            else
+                gs, gl = g_spikes[k], lfp;
+            end
             time = gs.time
             ind = DIutils.searchsortednearest.([gl.time], time);
             try
-            @assert(length(unique(ind)) > 4, "Not enough matching spikes")
+                @assert(length(unique(ind)) > 4, "Not enough matching spikes")
             catch e
                 println(e)
                 @infiltrate
@@ -252,7 +267,10 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
             gs.ripple_amp_band[.!badinds]   = gl.rippleamp[ind];
             next!(prog)
         end
-    # NOTE: COMMENTED TO HERE
+        @assert !all(x->ismissing(x), (spikes.ripple_phase_band))
+        @assert !all(x->ismissing(x), (spikes.ripple_amp_band))
+
+        # NOTE: COMMENTED TO HERE
 
         # # Troubleshoot: Let's figure out what fraction of our pyramidal layer
         # #        cells
@@ -280,6 +298,9 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
                                         indfield_is_index=true,
                                         eventname="theta")
         @assert all(theta_props .∈ (propertynames(spikes),))
+        @assert !all(x->ismissing(x), (spikes.theta_phase))
+        @assert !all(x->ismissing(x), (spikes.theta_amp))
+        @assert !all(x->ismissing(x), (spikes.theta))
 
         # q=combine(groupby(sp, :tetrode),
         # :unit => (x->length(unique(x))), 
@@ -326,9 +347,9 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
         sp = nothing
         # INFO: APPARENTLY runs faster if function in Main
         # @profile begin
-            sp = Munge.spiking.isolated!(spikes)
+        sp = Munge.spiking.isolated!(spikes)
         # end
-        # ProvileView.view()
+        # ProfileView.view()
         # ISSUE: invesetigate long units like 134: cell has a meanrate=3.5hz)
         props = intersect(union(cycle_props, ripple_props, theta_props, iso_props),
                           propertynames(spikes))

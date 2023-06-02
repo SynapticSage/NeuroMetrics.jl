@@ -10,21 +10,26 @@ function checkranges()
     if isdefined(Main,:spikes) && spikes !== nothing
         println("Spikes.time extrema: ", extrema(spikes.time))
         # @assert minimum(spikes.time) <= 0
-    end
-    if isdefined(Main,:lfp) && lfp !== nothing
-        println("l_pyr.time extrema: ", extrema(l_pyr.time))
+    else
+        @warn "spikes is not defined"
     end
     if isdefined(Main,:cycles) && cycles !== nothing
         println("cycles.time extrema: ", extrema(cycles.start))
         # @assert minimum(cycles.start) <= 0
+    else
+        @warn "cycles is not defined"
     end
     if isdefined(Main,:lfp) && lfp !== nothing
         println("lfp.time extrema: ", extrema(lfp.time))
         # @assert minimum(lfp.time) <= 0
+    else
+        @warn "lfp is not defined"
     end
     if isdefined(Main,:ripples) && ripples !== nothing
         println("ripple.time extrema: ", extrema(ripples.time))
         # @assert maximum(ripples.time) > 0
+    else
+        @warn "ripples is not defined"
     end
 end
 
