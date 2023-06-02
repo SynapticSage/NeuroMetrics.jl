@@ -4,16 +4,17 @@ using DataFrames, Statistics
 using Plots
 using DataFrames
 using Infiltrator
+using Peaks
 
 function checkranges()
-    if isdefined(Main,:spikes)
+    if isdefined(Main,:spikes) && spikes !== nothing
         println("Spikes.time extrema: ", extrema(spikes.time))
         # @assert minimum(spikes.time) <= 0
     end
-    if isdefined(Main,:l_pyr)
+    if isdefined(Main,:lfp) && lfp !== nothing
         println("l_pyr.time extrema: ", extrema(l_pyr.time))
     end
-    if isdefined(Main,:cycles)
+    if isdefined(Main,:cycles) && cycles !== nothing
         println("cycles.time extrema: ", extrema(cycles.start))
         # @assert minimum(cycles.start) <= 0
     end
@@ -81,10 +82,10 @@ end
 
 function get_animal_pyr(animal, day)
     println("Loading PYR data for $animal")
-    l_pyr = DI.load_lfp(animal, day; append="pyr")
-    l_pyr = transform(l_pyr, :time=> t-> t .- lfp_convert[animal],
+    lfp = DI.load_lfp(animal, day; append="$tetrode_set")
+    lfp = transform(lfp, :time=> t-> t .- lfp_convert[animal],
         renamecols=false)
-    # transform!(l_pyr, :time=> t-> t .+ time_factors[animal], renamecols=false)
+    # transform!(lfp, :time=> t-> t .+ time_factors[animal], renamecols=false)
     cycles       = DI.load_cycles(animal, day, "pyr")
     cycles       = transform(cycles,
         :start=> t-> t .- lfp_convert[animal],
@@ -99,8 +100,8 @@ function get_animal_pyr(animal, day)
     # Print out extrema(time) for each of these just to be sure
     convert_to_f32 = [:broadraw  :phase :ripple  :rippleamp  :ripplephase]
     for col in convert_to_f32
-        if hasproperty(l_pyr, col)
-            l_pyr[!,col] = convert(Array{Float32,1}, l_pyr[!,col])
+        if hasproperty(lfp, col)
+            lfp[!,col] = convert(Array{Float32,1}, lfp[!,col])
         end
     end
     ripples = DI.load_ripples(animal, day)
@@ -109,25 +110,25 @@ function get_animal_pyr(animal, day)
         :start=> t-> t .- lfp_convert[animal],
         :stop=> t-> t .- lfp_convert[animal],
         renamecols=false)
-    return l_pyr, cycles, spikes, ripples
+    return lfp, cycles, spikes, ripples
 end
 
 # MULTIPLE ANIMALS
 if load_pyr && !occursin("super",animal)
-    l_pyr, cycles, spikes, ripples = get_animal_pyr(animal, day)
+    global lfp, cycles, spikes, ripples = get_animal_pyr(animal, day)
     checkranges()
 # ONE ANIMAL
 elseif load_pyr
     OUT = []
     animals, days = DI.animaldays()
     for (animal,day) in zip(animals, days)
-        l_pyr, cycles, spikes, ripples = get_animal_pyr(animal, day)
-        push!(OUT, (l_pyr, cycles, spikes, ripples))
+        lfp, cycles, spikes, ripples = get_animal_pyr(animal, day)
+        push!(OUT, (lfp, cycles, spikes, ripples))
     end
-    l_pyr = vcat([x[1] for x in OUT]...)
-    cycles = vcat([x[2] for x in OUT]...)
-    spikes = vcat([x[3] for x in OUT]...)
-    ripples = vcat([x[4] for x in OUT]...)
+    global lfp = vcat([x[1] for x in OUT]...)
+    global cycles = vcat([x[2] for x in OUT]...)
+    global spikes = vcat([x[3] for x in OUT]...)
+    global ripples = vcat([x[4] for x in OUT]...)
 # ONE ANIMAL from scratch
 else
     println("lfp_convert: ", lfp_convert)
@@ -140,10 +141,10 @@ else
         SPIKES[SPIKES.animal   .== animal, :time] .-= super_convert[animal]
     end
     checkanimalranges()
-    spikes = subset(SPIKES, :animal=>a->a.==animal, :day=>d->d.==day, 
+    global spikes = subset(SPIKES, :animal=>a->a.==animal, :day=>d->d.==day, 
                      view=true)
-    ripples = DI.load_ripples(animal, day)
-    ripples = transform(ripples, 
+    global ripples = DI.load_ripples(animal, day)
+    global ripples = transform(ripples, 
         :time=> t-> t .- lfp_convert[animal],
         :start=> t-> t .- lfp_convert[animal],
         :stop=> t-> t .- lfp_convert[animal],
