@@ -139,7 +139,7 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
 
         # Examine
         # get second tet
-        l = groupby(lfp, :tetrode)[2]
+        l = groupby(lfp, :tetrode)[1]
         # plot(l.ripple[1:1000], label="ripple",
         #     title="peak count = $(length(Peaks.maxima(l.ripple[1:1000])))")
 
@@ -205,6 +205,7 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
         # `--'o    `---'`---'`---'`---'|---'    `---'|---'``   ``---'`---'
         #                              |             |                    
         # Ripple phase
+        global spikes
         Munge.spiking.event_spikestats!(spikes, ripples; eventname="ripple")
         @assert(length(unique(spikes.ripple_phase)) .> 4, 
         "Ripple phase not calculated correctly")
@@ -280,13 +281,13 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
                                         eventname="theta")
         @assert all(theta_props .∈ (propertynames(spikes),))
 
-        q=combine(groupby(sp, :tetrode),
-        :unit => (x->length(unique(x))), 
-        [:unit, :theta_phase] => ((x,y)->( goodinds = .!ismissing.(y);
-            unique(x[goodinds]) |> length)) => :n_with_theta_phase,
-            renamecols=false,
-        )
-        println("Theoretical number of pyramidal layer cells:", q)
+        # q=combine(groupby(sp, :tetrode),
+        # :unit => (x->length(unique(x))), 
+        # [:unit, :theta_phase] => ((x,y)->( goodinds = .!ismissing.(y);
+        #     unique(x[goodinds]) |> length)) => :n_with_theta_phase,
+        #     renamecols=false,
+        # )
+        # println("Theoretical number of pyramidal layer cells:", q)
         
         # PREPARE FOR ISOLATED SPIKE ANALYSIS
         GC.gc()

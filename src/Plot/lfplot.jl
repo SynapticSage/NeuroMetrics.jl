@@ -53,4 +53,45 @@ function plotphaselock(plt::PlotPhaseLock; time=:time)
     (spikes[!,time])
 end
 
+ # Visualize
+ # begin
+ #     ulfp = unstack(lfp, :time, :tetrode, :raw);
+ #     # ulfp = unstack(lfp, :time, :tetrode, :cycle);
+ #     sort(Int.(unique(lfp.tetrode)))
+ #     Plot.setfolder("lfp")
+ #     @time begin
+ #         s = 6_000
+ #         samp = Matrix(ulfp[s:s+1_000, Not(:time)])
+ #         C=cor(Matrix(ulfp[1:100_000, Not(:time)]), dims=1)
+ #         xtcks = (1:size(C,1), string.(all_tetrodes))
+ #         ytcks = (1:size(C,2), string.(all_tetrodes))
+ #         h=heatmap(Matrix(samp), xticks=xtcks, yticks=ytcks, xrotation=90, 
+ #             yrotation=0, title="Theta on PYR tetrodes")
+ #         p=plot()
+ #         least_corr = all_tetrodes[sortperm(mean(C,dims=2)|>vec)][1:3]
+ #         most_correlated_tetrode = all_tetrodes[argmax(mean(C,dims=2)|>vec)]
+ #         for (col, tet) in zip(eachcol(samp), all_tetrodes)
+ #             if tet in pyr_tetrodes && tet != most_correlated_tetrode
+ #                 plot!(col, label=tet,  linewidth = (tet in least_corr)  ? 
+ #                     3 : 1, linestyle= (tet in least_corr) ? :solid : :dash)
+ #             elseif tet == most_correlated_tetrode
+ #                 plot!(col, label="M",  linewidth=5, color=:black,
+ #                     linestyle=:dash)
+ #             else
+ #                 plot!(col, label="--", linewidth=1, color=:black,
+ #                     linestyle=:dash)
+ #             end
+ #         end
+ #         current()
+ #         hc=heatmap(C, xticks=xtcks, yticks=ytcks, xrotation=90, yrotation=0)
+ #         layout = @layout [[a b]; c{0.5w}]
+ #         plot(h, p, hc, layout=(1,3), size=(1200,400))
+ #     end
+ #     Plot.save("theta_sync")
+ #     ulfp = nothing; 
+ #     current()
+ # end
+
 end
+
+

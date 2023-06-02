@@ -92,7 +92,7 @@ function get_animal_pyr(animal, day)
         :stop=> t-> t .- lfp_convert[animal],
         renamecols=false
     )
-    spikes = transform(DI.load_spikes(animal, day, "pyr_cycles_isolated"),
+    global spikes = transform(DI.load_spikes(animal, day, "pyr_cycles_isolated"),
         :time=> t-> t .- lfp_convert[animal],
         renamecols=false
     )
@@ -104,7 +104,7 @@ function get_animal_pyr(animal, day)
             lfp[!,col] = convert(Array{Float32,1}, lfp[!,col])
         end
     end
-    ripples = DI.load_ripples(animal, day)
+    global ripples = DI.load_ripples(animal, day)
     ripples = transform(ripples, 
         :time=> t-> t .- lfp_convert[animal],
         :start=> t-> t .- lfp_convert[animal],

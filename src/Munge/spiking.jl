@@ -350,7 +350,8 @@ module spiking
                      cycle=:cycle, refreshcyc=true, cells=nothing,
                      beh=nothing, ripples=nothing, immobility_thresh=2,
                 setrip2missing::Bool=true,
-                matchtetrode::Bool=:tetrode in propertynames(theta),
+                matchtetrode::Bool=:tetrode in propertynames(theta) &&
+                                 length(unique(theta.tetrode)) > 1,
                 kws...)
 
         if :animal in propertynames(spikes) &&
@@ -408,11 +409,13 @@ module spiking
 
         # Label spikes with theta cycle
         println("Labeling spikes with theta cycle," * 
-         "\nmatchtetrode = ", matchtetrode)
+        "\nmatchtetrode = ")
         if !matchtetrode
+            printstyled("false\n", color=:red)
             DIutils.filtreg.register(theta, spikes; on="time", 
                                      transfer=[String(cycle)])
         else
+            printstyled("true\n", color=:green)
             @assert cells !== nothing
             cell_to_tet = Dict(cell=>tet for (cell,tet) in 
                                 zip(cells.unit, cells.tetrode))
