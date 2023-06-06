@@ -17,57 +17,50 @@
 # - [ ] Split by ha
 
 opt = 
-    Dict("animal" => "RY16",
-        "day"  => 36,
-        "checkpoint"    => true)
+    Dict("animal"       => "RY16",
+        "day"           => 36,
+        "checkpoint"    => true,
+        "filt"          => :all
+    )
 
-if isdefined(Main, :DrWatson)
-    @eval Main include(scriptsdir("isolated", "setup_checkpoint.jl"))
-else
-    @eval Main include("./setup_checkpoint.jl")
-end
+# @eval Main include(scriptsdir("isolated", "load_isolated.jl"))
+@eval Main include("./load_isolated.jl")
 @assert :isolated ∈ propertynames(spikes)
 @assert beh !== nothing
+Munge.nonlocal.setunfilteredbeh(beh)
 
-using DI.Labels
+using DI.Labels, DataFrames, DataFramesMeta, StatsPlots
 using DIutils.plotutils
 using GoalFetchAnalysis.Munge.isolated
 using GoalFetchAnalysis.Munge.nonlocal
 
 Plot.setparentfolder("isolated")
+Plot.setappend("$animal-$day")
 
 # Add a column to our spikes dataframe about its cell's meanrate
-sort!(spikes, :unit)
-DIutils.filtreg.register(cells, spikes, on="unit", transfer=["meanrate"])
+DIutils.filtreg.register(cells, spikes, on="unit", transfer=["meanrate", "area"])
 # Add a behavioral info to spikes
-sort!(spikes, :time)
 DIutils.filtreg.register(beh,   spikes, on="time", transfer=["velVec", 
-    "period","correct", 
+    "period","correct", "cuemem",
     "hatraj", "ha"])
 @assert :period ∈ propertynames(spikes)
 
 # Acquire the isolation table
 iso_sum  = get_isolation_summary(spikes)
-filename = Munge.isolated.path_iso(opt)
-jldopen(filename, "a") do storage
-    storage["iso_sum"] = iso_sum
-end
 
 # Obtain the isolated spikes dataframe
-isolated = last(groupby(subset(spikes, :isolated=>x->(!).(isnan.(x))) ,
+isol = last(groupby(subset(spikes, :isolated=>x->(!).(isnan.(x)), skipmissing=true),
                             :isolated))
-@assert all(isolated.isolated .== true)
+@assert all(isol.isolated .== true)
 
 # Select interneuron, roughly
 spikes.interneuron = spikes.meanrate .> 5
 histogram(cells.meanrate)
-iso_ct = get_isolation_summary(spikes,[:cuemem, :interneuron])
+#   BUG: MISSING NOT FOUND 👈︎
+iso_ct = get_isolation_summary(spikes,[:ha, :cuemem, :interneuron])
 sort!(iso_ct, [:area, :interneuron, :cuemem])
-jldopen(filename, "a") do storage
-    storage["iso_ct"] = iso_ct
-end
 
-per_ct = get_isolation_summary(spikes, [:cuemem, :interneuron, :period, :correct])
+per_ct = get_isolation_summary(spikes, [:ha, :cuemem, :interneuron, :period, :correct])
 @subset!(per_ct, :events_per_time .!= Inf)
 sort!(per_ct, [:area, :interneuron, :cuemem, :period])
 @subset!(per_ct, (:cuemem .== -1 .&& :correct .== -1) .||
@@ -75,11 +68,6 @@ sort!(per_ct, [:area, :interneuron, :cuemem, :period])
                                (:cuemem .== 1 .&& :correct .!= -1))
 subset!(per_ct, :events_per_time => x-> (!).(isinf.(x)))
 per_ct
-
-jldopen(filename, "a") do storage
-    storage["per_ct"] = per_ct
-end
-
 
 #     _  _     _____ ___  ____   ___  ____  
 #  _| || |_  |_   _/ _ \|  _ \ / _ \/ ___| 
@@ -97,6 +85,7 @@ end
 #
 
 # ==============================
+# SECTION : ALL SPIKES
 #    _  _        _    _     _       ____  ____ ___ _  _______ ____  
 #  _| || |_     / \  | |   | |     / ___||  _ \_ _| |/ / ____/ ___| 
 # |_  ..  _|   / _ \ | |   | |     \___ \| |_) | || ' /|  _| \___ \ 
@@ -107,13 +96,14 @@ end
 # ==============================
 # =========PLOTS === NOT SPLIT BY CELL TYPE ============
 #begin
+
     Plot.setfolder("MUA and isolated MUA")
     kws=(;legend_position=Symbol("outerbottomright"))
-    @df @subset(iso_sum,:area.=="CA1") bar(:cmlab, :timespent, ylabel="Time spent", group=:cuemem; kws..., 
-                                          legendtitle="Task")
+    @df @subset(iso_sum,:area.=="CA1") bar(:cmlab, :timespent, ylabel="Time spent", group=:cuemem; kws...,
+    legendtitle="Task", fillalpha=0.5)
     Plot.save((;desc="time spent"))
     @df iso_sum bar(:cuearea, :events_per_time, ylabel="MUA events per second\n$(filt_desc[:all])", group=:cuemem; kws..., 
-                   legendtitle="Task")
+                   legendtitle="Task", fillalpha=0.5)
     Plot.save((;desc="MUA per second"))
     @df iso_sum bar(:cuearea, :isolated_mean, ylabel="Isolated Spikes (sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:cmlab; kws..., 
                    legendtitle="Task")
@@ -121,6 +111,7 @@ end
     @df iso_sum bar(:cuearea, :isolated_events_per_time, ylabel="Isolated MUA × sec⁻1\n(sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:cuemem; kws..., 
                    legendtitle="Task")
     Plot.save((;desc="isolated spikes per second"))
+
 #end
 # ======================================================
 

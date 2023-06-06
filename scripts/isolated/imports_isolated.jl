@@ -1,33 +1,40 @@
+# General Utilities
 using DrWatson
-using GoalFetchAnalysis
-using .Timeshift, .Plot, .Timeshift.types, .Timeshift.shiftmetrics,
-    .Field.metrics, .Plot.receptivefield, .DIutils.namedtup,
-    .Munge.isolated, .Munge.nonlocal, .Munge.spiking, .Plot.lfplot,
-    .DIutils.arr
-Filt = DI.Filt
-using .Munge.timeshift: getshift
-using .DIutils.statistic: pfunc
-filt_desc = Filt.get_filters_desc()
-using GoalFetchAnalysis.Field.metrics: skipnan
-
-using DataStructures: OrderedDict
-import DimensionalData: Between
-import DI, DIutils.Table
-using ProgressMeter, DimensionalData, Infiltrator, JLD2, DataFrames,
-      DataFramesMeta, StatsBase, HypothesisTests, Plots, StatsPlots,
-      Statistics, NaNStatistics, Distributed
-
-using GLM, Lasso, Distributions, ThreadSafeDicts, DrWatson, SoftGlobalScope
 using LinearAlgebra
-
-import DataStructures: OrderedDict
-import DimensionalData: Between
-
-using GLMNet, MultivariateStats
-# using MLJ, ScikitLearn
+using ProgressMeter
+using Dates
+using Logging
 using MATLAB
-using Metrics, .Table, GLMNet
-import Dates, Logging
+
+# Data Manipulation and Statistics
+using DataFrames, DataFramesMeta, StatsBase, HypothesisTests, Statistics, NaNStatistics
+using Distributions, GLM, Lasso, GLMNet, MultivariateStats
+using DimensionalData: Between
+using DataStructures: OrderedDict
+using ThreadSafeDicts
+using DIutils.Table
+
+# Plotting and Visualization
+using Plots, StatsPlots
+
+# Distributed Computing
+using Distributed
+
+# Project-Specific Modules
+using GoalFetchAnalysis
+import GoalFetchAnalysis.Field.metrics: skipnan
+using DI, DIutils.namedtup, DIutils.arr
+using DIutils.statistic: pfunc
+using .Timeshift, .Timeshift.types, .Timeshift.shiftmetrics
+using .Field.metrics
+using .Munge.isolated, .Munge.nonlocal, .Munge.spiking
+import .Munge.timeshift: getshift
+using .Plot.lfplot
+using .Plot, .Plot.receptivefield
+
+# Miscellaneous
+using SoftGlobalScope
+
 mat"dbclear all"
 # using MLJ
 # using MLJScikitLearnInterface: ElasticNetCVRegressor # BUG: temporarily causes segfault

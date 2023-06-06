@@ -20,7 +20,7 @@ module nonlocal
         @eval mod unfiltered_behavior = $beh
         @eval mod current_metadata = $metadata
     end
-    cuemem_labels = Labels.cuemem
+    cuemem_labels = merge(Labels.cuemem, Dict(missing=>"missing"))
     setclab(clabval) = @eval nonlocal cuemem_labels = $clabval
 
     export annotate_nonlocal_spikes!
@@ -101,7 +101,8 @@ module nonlocal
     A summary table
     """
     function get_isolation_summary(spikes, split=[:cuemem]; 
-            unfiltered_behavior=unfiltered_behavior, minvel=2)
+            unfiltered_behavior=unfiltered_behavior, minvel=2.5,
+            dropmiss=true)
         if unfiltered_behavior === nothing 
             @error("\nMust either pass in unfiltered behavior or\n"*
                  "set it in this module using `setunfilteredbeh`")
@@ -109,14 +110,17 @@ module nonlocal
         split = unique([:area, split...])
         iso_sum = combine(
         groupby(dropmissing(spikes,[:isolated,:nearestcyc, :meancyc]), split), 
-                          [:isolated,:nearestcyc,:meancyc,:velVec] .=> mean, (x->nrow(x)))
+                          [:isolated,:nearestcyc,:meancyc,:velVec] .=> mean, 
+                :velVec=>(x->mean(abs.(x)))=>:speed,
+                 (x->nrow(x)))
         if :period ∈ split
             # Calculate time animal spends in each cuemem segment
             task_pers = Table.get_periods(nonlocal.unfiltered_behavior, [:period, :cuemem], 
                                           timefract=:velVec => x->abs(x) > minvel)
             # Total that time and register that column to the isolation summary
             task_pers = combine(groupby(task_pers, [:period, :cuemem]),
-                                [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
+                                [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent,
+                                :frac => length => :nsamp)
             DIutils.filtreg.register(task_pers, iso_sum, on="period", transfer=["timespent"])
         elseif :traj ∈ split
             # Calculate time animal spends in each cuemem segment
@@ -124,7 +128,8 @@ module nonlocal
                                           timefract=:velVec => x->abs(x) > minvel)
             # Total that time and register that column to the isolation summary
             task_pers = combine(groupby(task_pers, [:period, :cuemem]),
-                                [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
+                                [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent,
+                                :frac => length => :nsamp)
             DIutils.filtreg.register(task_pers, iso_sum, on="traj", transfer=["timespent"])
         else
             @info "traj and period not in split"
@@ -134,26 +139,36 @@ module nonlocal
             dropmissing!(task_pers, :cuemem)
             # Total that time and register that column to the isolation summary
             task_pers = combine(groupby(task_pers, [:cuemem]), 
-                                [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent)
+                                [:δ,:frac] => ((x,y)->sum(x.*y)) => :timespent,
+                                :frac => length => :nsamp)
             DIutils.filtreg.register(task_pers, iso_sum, on="cuemem", transfer=["timespent"])
         end
 
         isempty(iso_sum) ? @error("iso_sum is innapropriately empty") : nothing
 
+        if dropmiss && :cuemem in propertynames(iso_sum)
+            dropmissing!(iso_sum, :cuemem)
+        end
+        if dropmiss && :ha in propertynames(iso_sum)
+            dropmissing!(iso_sum, :ha)
+        end
+
         # Add a string column that summarizes cuemem and correct
-        iso_sum.cortsk = Vector{Union{String,Missing}}(missing, nrow(iso_sum))
-        for (i, (cuemem, correct)) in enumerate(zip(iso_sum.cuemem, iso_sum.correct))
-            key = [Int64(cuemem), Int64(correct)]
-            if !haskey(Labels.cortsk, key)
-                continue
+        if :correct ∈ propertynames(iso_sum) && :cuemem ∈ propertynames(iso_sum)
+            iso_sum.cortsk = Vector{Union{String,Missing}}(missing, nrow(iso_sum))
+            for (i, (cuemem, correct)) in enumerate(zip(iso_sum.cuemem, iso_sum.correct))
+                key = [Int64(cuemem), Int64(correct)]
+                if !haskey(Labels.cortsk, key)
+                    continue
+                end
+                inds = findall(x->x.cuemem  == cuemem && 
+                                  x.correct == correct, eachrow(iso_sum))
+                iso_sum.cortsk[inds] .= Labels.cortsk[key]
             end
-            inds = findall(x->x.cuemem  == cuemem && 
-                              x.correct == correct, eachrow(iso_sum))
-            iso_sum.cortsk[inds] .= Labels.cortsk[key]
         end
 
         # Acqruire events per time as events  / time spent
-        iso_sum = transform(iso_sum, :x1 => :events)[:,Not(:x1)]
+        iso_sum = DataFrames.transform(iso_sum, :x1 => :events)[:,Not(:x1)]
         iso_sum.events_per_time = iso_sum.events ./ (iso_sum.timespent)
         iso_sum.cuearea = iso_sum.area .* "\n" .* getindex.([cuemem_labels], iso_sum.cuemem)
         iso_sum.cmlab = getindex.([cuemem_labels], iso_sum.cuemem)
@@ -161,8 +176,10 @@ module nonlocal
         iso_sum.iso_event_ratio = iso_sum.isolated_events_per_time ./ iso_sum.events_per_time
         iso_sum.event_iso_ratio = iso_sum.events_per_time ./ iso_sum.isolated_events_per_time 
 
-        ord = Dict("nontask"=>1,"cue"=>2,"mem"=>3)
-        sort(iso_sum, [:cuearea,DataFrames.order(:cmlab, by=x->ord[x])])
+
+        sortprops = :ha in propertynames(iso_sum) ? [:ha] : []
+        ord = Dict("nontask"=>1,"cue"=>2,"mem"=>3, "missing"=>4)
+        sort(iso_sum, [sortprops..., :cuearea,DataFrames.order(:cmlab, by=x->ord[x])])
     end
 
 end

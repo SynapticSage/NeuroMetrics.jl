@@ -10,6 +10,7 @@ complete_folder_args = []
 exts = ["png", "pdf"]
 append, prepend = "", ""
 active = true
+leave_plot_on = true
 
 setappend(val::String)  = (@eval Plot append = $val; ps())
 setappend(val::NamedTuple)  = setappend(DIutils.namedtup.ntopt_string(val))
@@ -104,7 +105,10 @@ function save(desc::String; rmexist=nothing)
     for name in names
         active ? begin 
             @info "saving" name
-            savefig(name)
+                savefig(name)
+                if leave_plot_on
+                    current()
+                end
             end : nothing
     end
     Plots.CURRENT_PLOT
