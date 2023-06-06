@@ -16,18 +16,25 @@
 # - [ ] Split by interneuron
 # - [ ] Split by ha
 
-opt = Dict("animal"=>"RY16",
-           "day"=>36,
-    "load_pyr"=>true)
+opt = 
+    Dict("animal" => "RY16",
+        "day"  => 36,
+        "checkpoint"    => true)
+
 if isdefined(Main, :DrWatson)
-    include(scriptsdir("isolated", "load_isolated.jl"))
+    @eval Main include(scriptsdir("isolated", "setup_checkpoint.jl"))
 else
-    include("./load_isolated.jl")
+    @eval Main include("./setup_checkpoint.jl")
 end
-import GoalFetchAnalysis.Plot
-Plot.setparentfolder("isolated")
+@assert :isolated ∈ propertynames(spikes)
+@assert beh !== nothing
+
 using DI.Labels
 using DIutils.plotutils
+using GoalFetchAnalysis.Munge.isolated
+using GoalFetchAnalysis.Munge.nonlocal
+
+Plot.setparentfolder("isolated")
 
 # Add a column to our spikes dataframe about its cell's meanrate
 sort!(spikes, :unit)

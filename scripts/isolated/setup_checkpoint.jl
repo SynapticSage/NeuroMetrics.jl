@@ -1,4 +1,6 @@
 @time using GoalFetchAnalysis
+import GoalFetchAnalysis: Munge
+import GoalFetchAnalysis: Plot
 import DI, DIutils
 using DataFrames, Statistics
 using Plots
@@ -52,20 +54,21 @@ end
 animal, day = "super_clean", 0
 @time SPIKES, BEH, CELLS = DI.load(animal, day, 
     data_source=["spikes","behavior", "cells"])
-beh2 = DI.load_behavior("super",0)
+beh2 = DI.load_behavior("super_clean",0)
 SPIKES.cycle = Vector{Union{Float32, Missing}}(missing, size(SPIKES,1)) 
 DI.annotate_pyrlayer!(CELLS)
 Plot.setparentfolder("isolated")
 lfp_convert    = DI.get_0time_pre_superanimal()
 super_convert  = DI.convert_super_to_time0()
-load_pyr=nothing
+checkpoint=nothing
 animals, days = unique(CELLS.animal), unique(CELLS.day)
+
 if !isdefined(Main, :opt)
-    animal, day   = collect(zip(animals, days))[2]
-    load_pyr = true
+    animal, day = collect(zip(animals, days))[2]
+    checkpoint  = true
 else
     animal, day = opt["animal"], opt["day"]
-    load_pyr    = opt["load_pyr"]
+    checkpoint  = opt["checkpoint"]
 end
 
 
@@ -76,85 +79,16 @@ if !isdefined(Main, :opt)
     # opt = Dict(
     #     "animal"=>animal,
     #     "day"=>day,
-    #     "load_pyr"=>load_pyr
+    #     "checkpoint"=>checkpoint
     # )
     opt = Dict(
         "animal"=>"RY16",
         "day"=>day,
-        "load_pyr"=>false,
+        "checkpoint"=>false,
     )
 end
-
-function get_animal_pyr(animal, day)
-    println("Loading PYR data for $animal")
-    lfp = DI.load_lfp(animal, day; append="$tetrode_set")
-    lfp = transform(lfp, :time=> t-> t .- lfp_convert[animal],
-        renamecols=false)
-    # transform!(lfp, :time=> t-> t .+ time_factors[animal], renamecols=false)
-    cycles       = DI.load_cycles(animal, day, "pyr")
-    cycles       = transform(cycles,
-        :start=> t-> t .- lfp_convert[animal],
-        :stop=> t-> t .- lfp_convert[animal],
-        renamecols=false
-    )
-    global spikes = transform(DI.load_spikes(animal, day, "pyr_cycles_isolated"),
-        :time=> t-> t .- lfp_convert[animal],
-        renamecols=false
-    )
-    spikes = subset(SPIKES, :animal=>a->a.==animal, :day=>d->d.==day)
-    # Print out extrema(time) for each of these just to be sure
-    convert_to_f32 = [:broadraw  :phase :ripple  :rippleamp  :ripplephase]
-    for col in convert_to_f32
-        if hasproperty(lfp, col)
-            lfp[!,col] = convert(Array{Float32,1}, lfp[!,col])
-        end
-    end
-    global ripples = DI.load_ripples(animal, day)
-    ripples = transform(ripples, 
-        :time=> t-> t .- lfp_convert[animal],
-        :start=> t-> t .- lfp_convert[animal],
-        :stop=> t-> t .- lfp_convert[animal],
-        renamecols=false)
-    return lfp, cycles, spikes, ripples
-end
-
-# MULTIPLE ANIMALS
-if load_pyr && !occursin("super",animal)
-    global lfp, cycles, spikes, ripples = get_animal_pyr(animal, day)
-    checkranges()
-# ONE ANIMAL
-elseif load_pyr
-    OUT = []
-    animals, days = DI.animaldays()
-    for (animal,day) in zip(animals, days)
-        lfp, cycles, spikes, ripples = get_animal_pyr(animal, day)
-        push!(OUT, (lfp, cycles, spikes, ripples))
-    end
-    global lfp = vcat([x[1] for x in OUT]...)
-    global cycles = vcat([x[2] for x in OUT]...)
-    global spikes = vcat([x[3] for x in OUT]...)
-    global ripples = vcat([x[4] for x in OUT]...)
-# ONE ANIMAL from scratch
-else
-    println("lfp_convert: ", lfp_convert)
-    println("super_convert: ", super_convert)
-    checkanimalranges()
-    beh = subset(BEH, :animal=>a->a.==animal, :day=>d->d.==day)
-    for animal in animals
-        println("Correcting $animal by ", super_convert[animal])
-        BEH[BEH.animal         .== animal, :time] .-= super_convert[animal]
-        SPIKES[SPIKES.animal   .== animal, :time] .-= super_convert[animal]
-    end
-    checkanimalranges()
-    global spikes = subset(SPIKES, :animal=>a->a.==animal, :day=>d->d.==day, 
-                     view=true)
-    global ripples = DI.load_ripples(animal, day)
-    global ripples = transform(ripples, 
-        :time=> t-> t .- lfp_convert[animal],
-        :start=> t-> t .- lfp_convert[animal],
-        :stop=> t-> t .- lfp_convert[animal],
-        renamecols=false)
-end
+cells, spikes, beh, ripples, cycles, lfp = 
+    Munge.isolated.import_dataframes(opt["animal"], opt["day"]; checkpoint=opt["checkpoint"])
 
 checkranges()
 DIutils.pushover("Finished loading $animal")

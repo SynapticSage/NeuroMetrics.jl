@@ -38,31 +38,7 @@ Plot.setparentfolder("isolated")
 # Time conversion factors
 # lfp_convert = DI.superanimal_timeconversion("super",0)
 
-all_tetrodes = 
-if tetrode_set     == :all # all tetrodes
-    tets = Dict(animal=>unique(subset(CELLS,:animal.==animal).tetrode) 
-        for animal in unique(CELLS.animal))
-elseif tetrode_set == :best # tetrodes with best pop phase locking across animals
-    tets = Dict(
-        "RY16" => [56],
-        "RY22" => [29]
-    )
-elseif tetrode_set == :synced # tetrodes with same phase reponse across animals
-    tets = Dict(
-        "RY16" => [1],
-        "RY22" => [29]
-    )
-elseif tetrode_set == :ca1ref
-    tets = Dict(
-        "RY16" => [:ca1ref],
-        "RY22" => [:ca1ref]
-    )
-elseif tetrode_set == :pyr # pyramidal layer tetrodes
-    DI.annotate_pyrlayer!(CELLS)
-    tets = Dict(animal=>subset(CELLS, :animal=>a->a.==animal,
-        :pyrlayer=>p->p.!=true, view=true).tetrode |> unique for animal in
-            unique(CELLS.animal))
-end
+all_tetrodes = DI.get_tetrode_set(tetrode_set)
 
 animals, days = unique(CELLS.animal), unique(CELLS.day)
 ripple_props = [:ripple, :ripple_time, :ripple_phase, :ripple_phase_band,
