@@ -20,54 +20,90 @@ opt =
     Dict("animal"       => "RY16",
         "day"           => 36,
         "checkpoint"    => true,
+        "tetrode_set"   => "synced",
         "filt"          => :all
     )
+tetrode_sets = ["synced", "best"]
 
-@eval Main include("./load_isolated.jl")
-@assert :isolated ∈ propertynames(spikes)
-@assert beh !== nothing
-Munge.nonlocal.setunfilteredbeh(beh)
+for ((animal,day), tetrode_set) in Iterators.product(DI.animaldays(),
+                                                    tetrode_sets)
 
-using DI.Labels, DataFrames, DataFramesMeta, StatsPlots
-using DIutils.plotutils
-using GoalFetchAnalysis.Munge.isolated
-using GoalFetchAnalysis.Munge.nonlocal
-using ElectronDisplay
+    @eval Main include(scriptsdir("isolated", "load_isolated.jl"))
+    # @eval Main include("./load_isolated.jl")
+    @assert :isolated ∈ propertynames(spikes)
+    @assert beh !== nothing
+    Munge.nonlocal.setunfilteredbeh(beh)
 
-Plot.setparentfolder("isolated")
-Plot.setappend("$animal-$day")
+    using DI.Labels, DataFrames, DataFramesMeta, StatsPlots
+    using DIutils.plotutils
+    using GoalFetchAnalysis.Munge.isolated
+    using GoalFetchAnalysis.Munge.nonlocal
+    using ElectronDisplay
 
-# Add a column to our spikes dataframe about its cell's meanrate
-DIutils.filtreg.register(cells, spikes, on="unit", transfer=["meanrate", "area"])
-# Add a behavioral info to spikes
-DIutils.filtreg.register(beh,   spikes, on="time", transfer=["velVec", 
-    "period","correct", "cuemem",
-    "hatraj", "ha"])
-@assert :period ∈ propertynames(spikes)
+    Plot.setparentfolder("isolated")
+    Plot.setappend("$animal-$day"-"$tetrode_set")
 
-# Acquire the isolation table
-iso_sum  = get_isolation_summary(spikes)
+    # Add a column to our spikes dataframe about its cell's meanrate
+    DIutils.filtreg.register(cells, spikes, on="unit", transfer=["meanrate", "area"])
+    # Add a behavioral info to spikes
+    DIutils.filtreg.register(beh,   spikes, on="time", transfer=["velVec", 
+        "period","correct", "cuemem",
+        "hatraj", "ha"])
+    @assert :period ∈ propertynames(spikes)
 
-# Obtain the isolated spikes dataframe
-isol = last(groupby(subset(spikes, :isolated=>x->(!).(isnan.(x)), skipmissing=true),
-                            :isolated))
-@assert all(isol.isolated .== true)
+    # Acquire the isolation table
+    iso_sum  = get_isolation_summary(spikes)
 
-# Select interneuron, roughly
-spikes.interneuron = spikes.meanrate .> 5
-histogram(cells.meanrate)
-#   BUG: MISSING NOT FOUND 👈︎
-iso_ct = get_isolation_summary(spikes,[:ha, :cuemem, :interneuron])
-sort!(iso_ct, [:area, :interneuron, :cuemem])
+    # Obtain the isolated spikes dataframe
+    isol = last(groupby(subset(spikes, :isolated=>x->(!).(isnan.(x)), skipmissing=true),
+                                :isolated))
+    @assert all(isol.isolated .== true)
 
-per_ct = get_isolation_summary(spikes, [:ha, :cuemem, :interneuron, :period, :correct])
-@subset!(per_ct, :events_per_time .!= Inf)
-sort!(per_ct, [:area, :interneuron, :cuemem, :period])
-@subset!(per_ct, (:cuemem .== -1 .&& :correct .== -1) .||
-                               (:cuemem .== 0 .&& :correct .!= -1)  .||
-                               (:cuemem .== 1 .&& :correct .!= -1))
-subset!(per_ct, :events_per_time => x-> (!).(isinf.(x)))
-per_ct
+    # Select interneuron, roughly
+    spikes.interneuron = spikes.meanrate .> 5
+    histogram(cells.meanrate)
+    #   BUG: MISSING NOT FOUND 👈︎
+    iso_ct = get_isolation_summary(spikes,[:ha, :cuemem, :interneuron])
+    sort!(iso_ct, [:area, :interneuron, :cuemem])
+
+    per_ct = get_isolation_summary(spikes, [:ha, :cuemem, :interneuron, :period, :correct])
+    @subset!(per_ct, :events_per_time .!= Inf)
+    sort!(per_ct, [:area, :interneuron, :cuemem, :period])
+    @subset!(per_ct, (:cuemem .== -1 .&& :correct .== -1) .||
+                                   (:cuemem .== 0 .&& :correct .!= -1)  .||
+                                   (:cuemem .== 1 .&& :correct .!= -1))
+    subset!(per_ct, :events_per_time => x-> (!).(isinf.(x)))
+    per_ct
+
+
+    # ==============================
+    # SECITON : BASIC ISO SPIKING
+    # ==============================
+    # Just the concentration of spikes at phase with and without iso
+    DIutils.filtreg.register(lfp, spikes, on="time", transfer=["phase"])
+
+    # ALL SPIKES
+    sp = dropmissing(spikes, :isolated)
+    p1 = @df @subset(sp, :isolated .== false) histogram(:phase, bins=range(0,stop=2pi,length=20), normed=true, 
+        label=["non-isolated"], legend=:topleft)
+    p2 = @df @subset(sp, :isolated .== true) histogram(:phase, bins=range(0,stop=2pi,length=20), normed=true, 
+        label=["isolated"], legend=:topleft, xlabel="Phase")
+    plot(p1,p2,layout=(2,1), size=(800,600), legend=:topleft, legendfontsize=10, 
+        legendtitle="Status", title="$animal-$day-$tetrode_set")
+    # INDIVIDUAL CELLS
+    using DirectionalStatistics
+    using IntervalSets
+    spc = combine(groupby(dropmissing(spikes,:isolated), [:unit,:isolated]),
+        :phase => (x->Circular.mean(x,0..2pi)) => :mean_phase,
+    )
+    p1 = @df @subset(spc, :isolated .== false) histogram(:mean_phase, bins=30, normed=true, 
+        label=["non-isolated"], legend=:topleft)
+    p2 = @df @subset(spc, :isolated .== true) histogram(:mean_phase, bins=30, normed=true, 
+        label=["isolated"], legend=:topleft, xlabel="Phase")
+    plot(p1,p2,layout=(2,1), size=(800,600), legend=:topleft, legendfontsize=10, legendtitle="Status", title="$animal-$day-$tetrode_set")
+
+end
+
 
 #     _  _     _____ ___  ____   ___  ____  
 #  _| || |_  |_   _/ _ \|  _ \ / _ \/ ___| 
@@ -250,325 +286,106 @@ Plot.save("celltype_all.png")
     Plot.save("boxplot_metrics_cuememha_pyrint_all")
 
 
-
-
-    # @df per_ct begin
-    #     scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05),
-    #             :isolated_mean, group=:correct, alpha=0.4,
-    #             xlabel="task", ylabel="%percent isolated spikes")
-    # end
-
-    # -------- percent isolated spikes ---------------------
-    # color by cue/mem/ha
-    sc=@df @subset(per_ct, :interneuron .== false) begin
-        scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05),
-                :isolated_mean, group=:correct, alpha=0.5,
-                xtick=([-1,0,1],["nontask","cue","mem"]),title="Isolation",
-                xlabel="task", ylabel="%percent isolated spikes",
-                legend_title="correct/error", legend_position=:outerbottomright)
-    end
-    Plot.save((;desc="isolation", group=:correct, group_sep=true))
-#
-# PYRAMIDAL CELLS 🔺🔺
-# begin
-
-    # -------- isolated per second spikes ------------------
-    @df @subset(per_ct, :interneuron .== false) begin
-        scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), :isolated_events_per_time, group=:correct)
-    end
-    Plot.save((;desc="isolated-MUA-per-time", group=:correct, group_sep=true))
-    @df @subset(per_ct, :interneuron .== false) begin
-        scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05),
-                :isolated_events_per_time, group=:correct, alpha=0.5)
-    end
-    Plot.save((;desc="isolated-MUA-per-time", group=:interneuron, group_sep=true))
-
-    # -------- MUA events per time -------------------------
-    @df @subset(per_ct, :interneuron .== false) begin
-        scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), :events_per_time,
-                group=:correct,
-                xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA
-                events/time", xlabel="task", ylabel="events × time\$^{-1}\$,
-                pyr cells", legend_title="correct/error", alpha=0.5,
-                legend_position=:outerbottomright)
-    end
-
-    @df @subset(per_ct, :interneuron .== false) begin
-        scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), 
-                :events_per_time, group=:correct, alpha=0.5,
-                xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA
-                events/time", xlabel="task", ylabel="events × time\$^{-1}\$,
-                pyr cells", legend_title="correct/error",
-                legend_position=:outerbottomright)
-    end
-    Plot.save((;desc="mua-per-time",group=:correct,pyr=true))
-
-# end
-
-# INTERNEURONS 🔵
-#begin
-    @df @subset(per_ct, :interneuron .== true) begin
-        scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1),
-                :events_per_time, group=:correct,
-                xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA
-                events/time", xlabel="task", ylabel="events × time\$^{-1}\$,
-                pyr cells", legend_title="correct/error",
-                legend_position=:outerbottomright)
-    end
-    Plot.save((;desc="mua-per-time",group=:correct,pyr=true,sep_groups=true))
-#end
-
-# PYRAMIDAL 🔺🔺 and INTERNEURON  🔵
-# ➡ each period sample
-#begin
-    @df per_ct begin
-        scatter(:cuemem .+ (randn(size(:cuemem)) .* 0.1), 
-                :events_per_time, group=:interneuron, alpha=0.5,
-                xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA events/time",
-                xlabel="task", ylabel="events × time\$^{-1}\$",
-                legend_title="pyr/int", legend_position=:outerbottomright)
-    end
-    Plot.save((;desc="mua-per-time",group=:interneuron))
-
-    @df per_ct begin
-        scatter(:cuemem .+ 0.25.*(:interneuron .- 0.5) .+ (randn(size(:cuemem)) .* 0.05),
-                :events_per_time, group=:interneuron, alpha=0.5,
-                xtick=([-1,0,1],["nontask","cue","mem"]),title="MUA events/time", 
-                xlabel="task", ylabel="events × time\$^{-1}\$",
-                legend_title="Is Interneuron?",
-                legend_position=:outerbottomright)
-    end
-    Plot.save((;desc="mua-per-time",group=:interneuron,group_sep=true))
-
-    cpyr_ce = @df @subset(per_ct, :area.=="CA1", :interneuron.==false) begin
-        scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), 
-                :isolated_mean, group=:correct, alpha=0.5, title="ca1 pyr",
-                ylabel="isolated fraction", legendtitle="correct / error / nontask")
-    end
-    cint_ce = @df @subset(per_ct, :area.=="CA1", :interneuron.==true) begin
-        scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), 
-                :isolated_mean, group=:correct, alpha=0.5, title="ca1 int",
-                ylabel="isolated fraction", legendtitle="correct / error / nontask")
-    end
-    ppyr_ce = @df @subset(per_ct, :area.=="PFC", :interneuron.==false) begin
-        scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), 
-                :isolated_mean, group=:correct, alpha=0.5, title="pfc pyr",
-                ylabel="isolated fraction", legendtitle="correct / error / nontask")
-    end
-    #pint_ce = @df @subset(iso_sum_celltype_per, :area.=="PFC", :interneuron.==true) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:correct, alpha=0.5, title="pfc int")
-    pint_ce = Plot.create_blank_plot()
-
-    plot(cpyr_ce, cint_ce, ppyr_ce, pint_ce, layout=grid(2,2))
-    Plot.save((;desc="isolation cell type and correct"))
-
-    p1=@df @subset(per_ct, :interneuron .== false, :cuemem .== 0, :area .== "PFC") begin
-        scatter(:isolated_mean, :events_per_time, group=:correct, alpha=0.5, xlabel="fraction(isolated)",ylabel="multiunit/s", title="pyr cue")
-    end
-    p3=@df @subset(per_ct, :interneuron .== false, :cuemem .== 1, :area .== "PFC") begin
-        scatter(:isolated_mean, :events_per_time, group=:correct, alpha=0.5, xlabel="fraction(isolated)",ylabel="multiunit/s", title="pyr mem")
-    end
-    p2 = p4 = Plot.create_blank_plot()
-    plot(p1,p2,p3,p4, markersize=2)
-    Plot.save((;desc="fract vs mua-per-sec, PFC"))
-
-    p1=@df @subset(per_ct, :interneuron .== false, :cuemem .== 0, :area .== "CA1") begin
-        scatter(:isolated_mean, :events_per_time, group=:correct, alpha=0.5, xlabel="fraction(isolated)",ylabel="multiunit/s", title="pyr cue")
-    end
-    p2=@df @subset(per_ct, :interneuron .== true, :cuemem .== 0, :area .== "CA1") begin
-        scatter(:isolated_mean, :events_per_time, group=:correct, alpha=0.5, xlabel="fraction(isolated)",ylabel="multiunit/s", title="int cue")
-    end
-    p3=@df @subset(per_ct, :interneuron .== false, :cuemem .== 1, :area .== "CA1") begin
-        scatter(:isolated_mean, :events_per_time, group=:correct, alpha=0.5, xlabel="fraction(isolated)",ylabel="multiunit/s", title="pyr mem")
-    end
-    p4=@df @subset(per_ct, :interneuron .== true, :cuemem .== 1, :area .== "CA1") begin
-        scatter(:isolated_mean, :events_per_time, group=:correct, alpha=0.5, xlabel="fraction(isolated)",ylabel="multiunit/s", title="pyr cue")
-    end
-    plot(p1,p2,p3,p4, markersize=2)
-    Plot.save((;desc="fract vs mua-per-sec, CA1"))
-#end
-
-# PYRAMIDAL 🔺🔺 and INTERNEURON  🔵
-    # ⇛ summary of period-wise ISOLATION 
-        @df per_ct begin
-            scatter(:cuemem .+ 0.25.*(:interneuron .- 0.5) .+ (randn(size(:cuemem)) .* 0.05),
-                    :isolated_mean, group=:interneuron, alpha=0.5)
-        end
-        Plot.save((;desc="isolation", group=:interneuron, group_sep=true))
-    # ➡ summary of period-wise EVENTS-PER-TIME 📈
-    #begin
-        cpyr_ce = @df @subset(per_ct, :area.=="CA1", :interneuron.==false) begin
-            boxplot(:cuemem .+ 0.25.*(:correct .- 0.5), :events_per_time,
-                    group=:correct, alpha=0.5, title="ca1 pyr", 
-                    xlabel="task (nontask cue mem)", ylabel="events per time", legendtitle="correct error"
-                   )
-        end
-        cint_ce = @df @subset(per_ct, :area.=="CA1", :interneuron.==true) begin
-            boxplot(:cuemem .+ 0.25.*(:correct .- 0.5), :events_per_time, group=:correct, alpha=0.5, title="ca1 int",
-                    xlabel="task (nontask cue mem)", ylabel="events per time", legendtitle="correct error")
-        end
-        ppyr_ce = @df @subset(per_ct, :area.=="PFC", :interneuron.==false) begin
-            boxplot(:cuemem .+ 0.25.*(:correct .- 0.5), :events_per_time, group=:correct, alpha=0.5, title="pfc pyr",
-                    xlabel="task (nontask cue mem)", ylabel="events per time", legendtitle="correct error")
-        end
-        #pint_ce = @df @subset(iso_sum_celltype_per, :area.=="PFC", :interneuron.==true) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:correct, alpha=0.5, title="pfc int")
-        pint_ce = Plot.create_blank_plot()
-        plot(cpyr_ce, cint_ce, ppyr_ce, pint_ce, margin=30Plots.px, layout=grid(2,2), size=(1200,800))
-    # end
-    # ➡ summary of period-wise ISOLATION
-        cint_ce = @df @subset(per_ct, :area.=="CA1", :interneuron.==true) begin
-            boxplot(:cuemem .+ 0.25.*(:correct .- 0.5), :isolated_mean, group=:correct, alpha=0.5, title="ca1 int")
-        end
-        ppyr_ce = @df @subset(per_ct, :area.=="PFC", :interneuron.==false) begin
-            boxplot(:cuemem .+ 0.25.*(:correct .- 0.5), :isolated_mean, group=:correct, alpha=0.5, title="pfc pyr")
-        end
-        #pint_ce = @df @subset(iso_sum_celltype_per, :area.=="PFC", :interneuron.==true) scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05), :isolated_mean, group=:correct, alpha=0.5, title="pfc int")
-        pint_ce = Plot.create_blank_plot()
-        plot(cpyr_ce, cint_ce, ppyr_ce, pint_ce, layout=grid(2,2))
-        Plot.save((;desc="isolation cell type and correct"))
-
 # Animations 🎥
     # -------- multi - metric : one predict other ? --------
-    anim = @animate for i in 1:360
-        p1=@df @subset(per_ct, :interneuron .== false, :cuemem .== 0) scatter(:isolated_mean, :isolated_events_per_time, :events_per_time,
-                    group=:correct, alpha=0.5, camera=(i,30), 
-                    title="pyr cue",
-                    xlabel="fraction(isolated)",ylabel="isolated multiunit/s", zlabel="multiunit/s")
-        p2=@df @subset(per_ct, :interneuron .== false, :cuemem .== 1) scatter(:isolated_mean, :isolated_events_per_time, :events_per_time,
-                    group=:correct, alpha=0.5, camera=(i,30),
-                    title="pyr mem",
-                    xlabel="fraction(isolated)", ylabel="isolated multiunit/s", zlabel="multiunit/s")
-        plot(p1,p2)
+    Plot.setfolder("MUA and isolated MUA", "period-wise_cuemem_pyrint")
+    for link_axes in [false, true]
+        anim = @animate for i in 1:360
+            p1=@df @subset(per_ct, :interneuron .== false, :cuemem .== 0) scatter(:isolated_mean, :isolated_events_per_time, :events_per_time,
+                        group=:correct, alpha=0.5, camera=(i,30), 
+                        title="pyr cue",
+                        xlabel="fraction(isolated)",ylabel="isolated multiunit/s", zlabel="multiunit/s")
+            p2=@df @subset(per_ct, :interneuron .== false, :cuemem .== 1) scatter(:isolated_mean, :isolated_events_per_time, :events_per_time,
+                        group=:correct, alpha=0.5, camera=(i,30),
+                        title="pyr mem",
+                        xlabel="fraction(isolated)", ylabel="isolated multiunit/s", zlabel="multiunit/s")
+            plot(p1,p2; link = link_axes ? :all : :none)
+        end
+        gif(anim, plotsdir(Plot.complete_folder_args..., "separatrix-three-vars-gif_pyr_facet=cuemem_group=correct_link=$link_axes.gif"); loop=1)
+        anim = @animate for i in 1:360
+            p1=@df @subset(per_ct, :interneuron .== false, :cuemem .== 1) begin
+                scatter(:isolated_mean, :isolated_events_per_time, :events_per_time, group=:correct, alpha=0.5, camera=(i,30), xlabel="fraction(isolated)",ylabel="isolated multiunit/s", zlabel="multiunit/s", title="pyr mem")
+            end
+            p2=@df @subset(per_ct, :interneuron .== true, :cuemem .== 1) begin
+                scatter(:isolated_mean, :isolated_events_per_time, :events_per_time, group=:correct, alpha=0.5, camera=(i,30),ylabel="isolated multiunit/s", zlabel="multiunit/s", title="int mem")
+            end
+            p3=@df @subset(per_ct, :interneuron .== false, :cuemem .== 0) begin
+                scatter(:isolated_mean, :isolated_events_per_time, :events_per_time, group=:correct, alpha=0.5, camera=(i,30), xlabel="fraction(isolated)",ylabel="isolated multiunit/s", zlabel="multiunit/s", title="pyr cue")
+            end
+            p4=@df @subset(per_ct, :interneuron .== true, :cuemem .== 0) begin
+                scatter(:isolated_mean, :isolated_events_per_time, :events_per_time, group=:correct, alpha=0.5, camera=(i,30),ylabel="isolated multiunit/s", zlabel="multiunit/s", title="int cue")
+            end
+            plot(p3,p4,p1,p2; layout=grid(2,2), link = link_axes ? :all : :none)
+        end
+        gif(anim, plotsdir(Plot.complete_folder_args..., "separatrix-three-vars-gif_facet=pyrint,cuemem_group=correct_link=$link_axes.gif"); loop=1)
     end
-    gif(anim, plotsdir(Plot.complete_folder_args..., "separatrix-three-vars-gif_pyr_facet=cuemem_group=correct.gif"); loop=1)
-
-    anim = @animate for i in 1:360
-        p1=@df @subset(per_ct, :interneuron .== false, :cuemem .== 1) begin
-            scatter(:isolated_mean, :isolated_events_per_time, :events_per_time, group=:correct, alpha=0.5, camera=(i,30), xlabel="fraction(isolated)",ylabel="isolated multiunit/s", zlabel="multiunit/s", title="pyr mem")
-        end
-        p2=@df @subset(per_ct, :interneuron .== true, :cuemem .== 1) begin
-            scatter(:isolated_mean, :isolated_events_per_time, :events_per_time, group=:correct, alpha=0.5, camera=(i,30),ylabel="isolated multiunit/s", zlabel="multiunit/s", title="int mem")
-        end
-        p3=@df @subset(per_ct, :interneuron .== false, :cuemem .== 0) begin
-            scatter(:isolated_mean, :isolated_events_per_time, :events_per_time, group=:correct, alpha=0.5, camera=(i,30), xlabel="fraction(isolated)",ylabel="isolated multiunit/s", zlabel="multiunit/s", title="pyr cue")
-        end
-        p4=@df @subset(per_ct, :interneuron .== true, :cuemem .== 0) begin
-            scatter(:isolated_mean, :isolated_events_per_time, :events_per_time, group=:correct, alpha=0.5, camera=(i,30),ylabel="isolated multiunit/s", zlabel="multiunit/s", title="int cue")
-        end
-        plot(p3,p4,p1,p2; layout=grid(2,2))
-    end
-    gif(anim, plotsdir(Plot.complete_folder_args..., "separatrix-three-vars-gif_facet=pyrint,cuemem_group=correct.gif"); loop=1)
 
 # ======================================================
 
-"""
+Plot.setfolder("MUA and isolated MUA", "period-wise-summary")
+#=
 ===========================
 summary of period iso_mean
 ===========================
-"""
-Plot.setfolder("MUA and isolated MUA", "period-wise-summary")
+=#
 
 
-XX = combine(groupby(@subset(per_ct, :interneuron .== false, :area .== "CA1"),
-                     :cuemem), :isolated_mean => median, :isolated_mean => x->std(x)/sqrt(length(x))
-            )
-# TODO median, not mean, and bootstrap the median
-kws=(;xlabel="cuemem", ylabel="isolated frac", title="CA1 pyr")
-@df XX bar(:cuemem, :isolated_mean_median, yerror=:isolated_mean_function;
-          kws...)
-Plot.save(kws)
+P=[]
+# ISSUE: FIX 
+plot_settings = [(false, "CA1", "CA1 pyr"), (true, "CA1", "CA1 int"), (false, "PFC", "PFC pyr")]
+for (interneuron_value, area_value, title_value) in plot_settings
+    XX = combine(groupby(@subset(per_ct, :interneuron .== interneuron_value, :area .== area_value),
+                  :cuemem), :isolated_mean => median, :isolated_mean => x->std(x)/sqrt(length(x)))
+    kws=(;xlabel="cuemem", ylabel="isolated frac", title=title_value)
+    @df XX bar(:cuemem, :isolated_mean_median, yerror=:isolated_mean_function; kws...)
+    Plot.save(kws)
+    push!(P, p)
+end
+plot(P..., size=(1000,500).*1.4, leftmargin=5*Plots.mm, bottommargin=5*Plots.mm)
+Plot.save("isomean_summary_cuememha_pyrint_all")
 
-XX = combine(groupby(@subset(per_ct, :interneuron .== true, :area .== "CA1"),
-                     :cuemem), :isolated_mean => median, :isolated_mean => x->std(x)/sqrt(length(x))
-            )
-kws=(;xlabel="cuemem", ylabel="isolated frac", title="CA1 int")
-@df XX bar(:cuemem, :isolated_mean_median, yerror=:isolated_mean_function;
-          kws...)
-Plot.save(kws)
 
-XX = combine(groupby(@subset(per_ct, :interneuron .== false, :area .== "PFC"),
-                     :cuemem), :isolated_mean => median, :isolated_mean => x->std(x)/sqrt(length(x))
-            )
-kws=(;xlabel="cuemem", ylabel="isolated frac", title="PFC pyr")
-@df XX bar(:cuemem, :isolated_mean_median, yerror=:isolated_mean_function;
-          kws...)
-Plot.save(kws)
-
-"""
+#================================
 summary of period mua
-"""
-XXg = groupby(@subset(per_ct, :area .== "CA1"), :cuemem)
-XX = combine(XXg, :events_per_time => median, 
-             :events_per_time => x->nanstd(x)./sqrt(length(x))
-            )
-# TODO median, not mean, and bootstrap the median
-kws=(;xlabel="cuemem", ylabel="MUA per sec", title="CA1 MUA per second")
-@df XX bar(:cuemem, :events_per_time_median, yerr=:events_per_time_function;
-          linewidth=2, 
-          kws...)
-@df XX plot!(:cuemem, :events_per_time_median, yerr=:events_per_time_function, linestyle=Symbol("none"))
-Plot.save(kws)
+=================================#
+P = []
+plot_settings = [(nothing, "CA1", "CA1 MUA per second"), (false, "CA1", "CA1 pyr MUA"), 
+         (true, "CA1", "CA1 int MUA"), (false, "PFC", "PFC pyr")]
+for (interneuron_value, area_value, title_value) in plot_settings
+    if interneuron_value === nothing
+        XXg = groupby(@subset(per_ct, :area .== area_value), :cuemem)
+    else
+        XXg = groupby(@subset(per_ct, :interneuron .== interneuron_value, :area .== area_value), :cuemem)
+    end
+    XX = combine(XXg, :events_per_time => median, 
+                 :events_per_time => x->nanstd(x)./sqrt(length(x)))
+    kws=(;xlabel="cuemem", ylabel="MUA per sec", title=title_value)
+    @df XX bar(:cuemem, :events_per_time_median, yerr=:events_per_time_function; linewidth=2, kws...)
+    @df XX plot!(:cuemem, :events_per_time_median, yerr=:events_per_time_function, linestyle=:none)
+    Plot.save(kws)
+end
+plot(P..., size=(1000,500).*1.4, leftmargin=5*Plots.mm, bottommargin=5*Plots.mm)
+Plot.save("mua_summary_cuememha_pyrint_all")
 
-XXg = groupby(@subset(per_ct, :interneuron .== false, :area .== "CA1"), :cuemem)
-XX = combine(XXg, :events_per_time => median, 
-             :events_per_time => x->nanstd(x)./sqrt(length(x))
-            )
-# TODO median, not mean, and bootstrap the median
-kws=(;xlabel="cuemem", ylabel="MUA per sec", title="CA1 pyr MUA")
-@df XX bar(:cuemem, :events_per_time_median, yerr=:events_per_time_function;
-          linewidth=2, 
-          kws...)
-@df XX plot!(:cuemem, :events_per_time_median, yerr=:events_per_time_function, linestyle=:none)
-Plot.save(kws)
 
-XX = combine(groupby(@subset(per_ct, :interneuron .== true, :area .== "CA1"),
-                     :cuemem), 
-             :events_per_time => median, 
-             :events_per_time => x->std(x)/sqrt(length(x))
-            )
-kws=(;xlabel="cuemem", ylabel="MUA per sec", title="CA1 int MUA")
-@df XX bar(:cuemem, :events_per_time_median, yerror=:events_per_time_function;
-          kws...)
-Plot.save(kws)
-
-XX = combine(groupby(@subset(per_ct, :interneuron .== false, :area .== "PFC"),
-                     :cuemem), :events_per_time => median, :events_per_time => x->std(x)/sqrt(length(x))
-            )
-kws=(;xlabel="cuemem", ylabel="MUA per sec", title="PFC pyr")
-@df XX bar(:cuemem, :events_per_time_median, yerror=:events_per_time_function;
-          kws...)
-Plot.save(kws)
-
-"""
-===========================
+#============================
 summary of iso events per time
-===========================
-"""
+============================#
 
-XX = combine(groupby(@subset(per_ct, :interneuron .== false, :area .== "CA1"),
-                     :cuemem), :isolated_events_per_time => median, :isolated_events_per_time => x->std(x)/sqrt(length(x))
-            )
-# TODO median, not mean, and bootstrap the median
-kws=(;xlabel="cuemem", ylabel="iso events per sec", title="CA1 pyr")
-@df XX bar(:cuemem, :isolated_events_per_time_median, yerror=:isolated_events_per_time_function;
-          kws...)
-Plot.save(kws)
-
-XX = combine(groupby(@subset(per_ct, :interneuron .== true, :area .== "CA1"),
-                     :cuemem), :isolated_events_per_time => median, :isolated_events_per_time => x->std(x)/sqrt(length(x))
-            )
-kws=(;xlabel="cuemem", ylabel="iso events per sec", title="CA1 int")
-@df XX bar(:cuemem, :isolated_events_per_time_median, yerror=:isolated_events_per_time_function;
-          kws...)
-Plot.save(kws)
-
-XX = combine(groupby(@subset(per_ct, :interneuron .== false, :area .== "PFC"),
-                     :cuemem), :isolated_events_per_time => median, :isolated_events_per_time => x->std(x)/sqrt(length(x))
-            )
-kws=(;xlabel="cuemem", ylabel="iso events per sec", title="PFC pyr")
-@df XX bar(:cuemem, :isolated_events_per_time_median, yerror=:isolated_events_per_time_function;
-          kws...)
-Plot.save(kws)
-
+P = []
+parameters = [(false, "CA1", "CA1 pyr"), (true, "CA1", "CA1 int"), (false, "PFC", "PFC pyr")]
+for (interneuron_value, area_value, title_value) in parameters
+    XX = combine(
+        groupby(@subset(per_ct, :interneuron .== interneuron_value, :area .== area_value), :cuemem), 
+        :isolated_events_per_time => median, 
+        :isolated_events_per_time => x->std(x)/sqrt(length(x))
+    )
+    kws=(;xlabel="cuemem", ylabel="iso events per sec", title=title_value)
+    @df XX bar(:cuemem, :isolated_events_per_time_median, yerror=:isolated_events_per_time_function; kws...)
+    Plot.save(kws)
+end
+plot(P..., size=(1000,500).*1.4, leftmargin=5*Plots.mm, bottommargin=5*Plots.mm)
+Plot.save("isoevents_summary_cuememha_pyrint_all")
 
 """
 Mean cycle dist

@@ -87,8 +87,10 @@ if !isdefined(Main, :opt)
         "checkpoint"=>false,
     )
 end
+
 cells, spikes, beh, ripples, cycles, lfp = 
-    Munge.isolated.import_dataframes(opt["animal"], opt["day"]; checkpoint=opt["checkpoint"])
+    Munge.isolated.import_dataframes(opt["animal"], opt["day"]; 
+        checkpoint=opt["checkpoint"], tetrode_set=opt["tetrode_set"])
 
 checkranges()
 DIutils.pushover("Finished loading $animal")

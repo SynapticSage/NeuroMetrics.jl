@@ -70,19 +70,16 @@ import DIutils: Table
 - `lfp`: DataFrame, lfp data, if available
 """
 function import_dataframes(animal::String, day::Int;
-    tetrode_set::String="best",
+    tetrode_set::Union{Symbol,String}="best",
     checkpoint::Bool=true, lfp_convert=nothing, super_convert=nothing)
-
     lfp_convert   = lfp_convert === nothing ? DI.get_0time_pre_superanimal() : lfp_convert
     super_convert = super_convert === nothing ? DI.convert_super_to_time0() : super_convert
-
     # ONE ANIMAL CHECKPOINT
     if checkpoint && !occursin("super", animal)
         println("Loading from checkpoint for $animal, day $day")
         lfp, cycles, spikes, ripples, beh = get_animal_checkpoint(animal, day; tetrode_set)
         cells = DI.load_cells("super_clean", 0)
         cells = subset(cells, :animal => a->a.==animal, :day => d->d.==day)
-
     # MULTIPLE ANIMALS CHECKPOINT
     elseif checkpoint
         println("Loading from checkpoint for $(DI.animaldays())")
@@ -98,7 +95,6 @@ function import_dataframes(animal::String, day::Int;
         ripples = vcat([x[4] for x in OUT]...)
         beh  = vcat([x[5] for x in OUT]...)
         cells = DI.load_cells("super_clean", 0)
-
     # ONE ANIMAL from scratch
     else
         println("Loading from scratch for $animal, day $day")
