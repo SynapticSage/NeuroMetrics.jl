@@ -29,14 +29,13 @@ end
 datacut = opt["filt"]
 animal  = opt["animal"]
 day     = opt["day"]
-tet     = opt["tet"]
 opt["matched"] = 3    # how many matched non-iso cycles to add per iso cycle
 opt["has_df"] = false # tracks state about whether df var for glm is backed up
                       # in a jld2 file
 opt["commits"] = false # whether commit() statements actually save vars
 val = :value # TODO these should be in opt
 matchprops = [:x, :y, :speed, :startWell, :stopWell] # TODO
-Plot.setappend((;animal, day, tet))
+Plot.setappend((;animal, day))
 Munge.nonlocal.setunfilteredbeh(DI.load_behavior(animal,day);
                                animal, day)
 
@@ -48,6 +47,7 @@ clab      = OrderedDict(-1 => "nontask",
                          0 => "cue", 
                          1=> "mem", 
                          missing=>"sleep")
+neuron_names = OrderedDict(false=>"pyr", true=>"int")
 Munge.nonlocal.setclab(clab)
 
 println("Imports isolated: ", opt)

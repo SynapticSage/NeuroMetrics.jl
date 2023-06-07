@@ -23,7 +23,6 @@ opt =
         "filt"          => :all
     )
 
-# @eval Main include(scriptsdir("isolated", "load_isolated.jl"))
 @eval Main include("./load_isolated.jl")
 @assert :isolated ∈ propertynames(spikes)
 @assert beh !== nothing
@@ -33,6 +32,7 @@ using DI.Labels, DataFrames, DataFramesMeta, StatsPlots
 using DIutils.plotutils
 using GoalFetchAnalysis.Munge.isolated
 using GoalFetchAnalysis.Munge.nonlocal
+using ElectronDisplay
 
 Plot.setparentfolder("isolated")
 Plot.setappend("$animal-$day")
@@ -86,6 +86,7 @@ per_ct
 
 # ==============================
 # SECTION : ALL SPIKES
+# NOTE: Not period wise, so less valuable, (•___•)
 #    _  _        _    _     _       ____  ____ ___ _  _______ ____  
 #  _| || |_     / \  | |   | |     / ___||  _ \_ _| |/ / ____/ ___| 
 # |_  ..  _|   / _ \ | |   | |     \___ \| |_) | || ' /|  _| \___ \ 
@@ -96,6 +97,7 @@ per_ct
 # ==============================
 # =========PLOTS === NOT SPLIT BY CELL TYPE ============
 #begin
+Plot.setfolder("MUA and isolated MUA", "allspikes")
 
     Plot.setfolder("MUA and isolated MUA")
     kws=(;legend_position=Symbol("outerbottomright"))
@@ -116,16 +118,33 @@ per_ct
 # ======================================================
 
 # =========PLOTS ===SPLIT BY CELL STATE 🔺🔺/ 🔵 =======
-begin
-    @df iso_ct bar(:cuearea, :events_per_time, ylabel="MUA events per second\n$(filt_desc[:all])", group=:interneuron; kws..., legendtitle="is interneuron?", alpha=0.5)
-    Plot.save((;desc="MUA per second, celltype"))
-    @df iso_ct bar(:cuearea, :isolated_mean, ylabel="Isolated Spikes / All spikes\nsign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:interneuron; kws..., legendtitle="is interneuron?", alpha=0.5)
-    Plot.save((;desc="fraction of isolated spikes, celltype"))
-    @df iso_ct bar(:cuearea, :isolated_events_per_time, ylabel="Isolated MUA × sec⁻1\n(sign of CA1-PFC interaction)\n$(filt_desc[:all])", group=:interneuron; kws..., legendtitle="is interneuron?", alpha=0.5)
-    Plot.save((;desc="isolated spikes per second, celltype"))
-end
-# ======================================================
 
+# ISSUE: HAVE TO MAKE SURE THAT NONTASK CUE AND MEM TIMESPENT ARE COUNTED CORRECTLY
+
+unique_interneurons = unique(iso_ct.interneuron)
+yvals = [(:events_per_time, "MUA events per second\n$(filt_desc[:all])"),
+         (:isolated_mean, "Isolated Spikes / All spikes\nsign of CA1-PFC interaction)\n$(filt_desc[:all])"),
+         (:isolated_events_per_time, "Isolated MUA × sec⁻1\n(sign of CA1-PFC interaction)\n$(filt_desc[:all])")]
+P = OrderedDict()
+interneuron = unique_interneurons[1]
+for interneuron in unique_interneurons
+    df_subset = filter(row -> row.interneuron == interneuron, iso_ct)
+    (yval, ylabel) = yvals[1]
+    for (yval, ylabel) in yvals
+        p = bar(df_subset.areacuememha, df_subset[!,yval]; ylabel=ylabel, alpha=0.5, size=(1000,500), 
+            leftmargin=5*Plots.mm, group=df_subset.ha, bottommargin=5*Plots.mm, title=neuron_names[interneuron])
+        # Replace `savefig` with the correct function to save your plot
+        Plot.save("celltype_$(interneuron)_$(yval).png")
+        P[interneuron, yval] = p
+    end
+end
+plot(values(P)..., size=(1000,500).*1.2)
+Plot.save("celltype_all.png")
+
+
+
+# ======================================================
+# NOTE:  🤑🤑🤑
 #    _  _     ____           _           _               _          
 #  _| || |_  |  _ \ ___ _ __(_) ___   __| |    __      _(_)___  ___ 
 # |_  ..  _| | |_) / _ \ '__| |/ _ \ / _` |____\ \ /\ / / / __|/ _ \
@@ -135,10 +154,112 @@ end
 
 # =========PLOTS =======================================
 # -------- mua per second ------------------------------
-Plot.setfolder("MUA and isolated MUA", "period-wise")
 
 # CELL AGNOSTIC ⬜
+
     # -------- percent isolated spikes ---------------------
+    # color by cue/mem
+    Plot.setfolder("MUA and isolated MUA", "period-wise_cuemem_pyrint")
+    unique_interneurons = unique(per_ct.interneuron)
+    unique_areas = unique(iso_ct.area)
+    yvals = [(:events_per_time, "mua events per second\n$(filt_desc[:all])"),
+             (:isolated_mean, "isolated spikes / all spikes\nsign of ca1-pfc interaction)\n$(filt_desc[:all])"),
+             (:isolated_events_per_time, "isolated mua × sec⁻1\n(sign of ca1-pfc interaction)\n$(filt_desc[:all])")]
+    P = OrderedDict()
+    for (interneuron, area) in Iterators.product(unique_interneurons, unique_areas)
+        for yval in yvals
+            df_subset = filter(row -> row.interneuron == interneuron && row.area == area, per_ct)
+            # quantile filter yval
+            if isempty(df_subset)
+                continue
+            end
+            df_subset = subset(df_subset, yval[1]=>row->row .< quantile(row|>DIutils.skipnan, 0.98))
+            if isempty(df_subset)
+                continue
+            end
+            p = scatter(df_subset.cuemem .+ 0.25.*(df_subset.correct .- 0.5) .+ (randn(size(df_subset.cuemem)) .* 0.05),
+            df_subset[!,yval[1]], group=df_subset.correct, alpha=0.4,
+                        xtick=([-1,0,1],["nontask","cue","mem"]),
+                        title="$(neuron_names[interneuron]) $(area)",
+                        xlabel="task", ylabel=yval[2], 
+                        legend_title="correct/error", legend_position=:outerbottomright)
+            boxplot!(df_subset.cuemem .+ 0.25.*(df_subset.correct .- 0.5),
+            df_subset[!,yval[1]], alpha=0.5, linewidth=2, linecolor=:black,
+            group=df_subset.correct, legend=false, outlier=false)
+            # replace `savefig` with the correct function to save your plot
+            Plot.save("isolation_$(interneuron)_$(yval[1])_$(area).png")
+            P[(interneuron, area, yval[1])] = p
+        end
+    end
+    plot(values(P)..., size=(1000,500).*1.4, leftmargin=5*Plots.mm, bottommargin=5*Plots.mm)
+    Plot.save("metrics_cuemem_pyrint_all.png")
+    current()
+
+    Plot.setfolder("MUA and isolated MUA", "period-wise_cuememha_pyrint")
+    unique_interneurons = unique(per_ct.interneuron)
+    unique_areas = unique(iso_ct.area)
+    yvals = [(:events_per_time, "mua events per second\n$(filt_desc[:all])"),
+     (:isolated_mean, "isolated spikes / all spikes\nsign of ca1-pfc interaction)\n$(filt_desc[:all])"),
+     (:isolated_events_per_time, "isolated mua × sec⁻1\n(sign of ca1-pfc interaction)\n$(filt_desc[:all])")]
+    P = OrderedDict()
+    (interneuron, area) = (unique_interneurons[1], unique_areas[1])
+    for (interneuron, area) in Iterators.product(unique_interneurons, unique_areas)
+        yval = yvals[1]
+        for yval in yvals
+            df_subset = filter(row -> row.interneuron == interneuron && row.area == area, per_ct)
+            df_subset = subset(df_subset, yval[1] => row-> row .< quantile(row|>DIutils.skipnan, 0.99))
+            if isempty(df_subset)
+                continue
+            end
+            p = scatter(df_subset.cuememhaind .+ 0.25.*(df_subset.correct .- 0.5) .+ (randn(size(df_subset.cuememhaind)) .* 0.05),
+                        df_subset[!,yval[1]], group=df_subset.correct, alpha=0.4,
+                        xtick=([1,2,3,4,5], ["AC", "HC", "HM", "AM", "A-"]),
+                        title="$(neuron_names[interneuron]) $(area)",
+                        xlabel="task", ylabel=yval[2],
+                        label="")
+            # boxplot!(df_subset.cuememhaind .+ 0.25.*(df_subset.correct .- 0.5),
+            #          df_subset[!,yval[1]], alpha=0.5, linewidth=2, linecolor=:black,
+            #          group=df_subset.correct, legend=false, outlier=false)
+            # Replace `savefig` with the correct function to save your plot
+            Plot.save("metrics_$(interneuron)_$(yval[1])_$(area)")
+            P[(interneuron, area, yval[1])] = p
+        end
+    end
+    plot(values(P)..., size=(1000,500).*1.4, leftmargin=5*Plots.mm, bottommargin=5*Plots.mm)
+    Plot.save("metrics_cuememha_pyrint_all")
+
+
+    for (interneuron, area) in Iterators.product(unique_interneurons, unique_areas)
+        for yval in yvals
+            df_subset = filter(row -> row.interneuron == interneuron && row.area == area, per_ct)
+            df_subset = subset(df_subset, yval[1]=>row->row .< quantile(row|>DIutils.skipnan, 0.99))
+            if isempty(df_subset)
+                continue
+            end
+            p = P[(interneuron, area, yval[1])]
+            plot(p)
+            boxplot!(df_subset.cuememhaind .+ 0.25.*(df_subset.correct .- 0.5),
+                     df_subset[!,yval[1]], alpha=0.5, linewidth=2, linecolor=:black,
+                     group=df_subset.correct, legend=false, outlier=false)
+            # Replace `savefig` with the correct function to save your plot
+            Plot.save("boxplot_metrics_$(interneuron)_$(yval[1])_$(area)")
+            P[(interneuron, area, yval[1])] = p
+        end
+    end
+    plot(values(P)..., size=(1000,500).*1.4, leftmargin=5*Plots.mm, bottommargin=5*Plots.mm)
+    Plot.save("boxplot_metrics_cuememha_pyrint_all")
+
+
+
+
+    # @df per_ct begin
+    #     scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05),
+    #             :isolated_mean, group=:correct, alpha=0.4,
+    #             xlabel="task", ylabel="%percent isolated spikes")
+    # end
+
+    # -------- percent isolated spikes ---------------------
+    # color by cue/mem/ha
     sc=@df @subset(per_ct, :interneuron .== false) begin
         scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05),
                 :isolated_mean, group=:correct, alpha=0.5,
@@ -146,13 +267,8 @@ Plot.setfolder("MUA and isolated MUA", "period-wise")
                 xlabel="task", ylabel="%percent isolated spikes",
                 legend_title="correct/error", legend_position=:outerbottomright)
     end
-    Plot.save((;desc="isolation", group=:correct, group_sep=true, ))
-
-    @df per_ct begin
-        scatter(:cuemem .+ 0.25.*(:correct .- 0.5) .+ (randn(size(:cuemem)) .* 0.05),
-                :isolated_mean, group=:correct, alpha=0.5)
-    end
-
+    Plot.save((;desc="isolation", group=:correct, group_sep=true))
+#
 # PYRAMIDAL CELLS 🔺🔺
 # begin
 

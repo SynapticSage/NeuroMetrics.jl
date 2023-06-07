@@ -22,6 +22,10 @@ module nonlocal
     end
     cuemem_labels = merge(Labels.cuemem, Dict(missing=>"missing"))
     setclab(clabval) = @eval nonlocal cuemem_labels = $clabval
+    cueha_labels = merge([Dict(
+        (key, 'H') => "H" * replace(value, "cue"=>"C", "mem"=>"M", "nontask"=>"-"),
+    (key, 'A') => "A" * replace(value, "cue"=>"C", "mem"=>"M", "nontask"=>"-"))
+        for (key, value) in cuemem_labels]...)
 
     export annotate_nonlocal_spikes!
     function annotate_nonlocal_spikes!(spikes::DataFrame, cells::DataFrame, unitshift::DimArray, shift::Union{<:Real, Symbol}=0;
@@ -175,6 +179,14 @@ module nonlocal
         iso_sum.isolated_events_per_time = iso_sum.isolated_mean .* iso_sum.events_per_time
         iso_sum.iso_event_ratio = iso_sum.isolated_events_per_time ./ iso_sum.events_per_time
         iso_sum.event_iso_ratio = iso_sum.events_per_time ./ iso_sum.isolated_events_per_time 
+
+        if :ha in propertynames(iso_sum)
+            K = [iso_sum.cuemem iso_sum.ha] |> eachrow .|> Tuple
+            iso_sum.areacuememha = replace.(iso_sum.area .* "\n" .* getindex.([cueha_labels], K),
+                                            " "=>"\n")
+            iso_sum.cuememha = getindex.([cueha_labels], K)
+            iso_sum.cuememhaind = findfirst.(map(x->x.==unique(iso_sum.cuememha), iso_sum.cuememha))
+        end
 
 
         sortprops = :ha in propertynames(iso_sum) ? [:ha] : []
