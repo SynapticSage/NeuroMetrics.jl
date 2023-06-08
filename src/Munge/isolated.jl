@@ -134,23 +134,25 @@ used for iso analyses.
 - `day::Int`: The day number
 - `tetrode_set::String`: The tetrode set to use. Defaults to `"best"`.
 """
-function get_animal_checkpoint(animal::String, day::Int; tetrode_set::String="best")
+function get_animal_checkpoint(animal::String, day::Int; tetrode_set::String="best", zero_behavior::Bool=true)
+
     println("Loading $tetrode_set data for $animal")
     zero_of_beh = DI.get_0time_pre_superanimal()
     lfp = DI.load_lfp(animal, day; append="$tetrode_set")
-    lfp = DataFrames.transform(lfp, :time=> t-> t .- zero_of_beh[animal],
-        renamecols=false)
+    # lfp = DataFrames.transform(lfp, :time=> t-> t .- zero_of_beh[animal],
+    #     renamecols=false)
     # DataFrames.transform!(lfp, :time=> t-> t .+ time_factors[animal], renamecols=false)
     cycles       = DI.load_cycles(animal, day, "$tetrode_set")
-    cycles       = DataFrames.transform(cycles,
-        :start=> t-> t .- zero_of_beh[animal],
-        :stop=> t-> t .-  zero_of_beh[animal],
-        renamecols=false
-    )
-    spikes = DataFrames.transform(DI.load_spikes(animal, day, "$(tetrode_set)_cycles_isolated"),
-        :time=> t-> t .- zero_of_beh[animal],
-        renamecols=false
-    )
+    # cycles       = DataFrames.transform(cycles,
+    #     :start=> t-> t .- zero_of_beh[animal],
+    #     :stop=> t-> t .-  zero_of_beh[animal],
+    #     renamecols=false
+    # )
+    spikes = DI.load_spikes(animal, day, "$(tetrode_set)_cycles_isolated")
+    # spikes = DataFrames.transform(spikes,
+    #     :time=> t-> t .- zero_of_beh[animal],
+    #     renamecols=false
+    # )
     # spikes = subset(spikes, :animal=>a->a.==animal, :day=>d->d.==day)
     # Print out extrema(time) for each of these just to be sure
     convert_to_f32 = [:broadraw  :phase :ripple  :rippleamp  :ripplephase]
@@ -160,14 +162,31 @@ function get_animal_checkpoint(animal::String, day::Int; tetrode_set::String="be
         end
     end
     ripples = DI.load_ripples(animal, day)
-    ripples = DataFrames.transform(ripples, 
-        :time=> t-> t .- zero_of_beh[animal],
-        :start=> t-> t .- zero_of_beh[animal],
-        :stop=> t-> t .- zero_of_beh[animal],
-        renamecols=false)
-    beh = DataFrames.transform(DI.load_behavior(animal, day),
-        :time=> t-> t .- zero_of_beh[animal],
-        renamecols=false)
+    # ripples = DataFrames.transform(ripples, 
+    #     :time=> t-> t .- zero_of_beh[animal],
+    #     :start=> t-> t .- zero_of_beh[animal],
+    #     :stop=> t-> t .- zero_of_beh[animal],
+    #     renamecols=false)
+    beh = DI.load_behavior(animal, day)
+    # beh = DataFrames.transform(beh,
+    #     :time=> t-> t .- zero_of_beh[animal],
+    #     renamecols=false)
+    if zero_behavior # remove first behavior time from each dataframe
+        t = minimum(beh[!,:time])
+        for (df, name) in zip([lfp, cycles, spikes, ripples, beh],
+                            ["lfp", "cycles", "spikes", "ripples", "beh"])          
+            println("Zeroing $name by $t")
+            if hasproperty(df, :time)
+                df[!, :time] .-= t
+            end
+            if hasproperty(df, :start)
+                df[!, :start] .-= t
+            end
+            if hasproperty(df, :stop)
+                df[!, :stop] .-= t
+            end
+        end 
+    end
     return lfp, cycles, spikes, ripples, beh
 end
 

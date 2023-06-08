@@ -8,6 +8,8 @@ using DataFrames
 using Infiltrator
 using Peaks
 
+printstyled(opt, blink=true, bold=true, color=:red)
+
 function checkranges()
     if isdefined(Main,:spikes) && spikes !== nothing
         println("Spikes.time extrema: ", extrema(spikes.time))
@@ -58,7 +60,8 @@ beh2 = DI.load_behavior("super_clean",0)
 SPIKES.cycle = Vector{Union{Float32, Missing}}(missing, size(SPIKES,1)) 
 DI.annotate_pyrlayer!(CELLS)
 Plot.setparentfolder("isolated")
-lfp_convert    = DI.get_0time_pre_superanimal()
+
+time0    = DI.get_0time_pre_superanimal()
 super_convert  = DI.convert_super_to_time0()
 checkpoint=nothing
 animals, days = unique(CELLS.animal), unique(CELLS.day)

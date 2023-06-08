@@ -373,7 +373,6 @@ module spiking
         end
 
         # If there's not a cycle column, add it
-        added_lfp_field = true
         if String(cycle) ∉ propertynames(theta)
             theta[!,String(cycle)] = theta[!,:cycle]
         end
@@ -384,10 +383,10 @@ module spiking
                 DIutils.filtreg.register(beh, spikes; on="time", 
                                                 transfer=["speedsmooth"])
             end
-            if :smoothvel ∈ propertynames(spikes)
+            if :speedsmooth ∈ propertynames(spikes)
                 println("Excluding immobility")
                 spikes = subset(spikes, :speedsmooth => v->v.<immobility_thresh, 
-                view=true, skipmissing=true)
+                                view=true, skipmissing=true)
             end  
         end
 
@@ -467,14 +466,16 @@ module spiking
 
     find isolated spikes in the maner of Jai/Frank 2021 
     """
-    function isolated(spikes::AbstractDataFrame; kws...)
+    function isolated!(spikes::AbstractDataFrame; kws...)
         prog = Progress(length(unique(spikes.unit)); 
                         desc="Adding isolation stats")
-        func = x->(i=spiking.isolated(x; kws...);next!(prog);i)
+        func = x->(i=Munge.spiking.isolated(x; kws...);next!(prog);i)
         # combine(groupby(spikes, :unit), func)
         spikes = groupby(spikes, :unit)
+        println("Isolating spikes...(threaded)")
         Threads.@threads for cell in spikes
             try
+                print("cell = ", cell.unit[1], "...")
                 func(cell)
             catch exception
                 print("Caught exception for cell $(cell.unit[1])")
@@ -484,7 +485,7 @@ module spiking
         end
         combine(spikes, identity)
     end
-    isolated! = isolated
+    isolated = isolated!
 
     """
         isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle, 
@@ -525,7 +526,7 @@ module spiking
             @warn "All cycles are missing" unit=spikes.unit[1]
         end
         print("Running unit ", spikes.unit[1])
-        for (c,spcycle) in enumerate(spcycles)
+        @time for (c,spcycle) in enumerate(spcycles)
             # find the N closest cycles
             explore_cycles = unique(max.(min.(c .+ explore, 
                                         [size(spcycles,1)]),[1]))
@@ -595,6 +596,9 @@ module spiking
                                                             nothing,
             kws...)
 
+        println("Range of spikes: ", extrema(spikes.time))
+        println("Range of events: ", extrema(events.start), " to ", extrema(events.stop))
+
         eventname = string(eventname)
         spikes[!, eventname]          = Vector{Union{Missing,Int32}}(undef,   size(spikes,1))
         spikes[!, eventname*"_phase"] = Vector{Union{Missing,Float32}}(undef, size(spikes,1))
@@ -602,6 +606,9 @@ module spiking
 
         event_of = DIutils.in_range_index(spikes.time, events; 
                                    start=:start, stop=:stop)
+        if (event_of|>unique|>length) <= 1
+            @error "No events found"
+        end
         event_of = convert(Vector{Int32}, event_of)
         spikes[!,eventname] = event_of
 
@@ -609,12 +616,14 @@ module spiking
 
         # Add event phase
         spikes[:, eventname*"_start"] = events[spikes[!,eventname], :start]
-        spikes[:, eventname*"_stop"] = events[spikes[!,eventname], :stop]
+        spikes[:, eventname*"_stop"]  = events[spikes[!,eventname], :stop]
         spikes[!, eventname*"_phase"] = 
             (spikes.time .- spikes[!,eventname*"_start"]) ./ 
             (spikes[!,eventname*"_stop"] .- spikes[!,eventname*"_start"])
         spikes[!, eventname*"_time"] = (spikes.time .-
                                         spikes[!,eventname*"_start"])
+        spikes[!, eventname*"_stop"] = convert(Vector{Float32}, 
+                                        spikes[!, eventname*"_stop"])
         # Add event amplitude, if requested
         if ampfield !== nothing
             print("...adding amplitude=$ampfield")

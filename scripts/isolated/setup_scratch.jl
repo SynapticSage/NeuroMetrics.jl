@@ -11,14 +11,15 @@ global opt = nothing
 iters = Iterators.product(tetrode_sets, zip(animals, days))
 (tetrode_set, (animal, day)) = first(iters)
 
-for (tetrode_set, (animal, day)) in iters
+# for (tetrode_set, (animal, day)) in iters
     
 #Parameters
 global opt = Dict(
-    "animal"=>animal,
-    "day"=>day,
-    "load_pyr"=>false,
-    "run_iso"=>false,
+    "animal"     => animal,
+    "day"        => day,
+    "checkpoint" => false, # TODO : change to false
+    "tetrode_set"=> "synced",
+    "run_iso"    => false,
 )
 printstyled("animal = $animal, day = $day, tetrode_set = $tetrode_set",
             blink=true, color=:light_green, bold=true, reverse=true)
@@ -44,8 +45,9 @@ animals, days = unique(CELLS.animal), unique(CELLS.day)
 ripple_props = [:ripple, :ripple_time, :ripple_phase, :ripple_phase_band,
                 :ripple_amp_band]
 theta_props  = [:theta, :theta_time, :theta_phase, :theta_amp]
-cycle_props  = [:animal, :day, :time, :tetrode, :unit, :cycle, :unfilt_cycle]
+cycle_props  = [:animal, :day, :time, :tetrode, :unit, :cycle, #= :unfilt_cycle =#]
 iso_props    = [:isolated, :nearestcyc, :meancyc]
+
 Plot.setappend("_$(animal)_$(tetrode_set)")
 
 
@@ -62,18 +64,16 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
            println("Loading LFP tetrodes") 
             printstyled("tet = ", all_tetrodes[animal], "\n", blink=true)
            lfp = DI.load_lfp(animal, day, tet=all_tetrodes[animal])
-           lfp.time .-= lfp_convert[animal];
+           lfp.time .-= time0[animal];
            lfp
         end
         # Let's check the consistency of theta across pyr layer tetrodes
         GC.gc()
         checkranges()
+        @assert !isempty(lfp) "No data!"
 
-
-         @assert !isempty(lfp) "No data!"
-         # l_def = subset(lfp, :tetrode=>t->t.∈(DI.default_tetrodes[animal],),
-         # view=true)
-         # Get the ripple band
+#
+         # Get the RIPPLE BAND
          fs = 1/median(diff(lfp.time[1:20_000])) 
          GoalFetchAnalysis.Munge.lfp.bandpass(groupby(lfp, :tetrode), 
                                                       150, 250; order=9, fs, 
@@ -87,6 +87,7 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
          lfp.ripplephase = convert(Vector{Union{Missing, Float32}},
                                      (lfp.ripplephase));
 
+         # Get the THETA CYCLES
          lfp[!,:cycle] = Vector{Union{Missing, Int32}}(missing, nrow(lfp))
          @time Munge.lfp.annotate_cycles!(groupby(lfp, :tetrode), 
                                           method="peak-to-peak")
@@ -101,7 +102,7 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
         lfp[!,:broadraw] = convert(Vector{Float32}, lfp.broadraw);
         DI.save_lfp(transform(lfp[!,[:time, :tetrode, :cycle, :raw,
                          :phase, :broadraw, :ripple, :rippleamp, :ripplephase]],
-            :time=> t-> t .+ lfp_convert[animal], renamecols=false), 
+            :time=> t-> t .+ time0[animal], renamecols=false), 
             animal, day; handlemissing=:drop, append="$tetrode_set");
         broadraw = convert(Vector{Float16}, lfp.broadraw);
         lfp = lfp[!, Not(:broadraw)];
@@ -117,22 +118,20 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
 
         # Examine
         # get second tet
-        l = groupby(lfp, :tetrode)[1]
-        # plot(l.ripple[1:1000], label="ripple",
-        #     title="peak count = $(length(Peaks.maxima(l.ripple[1:1000])))")
-
-        i=1000
-        ripple_time = ripples.start[i];
-        ripple_stop = ripples.stop[i];
-        ind  = DIutils.searchsortednearest(l.time, ripple_time);
-        ind1 = DIutils.searchsortednearest(l.time, ripple_stop);
-        plot(l.ripple[ind:ind1], label="ripple",
-            title="peak count = $(length(Peaks.maxima(l.ripple[ind:ind+1000])))")
-        plot!(l.ripplephase[ind:ind1]*maximum(l.ripple[ind:ind1]), label="ripple phase")
-        plot!(l.rippleamp[ind:ind1], label="ripple amp")
-        plot!(DIutils.norm_extrema(l.broadraw[ind:ind1]).*maximum(l.rippleamp[ind:ind1]), label="raw")
-
-        # BUG: ERROR IN THIS SECTION
+        # l = groupby(lfp, :tetrode)[1]
+        # # plot(l.ripple[1:1000], label="ripple",
+        # #     title="peak count = $(length(Peaks.maxima(l.ripple[1:1000])))")
+        # i=1000
+        # ripple_time = ripples.start[i];
+        # ripple_stop = ripples.stop[i];
+        # ind  = DIutils.searchsortednearest(l.time, ripple_time);
+        # ind1 = DIutils.searchsortednearest(l.time, ripple_stop);
+        # plot(l.ripple[ind:ind1], label="ripple",
+        #     title="peak count = $(length(Peaks.maxima(l.ripple[ind:ind+1000])))")
+        # plot!(l.ripplephase[ind:ind1]*maximum(l.ripple[ind:ind1]), label="ripple phase")
+        # plot!(l.rippleamp[ind:ind1], label="ripple amp")
+        # plot!(DIutils.norm_extrema(l.broadraw[ind:ind1]).*maximum(l.rippleamp[ind:ind1]), label="raw")
+        
         # Get cycle table
         cycles = Munge.lfp.get_cycle_table(groupby(lfp, :tetrode));
         cycles.cycle = convert(Vector{Union{Missing, Int32}}, cycles.cycle);
@@ -149,8 +148,8 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
         # Save cycles
         DI.save_cycles(begin
             transform(cycles, 
-                :start=>s->s .+ lfp_convert[animal],
-                :stop=>s->s  .+ lfp_convert[animal],
+                :start=>s->s .+ time0[animal],
+                :stop=>s->s  .+ time0[animal],
                 renamecols=false
             )
         end, animal, day, "$tetrode_set");
@@ -180,7 +179,6 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
         # ISSUE: ONE USUALLY HAS TO RELOAD FROM CHECKPOINTED FILES HERE UNLESS
         # YOU HAVE ENORMOUS RAM partially because of the lfp
         # CONSIDER ---> reducing col sizes
-        #
         #                                                                 
         # ,--.     ,---.     |                            o|              
         #   -|     `---.,---.|--- .   .,---.    ,---.,---..|__/ ,---.,---.
@@ -188,14 +186,18 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
         # `--'o    `---'`---'`---'`---'|---'    `---'|---'``   ``---'`---'
         #                              |             |                    
         # Ripple phase
-        global spikes
-        Munge.spiking.event_spikestats!(spikes, ripples; eventname="ripple",
-            ampfield=:amp)
+        ripples = subset(ripples, :area => a->a .== "CA1", view=true);
+        global spikes, ripples
+        ripples.ripple = 1:size(ripples,1)
+        Munge.spiking.event_spikestats!(spikes, ripples; 
+                eventname="ripple", ampfield=:amp, indfield=:ripple)
+
         @assert(length(unique(spikes.ripple_phase)) .> 4, 
         "Ripple phase not calculated correctly")
         @assert !all(ismissing.(spikes.ripple_phase)) "No ripple phase!"
         @assert !all(ismissing.(spikes.ripple_amp)) "No ripple amp!"
         @assert !all(ismissing.(spikes.ripple)) "No ripple!"
+        @assert !all(x->x==0, spikes.ripple) "No ripple!"
 
         # # TROUBLESHOOT:
         # # Let's figure out the number of tetrodes that match between
@@ -208,17 +210,14 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
         # )
 
         # Add ripple BAND phase (rather than phase within the ripple)
-        spikes.ripple_phase_band = Vector{Union{Missing, Float32}}(missing, 
-            size(spikes,1));
-        spikes.ripple_amp_band   = Vector{Union{Missing, Float32}}(missing, 
-            size(spikes,1));
+        spikes.ripple_phase_band = Vector{Union{Missing, Float32}}(missing, size(spikes,1));
+        spikes.ripple_amp_band   = Vector{Union{Missing, Float32}}(missing, size(spikes,1));
         gl_pyr   = groupby(lfp,  :tetrode);
         g_spikes = groupby(spikes, :tetrode);
         K = intersect(keys(gl_pyr)  |>collect .|> NamedTuple,
             keys(g_spikes)|>collect           .|> NamedTuple);
         println("Number of matching keys:", length(K))
 
-        # ISSUE: fixed badinds 5/26/23 :: rerun this
         @assert all(ripple_props .∈ (propertynames(spikes),))
         prog = Progress(length(K), 1, "Adding ripple band phase");
         k = first(K)
@@ -288,33 +287,33 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
         
         # PREPARE FOR ISOLATED SPIKE ANALYSIS
         GC.gc()
+
         # Cycles filtered by ripples and movement
-        spikes=GoalFetchAnalysis.Munge.spiking.prepiso(
+        GoalFetchAnalysis.Munge.spiking.prepiso(
             spikes, lfp; 
             cycle=:cycle,
             cells=CELLS, include_samples=false, matchtetrode=true, 
             BEH, ripples)
-        # Cycles unfiltered
-        spikes.unfilt_cycle = Vector{Union{Missing,Bool}}(missing, nrow(spikes))
-        lfp[!,:unfilt_cycle] = lfp[!, :cycle]
-        spikes=GoalFetchAnalysis.Munge.spiking.prepiso(
-            spikes, lfp; 
-            cycle=:unfilt_cycle, cells=CELLS, include_samples=false,
-            matchtetrode=true)
+        println("Missing cycles in filtered: ",   sum(ismissing.(spikes.cycle)))
+
+        # # Cycles unfiltered
+        # spikes.unfilt_cycle = Vector{Union{Missing,Bool}}(missing, nrow(spikes))
+        # lfp[!,:unfilt_cycle] = lfp[!, :cycle]
+        # GoalFetchAnalysis.Munge.spiking.prepiso(
+        #     spikes, lfp; 
+        #     cycle=:unfilt_cycle, cells=CELLS, include_samples=false,
+        #     matchtetrode=true)
+        # println("Missing cycles in unfiltered: ", sum(ismissing.(spikes.unfilt_cycle)))
+        # Sanity check : should be more missing cycles in the filtered vs
+        # @assert(sum(ismissing.(spikes.unfilt_cycle)) > 
+        #         sum(ismissing.(spikes.cycle)),
+        #         "More missing cycles in filtered than unfiltered")
         # Sanity check : should be more missing cycles in the filtered vs 
         #   unfiltered
-        #   
         props = intersect(union(cycle_props, ripple_props), propertynames(spikes))
-        # DI.save_spikes_taginfo(begin
-        #     transform(spikes[!,props], :time=>t->t.+lfp_convert[animal], renamecols=false)
-        # end, animal, day, "pyr_cycles_unfilt")
-        println("Missing cycles in filtered: ",   sum(ismissing.(spikes.cycle)))
-        println("Missing cycles in unfiltered: ", sum(ismissing.(spikes.unfilt_cycle)))
-        
-        # Sanity check : should be more missing cycles in the filtered vs
-        @assert(sum(ismissing.(spikes.unfilt_cycle)) > 
-                sum(ismissing.(spikes.cycle)),
-                "More missing cycles in filtered than unfiltered")
+        DI.save_spikes_taginfo(begin
+            transform(spikes[!,props], :time=>t->t.+time0[animal], renamecols=false)
+        end, animal, day, "$(tetrode_set)_cycles_isolated")
         
         # Setup isolated spiking fields
         if :isolated ∉ propertynames(spikes)
@@ -322,17 +321,13 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
         end
         sp = nothing
         # INFO: APPARENTLY runs faster if function in Main
-        # @profile begin
-        sp = Munge.spiking.isolated!(spikes)
-        # end
-        # ProfileView.view()
-        # ISSUE: invesetigate long units like 134: cell has a meanrate=3.5hz)
-        props = intersect(union(cycle_props, ripple_props, theta_props, iso_props),
-                          propertynames(spikes))
+        @time sp = #= Munge.spiking. =#isolated!(subset(spikes, :meanrate=>x->x.<10,view=true))
+        props = intersect(union(cycle_props, ripple_props, theta_props, iso_props), propertynames(spikes))
         DI.save_spikes_taginfo(begin
             transform(spikes[!,props], 
-                :time=>t->t.+lfp_convert[animal],
+                :time=>t->t.+time0[animal],
             renamecols=false)
         end, animal, day, "$(tetrode_set)_cycles_isolated")
         DIutils.pushover("Finished section 3, animal $animal, day $day")
-end
+
+# end
