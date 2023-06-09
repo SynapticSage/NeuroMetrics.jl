@@ -9,7 +9,7 @@ global cycles, ripples = nothing, nothing
 global opt = nothing
 
 iters = Iterators.product(tetrode_sets, zip(animals, days))
-(tetrode_set, (animal, day)) = first(iters)
+(tetrode_set, (animal, day)) = last(iters)
 
 # for (tetrode_set, (animal, day)) in iters
     
@@ -266,16 +266,27 @@ Plot.setappend("_$(animal)_$(tetrode_set)")
         spikes.theta_amp   = Vector{Union{Missing, Float32}}(missing, size(spikes,1));
         spikes.theta_phase = Vector{Union{Missing, Float32}}(missing, size(spikes,1));
         spikes.theta       = Vector{Union{Missing, Int32}}(missing, size(spikes,1));
-        Munge.spiking.event_spikestats!(groupby(spikes,:tetrode), 
-                                        groupby(cycles, :tetrode); 
-                                        ampfield="amp_mean",
-                                        indfield="cycle",
-                                        indfield_is_index=true,
-                                        eventname="theta")
+        if length(unique(cycles.tetrode)) > 1
+            Munge.spiking.event_spikestats!(groupby(spikes,:tetrode), 
+                                            groupby(cycles, :tetrode); 
+                                            ampfield="amp_mean",
+                                            indfield="cycle",
+                                            indfield_is_index=true,
+                                            eventname="theta")
+        else
+            println("Only one tetrode")
+            Munge.spiking.event_spikestats!(groupby(spikes, :tetrode), 
+                                            cycles; 
+                                            ampfield="amp_mean",
+                                            indfield="cycle",
+                                            indfield_is_index=true,
+                                            eventname="theta")
+        end
         @assert all(theta_props .∈ (propertynames(spikes),))
         @assert !all(x->ismissing(x), (spikes.theta_phase))
         @assert !all(x->ismissing(x), (spikes.theta_amp))
         @assert !all(x->ismissing(x), (spikes.theta))
+        @assert length(unique(dropmissing(spikes, :theta_phase).tetrode)) > 1
 
         # q=combine(groupby(sp, :tetrode),
         # :unit => (x->length(unique(x))), 

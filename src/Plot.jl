@@ -256,6 +256,23 @@ function savetopowerpointslide(file::String, slide::Int, desc...;
     Plots.CURRENT_PLOT
 end
 
+function suptitle(suptitle, P=current())
+    # Create a subplot with the title but no axes
+    suptitle_subplot = Plots.plot(legend=false, grid=false)
+    Plots.plot!(title=suptitle, framestyle=:none)
+
+    if P isa Vector
+        P = Plots.plot(P...)
+    end
+
+    # Combine the suptitle plot with the original plot
+    P_new = Plots.plot(suptitle_subplot, P, 
+        layout=@layout([a{0.025h}; b{0.975h}]), 
+        margin=0Plots.mm)
+
+    return P_new
+end
+
 #include(srcdir("Plot", "raster.jl"))
 #@reexport using .raster
 

@@ -485,7 +485,7 @@ module spiking
         end
         combine(spikes, identity)
     end
-    isolated = isolated!
+    isolated(x::AbstractDataFrame; kws...) = isolated!(x::AbstractDataFrame; kws...)
 
     """
         isolated(spikes::SubDataFrame; N=3, thresh=8, cycle_prop=:cycle, 
@@ -666,6 +666,15 @@ module spiking
         @showprogress for k in K
             println("Adding $eventname to $k")
             event_spikestats!(spikes[k], events[k]; eventname=eventname, kws...)
+        end
+    end
+    function event_spikestats!(spikes::GroupedDataFrame,
+                               events::AbstractDataFrame;
+        eventname = "ripple", kws...)
+        K = keys(spikes)
+        @showprogress for k in K
+            println("Adding $eventname to $k")
+            event_spikestats!(spikes[k], events; eventname=eventname, kws...)
         end
     end
 
