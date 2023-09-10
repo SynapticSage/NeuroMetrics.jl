@@ -1,7 +1,3 @@
-# fetch-maze-analysis-julia
-
-## What's here?
-64-tetrode fetch maze analysis. Anything I do with the julia language to analyze my high-denisty recordings. Separate from the matlab repo for the same dataset as of now.
 
 ## Installation
 
